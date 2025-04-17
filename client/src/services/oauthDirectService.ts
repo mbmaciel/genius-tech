@@ -857,6 +857,58 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Define a conta ativa para operação
+   * @param loginid ID da conta
+   * @param token Token de autorização 
+   */
+  setActiveAccount(loginid: string, token: string): void {
+    // Verificar se o token existe na lista
+    const tokenInfo = this.tokens.find(t => t.token === token && t.loginid === loginid);
+    
+    if (tokenInfo) {
+      console.log(`[OAUTH_DIRECT] Definindo conta ativa: ${loginid}`);
+      this.activeToken = token;
+      
+      // Marcar este token como primário
+      this.tokens.forEach(t => {
+        t.primary = (t.token === token && t.loginid === loginid);
+      });
+      
+      // Notificar mudança de conta
+      this.notifyListeners({
+        type: 'account_changed',
+        loginid: loginid
+      });
+    } else {
+      // Se o token não existe, vamos adicioná-lo e tentar autorizar
+      console.log(`[OAUTH_DIRECT] Adicionando nova conta ativa: ${loginid}`);
+      this.addToken(token, true, loginid);
+      this.activeToken = token;
+      
+      // Se já estamos conectados, autorizar este token
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        this.authorizeToken(token)
+          .then(() => {
+            console.log(`[OAUTH_DIRECT] Nova conta autorizada com sucesso: ${loginid}`);
+            
+            // Notificar mudança de conta
+            this.notifyListeners({
+              type: 'account_changed',
+              loginid: loginid
+            });
+          })
+          .catch(error => {
+            console.error(`[OAUTH_DIRECT] Erro ao autorizar nova conta: ${loginid}`, error);
+            this.notifyListeners({
+              type: 'error',
+              message: `Erro ao autorizar conta ${loginid}. Tente novamente.`
+            });
+          });
+      }
+    }
+  }
+  
+  /**
    * Adiciona um listener para eventos
    */
   addEventListener(listener: (event: TradingEvent) => void): void {

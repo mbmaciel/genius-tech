@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
+import { BotAccountSelector } from "@/components/BotAccountSelector";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -11,14 +12,21 @@ import { BotStatus } from "@/services/botService";
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
-// Não precisamos mais do botão de OAuth direto, pois o usuário já estará autenticado
-// quando chegar à página do bot
+// Interface para representar uma conta Deriv
+interface DerivAccount {
+  loginid: string;
+  token: string;
+  currency: string;
+  balance?: number;
+  isVirtual?: boolean;
+}
 
 export function BotPage() {
   const { toast } = useToast();
   
   // Estado para autenticação e dados da conta
   const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [selectedAccount, setSelectedAccount] = useState<DerivAccount | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null); // Token para autorização de operações
   
   // Estado para controle do robô
