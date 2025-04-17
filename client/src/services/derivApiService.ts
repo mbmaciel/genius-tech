@@ -50,18 +50,27 @@ class DerivApiService {
    */
   public async connect(token?: string): Promise<boolean> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('WebSocket já está conectado');
+      console.log('[DERIV_API] WebSocket já está conectado');
       return true;
     }
     
     try {
       return new Promise((resolve) => {
-        console.log('Conectando ao WebSocket da Deriv...');
+        console.log('[DERIV_API] Conectando ao WebSocket da Deriv...');
         this.ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089'); // Usando o app_id padrão
         
         this.ws.onopen = async () => {
-          console.log('Conexão estabelecida com a API Deriv');
+          console.log('[DERIV_API] Conexão estabelecida com a API Deriv');
           this.notifyConnectionListeners(true);
+          
+          // Se não foi fornecido token, tentar usar o token OAuth do localStorage
+          if (!token) {
+            const oauthToken = localStorage.getItem('deriv_oauth_token');
+            if (oauthToken) {
+              console.log('[DERIV_API] Usando token OAuth do localStorage para operações');
+              token = oauthToken;
+            }
+          }
           
           if (token) {
             this.token = token;
