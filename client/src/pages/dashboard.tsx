@@ -23,45 +23,47 @@ export default function Dashboard() {
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
   const { toast } = useToast();
   
-  // Função para atualizar o saldo da conta
-  const updateBalance = useCallback(async () => {
-    const storedToken = localStorage.getItem('deriv_token');
-    if (!storedToken || !isAuthenticated || !accountInfo) return;
-    
+  // Função para iniciar a assinatura de atualizações de saldo em tempo real
+  const startBalanceSubscription = useCallback(async (loginId: string) => {
     try {
       setIsLoadingBalance(true);
-      // Pegando o token da conta ativa
       const storedAccounts = localStorage.getItem('deriv_accounts');
       if (!storedAccounts) return;
       
       const accounts = JSON.parse(storedAccounts);
-      const currentAccount = accounts.find((acc: any) => acc.loginid === accountInfo.loginid);
+      const account = accounts.find((acc: any) => acc.loginid === loginId);
       
-      if (currentAccount && currentAccount.token) {
-        const balanceData = await balanceService.getBalance(currentAccount.token);
-        // Atualizar informações de conta com saldo atualizado
-        setAccountInfo((prev: any) => ({
-          ...prev,
-          balance: balanceData.balance,
-          currency: balanceData.currency
-        }));
+      if (account && account.token) {
+        console.log(`[Balance] Iniciando assinatura de saldo para ${loginId}`);
         
-        toast({
-          title: "Saldo atualizado",
-          description: `Saldo atual: ${balanceData.balance} ${balanceData.currency}`,
-        });
+        // Registrar listener para atualizações em tempo real
+        const handleBalanceUpdate = (balanceData: any) => {
+          console.log('[Balance] Saldo atualizado:', balanceData);
+          setAccountInfo((prev: any) => ({
+            ...prev,
+            balance: balanceData.balance,
+            currency: balanceData.currency
+          }));
+        };
+        
+        // Remover qualquer listener existente e adicionar o novo
+        balanceService.removeBalanceListener(handleBalanceUpdate);
+        balanceService.addBalanceListener(handleBalanceUpdate);
+        
+        // Iniciar a assinatura (que por padrão agora é true)
+        await balanceService.getBalance(account.token);
       }
     } catch (error) {
-      console.error('Erro ao atualizar saldo:', error);
+      console.error('Erro ao iniciar assinatura de saldo:', error);
       toast({
-        title: "Erro ao atualizar saldo",
+        title: "Erro ao conectar ao serviço de saldo",
         description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive"
       });
     } finally {
       setIsLoadingBalance(false);
     }
-  }, [isAuthenticated, accountInfo, toast]);
+  }, [toast]);
   
   // Efeito para verificar se já existe uma sessão autenticada
   useEffect(() => {
@@ -74,15 +76,18 @@ export default function Dashboard() {
         setIsAuthenticated(true);
         setAccountInfo(parsedAccountInfo);
         
-        // Atualizar saldo quando carregar a conta
+        // Iniciar a assinatura de saldo em tempo real
         if (parsedAccountInfo && parsedAccountInfo.loginid) {
-          updateBalance();
+          // Pequeno atraso para garantir que o estado foi atualizado
+          setTimeout(() => {
+            startBalanceSubscription(parsedAccountInfo.loginid);
+          }, 500);
         }
       } catch (error) {
         console.error('Erro ao processar dados de conta armazenados:', error);
       }
     }
-  }, [updateBalance]);
+  }, [startBalanceSubscription]);
 
   // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
@@ -219,24 +224,15 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={updateBalance}
-                  disabled={isLoadingBalance}
-                  className="bg-[#1d2a45] border-[#3a4b6b] text-white hover:bg-[#2a3756] hover:text-white"
-                >
-                  {isLoadingBalance ? (
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Atualizar Saldo
-                </Button>
-                
                 <AccountSelector 
                   onAccountChanged={(newAccountInfo) => {
                     setAccountInfo(newAccountInfo);
+                    
+                    // Inicia nova assinatura de saldo para a conta selecionada
+                    if (newAccountInfo && newAccountInfo.loginid) {
+                      startBalanceSubscription(newAccountInfo.loginid);
+                    }
+                    
                     toast({
                       title: "Conta alternada",
                       description: `Agora usando a conta ${newAccountInfo.loginid}`,

@@ -40,6 +40,7 @@ const balanceListeners: Array<(balance: BalanceResponse['balance']) => void> = [
 let balanceSubscriptionId: string | null = null;
 let socket: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
+let activeToken: string | null = null; // Armazenar token ativo para reconexões
 
 /**
  * Obtém o saldo atualizado de uma conta específica ou da conta atual
@@ -50,8 +51,12 @@ let reconnectTimeout: NodeJS.Timeout | null = null;
 export async function getBalance(
   token: string, 
   accountId: string = 'current', 
-  subscribe: boolean = false
+  subscribe: boolean = true  // Agora por padrão sempre assina atualizações
 ): Promise<BalanceResponse['balance']> {
+  // Guardar token para reconexões
+  if (subscribe) {
+    activeToken = token;
+  }
   return new Promise((resolve, reject) => {
     // Fechar qualquer conexão existente
     if (socket) {
@@ -85,7 +90,9 @@ export async function getBalance(
       const authRequest = {
         authorize: token
       };
-      socket.send(JSON.stringify(authRequest));
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(authRequest));
+      }
     };
     
     socket.onmessage = (event) => {
@@ -100,7 +107,9 @@ export async function getBalance(
             account: accountId,
             subscribe: subscribe ? 1 : 0
           };
-          socket.send(JSON.stringify(balanceRequest));
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(balanceRequest));
+          }
         }
         // Se for resposta de saldo
         else if (response.msg_type === 'balance') {
@@ -153,11 +162,14 @@ export async function getBalance(
     socket.onclose = () => {
       clearTimeout(timeout);
       // Se foi fechado, mas ainda temos inscrição ativa
-      if (subscribe && balanceSubscriptionId) {
-        // Agendar reconexão
+      if (subscribe) {
+        // Agendar reconexão usando o token ativo armazenado
         reconnectTimeout = setTimeout(() => {
           reconnectTimeout = null;
-          getBalance(token, accountId, subscribe).catch(console.error);
+          if (activeToken) {
+            console.log('[Balance] Reconectando para atualizações de saldo...');
+            getBalance(activeToken, accountId, true).catch(console.error);
+          }
         }, 5000);
       }
     };
