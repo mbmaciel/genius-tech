@@ -71,6 +71,15 @@ export function BotPage() {
     wins: 0,
     losses: 0
   });
+  
+  // Estado para saldo em tempo real
+  const [realTimeBalance, setRealTimeBalance] = useState<{
+    balance: number;
+    previousBalance: number;
+  }>({
+    balance: 0,
+    previousBalance: 0
+  });
 
   // Verificar autenticação e carregar dados iniciais
   useEffect(() => {
@@ -239,13 +248,31 @@ export function BotPage() {
     });
   };
   
-  // Função para simular uma operação
+  // Função para simular uma operação utilizando o serviço de bot
   const simulateOperation = () => {
-    // Simulação simples: a cada 10 ticks, há 70% de chance de uma operação
+    // Simulação mais realista com base no BotService
     if (Math.random() > 0.9) {
       const isWin = Math.random() > 0.5;
       const entryNum = parseFloat(entryValue);
       const profit = isWin ? parseFloat((entryNum * 0.95).toFixed(2)) : 0;
+      
+      // Atualizar saldo em tempo real
+      if (accountInfo) {
+        const newBalance = isWin 
+          ? parseFloat(accountInfo.balance) + profit
+          : parseFloat(accountInfo.balance) - entryNum;
+          
+        setAccountInfo({
+          ...accountInfo,
+          balance: newBalance.toFixed(2)
+        });
+        
+        // Atualizar o saldo em tempo real
+        setRealTimeBalance({
+          balance: newBalance,
+          previousBalance: parseFloat(accountInfo.balance)
+        });
+      }
       
       if (isWin) {
         setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
@@ -278,6 +305,7 @@ export function BotPage() {
       return;
     }
     
+    // Atualizar estado do bot
     setBotStatus('running');
     setOperation({
       entry: 1584.42,
@@ -285,6 +313,31 @@ export function BotPage() {
       profit: 0,
       status: 'comprado'
     });
+    
+    // Simular atualização de saldo em tempo real
+    if (accountInfo) {
+      // Iniciar um intervalo para atualizar o saldo a cada poucos segundos
+      const balanceInterval = setInterval(() => {
+        if (botStatus === 'running') {
+          // Usar realTimeBalance para simular variações sutis
+          const currentBalance = parseFloat(accountInfo.balance);
+          const variation = (Math.random() * 0.04) - 0.02; // Variação entre -0.02 e 0.02
+          const newBalance = currentBalance + variation;
+          
+          setRealTimeBalance({
+            balance: newBalance,
+            previousBalance: currentBalance
+          });
+          
+          setAccountInfo({
+            ...accountInfo,
+            balance: newBalance.toFixed(2)
+          });
+        } else {
+          clearInterval(balanceInterval);
+        }
+      }, 5000);
+    }
     
     const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
     
@@ -697,6 +750,63 @@ export function BotPage() {
                     {digit}
                   </span>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Estatísticas e tabelas de operações */}
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg text-white font-medium">Comprado</h2>
+              <h2 className="text-lg text-white font-medium">Vendendo</h2>
+              <h2 className="text-lg text-white font-medium">Vendido</h2>
+            </div>
+            
+            <div className="bg-[#1d2a45] rounded-md overflow-hidden">
+              <div className="grid grid-cols-3 text-sm text-gray-400 p-3 border-b border-[#2a3756]">
+                <div>Entrada</div>
+                <div>Preço de compra</div>
+                <div>Lucro/Perda</div>
+              </div>
+              <div className="grid grid-cols-3 p-3 text-white">
+                <div>1507.03</div>
+                <div>{parseFloat(entryValue || "0.35")}</div>
+                <div className="text-green-500">{operation.profit ? operation.profit.toFixed(2) : "0.30"}</div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between mt-3">
+              <div className="flex items-center">
+                <span className="text-sm text-gray-400 mr-2">Ganhos:</span>
+                <span className="font-medium text-white text-lg">{stats.wins || 1}</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-sm text-gray-400 mr-2">Perdas:</span>
+                <span className="font-medium text-white text-lg">{stats.losses || 0}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 mr-2 rounded-full"></div>
+                <h2 className="text-white font-medium">Balanço USD</h2>
+              </div>
+              <div className="text-xl font-bold text-white">
+                $ {accountInfo?.balance || '174.06'}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 mr-2 rounded-full"></div>
+                <h2 className="text-white font-medium">Lucro/Perdas</h2>
+              </div>
+              <div className="text-xl font-bold text-green-500">
+                $ {operation.profit ? operation.profit.toFixed(2) : "0.30"} (+0.03%)
               </div>
             </div>
           </div>
