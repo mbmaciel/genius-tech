@@ -6,6 +6,7 @@ import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
+import { BotStatus } from "@/services/botService";
 
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
@@ -21,7 +22,7 @@ export function BotPage() {
   const [authToken, setAuthToken] = useState<string | null>(null); // Token para autorização de operações
   
   // Estado para controle do robô
-  const [botStatus, setBotStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [botStatus, setBotStatus] = useState<BotStatus>('idle');
   
   // Estados para dados do gráfico
   const [ticks, setTicks] = useState<string>("10");
@@ -649,8 +650,15 @@ export function BotPage() {
               
               {/* Status da Operação */}
               <OperationStatus 
+                status={botStatus}
                 operation={operation}
                 stats={stats}
+                balanceInfo={{
+                  balance: realTimeBalance.balance || 0,
+                  currency: accountInfo?.currency || 'USD',
+                  previousBalance: realTimeBalance.previousBalance,
+                  change: realTimeBalance.balance - realTimeBalance.previousBalance
+                }}
               />
               
               {/* Controles do Bot */}
