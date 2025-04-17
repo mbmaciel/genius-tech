@@ -154,6 +154,33 @@ export function BotPage() {
           buyPrice: parseFloat(entryValue) || 0
         }));
         
+        // Iniciar a conexão WebSocket do serviço OAuth Direct
+        oauthDirectService.start()
+          .then(success => {
+            if (success) {
+              console.log('[BOT] Conexão OAuth Direct iniciada com sucesso');
+              toast({
+                title: "Conexão estabelecida",
+                description: "Conectado ao servidor Deriv via OAuth",
+              });
+            } else {
+              console.error('[BOT] Falha ao iniciar conexão OAuth Direct');
+              toast({
+                title: "Erro de conexão",
+                description: "Não foi possível conectar ao servidor Deriv",
+                variant: "destructive"
+              });
+            }
+          })
+          .catch(error => {
+            console.error('[BOT] Erro ao iniciar conexão OAuth Direct:', error);
+            toast({
+              title: "Erro de conexão",
+              description: error.message || "Falha ao conectar com o servidor",
+              variant: "destructive"
+            });
+          });
+        
         // Configurar handlers para eventos do serviço OAuth Direct
         const handleEvents = (event: any) => {
           // Tick recebido

@@ -37,6 +37,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     if (this.token) {
       console.log('[OAUTH_DIRECT] Token OAuth encontrado no localStorage');
+    } else {
+      // Tentar obter a partir das contas salvas
+      try {
+        const accountsStr = localStorage.getItem('deriv_accounts');
+        if (accountsStr) {
+          const accounts = JSON.parse(accountsStr);
+          if (accounts && accounts.length > 0) {
+            const account = accounts.find((acc: any) => acc.token);
+            if (account) {
+              this.token = account.token;
+              console.log('[OAUTH_DIRECT] Token OAuth obtido das contas salvas');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao obter token das contas salvas:', error);
+      }
     }
   }
   
@@ -56,7 +73,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         this.closeConnection();
         
         console.log('[OAUTH_DIRECT] Estabelecendo conexão WebSocket dedicada com Deriv');
-        this.webSocket = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
+        this.webSocket = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=71403');
         
         // Configurar timeout para conexão
         const connectionTimeout = setTimeout(() => {
@@ -316,8 +333,33 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return;
       }
       
+      // Atualizar token caso esteja ausente, verificando novamente no localStorage
       if (!this.token) {
-        reject(new Error('Token OAuth não encontrado'));
+        this.token = localStorage.getItem('deriv_oauth_token');
+        
+        // Se ainda não encontrou, tentar obter das contas salvas
+        if (!this.token) {
+          try {
+            const accountsStr = localStorage.getItem('deriv_accounts');
+            if (accountsStr) {
+              const accounts = JSON.parse(accountsStr);
+              if (accounts && accounts.length > 0) {
+                const account = accounts.find((acc: any) => acc.token);
+                if (account) {
+                  this.token = account.token;
+                  console.log('[OAUTH_DIRECT] Token OAuth obtido das contas salvas');
+                }
+              }
+            }
+          } catch (error) {
+            console.error('[OAUTH_DIRECT] Erro ao obter token das contas salvas:', error);
+          }
+        }
+      }
+      
+      if (!this.token) {
+        console.error('[OAUTH_DIRECT] Token OAuth não encontrado após tentativas adicionais');
+        reject(new Error('Token OAuth não encontrado. Faça login novamente.'));
         return;
       }
       
@@ -339,6 +381,37 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             if (data.error) {
               console.error('[OAUTH_DIRECT] Erro na autorização:', data.error.message);
+              
+              // Verificar se o erro é de autorização inválida
+              if (data.error.code === 'InvalidToken') {
+                // Tentar obter um token alternativo
+                const accountsStr = localStorage.getItem('deriv_accounts');
+                if (accountsStr) {
+                  try {
+                    const accounts = JSON.parse(accountsStr);
+                    // Encontrar outro token que não seja o atual que falhou
+                    const alternativeAccount = accounts.find((acc: any) => 
+                      acc.token && acc.token !== this.token);
+                    
+                    if (alternativeAccount) {
+                      console.log('[OAUTH_DIRECT] Tentando token alternativo');
+                      this.token = alternativeAccount.token;
+                      
+                      // Tentar novamente com o token alternativo
+                      this.webSocket?.send(JSON.stringify({
+                        authorize: this.token
+                      }));
+                      
+                      // Adicionar handler novamente
+                      this.webSocket?.addEventListener('message', authHandler);
+                      return; // Não rejeitar ainda, tentando com token alternativo
+                    }
+                  } catch (error) {
+                    console.error('[OAUTH_DIRECT] Erro ao processar contas alternativas:', error);
+                  }
+                }
+              }
+              
               reject(new Error(data.error.message));
             } else {
               console.log('[OAUTH_DIRECT] Autorização bem-sucedida!');
