@@ -31,6 +31,7 @@ export default function LoginPage() {
       try {
         // Verificar se há parâmetros de conta/token na URL
         const url = window.location.href;
+        console.log('[AUTH] Verificando URL de redirecionamento:', url);
         if (url.includes('acct1=') && url.includes('token1=')) {
           setProcessingOAuth(true);
           
@@ -197,6 +198,26 @@ export default function LoginPage() {
     );
   }
 
+  // Função para iniciar o fluxo de OAuth com a Deriv
+  const handleDerivLogin = () => {
+    // URL base da Deriv para OAuth
+    const derivBaseUrl = "https://oauth.deriv.com/oauth2/authorize";
+    
+    // Parâmetros da solicitação
+    const params = new URLSearchParams({
+      app_id: APP_ID.toString(),
+      l: "pt", // Idioma português
+      brand: "deriv" // Marca da Deriv
+    });
+    
+    // URL completa para redirecionamento
+    const redirectUrl = `${derivBaseUrl}?${params.toString()}`;
+    console.log('[AUTH] Iniciando processo de login na Deriv via OAuth:', redirectUrl);
+    
+    // Redirecionamento para página de login da Deriv
+    window.location.href = redirectUrl;
+  };
+
   // UI normal de login
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#0c1117]">
@@ -239,6 +260,23 @@ export default function LoginPage() {
               disabled={isLoading}
             >
               {isLoading ? 'Entrando...' : 'Login'}
+            </Button>
+            
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-slate-700"></span>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-[#151b25] px-2 text-slate-400">ou</span>
+              </div>
+            </div>
+            
+            <Button 
+              type="button"
+              onClick={handleDerivLogin}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Entrar com Deriv
             </Button>
           </form>
           
