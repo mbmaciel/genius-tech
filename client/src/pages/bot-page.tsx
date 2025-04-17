@@ -663,25 +663,26 @@ export function BotPage() {
   
   // Renderizar botão de ação principal (Executar/Pausar)
   const renderActionButton = () => {
-    if (botStatus === 'running') {
-      return (
-        <button 
-          onClick={handlePauseBot}
-          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded font-medium"
-        >
-          Pausar BOT
-        </button>
-      );
-    } else {
-      return (
-        <button 
-          onClick={handleStartBot}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded font-medium"
-        >
-          Executar BOT
-        </button>
-      );
-    }
+    // Usar o novo BotController para melhor feedback visual e controle
+    return (
+      <BotController
+        entryValue={parseFloat(entryValue) || 0.35}
+        profitTarget={parseFloat(profitTarget) || 1000}
+        lossLimit={parseFloat(lossLimit) || 500}
+        selectedStrategy={selectedStrategy}
+        onStatusChange={(status) => {
+          console.log('[BOT_PAGE] Status do bot atualizado:', status);
+          setBotStatus(status);
+        }}
+        onStatsChange={(newStats) => {
+          console.log('[BOT_PAGE] Estatísticas atualizadas:', newStats);
+          setStats({
+            wins: newStats.wins,
+            losses: newStats.losses
+          });
+        }}
+      />
+    );
   };
 
   return (
