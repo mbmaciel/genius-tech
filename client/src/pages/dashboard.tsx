@@ -502,35 +502,34 @@ export default function Dashboard() {
               </select>
             </div>
             
-            <div className="relative flex flex-col h-64">
+            <div className="relative flex flex-col h-64 mt-6">
               {/* Eixo Y (percentuais) */}
-              <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-400 pr-2">
+              <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2">
                 <div>50</div>
-                <div>45</div>
                 <div>40</div>
-                <div>35</div>
                 <div>30</div>
-                <div>25</div>
                 <div>20</div>
-                <div>15</div>
                 <div>10</div>
-                <div>5</div>
                 <div>0</div>
               </div>
               
-              {/* Gráfico de barras */}
-              <div className="flex items-end h-full space-x-2 pl-8">
+              {/* Gráfico de barras com valores absolutos */}
+              <div className="flex h-full pt-0 pb-6 pl-8">
                 {digitStats.map((stat) => (
-                  <div key={stat.digit} className="flex-1 flex flex-col items-center">
-                    {/* Valor percentual acima da barra */}
-                    <div className="mb-1 text-sm font-medium text-white">
-                      {stat.percentage > 0 ? `${stat.percentage}%` : ''}
-                    </div>
+                  <div key={stat.digit} className="flex-1 flex flex-col items-center justify-end">
+                    {/* Valor percentual acima da barra somente para barras com valor */}
+                    {stat.percentage > 0 && (
+                      <div className="text-sm font-medium text-white">
+                        {stat.percentage}%
+                      </div>
+                    )}
                     
-                    {/* Barra do gráfico */}
+                    {/* Barra do gráfico com altura fixa proporcional à porcentagem */}
                     <div 
-                      className={`w-10 ${getBarColor(stat.percentage)}`} 
-                      style={{ height: `${Math.max(5, stat.percentage)}%`, minHeight: '5px' }}
+                      className={`w-10 ${getBarColor(stat.percentage)}`}
+                      style={{ 
+                        height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(5, stat.percentage))}%` 
+                      }}
                     ></div>
                     
                     {/* Número do dígito abaixo da barra */}
