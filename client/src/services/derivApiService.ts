@@ -549,18 +549,37 @@ class DerivApiService {
     }
     
     return new Promise((resolve) => {
+      // Log explícito para depuração
+      console.log('[DERIV_API] Solicitando saldo com token:', this.token ? this.token.substring(0, 10) + '...' : 'NENHUM');
+      console.log('[DERIV_API] Autorizado:', this.authorized);
+      
       this.sendRequest({
         balance: 1,
         subscribe: 1
       }, (response) => {
         if (response.error) {
-          console.error('Erro ao obter saldo:', response.error.message);
-          resolve(null);
+          console.error('[DERIV_API] Erro ao obter saldo:', response.error.message);
+          // Se ocorrer um erro, tentar reconectar com o token OAuth e tentar novamente
+          const oauthToken = localStorage.getItem('deriv_oauth_token');
+          if (oauthToken) {
+            console.log('[DERIV_API] Tentando reconectar com novo token OAuth após erro de saldo');
+            this.connect(oauthToken).then(success => {
+              if (success) {
+                console.log('[DERIV_API] Reconexão bem sucedida, solicitando saldo novamente');
+                this.getBalance().then(balance => resolve(balance)).catch(() => resolve(null));
+              } else {
+                resolve(null);
+              }
+            });
+          } else {
+            resolve(null);
+          }
         } else if (response.balance) {
+          console.log('[DERIV_API] Saldo recebido com sucesso:', response.balance);
           this.notifyBalanceListeners(response.balance);
           resolve(response.balance);
         } else {
-          console.error('Resposta inesperada ao obter saldo:', response);
+          console.error('[DERIV_API] Resposta inesperada ao obter saldo:', response);
           resolve(null);
         }
       });

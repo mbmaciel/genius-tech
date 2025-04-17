@@ -396,12 +396,48 @@ class BotService {
         return;
       }
       
-      // Tentar conectar explicitamente com o token OAuth antes da operação
-      if (!(derivApiService as any).authorized) {
-        console.log('[BOT_SERVICE] Reconectando com token OAuth antes da operação...');
-        await derivApiService.connect(oauthToken);
+      // IMPORTANTE: Sempre reconectar com token OAuth antes de cada operação
+      // para garantir que estamos usando a conexão mais recente
+      console.log('[BOT_SERVICE] Reconectando com token OAuth antes da operação...');
+      const connected = await derivApiService.connect(oauthToken);
+      
+      if (!connected) {
+        this.emitEvent({ 
+          type: 'error', 
+          message: 'Falha ao conectar com token OAuth' 
+        });
+        
+        this.operationTimer = setTimeout(() => {
+          if (this.status === 'running') {
+            this.startTrading();
+          }
+        }, 5000);
+        
+        return;
       }
       
+      // Verificar explicitamente a autorização
+      if (!(derivApiService as any).authorized) {
+        console.log('[BOT_SERVICE] Autorizando explicitamente com token OAuth...');
+        const authorized = await derivApiService.authorize(oauthToken);
+        
+        if (!authorized) {
+          this.emitEvent({ 
+            type: 'error', 
+            message: 'Token OAuth inválido ou expirado. Reconecte sua conta no Dashboard' 
+          });
+          
+          this.operationTimer = setTimeout(() => {
+            if (this.status === 'running') {
+              this.startTrading();
+            }
+          }, 10000);
+          
+          return;
+        }
+      }
+      
+      console.log('[BOT_SERVICE] Comprando contrato...');
       const contract = await derivApiService.buyContract(amount, type, 'R_100', 1, prediction);
       
       if (!contract) {
