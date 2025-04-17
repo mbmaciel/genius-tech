@@ -293,70 +293,119 @@ class DerivApiService {
     duration: number = 1, 
     prediction?: ContractPrediction
   ): Promise<Contract | null> {
-    // IMPORTANTE: Verificar se temos o token OAuth mais recente antes de operar
+    // IMPORTANTE: Criar uma nova conexão exclusiva para operações comerciais
+    // Esta abordagem evita conflitos com outras conexões WebSocket e garante
+    // que usamos o token OAuth mais recente para compras de contratos
+    
+    console.log('[DERIV_API] Iniciando compra de contrato com conexão dedicada');
     const oauthToken = localStorage.getItem('deriv_oauth_token');
-    if (oauthToken && oauthToken !== this.token) {
-      console.log('[DERIV_API] Token OAuth mudou, reconectando para operações...');
-      // Reconectar com o novo token OAuth
-      await this.connect(oauthToken);
+    
+    if (!oauthToken) {
+      console.error('[DERIV_API] Token OAuth não disponível para compra de contrato');
+      return null;
     }
     
-    if (!this.authorized) {
-      console.error('[DERIV_API] Não autorizado para comprar contratos. Verificando OAuth...');
-      // Nova tentativa usando token OAuth explicitamente
-      const oauthToken = localStorage.getItem('deriv_oauth_token');
-      if (oauthToken) {
-        console.log('[DERIV_API] Tentando autorizar com token OAuth para compra de contrato');
-        const authorized = await this.authorize(oauthToken);
-        if (!authorized) {
-          console.error('[DERIV_API] Falha na autorização com token OAuth');
-          return null;
-        }
-      } else {
-        console.error('[DERIV_API] Token OAuth não disponível');
-        return null;
-      }
-    }
+    // Criar nova conexão WebSocket dedicada para compra
+    const buySocket = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
     
+    // Usando Promise para aguardar resposta da conexão
     return new Promise((resolve) => {
-      this.sendRequest({
-        buy: 1,
-        price: amount,
-        parameters: {
-          amount: amount,
-          basis: 'stake',
-          contract_type: type,
-          currency: 'USD',
-          duration: duration,
-          duration_unit: 't',
-          symbol: symbol,
-          ...(prediction !== undefined && { prediction: prediction })
-        }
-      }, (response) => {
-        if (response.error) {
-          console.error('Erro ao comprar contrato:', response.error.message);
-          resolve(null);
-        } else if (response.buy) {
-          console.log('Contrato comprado com sucesso:', response.buy.contract_id);
+      // Timeout para evitar bloqueio em caso de problemas
+      const timeoutId = setTimeout(() => {
+        console.error('[DERIV_API] Timeout na compra de contrato');
+        buySocket.close();
+        resolve(null);
+      }, 30000);
+      
+      // Quando a conexão for estabelecida
+      buySocket.onopen = () => {
+        console.log('[DERIV_API] Conexão dedicada para compra estabelecida');
+        
+        // Autorizar com token OAuth
+        buySocket.send(JSON.stringify({
+          authorize: oauthToken
+        }));
+      };
+      
+      // Lidar com mensagens da API
+      buySocket.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          console.log('[DERIV_API] Resposta da conexão de compra:', data);
           
-          const contract: Contract = {
-            contract_id: response.buy.contract_id,
-            contract_type: type,
-            buy_price: response.buy.buy_price,
-            symbol: symbol,
-            status: 'open',
-            purchase_time: response.buy.purchase_time,
-            payout: response.buy.payout
-          };
-          
-          this.notifyContractListeners(contract);
-          resolve(contract);
-        } else {
-          console.error('Resposta inesperada ao comprar contrato:', response);
-          resolve(null);
+          // Verificar autorização
+          if (data.authorize) {
+            console.log('[DERIV_API] Autorizado para compra com conta:', data.authorize.loginid);
+            
+            // Após autorização bem-sucedida, enviar solicitação de compra
+            const buyRequest = {
+              buy: 1,
+              price: amount,
+              parameters: {
+                amount: amount,
+                basis: 'stake',
+                contract_type: type,
+                currency: data.authorize.currency || 'USD',
+                duration: duration,
+                duration_unit: 't',
+                symbol: symbol,
+                ...(prediction !== undefined && { prediction: prediction })
+              }
+            };
+            
+            console.log('[DERIV_API] Enviando solicitação de compra:', buyRequest);
+            buySocket.send(JSON.stringify(buyRequest));
+          } 
+          // Verificar resposta de compra
+          else if (data.buy) {
+            console.log('[DERIV_API] Contrato comprado com sucesso:', data.buy);
+            clearTimeout(timeoutId);
+            
+            const contract: Contract = {
+              contract_id: data.buy.contract_id,
+              contract_type: type,
+              buy_price: data.buy.buy_price,
+              symbol: symbol,
+              status: 'open',
+              purchase_time: data.buy.purchase_time,
+              payout: data.buy.payout
+            };
+            
+            // Notificar ouvintes sobre o novo contrato
+            this.notifyContractListeners(contract);
+            
+            // Fechar a conexão dedicada
+            buySocket.close();
+            
+            // Resolver a promise com o contrato
+            resolve(contract);
+          }
+          // Verificar erro
+          else if (data.error) {
+            console.error('[DERIV_API] Erro na compra:', data.error.message);
+            clearTimeout(timeoutId);
+            buySocket.close();
+            resolve(null);
+          }
+        } catch (error) {
+          console.error('[DERIV_API] Erro ao processar mensagem de compra:', error);
         }
-      });
+      };
+      
+      // Lidar com erros de conexão
+      buySocket.onerror = (error) => {
+        console.error('[DERIV_API] Erro na conexão de compra:', error);
+        clearTimeout(timeoutId);
+        resolve(null);
+      };
+      
+      // Lidar com fechamento de conexão
+      buySocket.onclose = () => {
+        console.log('[DERIV_API] Conexão de compra fechada');
+        clearTimeout(timeoutId);
+      };
     });
+    
   }
   
   /**
