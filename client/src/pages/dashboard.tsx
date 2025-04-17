@@ -1,399 +1,209 @@
-import React, { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sidebar } from "@/components/dashboard/Sidebar";
-import { AccountDashboard } from "@/components/dashboard/AccountDashboard";
-import DigitStats from "@/components/dashboard/DigitStats";
-import SimpleDigitStats from "@/components/dashboard/SimpleDigitStats";
-import { AutomationsRobot } from "@/components/dashboard/AutomationsRobot";
-import { AccountDisplay } from "@/components/dashboard/AccountDisplay";
-import { NewAccountSelector } from "@/components/dashboard/NewAccountSelector";
-import CashierOperations from "@/components/dashboard/CashierOperations";
-import derivAPI from "@/lib/derivApi";
+import { useEffect, useState } from "react";
 import { startKeepAlive, stopKeepAlive } from "@/lib/websocketKeepAlive";
-import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Bot, DollarSign } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
-export default function DashboardPage() {
-  const [activeView, setActiveView] = useState<string>("painel");
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  const [, navigate] = useLocation();
+interface DigitData {
+  digit: number;
+  count: number;
+  percentage: number;
+}
 
+export default function Dashboard() {
+  const [digitStats, setDigitStats] = useState<DigitData[]>([]);
+  const [lastDigits, setLastDigits] = useState<number[]>([]);
+  const [ticks, setTicks] = useState<number>(10);
+  const { toast } = useToast();
+  
+  // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
-    console.log("Dashboard inicializando - verificando conexão...");
+    // Iniciar a conexão WebSocket para dados R_100
+    startKeepAlive();
     
-    // Definir um timeout para o carregamento - importante para não ficar preso
-    const timeoutId = setTimeout(() => {
-      console.log("Timeout de carregamento atingido - forçando renderização");
-      setIsLoading(false);
-    }, 5000); // 5 segundos máximos de carregamento
-    
-    // Verificar se estamos em processo de troca de conta
-    const forceReconnect = localStorage.getItem('force_reconnect') === 'true';
-    if (forceReconnect) {
-      console.log("Detectado force_reconnect=true, realizando reconexão completa...");
-      // Limpar a flag
-      localStorage.removeItem('force_reconnect');
-      
-      // Se temos um processo de reconexão forçada, desconectar completamente primeiro
-      derivAPI.disconnect(true);
-      
-      // Pequeno atraso para garantir que a desconexão seja concluída
-      setTimeout(() => {
-        // Tentar reconectar usando o token armazenado
-        console.log("Reconectando após forceReconnect...");
-        derivAPI.connect().then(() => {
-          // Atualizar status após a reconexão
-          setIsConnected(derivAPI.getConnectionStatus());
-          setIsLoading(false);
-        }).catch(e => {
-          console.error("Erro na reconexão após forceReconnect:", e);
-          setIsLoading(false);
-        });
-      }, 1000);
-      
-      return () => clearTimeout(timeoutId);
-    }
-    
-    // Verificar se já existe uma conexão com a API Deriv, ou tentar conexão automática
-    const checkAndInitConnection = async () => {
-      setIsLoading(true);
-      let connected = derivAPI.getConnectionStatus();
-      console.log("Estado inicial da conexão:", connected);
-      
-      // Garantir que todas as assinaturas anteriores sejam canceladas antes de iniciar novas
-      // Isso é muito importante para evitar duplicação de assinaturas e vazamentos de memória
-      try {
-        console.log("Cancelando assinaturas anteriores antes de iniciar a conexão");
-        await derivAPI.cancelAllActiveSubscriptions();
-      } catch (error) {
-        console.warn("Erro ao limpar assinaturas anteriores:", error);
-      }
-      
-      // Se não estiver conectado, tentar conexão automática com token da sessão
-      if (!connected) {
-        try {
-          // Tentar conectar usando o token armazenado na sessão
-          console.log("Tentando conexão automática com o token armazenado...");
-          const tokenResult = await derivAPI.connect();
-          
-          if (tokenResult) {
-            connected = true;
-            console.log("Conexão automática bem-sucedida!");
-            
-            // Atualizar estado da conexão
-            setIsConnected(true);
-            
-            // Iniciar assinatura para atualizações de saldo
-            try {
-              console.log("Iniciando assinatura para atualizações de saldo...");
-              await derivAPI.subscribeToBalanceUpdates();
-            } catch (error) {
-              console.error("Erro ao iniciar assinatura de saldo:", error);
-            }
-          } else {
-            console.log("Falha na conexão automática - continuando com a interface");
-          }
-        } catch (error) {
-          console.warn("Não foi possível conectar automaticamente:", error);
-          setIsConnected(false);
-        }
-      } else {
-        // Já está conectado, apenas atualizar o estado
-        console.log("API já está conectada, atualizando estado da UI");
-        setIsConnected(true);
+    // Adicionar listener para eventos de tick
+    const handleTick = (event: CustomEvent) => {
+      const tick = event.detail.tick;
+      if (tick && tick.symbol === 'R_100') {
+        // Extrair o último dígito do tick
+        const price = tick.quote;
+        const lastDigit = Math.floor(price * 10) % 10;
         
-        // Iniciar assinatura para atualizações de saldo
-        try {
-          console.log("Iniciando assinatura para atualizações de saldo (conexão existente)...");
-          await derivAPI.subscribeToBalanceUpdates();
-        } catch (error) {
-          console.error("Erro ao iniciar assinatura de saldo:", error);
-        }
-      }
-      
-      // Iniciar o mecanismo de keep-alive para manter a conexão WebSocket ativa
-      if (connected) {
-        console.log("Iniciando mecanismo de keep-alive para WebSocket");
-        startKeepAlive();
-        
-        // Notificar o usuário
-        toast({
-          title: "Conexão mantida ativa",
-          description: "Sistema de monitoramento de conexão iniciado",
-          duration: 3000,
+        // Atualizar os últimos dígitos
+        setLastDigits(prev => {
+          const newDigits = [...prev, lastDigit];
+          // Manter apenas os N últimos dígitos com base no valor de ticks
+          return newDigits.slice(-parseInt(ticks.toString()));
         });
-      }
-      
-      setIsLoading(false);
-    };
-    
-    checkAndInitConnection();
-    
-    // Configurar listener para eventos de conexão da API
-    const handleConnectionEvent = (event: CustomEvent) => {
-      if (event.detail.connected) {
-        setIsConnected(true);
-        // Reiniciar o keep-alive quando a conexão for restabelecida
-        startKeepAlive();
-      } else {
-        setIsConnected(false);
-        // Parar o keep-alive quando a conexão for perdida
-        stopKeepAlive();
       }
     };
     
-    // Registrar o listener de eventos
-    document.addEventListener('deriv:connection_status' as any, handleConnectionEvent as any);
+    // Registrar o evento personalizado
+    document.addEventListener('deriv:tick', handleTick as EventListener);
     
-    // Limpar assinaturas ao desmontar
+    // Limpar ao desmontar
     return () => {
-      document.removeEventListener('deriv:connection_status' as any, handleConnectionEvent as any);
-      // Garantir que o keep-alive seja parado quando o componente for desmontado
+      document.removeEventListener('deriv:tick', handleTick as EventListener);
       stopKeepAlive();
-      
-      // Importante: cancelar todas as assinaturas ao desmontar o componente
-      // para evitar vazamentos de memória e problemas de conexão 
-      // quando o usuário navegar para outras páginas
-      console.log("Desmontando dashboard, cancelando assinaturas ativas");
-      derivAPI.cancelAllActiveSubscriptions().catch(error => 
-        console.warn("Erro ao cancelar assinaturas ao desmontar:", error)
-      );
     };
-  }, []);
-
-  const handleViewChange = (view: string) => {
-    setActiveView(view);
-  };
-
-  const toggleMobileSidebar = () => {
-    setIsMobileSidebarOpen(!isMobileSidebarOpen);
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00e5b3]" />
-        </div>
-      );
+  }, [ticks]);
+  
+  // Calcular estatísticas dos dígitos quando lastDigits for atualizado
+  useEffect(() => {
+    if (lastDigits.length > 0) {
+      const digitCounts = Array(10).fill(0);
+      
+      // Contar ocorrências de cada dígito
+      lastDigits.forEach(digit => {
+        digitCounts[digit]++;
+      });
+      
+      // Calcular percentuais
+      const stats = digitCounts.map((count, digit) => {
+        const percentage = (count / lastDigits.length) * 100;
+        return { digit, count, percentage: Math.round(percentage) };
+      });
+      
+      setDigitStats(stats);
     }
-    
-    switch (activeView) {
-      case "painel":
-        return (
-          <>
-            <h1 className="text-xl font-bold mb-4 text-white">Painel</h1>
-            
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              {/* Coluna principal (7/12): Robô de Automações + Contratos Abertos */}
-              <div className="md:col-span-7 space-y-4">
-                {/* Detalhes da Conta */}
-                <div className="bg-[#162e40] rounded-lg p-4 border border-[#1c3654] mb-4">
-                  <h2 className="text-base font-bold mb-2 text-[#00e5b3] flex items-center justify-between">
-                    <div className="flex items-center">
-                      <DollarSign className="h-4 w-4 mr-2 text-[#00e5b3]" />
-                      Detalhes da Conta
-                    </div>
-                    <NewAccountSelector 
-                      onAccountChanged={(account: { account: string; currency: string; isVirtual?: boolean }) => {
-                        toast({
-                          title: "Conta alterada",
-                          description: `Agora operando com a conta ${account.account}`,
-                        });
-                      }} 
-                    />
-                  </h2>
-                  
-                  {/* Detalhes da conta dentro do Painel */}
-                  <AccountDisplay />
-                </div>
-                
-                {/* Robô de Operações */}
-                <div className="bg-[#162e40] rounded-lg p-4 border border-[#1c3654]">
-                  <h2 className="text-base font-bold mb-2 text-[#00e5b3] flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Bot className="h-4 w-4 mr-2 text-[#00e5b3]" />
-                      Robô de Operações
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="bg-[#00e5b3] hover:bg-[#00c69a] text-[#0e1a33] border-none"
-                      onClick={() => navigate("/trading-bot")}
-                    >
-                      <Bot className="h-4 w-4 mr-2" />
-                      Abrir Robô de Operações
-                    </Button>
-                  </h2>
-                  
-                  <div className="p-4 text-center">
-                    <p className="text-white mb-4">Acesse nosso robô avançado com estratégias prontas para operar automaticamente.</p>
-                    <div className="bg-[#00e5b3]/10 p-4 rounded-lg mb-4">
-                      <h3 className="text-[#00e5b3] font-bold mb-2">Estratégias disponíveis:</h3>
-                      <ul className="text-white text-left mb-4 space-y-1">
-                        <li>• IRON OVER - Para operações "acima de" (over)</li>
-                        <li>• IRON UNDER - Para operações "abaixo de" (under)</li>
-                        <li>• MAXPRO - Estratégia otimizada</li>
-                        <li>• Green - Alta rentabilidade</li>
-                        <li>• ProfitPro - Gerenciamento inteligente</li>
-                      </ul>
-                    </div>
-                    <Button 
-                      onClick={() => navigate("/trading-bot")}
-                      className="bg-[#00e5b3] hover:bg-[#00c69a] text-[#0e1a33] border-none w-full py-6 text-lg font-bold animate-pulse"
-                    >
-                      <Bot className="h-6 w-6 mr-2" />
-                      ACESSAR ROBÔ DE OPERAÇÕES
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Coluna secundária (5/12): Estatísticas R_100 */}
-              <div className="md:col-span-5">
-                {/* Estatísticas R_100 expandidas */}
-                <div className="bg-[#162440] rounded-lg p-4 border border-slate-800 h-full">
-                  <h2 className="text-base font-bold mb-3 text-white flex items-center">
-                    <span className="bg-[#4364e8] w-3 h-3 rounded-full mr-2"></span>
-                    Estatísticas R_100
-                  </h2>
-                  <DigitStats symbol="R_100" />
-                </div>
-              </div>
-            </div>
-          </>
-        );
-        
-      case "dashboard":
-        return (
-          <>
-            <h1 className="text-2xl font-bold mb-6 text-white">Dashboard</h1>
-            <div className="grid grid-cols-1 gap-6">
-              <div>
-                <h2 className="text-xl font-bold mb-4 text-white flex justify-between items-center">
-                  <span>Visão Geral</span>
-                  <NewAccountSelector 
-                    onAccountChanged={(account: { account: string; currency: string; isVirtual?: boolean }) => {
-                      // Atualizar a interface após a troca de conta
-                      toast({
-                        title: "Conta alterada",
-                        description: `Agora operando com a conta ${account.account}`,
-                      });
-                    }}
-                  />
-                </h2>
-                <AccountDashboard onViewChange={handleViewChange} />
-              </div>
-            </div>
-          </>
-        );
-
-      case "trading-bot":
-        return (
-          <>
-            <div className="flex items-center mb-6">
-              <Bot className="h-6 w-6 mr-2 text-[#00e5b3]" />
-              <h1 className="text-2xl font-bold text-white">Robô de Operações</h1>
-            </div>
-            
-            <div className="bg-[#162440] rounded-lg p-6 border border-slate-800">
-              <AutomationsRobot />
-            </div>
-          </>
-        );
-
-      case "cashier":
-        return (
-          <>
-            <div className="flex items-center mb-6">
-              <DollarSign className="h-6 w-6 mr-2 text-[#00e5b3]" />
-              <h1 className="text-2xl font-bold text-white">Operações de Caixa</h1>
-            </div>
-            
-            <CashierOperations />
-          </>
-        );
-        
-      default:
-        return (
-          <div className="text-center py-6">
-            <h2 className="text-xl font-bold text-white mb-2">Seção não disponível</h2>
-            <p className="text-[#8492b4]">Esta seção está em desenvolvimento.</p>
-            <Button 
-              onClick={() => setActiveView("painel")} 
-              className="mt-4 bg-[#00e5b3] hover:bg-[#00c69a] text-[#0e1a33]"
-            >
-              Voltar ao Painel
-            </Button>
-          </div>
-        );
-    }
+  }, [lastDigits]);
+  
+  const handleTicksChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTicks = parseInt(e.target.value);
+    setTicks(newTicks);
+    // Limitar os dígitos existentes ao novo valor
+    setLastDigits(prev => prev.slice(-newTicks));
+  };
+  
+  // Função para obter a cor da barra com base no percentual
+  const getBarColor = (percentage: number) => {
+    if (percentage >= 30) return 'bg-red-600';
+    if (percentage >= 20) return 'bg-red-500';
+    if (percentage >= 15) return 'bg-red-400';
+    if (percentage > 0) return 'bg-red-300';
+    return 'bg-gray-300';
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Desktop Sidebar */}
-      <Sidebar className="hidden md:flex" />
-      
-      {/* Mobile Sidebar */}
-      <Sidebar className="" isMobile={true} />
-      
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-[#0e1a33]">
-        {/* Top Navigation */}
-        <header className="bg-[#162746] border-b border-[#1c3654] sticky top-0 z-10">
-          <div className="flex items-center justify-between p-4">
-            {/* Connection Status Indicator */}
-            <div className="hidden md:flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <div className={`connection-pulse w-2 h-2 rounded-full ${isConnected ? 'bg-[#00e5b3]' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-[#8492b4]">{isConnected ? 'Conectado' : 'Desconectado'}</span>
-              </div>
-            </div>
-            
-            {/* Mobile tab selection */}
-            <div className="md:hidden flex items-center space-x-2">
-              <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
-                <TabsList className="bg-[#1f3158]">
-                  <TabsTrigger value="painel" className="text-xs">Painel</TabsTrigger>
-                  <TabsTrigger value="trading-bot" className="text-xs">Robô</TabsTrigger>
-                  <TabsTrigger value="dashboard" className="text-xs">Perfil</TabsTrigger>
-                  <TabsTrigger value="cashier" className="text-xs">Caixa</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-            
-            {/* Refresh Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await derivAPI.cancelAllActiveSubscriptions();
-                  toast({
-                    title: "Assinaturas resetadas",
-                    description: "Todas as assinaturas de dados foram resetadas",
-                  });
-                } catch (error) {
-                  console.error("Erro ao resetar assinaturas:", error);
-                }
-              }}
-              className="text-white border-[#1c3654] hover:bg-[#1c3654]"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+    <div className="flex h-screen bg-[#0c1525]">
+      {/* Sidebar/Menu lateral */}
+      <div className="w-20 bg-[#0c1525] border-r border-[#1d2a45] flex flex-col items-center py-6 text-white">
+        {/* Logo */}
+        <div className="mb-8">
+          <div className="w-10 h-10 rounded-md bg-indigo-600 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+            </svg>
           </div>
-        </header>
-        
-        {/* Content Area */}
-        <div className="p-4 md:p-6">
-          {renderContent()}
         </div>
-      </main>
+        
+        {/* Ícones de menu */}
+        <div className="flex flex-col space-y-6 items-center">
+          <button className="w-10 h-10 flex items-center justify-center text-white hover:bg-[#1d2a45] rounded-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+          </button>
+          <button className="w-10 h-10 flex items-center justify-center text-white hover:bg-[#1d2a45] rounded-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+          <button className="w-10 h-10 flex items-center justify-center text-white hover:bg-[#1d2a45] rounded-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      {/* Conteúdo principal */}
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl text-white font-semibold">Dashboard</h1>
+          
+          <div className="flex items-center">
+            <button 
+              onClick={() => {
+                toast({
+                  title: "Logout concluído",
+                  description: "Você foi desconectado com sucesso.",
+                });
+              }}
+              className="text-white text-sm hover:underline"
+            >
+              Logout DERIV
+            </button>
+          </div>
+        </div>
+        
+        {/* Cards de estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Gráfico de barras */}
+          <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
+              <select 
+                className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
+                value={ticks}
+                onChange={handleTicksChange}
+              >
+                <option value="10">10 Ticks</option>
+                <option value="25">25 Ticks</option>
+                <option value="50">50 Ticks</option>
+                <option value="100">100 Ticks</option>
+              </select>
+            </div>
+            
+            <div className="flex items-end h-64 space-x-3">
+              {digitStats.map((stat) => (
+                <div key={stat.digit} className="flex-1 flex flex-col items-center justify-end">
+                  {/* Barra do gráfico */}
+                  <div 
+                    className={`w-full ${getBarColor(stat.percentage)}`} 
+                    style={{ height: `${Math.max(5, stat.percentage)}%` }}
+                  ></div>
+                  
+                  {/* Legenda (dígito) */}
+                  <div className="mt-2 text-sm text-white">{stat.digit}</div>
+                  
+                  {/* Percentual */}
+                  <div className="text-xs text-gray-400">{stat.percentage}%</div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Últimos dígitos */}
+            <div className="mt-4 bg-[#1d2a45] p-2 rounded flex flex-wrap justify-center">
+              {lastDigits.slice().reverse().map((digit, index) => (
+                <span key={index} className="w-7 h-7 flex items-center justify-center text-white border border-[#3a4b6b] m-1 rounded-md">
+                  {digit}
+                </span>
+              ))}
+            </div>
+          </div>
+          
+          {/* Gráfico Deriv */}
+          <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+            <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
+            <div className="relative h-72 w-full bg-[#192339] rounded border border-[#2a3756] overflow-hidden">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[#8492b4]">Carregando gráfico da Deriv...</span>
+              </div>
+              {/* Aqui seria renderizado o gráfico da Deriv */}
+            </div>
+          </div>
+        </div>
+        
+        {/* Aviso de risco */}
+        <div className="bg-[#13203a] rounded-lg p-4 mt-6 text-xs text-[#8492b4] leading-relaxed">
+          <p>
+            AVISO DE RISCO: Os produtos disponibilizados através deste site incluem opções binárias, contratos por diferenças ("CFDs") e outros derivativos complexos. A negociação de opções binárias pode não ser adequada para todos. A negociação de CFDs implica um elevado grau de risco, uma vez que a alavancagem pode trabalhar tanto para a sua vantagem como para a sua desvantagem. Como resultado, os produtos disponibilizados neste site podem não ser adequados para todo o tipo de investidor, devido ao risco de se perder todo o capital investido. Nunca se deve investir dinheiro que precisa e nunca se deve negociar com dinheiro emprestado. Antes de negociar os complexos produtos disponibilizados, certifique-se de que compreende os riscos envolvidos e aprenda mais sobre a negociação responsável.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

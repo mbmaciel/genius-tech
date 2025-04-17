@@ -1,0 +1,154 @@
+Ponto final base
+Para se conectar às APIs WebSocket da Deriv, você precisará usar o seguinte endpoint base:
+
+wss://ws.derivws.com/websockets/v3?app_id={app_id}
+
+Certifique-se de substituir pelo ID exclusivo do aplicativo que você registrou.{app_id}
+
+Limites de taxa
+Os limites de taxa para solicitações de API podem mudar ao longo do tempo. Para descobrir o limite atual, você pode fazer uma chamada e verificar o campo. Isso garante que você sempre tenha as informações mais atualizadas.website_status/server statusapi_call_limits
+
+Validade da sessão
+Sua sessão WebSocket expirará após 2 minutos de inatividade. Se não houver solicitações ou respostas durante esse período, o servidor encerrará a conexão. Para evitar isso, envie solicitações periodicamente para manter a conexão ativa.
+
+Por exemplo, você pode enviar uma solicitação de ping ou outra chamada simples como time em intervalos regulares.
+
+Criar WebSocket
+Para começar a usar WebSockets, você precisa primeiro criar uma nova instância de WebSocket. Veja como fazer isso:
+
+Criar uma instância WebSocket
+Use o construtor WebSocket para criar uma nova instância:
+
+🚧
+Aviso:
+
+Substitua pelo ID exclusivo do aplicativo que você registrou. Você pode encontrá-lo na aba "Gerenciar Aplicativos" .{app_id}
+
+JavaScript
+
+let socket = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id={app_id}');
+📘
+Importante: Conexões seguras vs. não seguras
+
+wss:// estabelece uma conexão WebSocket segura (criptografada e protegida).
+ws:// estabelece uma conexão WebSocket não segura (não criptografada).
+
+Eventos
+A comunicação WebSocket gira em torno de quatro eventos principais. Compreender esses eventos principais ajudará você a gerenciar a conexão de forma eficaz.
+
+Ao abrir
+O que faz: Este evento é acionado quando a conexão com o servidor é estabelecida com sucesso.
+O que saber: Assim que este evento é disparado, a propriedade do WebSocket passa a indicar que a conexão está aberta e pronta para comunicação. Ela pode ter vários valores. Para mais informações, consulte a documentação do readyState do MDN WebSocket .readyState1readyState
+
+JavaScript
+
+socket.onopen = function (e) {
+  console.log('[open] Connection established');
+  console.log('Sending to server');
+  const sendMessage = JSON.stringify({ ping: 1 });
+  socket.send(sendMessage);
+};
+Na mensagem
+O que faz: Dispara sempre que uma mensagem é recebida do servidor.
+Uso: Use este evento para capturar e manipular dados recebidos do servidor.
+
+JavaScript
+
+socket.onmessage = function (event) {
+  console.log(`[message] Data received from server: ${event.data}`);
+};
+Ao fechar
+O que faz: Aciona quando a conexão WebSocket é encerrada pelo cliente, servidor ou devido a uma falha de conexão.
+Detalhes adicionais: Se você encerrar a conexão usando este método, poderá fornecer um código e uma mensagem explicando o motivo. O servidor normalmente retornará o mesmo código e a mesma mensagem.Close()
+
+JavaScript
+
+socket.onclose = function (event) {
+  if (event.wasClean) {
+    console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+  } else {
+    // e.g. server process killed or network down
+    // event.code is usually 1006 in this case
+    console.log('[close] Connection died');
+  }
+};
+Em caso de erro
+O que ele faz: Dispara quando ocorre um erro na conexão WebSocket.
+Tratamento de erros: Use este evento para detectar e tratar erros, garantindo que seu aplicativo possa responder ou tentar novamente conforme necessário.
+
+JavaScript
+
+socket.onerror = function (error) {
+  console.log(`[error] ${error.message}`);
+};
+Métodos
+Aqui está um rápido resumo dos métodos essenciais que você usará com WebSockets:
+
+Abrir
+Como funciona: Chamada para iniciar o processo de conexão com o servidor. Chamada sem bloqueio: Após o disparo, você pode começar a enviar mensagens. A chamada não bloqueia seu script, e você pode continuar executando outros códigos enquanto aguarda a conexão.Open()
+OnOpen
+
+Enviar
+Objetivo: O método transmite dados para o servidor. Ele suporta diversos formatos de dados, incluindo strings e matrizes de bytes ( ). Tratamento de mensagens grandes: Para mensagens com mais de 32.767 bytes, o WebSocket as divide automaticamente em fragmentos, gerenciando a transmissão de cada parte sequencialmente.Sendbyte[]
+
+Fechar
+Quando usar: Após concluir toda a comunicação, chame para encerrar a conexão. Desligamento gradual: Isso garante que a conexão seja encerrada corretamente, liberando recursos e sinalizando ao servidor que a comunicação foi encerrada. Depois que um WebSocket é fechado, ele não pode ser reutilizado; você precisará criar uma nova instância para conexões futuras.Close()
+
+🚧
+Você não pode reutilizar uma instância WebSocket fechada, você precisa criar e configurar uma nova.
+
+JavaScript
+Pitão
+Java
+Perl
+PHP
+Ferrugem
+Rápido
+C
+C#
+Ir
+
+const app_id = 'app_id'; // Replace with your app_id.
+const socket = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${app_id}`); // Create a new WebSocket connection using the app_id
+
+// Event handler for when the WebSocket connection is opened
+socket.onopen = function (e) {
+  console.log('[open] Connection established'); // Log connection establishment
+  console.log('Sending to server');
+
+  const sendMessage = JSON.stringify({ ping: 1 }); // Create a ping message in JSON format
+  socket.send(sendMessage); // Send the ping message to the server
+};
+
+// Event handler for when a message is received from the server
+socket.onmessage = function (event) {
+  console.log(`[message] Data received from server: ${event.data}`); // Log the message received from the server
+};
+
+// Event handler for when the WebSocket connection is closed
+socket.onclose = function (event) {
+  if (event.wasClean) {
+    console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`); // Log clean close with code and reason
+  } else {
+    console.log('[close] Connection died'); // Log an abrupt close
+  }
+};
+
+// Event handler for when an error occurs with the WebSocket connection
+socket.onerror = function (error) {
+  console.log(`[error] ${error.message}`); // Log the error that occurred
+};
+
+/*
+Instructions to run this code:
+
+1. Ensure Node.js is installed on your machine. You can download it from https://nodejs.org/.
+2. Install the `ws` WebSocket library by running:
+   npm install ws
+3. Save this code to a file, e.g., `websocket_client.js`.
+4. Open a terminal and navigate to the directory where you saved the file.
+5. Run the code using the following command:
+   node websocket_client.js
+
+Ensure that the `app_id` in the URL is replaced with your own if needed.
+*/

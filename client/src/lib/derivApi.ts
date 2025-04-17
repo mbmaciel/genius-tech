@@ -1,20 +1,15 @@
-// Deriv API Wrapper
-// This file provides a typed interface to interact with the Deriv WebSocket API
+/**
+ * derivApi.ts
+ * Implementação da interface de comunicação com a API Deriv
+ * Manipula autenticação, autorização e comunicação com o servidor WebSocket da Deriv
+ */
 
-// Define types for the API responses and request payloads
-interface DerivAuthRequest {
-  authorize: string;
-  req_id?: number;
-}
+// Constantes da API
+const DERIV_WS_URL = 'wss://ws.derivws.com/websockets/v3';
+const DEFAULT_APP_ID = '71403'; // ID oficial do nosso aplicativo
 
-interface DerivAPIRequest {
-  [key: string]: any;
-  req_id?: number;
-}
-
-interface DerivAPIResponse {
-  req_id?: number;
-  msg_type: string;
+// Interface para eventos de resposta da API
+interface ApiResponse {
   error?: {
     code: string;
     message: string;
@@ -22,824 +17,613 @@ interface DerivAPIResponse {
   [key: string]: any;
 }
 
-interface DerivAuthorizeResponse extends DerivAPIResponse {
-  authorize: {
-    account_list: Array<{
-      account_type: string;
-      currency: string;
-      is_disabled: 0 | 1;
-      is_virtual: 0 | 1;
-      landing_company_name: string;
-      loginid: string;
-      trading?: {
-        shortcode?: string;
-      };
-    }>;
-    balance?: number;
-    country?: string;
-    currency?: string;
-    email?: string;
-    fullname?: string;
-    is_virtual?: 0 | 1;
-    landing_company_fullname?: string;
-    landing_company_name?: string;
-    local_currencies?: object;
-    loginid?: string;
-    preferred_language?: string;
-    scopes?: string[];
-    trading_platform_available?: 0 | 1;
-    user_id?: number;
-  };
-}
+// Tipos de callbacks para eventos de WebSocket
+type MessageCallback = (response: ApiResponse) => void;
+type ConnectionCallback = (connected: boolean) => void;
+type ErrorCallback = (error: Error) => void;
 
-interface DerivBalanceResponse extends DerivAPIResponse {
-  balance: {
-    balance: number;
-    currency: string;
-    id: string;
-    loginid: string;
-  };
-}
-
-interface DerivTickResponse extends DerivAPIResponse {
-  tick: {
-    ask: number;
-    bid: number;
-    epoch: number;
-    id: string;
-    pip_size: number;
-    quote: number;
-    symbol: string;
-  };
-}
-
-interface DerivPingResponse extends DerivAPIResponse {
-  ping: string;
-}
-
-interface DerivProposalResponse extends DerivAPIResponse {
-  proposal: {
-    ask_price: number;
-    date_start: number;
-    display_value: string;
-    id: string;
-    longcode: string;
-    spot: number;
-    spot_time: number;
-  };
-}
-
-interface DerivProfitTableResponse extends DerivAPIResponse {
-  profit_table: {
-    count: number;
-    transactions: Array<{
-      app_id?: number;
-      buy_price?: number;
-      contract_id: number;
-      longcode: string;
-      purchase_time: number;
-      sell_price?: number;
-      sell_time?: number;
-      shortcode?: string;
-      transaction_id: number;
-    }>;
-  };
-}
-
-interface DerivOpenContractsResponse extends DerivAPIResponse {
-  open_contract: {
-    contract_id: number;
-    contract_type: string;
-    currency: string;
-    underlying: string;
-    barrier?: string;
-    bid_price: number;
-    buy_price: number;
-    date_start: number;
-    entry_spot?: number;
-    entry_tick?: number;
-    entry_tick_time?: number;
-    expiry_time: number;
-    is_sold: 0 | 1;
-    profit?: number;
-    profit_percentage?: number;
-    status?: "open" | "won" | "lost" | "cancelled";
-    tick_count?: number;
-    ticks?: Array<{
-      epoch: number;
-      quote: number;
-    }>;
-    transaction_ids: {
-      buy: number;
-      sell?: number;
-    };
-  };
-}
-
-interface DerivBuyContractResponse extends DerivAPIResponse {
-  buy: {
-    balance_after: number;
-    contract_id: number;
-    longcode: string;
-    start_time: number;
-    transaction_id: number;
-  };
-}
-
-interface DerivActiveSymbolsResponse extends DerivAPIResponse {
-  active_symbols: Array<{
-    display_name: string;
-    market: string;
-    market_display_name: string;
-    pip: number;
-    submarket: string;
-    submarket_display_name: string;
-    symbol: string;
-    symbol_type: string;
-  }>;
-}
-
-interface DerivAccountInfo {
-  accountName?: string;
-  accountType?: string;
-  balance?: number;
-  balanceStr?: string;
-  currency?: string;
-  email?: string;
-  fullname?: string;
-  isVirtual?: boolean;
-  landingCompany?: string;
-  landingCompanyName?: string;
-  loginId?: string;
-  loginid?: string;
-  userId?: number;
-}
-
-interface DerivAccountItem {
-  account?: string;
-  accountName?: string;
-  loginid?: string;
-  token?: string;
-  isVirtual?: boolean;
-  currency?: string;
-}
-
-interface DerivContract {
-  id: number;
-  type: string;
-  currency: string;
-  symbol: string;
-  barrier?: string;
-  bidPrice: number;
-  buyPrice: number;
-  startTime: number;
-  entrySpot?: number;
-  entryTime?: number;
-  expiryTime: number;
-  isSold: boolean;
-  profit?: number;
-  profitPercentage?: number;
-  status?: string;
-  tickCount?: number;
-  ticks?: {epoch: number, quote: number}[];
-  transactionIds: {
-    buy: number;
-    sell?: number;
-  };
-}
-
-// Utility for generating unique request IDs
-let requestCounter = 1;
-function generateReqId(): number {
-  return requestCounter++;
-}
-
-// Main DerivAPI class
+/**
+ * Classe DerivAPI para gerenciar a conexão WebSocket com a API Deriv
+ */
 class DerivAPI {
-  private websocket: WebSocket | null = null;
-  private pendingRequests: Map<number, { 
-    resolve: (response: any) => void; 
-    reject: (error: any) => void; 
-    timeout: NodeJS.Timeout | null;
-  }> = new Map();
-  private subscriptions: Map<string, number> = new Map();
-  private _isConnected: boolean = false;
-  private _token: string | null = null;
-  private _accountInfo: DerivAccountInfo | null = null;
-  private _activeSubscriptions: Set<number> = new Set();
+  private socket: WebSocket | null = null;
+  private isConnecting: boolean = false;
+  private requestId: number = 0;
+  private pingInterval: NodeJS.Timeout | null = null;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private lastMessageTime: number = 0;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-  private reconnectDelay: number = 2000; // Start with 2 seconds
+  private readonly MAX_RECONNECT_ATTEMPTS: number = 5;
+  private readonly PING_INTERVAL: number = 30000; // 30 segundos
+  private readonly RECONNECT_DELAY: number = 2000; // 2 segundos iniciais
+  
+  // Armazenar callbacks para mensagens
+  private callbacks: Map<number, MessageCallback> = new Map();
+
+  // Armazenar listeners de eventos
+  private connectionListeners: ConnectionCallback[] = [];
+  private errorListeners: ErrorCallback[] = [];
+  
+  // Referência ao token usado atualmente
+  private currentToken: string | null = null;
+  
+  // Informações da conta autenticada
+  private authorizeInfo: any = null;
+  private balanceInfo: any = null;
+  
+  // Configurações da API
+  private appId: string = DEFAULT_APP_ID;
+  private apiUrl: string = DERIV_WS_URL;
   
   constructor() {
-    this.setupEventListeners();
-    this.loadToken();
+    // Inicializar com os valores armazenados, se existirem
+    this.appId = localStorage.getItem('deriv_app_id') || DEFAULT_APP_ID;
+    this.apiUrl = localStorage.getItem('deriv_api_url') || DERIV_WS_URL;
+    this.currentToken = localStorage.getItem('deriv_api_token');
+    
+    // Tentar conectar automaticamente ao inicializar, se houver token
+    if (this.currentToken) {
+      this.connect();
+    }
   }
   
-  // Setup DOM event listeners
-  private setupEventListeners() {
-    // Handle page visibility changes to reconnect if needed
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && !this._isConnected) {
-        console.log('Page became visible, attempting reconnection...');
-        this.reconnect();
+  /**
+   * Conecta ao WebSocket da API Deriv
+   * @returns Promise que resolve quando a conexão for estabelecida
+   */
+  public connect(): Promise<boolean> {
+    // Se já estiver conectado ou tentando conectar, retornar estado atual
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      console.log('[DerivAPI] WebSocket já está conectado ou conectando');
+      return Promise.resolve(true);
+    }
+    
+    if (this.isConnecting) {
+      console.log('[DerivAPI] Conexão já em andamento');
+      return Promise.resolve(false);
+    }
+    
+    this.isConnecting = true;
+    console.log('[DerivAPI] Conectando ao WebSocket...');
+    
+    return new Promise((resolve) => {
+      // Limpar qualquer conexão anterior
+      if (this.socket) {
+        try {
+          this.socket.onopen = null;
+          this.socket.onclose = null;
+          this.socket.onerror = null;
+          this.socket.onmessage = null;
+          this.socket.close();
+        } catch (e) {
+          console.error('[DerivAPI] Erro ao fechar WebSocket anterior:', e);
+        }
       }
-    });
-    
-    // Handle window online/offline events
-    window.addEventListener('online', () => {
-      console.log('Network connection restored, attempting reconnection...');
-      this.reconnect();
-    });
-    
-    window.addEventListener('offline', () => {
-      console.log('Network connection lost');
-      this._isConnected = false;
-      this.dispatchConnectionEvent(false);
-    });
-  }
-  
-  // Load token from storage
-  private loadToken(): string | null {
-    this._token = localStorage.getItem('deriv_api_token');
-    return this._token;
-  }
-  
-  // Save token to storage
-  private saveToken(token: string): void {
-    this._token = token;
-    localStorage.setItem('deriv_api_token', token);
-  }
-  
-  // Create WebSocket connection
-  private async createConnection(): Promise<WebSocket> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3');
       
-      const onOpen = () => {
-        console.log('WebSocket connection established');
-        this._isConnected = true;
-        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-        this.reconnectDelay = 2000; // Reset reconnect delay
-        this.dispatchConnectionEvent(true);
-        
-        // Remove listeners to avoid memory leaks
-        ws.removeEventListener('open', onOpen);
-        ws.removeEventListener('error', onError);
-        
-        resolve(ws);
-      };
+      // Criar nova conexão
+      this.socket = new WebSocket(this.apiUrl);
       
-      const onError = (event: Event) => {
-        console.error('WebSocket connection error:', event);
-        this._isConnected = false;
-        this.dispatchConnectionEvent(false);
+      this.socket.onopen = () => {
+        console.log('[DerivAPI] Conexão estabelecida');
+        this.isConnecting = false;
+        this.reconnectAttempts = 0;
+        this.notifyConnectionListeners(true);
         
-        // Remove listeners to avoid memory leaks
-        ws.removeEventListener('open', onOpen);
-        ws.removeEventListener('error', onError);
+        // Iniciar o ping para manter a conexão ativa
+        this.startPingInterval();
         
-        reject(new Error('Failed to establish WebSocket connection'));
-      };
-      
-      ws.addEventListener('open', onOpen);
-      ws.addEventListener('error', onError);
-    });
-  }
-  
-  // Handle WebSocket messages
-  private setupMessageHandler(ws: WebSocket) {
-    ws.addEventListener('message', (event) => {
-      try {
-        const data: DerivAPIResponse = JSON.parse(event.data);
-        
-        if (data.req_id && this.pendingRequests.has(data.req_id)) {
-          const { resolve, reject, timeout } = this.pendingRequests.get(data.req_id)!;
-          
-          // Clear timeout if it exists
-          if (timeout) {
-            clearTimeout(timeout);
-          }
-          
-          if (data.error) {
-            console.error(`API Error [${data.error.code}]: ${data.error.message}`);
-            reject(data.error);
-          } else {
-            resolve(data);
-          }
-          
-          // Only remove non-subscription requests
-          if (!this._activeSubscriptions.has(data.req_id)) {
-            this.pendingRequests.delete(data.req_id);
-          }
-        } else if (data.msg_type === 'balance') {
-          // Handle balance updates
-          const balanceData = data as DerivBalanceResponse;
-          if (this._accountInfo) {
-            this._accountInfo.balance = balanceData.balance.balance;
-            this._accountInfo.balanceStr = balanceData.balance.balance.toString();
-            this._accountInfo.currency = balanceData.balance.currency;
-            
-            // Dispatch a custom event for balance updates
-            this.dispatchEvent('balance_update', { 
-              balance: balanceData.balance.balance,
-              currency: balanceData.balance.currency,
-              loginId: balanceData.balance.loginid
+        // Se tiver token, autorizar automaticamente
+        if (this.currentToken) {
+          this.authorize(this.currentToken)
+            .then(() => {
+              console.log('[DerivAPI] Autorização automática bem-sucedida');
+            })
+            .catch(error => {
+              console.error('[DerivAPI] Falha na autorização automática:', error);
             });
-          }
-        } else if (data.msg_type === 'tick') {
-          // Handle tick data
-          this.dispatchEvent('tick', (data as DerivTickResponse).tick);
-        } else if (data.msg_type === 'proposal') {
-          // Handle proposal data
-          this.dispatchEvent('proposal', (data as DerivProposalResponse).proposal);
-        } else if (data.msg_type === 'buy') {
-          // Handle contract purchase
-          this.dispatchEvent('buy', (data as DerivBuyContractResponse).buy);
-        } else if (data.msg_type === 'open_contract') {
-          // Handle open contract updates
-          const contractData = (data as DerivOpenContractsResponse).open_contract;
+        }
+        
+        resolve(true);
+      };
+      
+      this.socket.onclose = (event) => {
+        console.log(`[DerivAPI] Conexão fechada: ${event.code} - ${event.reason}`);
+        this.isConnecting = false;
+        this.notifyConnectionListeners(false);
+        this.clearPingInterval();
+        
+        // Tentar reconectar automaticamente
+        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+          console.log(`[DerivAPI] Tentativa de reconexão ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS} em ${this.RECONNECT_DELAY}ms`);
           
-          if (contractData) {
-            const contract: DerivContract = {
-              id: contractData.contract_id,
-              type: contractData.contract_type,
-              currency: contractData.currency,
-              symbol: contractData.underlying,
-              barrier: contractData.barrier,
-              bidPrice: contractData.bid_price,
-              buyPrice: contractData.buy_price,
-              startTime: contractData.date_start,
-              entrySpot: contractData.entry_spot,
-              entryTime: contractData.entry_tick_time,
-              expiryTime: contractData.expiry_time,
-              isSold: contractData.is_sold === 1,
-              profit: contractData.profit,
-              profitPercentage: contractData.profit_percentage,
-              status: contractData.status,
-              tickCount: contractData.tick_count,
-              ticks: contractData.ticks,
-              transactionIds: contractData.transaction_ids
-            };
+          if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+          }
+          
+          this.reconnectTimeout = setTimeout(() => {
+            this.reconnectAttempts++;
+            this.connect()
+              .then((success) => {
+                if (success) {
+                  console.log('[DerivAPI] Reconexão bem-sucedida');
+                } else {
+                  console.log('[DerivAPI] Falha na reconexão');
+                }
+              })
+              .catch((error) => {
+                console.error('[DerivAPI] Erro durante reconexão:', error);
+              });
+          }, this.RECONNECT_DELAY * Math.pow(1.5, this.reconnectAttempts));
+        } else {
+          console.error('[DerivAPI] Número máximo de tentativas de reconexão atingido');
+        }
+      };
+      
+      this.socket.onerror = (event) => {
+        console.error('[DerivAPI] Erro na conexão WebSocket:', event);
+        this.isConnecting = false;
+        this.notifyConnectionListeners(false);
+        this.notifyErrorListeners(new Error('Erro na conexão WebSocket'));
+      };
+      
+      this.socket.onmessage = (event) => {
+        this.lastMessageTime = Date.now();
+        
+        try {
+          const data: ApiResponse = JSON.parse(event.data);
+          
+          // Verificar se é uma resposta a uma requisição específica
+          const requestId = data.req_id as number;
+          if (requestId && this.callbacks.has(requestId)) {
+            const callback = this.callbacks.get(requestId);
+            if (callback) {
+              callback(data);
+              this.callbacks.delete(requestId);
+            }
+          }
+          
+          // Emitir evento customizado para a UI
+          const messageEvent = new CustomEvent('deriv:message', { 
+            detail: data 
+          });
+          document.dispatchEvent(messageEvent);
+          
+          // Verificar por atualizações de saldo
+          if (data.balance) {
+            this.balanceInfo = data.balance;
+            // Disparar evento de atualização de saldo
+            const balanceEvent = new CustomEvent('deriv:balance', { 
+              detail: data.balance 
+            });
+            document.dispatchEvent(balanceEvent);
+          }
+          
+          // Verificar por erros
+          if (data.error) {
+            console.error(`[DerivAPI] Erro da API: ${data.error.code} - ${data.error.message}`);
+            // Disparar evento de erro para a UI
+            const errorEvent = new CustomEvent('deriv:error', { 
+              detail: data.error 
+            });
+            document.dispatchEvent(errorEvent);
             
-            this.dispatchEvent('contract_update', contract);
+            // Tratamento específico para erros de autenticação
+            if (data.error.code === 'InvalidToken') {
+              this.notifyErrorListeners(new Error(`Token inválido: ${data.error.message}`));
+            }
           }
-        } else if (data.msg_type === 'ping') {
-          // Handle ping response - useful for keepalive
-          // console.log('Ping received:', (data as DerivPingResponse).ping);
+        } catch (error) {
+          console.error('[DerivAPI] Erro ao processar mensagem:', error);
         }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    });
-    
-    ws.addEventListener('close', (event) => {
-      console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
-      this._isConnected = false;
-      this.dispatchConnectionEvent(false);
-      
-      // Attempt to reconnect
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        setTimeout(() => this.reconnect(), this.reconnectDelay);
-        
-        // Increase delay for next attempt (exponential backoff)
-        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 30000); // Max 30 seconds
-        this.reconnectAttempts++;
-      } else {
-        console.error(`Maximum reconnection attempts (${this.maxReconnectAttempts}) reached.`);
-      }
-    });
-    
-    ws.addEventListener('error', (error) => {
-      console.error('WebSocket error:', error);
-      // The close event will handle reconnection
+      };
     });
   }
   
-  // Dispatch custom events for components to listen to
-  private dispatchEvent(eventName: string, data: any) {
-    const event = new CustomEvent(`deriv:${eventName}`, { detail: data });
-    document.dispatchEvent(event);
-  }
-  
-  // Specifically dispatch connection status events
-  private dispatchConnectionEvent(connected: boolean) {
-    const event = new CustomEvent('deriv:connection_status', { 
-      detail: { connected } 
-    });
-    document.dispatchEvent(event);
-  }
-  
-  // Send a request to the API
-  private async sendRequest<T extends DerivAPIResponse>(request: DerivAPIRequest, timeoutMs = 30000): Promise<T> {
-    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      await this.connect();
-      
-      if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-        throw new Error('WebSocket connection is not open');
+  /**
+   * Desconecta do WebSocket da API
+   * @param clearToken Se deve limpar o token salvo
+   */
+  public disconnect(clearToken: boolean = false): void {
+    this.clearPingInterval();
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    if (this.socket) {
+      try {
+        this.socket.onopen = null;
+        this.socket.onclose = null;
+        this.socket.onerror = null;
+        this.socket.onmessage = null;
+        this.socket.close();
+        this.socket = null;
+      } catch (e) {
+        console.error('[DerivAPI] Erro ao desconectar WebSocket:', e);
       }
     }
     
-    const reqId = generateReqId();
-    request.req_id = reqId;
-    
-    return new Promise((resolve, reject) => {
-      let timeoutId: NodeJS.Timeout | null = null;
-      
-      // Set timeout for request
-      if (timeoutMs > 0) {
-        timeoutId = setTimeout(() => {
-          if (this.pendingRequests.has(reqId)) {
-            this.pendingRequests.delete(reqId);
-            reject(new Error(`Request timed out after ${timeoutMs}ms`));
-          }
-        }, timeoutMs);
-      }
-      
-      // Store the request in pending requests
-      this.pendingRequests.set(reqId, { resolve, reject, timeout: timeoutId });
-      
-      // Track subscription requests
-      if (request.subscribe === 1) {
-        this._activeSubscriptions.add(reqId);
-        
-        // Store the subscription type for easy cancellation later
-        for (const key of Object.keys(request)) {
-          if (key !== 'req_id' && key !== 'subscribe') {
-            this.subscriptions.set(key, reqId);
-            break;
-          }
-        }
-      }
-      
-      // Send the request
-      this.websocket!.send(JSON.stringify(request));
-    });
-  }
-  
-  // Reconnect to the API
-  private async reconnect(): Promise<void> {
-    try {
-      if (this.websocket) {
-        // Clean up old connection
-        this.websocket.close();
-        this.websocket = null;
-      }
-      
-      // Create new connection
-      this.websocket = await this.createConnection();
-      this.setupMessageHandler(this.websocket);
-      
-      // Re-authorize if we have a token
-      if (this._token) {
-        await this.authorize(this._token);
-        
-        // Resubscribe to active subscriptions
-        // Note: This would require storing subscription parameters
-        // For simplicity, we rely on components to resubscribe when they detect reconnection
-      }
-    } catch (error) {
-      console.error('Failed to reconnect:', error);
-      throw error;
-    }
-  }
-  
-  // Connect to the API
-  public async connect(): Promise<boolean> {
-    try {
-      // If already connected, return true
-      if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-        return true;
-      }
-      
-      // Create connection
-      this.websocket = await this.createConnection();
-      this.setupMessageHandler(this.websocket);
-      
-      // Authorize if we have a token
-      if (this._token) {
-        await this.authorize(this._token);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Failed to connect:', error);
-      return false;
-    }
-  }
-  
-  // Disconnect from the API
-  public disconnect(force: boolean = false): void {
-    // Cancel all active subscriptions first
-    if (!force) {
-      this.cancelAllActiveSubscriptions();
-    }
-    
-    // Close the connection
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
-    }
-    
-    this._isConnected = false;
-    this.dispatchConnectionEvent(false);
-    
-    // Clear token if forced disconnect
-    if (force) {
-      this._token = null;
-      this._accountInfo = null;
+    // Limpar token se solicitado
+    if (clearToken) {
+      this.currentToken = null;
       localStorage.removeItem('deriv_api_token');
     }
+    
+    this.notifyConnectionListeners(false);
+    console.log('[DerivAPI] WebSocket desconectado');
   }
   
-  // Authorize with the API using a token
-  public async authorize(token: string): Promise<DerivAccountInfo | null> {
+  /**
+   * Adiciona um ouvinte para eventos de conexão
+   * @param listener Função de callback para eventos de conexão
+   */
+  public addConnectionListener(listener: ConnectionCallback): void {
+    this.connectionListeners.push(listener);
+  }
+  
+  /**
+   * Remove um ouvinte para eventos de conexão
+   * @param listener Função de callback a ser removida
+   */
+  public removeConnectionListener(listener: ConnectionCallback): void {
+    const index = this.connectionListeners.indexOf(listener);
+    if (index !== -1) {
+      this.connectionListeners.splice(index, 1);
+    }
+  }
+  
+  /**
+   * Adiciona um ouvinte para eventos de erro
+   * @param listener Função de callback para eventos de erro
+   */
+  public addErrorListener(listener: ErrorCallback): void {
+    this.errorListeners.push(listener);
+  }
+  
+  /**
+   * Remove um ouvinte para eventos de erro
+   * @param listener Função de callback a ser removida
+   */
+  public removeErrorListener(listener: ErrorCallback): void {
+    const index = this.errorListeners.indexOf(listener);
+    if (index !== -1) {
+      this.errorListeners.splice(index, 1);
+    }
+  }
+  
+  /**
+   * Notifica todos os ouvintes de conexão
+   * @param connected Estado da conexão (true = conectado, false = desconectado)
+   */
+  private notifyConnectionListeners(connected: boolean): void {
+    this.connectionListeners.forEach(listener => {
+      try {
+        listener(connected);
+      } catch (error) {
+        console.error('[DerivAPI] Erro em ouvinte de conexão:', error);
+      }
+    });
+  }
+  
+  /**
+   * Notifica todos os ouvintes de erro
+   * @param error Objeto de erro a ser notificado
+   */
+  private notifyErrorListeners(error: Error): void {
+    this.errorListeners.forEach(listener => {
+      try {
+        listener(error);
+      } catch (err) {
+        console.error('[DerivAPI] Erro em ouvinte de erro:', err);
+      }
+    });
+  }
+  
+  /**
+   * Inicia o intervalo de ping para manter a conexão ativa
+   */
+  private startPingInterval(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+    
+    this.pingInterval = setInterval(() => {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        // Verificar se não recebemos mensagens há mais de 35 segundos
+        const now = Date.now();
+        if (now - this.lastMessageTime > 35000) {
+          console.log('[DerivAPI] Nenhuma mensagem recebida por muito tempo, enviando ping...');
+        }
+        
+        // Enviar ping
+        this.send({ ping: 1 }).catch(error => {
+          console.error('[DerivAPI] Erro ao enviar ping:', error);
+        });
+      } else {
+        console.warn('[DerivAPI] Não foi possível enviar ping, WebSocket não está aberto');
+        this.clearPingInterval();
+      }
+    }, this.PING_INTERVAL);
+  }
+  
+  /**
+   * Limpa o intervalo de ping
+   */
+  private clearPingInterval(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+  
+  /**
+   * Envia um comando para a API e recebe a resposta
+   * @param data Objeto de dados a ser enviado para a API
+   * @returns Promise com a resposta da API
+   */
+  public send(data: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        // Se não estiver conectado, tentar conectar e enviar
+        this.connect()
+          .then(() => {
+            this.sendAfterConnected(data, resolve, reject);
+          })
+          .catch(error => {
+            reject(new Error(`Falha ao conectar para envio: ${error.message}`));
+          });
+      } else {
+        // Se já estiver conectado, enviar diretamente
+        this.sendAfterConnected(data, resolve, reject);
+      }
+    });
+  }
+  
+  /**
+   * Função auxiliar para enviar comando após conexão estabelecida
+   */
+  private sendAfterConnected(data: any, resolve: (value: any) => void, reject: (reason: any) => void): void {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      reject(new Error('WebSocket não está pronto para enviar solicitação'));
+      return;
+    }
+    
+    // Gerar ID de requisição único
+    this.requestId++;
+    const requestId = this.requestId;
+    
+    // Adicionar ID de requisição e App ID aos dados
+    const requestData = {
+      ...data,
+      req_id: requestId,
+      app_id: this.appId
+    };
+    
+    // Registrar callback para esta requisição
+    this.callbacks.set(requestId, (response: ApiResponse) => {
+      if (response.error) {
+        reject(new Error(`API Deriv erro ${response.error.code}: ${response.error.message}`));
+      } else {
+        resolve(response);
+      }
+    });
+    
+    try {
+      // Enviar dados
+      const jsonData = JSON.stringify(requestData);
+      this.socket.send(jsonData);
+    } catch (error) {
+      // Remover callback em caso de erro
+      this.callbacks.delete(requestId);
+      reject(error);
+    }
+  }
+  
+  /**
+   * Autoriza o usuário com um token
+   * @param token Token de autorização
+   * @returns Promise com os dados de autorização
+   */
+  public async authorize(token: string): Promise<any> {
     if (!token) {
-      throw new Error('Token is required for authorization');
+      throw new Error('Token não especificado');
     }
     
     try {
-      const request: DerivAuthRequest = { authorize: token };
-      const response = await this.sendRequest<DerivAuthorizeResponse>(request);
-      
-      this.saveToken(token);
+      // Enviar solicitação de autorização
+      const response = await this.send({ authorize: token });
       
       if (response.authorize) {
-        this._accountInfo = {
-          fullname: response.authorize.fullname,
-          email: response.authorize.email,
-          loginId: response.authorize.loginid,
-          loginid: response.authorize.loginid,
-          accountType: response.authorize.landing_company_name,
-          landingCompany: response.authorize.landing_company_name,
-          landingCompanyName: response.authorize.landing_company_fullname,
-          currency: response.authorize.currency,
-          balance: response.authorize.balance,
-          balanceStr: response.authorize.balance?.toString(),
-          isVirtual: response.authorize.is_virtual === 1,
-          userId: response.authorize.user_id
+        // Armazenar token e informações de autorização
+        this.currentToken = token;
+        this.authorizeInfo = response.authorize;
+        localStorage.setItem('deriv_api_token', token);
+        
+        // Disparar evento de autorização para a UI
+        const authorizeEvent = new CustomEvent('deriv:authorize', { 
+          detail: response.authorize 
+        });
+        document.dispatchEvent(authorizeEvent);
+        
+        return response.authorize;
+      } else {
+        throw new Error('Resposta de autorização inválida');
+      }
+    } catch (error) {
+      console.error('[DerivAPI] Erro de autorização:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Verifica se o token atual é válido
+   * @returns Promise com resultado da verificação
+   */
+  public async verifyToken(): Promise<boolean> {
+    if (!this.currentToken) {
+      return false;
+    }
+    
+    try {
+      const response = await this.send({ authorize: this.currentToken });
+      return !!response.authorize;
+    } catch (error) {
+      console.error('[DerivAPI] Erro ao verificar token:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Obtém informações da conta autorizada
+   * @returns Informações da autorização ou null se não autenticado
+   */
+  public getAuthorizeInfo(): any {
+    return this.authorizeInfo;
+  }
+  
+  /**
+   * Troca para outra conta disponível
+   * @param loginid ID da conta para a qual alternar
+   * @returns Promise com os dados da nova conta
+   */
+  public async setAccount(loginid: string): Promise<any> {
+    if (!loginid) {
+      throw new Error('ID de login não especificado');
+    }
+    
+    try {
+      const response = await this.send({ set_account: loginid });
+      
+      if (response.set_account) {
+        // Atualizar informações de autorização
+        this.authorizeInfo = {
+          ...this.authorizeInfo,
+          loginid: loginid,
+          balance: response.set_account.balance,
+          currency: response.set_account.currency
         };
         
-        this.dispatchEvent('account_info', this._accountInfo);
-        return this._accountInfo;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Authorization failed:', error);
-      throw error;
-    }
-  }
-  
-  // Get account information
-  public getAccountInfo(): DerivAccountInfo | null {
-    return this._accountInfo;
-  }
-  
-  // Get account list
-  public async getAccountList(): Promise<DerivAccountItem[]> {
-    if (!this._token) {
-      throw new Error('Not authorized. Call authorize() first');
-    }
-    
-    try {
-      const request: DerivAuthRequest = { authorize: this._token };
-      const response = await this.sendRequest<DerivAuthorizeResponse>(request);
-      
-      if (response.authorize && response.authorize.account_list) {
-        return response.authorize.account_list.map(account => ({
-          loginid: account.loginid,
-          currency: account.currency,
-          isVirtual: account.is_virtual === 1,
-          accountType: account.account_type,
-          // Account may be disabled
-          isDisabled: account.is_disabled === 1
-        }));
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('Failed to get account list:', error);
-      throw error;
-    }
-  }
-  
-  // Check if connected
-  public get isConnected(): boolean {
-    return this._isConnected && this.websocket?.readyState === WebSocket.OPEN;
-  }
-  
-  // Get connection status
-  public getConnectionStatus(): boolean {
-    return this.isConnected;
-  }
-  
-  // Get the current token
-  public getToken(): string | null {
-    return this._token;
-  }
-  
-  // Cancel a specific subscription
-  public async cancelSubscription(subscriptionType: string): Promise<boolean> {
-    if (this.subscriptions.has(subscriptionType)) {
-      const reqId = this.subscriptions.get(subscriptionType)!;
-      
-      try {
-        const request = { forget: reqId };
-        await this.sendRequest(request);
+        // Disparar evento de troca de conta para a UI
+        const accountEvent = new CustomEvent('deriv:account_changed', { 
+          detail: response.set_account 
+        });
+        document.dispatchEvent(accountEvent);
         
-        this._activeSubscriptions.delete(reqId);
-        this.subscriptions.delete(subscriptionType);
-        this.pendingRequests.delete(reqId);
+        return response.set_account;
+      } else {
+        throw new Error('Resposta de troca de conta inválida');
+      }
+    } catch (error) {
+      console.error('[DerivAPI] Erro ao trocar de conta:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtém informações de saldo da conta
+   * @returns Promise com os dados de saldo
+   */
+  public async getBalance(): Promise<any> {
+    try {
+      const response = await this.send({ balance: 1, subscribe: 1 });
+      
+      if (response.balance) {
+        this.balanceInfo = response.balance;
+        return response.balance;
+      } else {
+        throw new Error('Resposta de saldo inválida');
+      }
+    } catch (error) {
+      console.error('[DerivAPI] Erro ao obter saldo:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Faz logout do usuário
+   * @returns Promise com resultado do logout
+   */
+  public async logout(): Promise<any> {
+    try {
+      const response = await this.send({ logout: 1 });
+      
+      if (response.logout) {
+        // Limpar dados de autenticação
+        this.currentToken = null;
+        this.authorizeInfo = null;
+        localStorage.removeItem('deriv_api_token');
         
-        return true;
-      } catch (error) {
-        console.error(`Failed to cancel ${subscriptionType} subscription:`, error);
-        return false;
+        // Disparar evento de logout para a UI
+        const logoutEvent = new CustomEvent('deriv:logout');
+        document.dispatchEvent(logoutEvent);
+        
+        return response.logout;
+      } else {
+        throw new Error('Resposta de logout inválida');
       }
-    }
-    
-    return true; // No subscription to cancel
-  }
-  
-  // Cancel all active subscriptions
-  public async cancelAllActiveSubscriptions(): Promise<boolean> {
-    if (this._activeSubscriptions.size === 0) {
-      return true;
-    }
-    
-    try {
-      const request = { forget_all: ['ticks', 'proposal', 'portfolio', 'balance', 'transaction'] };
-      await this.sendRequest(request);
-      
-      // Clear subscriptions
-      this._activeSubscriptions.clear();
-      this.subscriptions.clear();
-      
-      // Clear any pending requests that were for subscriptions
-      for (const [reqId, request] of this.pendingRequests.entries()) {
-        if (this._activeSubscriptions.has(reqId)) {
-          if (request.timeout) {
-            clearTimeout(request.timeout);
-          }
-          this.pendingRequests.delete(reqId);
-        }
-      }
-      
-      return true;
     } catch (error) {
-      console.error('Failed to cancel all subscriptions:', error);
-      return false;
-    }
-  }
-  
-  // Subscribe to balance updates
-  public async subscribeToBalanceUpdates(): Promise<boolean> {
-    try {
-      await this.cancelSubscription('balance');
-      
-      const request = { balance: 1, subscribe: 1 };
-      const response = await this.sendRequest(request);
-      
-      return response.msg_type === 'balance';
-    } catch (error) {
-      console.error('Failed to subscribe to balance updates:', error);
-      return false;
-    }
-  }
-  
-  // Subscribe to ticks for a symbol
-  public async subscribeToTicks(symbol: string): Promise<boolean> {
-    try {
-      // Cancel any existing tick subscription for this symbol
-      await this.cancelSubscription(`tick_${symbol}`);
-      
-      const request = { ticks: symbol, subscribe: 1 };
-      const response = await this.sendRequest<DerivTickResponse>(request);
-      
-      this.subscriptions.set(`tick_${symbol}`, response.req_id!);
-      
-      return response.msg_type === 'tick';
-    } catch (error) {
-      console.error(`Failed to subscribe to ticks for ${symbol}:`, error);
-      return false;
-    }
-  }
-  
-  // Get active symbols
-  public async getActiveSymbols(): Promise<DerivActiveSymbolsResponse['active_symbols']> {
-    try {
-      const request = { active_symbols: 'brief', product_type: 'basic' };
-      const response = await this.sendRequest<DerivActiveSymbolsResponse>(request);
-      
-      return response.active_symbols || [];
-    } catch (error) {
-      console.error('Failed to get active symbols:', error);
+      console.error('[DerivAPI] Erro ao fazer logout:', error);
       throw error;
     }
   }
   
-  // Subscribe to open contracts
-  public async subscribeToOpenContracts(): Promise<boolean> {
+  /**
+   * Obtém lista de contratos ativos
+   * @returns Promise com a lista de contratos
+   */
+  public async getOpenContracts(): Promise<any> {
     try {
-      await this.cancelSubscription('proposal_open_contract');
-      
-      const request = { proposal_open_contract: 1, subscribe: 1 };
-      const response = await this.sendRequest<DerivOpenContractsResponse>(request);
-      
-      return response.msg_type === 'proposal_open_contract';
+      const response = await this.send({ proposal_open_contract: 1, subscribe: 1 });
+      return response.proposal_open_contract;
     } catch (error) {
-      console.error('Failed to subscribe to open contracts:', error);
-      return false;
-    }
-  }
-  
-  // Get profit table
-  public async getProfitTable(options: {
-    limit?: number;
-    offset?: number;
-    sort?: string;
-    date_from?: number;
-    date_to?: number;
-  } = {}): Promise<DerivProfitTableResponse['profit_table']> {
-    try {
-      const request = { 
-        profit_table: 1,
-        limit: options.limit || 100,
-        offset: options.offset || 0,
-        sort: options.sort || 'DESC',
-        date_from: options.date_from,
-        date_to: options.date_to
-      };
-      
-      const response = await this.sendRequest<DerivProfitTableResponse>(request);
-      
-      return response.profit_table;
-    } catch (error) {
-      console.error('Failed to get profit table:', error);
+      console.error('[DerivAPI] Erro ao obter contratos abertos:', error);
       throw error;
     }
   }
   
-  // Buy contract
-  public async buyContract(contractType: string, parameters: {
-    symbol: string;
-    amount: number;
-    basis: 'payout' | 'stake';
-    contract_type: string;
-    currency: string;
-    duration: number;
-    duration_unit: 'tick' | 'm' | 's' | 'h' | 'd';
-    barrier?: string;
-    barrier2?: string;
-    limit_order?: {
-      stop_loss?: number;
-      take_profit?: number;
-    };
-  }): Promise<DerivBuyContractResponse['buy']> {
+  /**
+   * Obtém ticks para um símbolo específico
+   * @param symbol Símbolo para o qual obter ticks (ex: "R_100")
+   * @returns Promise com os dados de ticks
+   */
+  public async subscribeTicks(symbol: string): Promise<any> {
     try {
-      // First get the price (proposal)
-      const proposalRequest = { 
-        proposal: 1,
-        ...parameters
-      };
-      
-      const proposalResponse = await this.sendRequest<DerivProposalResponse>(proposalRequest);
-      
-      if (!proposalResponse.proposal || !proposalResponse.proposal.id) {
-        throw new Error('Failed to get proposal for contract');
-      }
-      
-      // Buy the contract using the proposal ID
-      const buyRequest = { 
-        buy: proposalResponse.proposal.id,
-        price: parameters.amount
-      };
-      
-      const buyResponse = await this.sendRequest<DerivBuyContractResponse>(buyRequest);
-      
-      return buyResponse.buy;
+      const response = await this.send({ ticks: symbol, subscribe: 1 });
+      return response;
     } catch (error) {
-      console.error('Failed to buy contract:', error);
+      console.error(`[DerivAPI] Erro ao assinar ticks para ${symbol}:`, error);
       throw error;
     }
   }
   
-  // Send ping to keep connection alive
-  public async ping(): Promise<boolean> {
-    try {
-      const request = { ping: 1 };
-      const response = await this.sendRequest<DerivPingResponse>(request, 5000);
-      
-      return response.msg_type === 'ping';
-    } catch (error) {
-      console.error('Ping failed:', error);
-      return false;
-    }
+  /**
+   * Verifica se o WebSocket está conectado
+   * @returns True se conectado, false caso contrário
+   */
+  public isConnected(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+  }
+  
+  /**
+   * Configura o App ID a ser usado nas requisições
+   * @param appId ID da aplicação
+   */
+  public setAppId(appId: string): void {
+    this.appId = appId;
+    localStorage.setItem('deriv_app_id', appId);
+  }
+  
+  /**
+   * Configura a URL da API WebSocket
+   * @param url URL do WebSocket
+   */
+  public setApiUrl(url: string): void {
+    this.apiUrl = url;
+    localStorage.setItem('deriv_api_url', url);
   }
 }
 
-// Create a singleton instance
-const derivAPI = new DerivAPI();
+// Exportar uma instância única para uso global
+export const derivAPI = new DerivAPI();
 export default derivAPI;

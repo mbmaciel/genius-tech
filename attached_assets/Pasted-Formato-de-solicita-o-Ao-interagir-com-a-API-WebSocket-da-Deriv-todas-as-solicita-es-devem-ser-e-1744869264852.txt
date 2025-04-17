@@ -1,0 +1,128 @@
+Formato de solicitação
+Ao interagir com a API WebSocket da Deriv, todas as solicitações devem ser enviadas como JSON em quadros de texto, com uma solicitação por quadro.
+
+Para ajudar você a gerenciar o fluxo de solicitações e respostas, cada chamada de API segue uma estrutura padronizada. Essa estrutura auxilia no armazenamento em cache, na validação e na sincronização de solicitações e respostas, tornando sua conexão WebSocket mais fluida e eficiente.
+
+Nome do método de chamada da API
+Cada solicitação deve incluir um campo, que serve como um identificador único. Normalmente, ele é definido como , mas às vezes pode ser uma string.method name1
+
+🚧
+O é sempre necessário, pois define os dados específicos que você receberá do servidor WebSocket.method name
+
+Campos obrigatórios
+Cada solicitação contém campos obrigatórios e também pode ter campos opcionais. Por exemplo, uma chamada retorna uma lista de países e seus códigos de duas letras, adequados para preencher um formulário de abertura de conta.Residence List
+
+Exemplo de solicitação de dados para lista de residências:
+
+JSON
+
+{
+  "residence_list": 1, // Method Name
+  "passthrough": {},   // Optional
+  "req_id": 2          // Optional
+}
+O campo é o nome do método e é obrigatório. Outros campos, como e, são opcionais e dependem das suas necessidades específicas.residence_listpassthroughreq_id
+
+Campos opcionais
+As chamadas de API geralmente incluem campos opcionais que você pode escolher usar ou ignorar:
+
+passthrough: Este campo retorna quaisquer dados fornecidos no objeto de resposta. É útil para manter o estado entre solicitações e respostas.
+req_id: Este campo permite que você marque solicitações, facilitando o mapeamento delas para respostas.
+🚧
+Para mais detalhes sobre campos opcionais para cada chamada de API, visite o API Explorer .
+
+Dados de resposta
+As respostas da API incluirão um campo com o nome que você usou na sua solicitação. Este campo contém os dados reais.method name
+
+Exemplo de resposta para lista de residências:
+
+JSON
+
+{
+  "echo_req": {
+    "req_id": 1,
+    "residence_list": 1
+  },
+  "msg_type": "residence_list",
+  "req_id": 1,
+  "residence_list": [
+    {
+      "identity": {
+        "services": {
+          "idv": {
+            "documents_supported": {},
+            "has_visual_sample": 0,
+            "is_country_supported": 0
+          },
+          "onfido": {
+            "documents_supported": {
+              "driving_licence": {
+                "display_name": "Driving Licence"
+              }
+            },
+            "is_country_supported": 0
+          }
+        }
+      },
+      "phone_idd": "35818",
+      "text": "Aland Islands",
+      "value": "ax"
+    },
+    {
+      "identity": {
+        "services": {
+          "idv": {
+            "documents_supported": {},
+            "has_visual_sample": 0,
+            "is_country_supported": 0
+          },
+          "onfido": {
+            "documents_supported": {
+              "driving_licence": {
+                "display_name": "Driving Licence"
+              },
+              "national_identity_card": {
+                "display_name": "National Identity Card"
+              },
+              "passport": {
+                "display_name": "Passport"
+              }
+            },
+            "is_country_supported": 1
+          }
+        }
+      },
+      "phone_idd": "355",
+      "text": "Albania",
+      "tin_format": [
+        "^[A-Ta-t0-9]\\d{8}[A-Wa-w]$"
+      ],
+      "value": "al"
+    }
+  ]
+}
+O campo nesta resposta contém os dados solicitados. Para a resposta completa, consulte o API Explorer .residence_list
+
+Campos de resposta
+echo_req: Este campo retorna os dados exatos da solicitação que foram enviados ao servidor, úteis para verificação e depuração.
+msg_type: Identifica o tipo de mensagem recebida do servidor, o que é útil para gerenciar respostas no seu manipulador de eventos WebSocket.onmessage
+req_id: Um campo opcional usado para validação, sincronização ou armazenamento em cache.
+Exemplo de JavaScript para lidar com respostas:
+
+JavaScript
+
+socket.onmessage = (event) => {
+  const receivedMessage = JSON.parse(event.data);
+
+  switch (receivedMessage.msg_type) {
+    case "residence_list":
+      console.log("The residence list is:", receivedMessage.residence_list);
+      break;
+    case "other_request_identifier":
+      console.log("The response:", receivedMessage.some_other_request_identifier);
+      break;
+    default:
+      console.log("Received message:", receivedMessage);
+      break;
+  }
+};
