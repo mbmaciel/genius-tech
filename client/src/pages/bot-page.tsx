@@ -526,6 +526,17 @@ export function BotPage() {
   
   // Iniciar o bot
   const handleStartBot = async () => {
+    // Verificar primeiro se o token OAuth está disponível
+    const oauthToken = localStorage.getItem('deriv_oauth_token');
+    if (!oauthToken) {
+      toast({
+        title: "Token não disponível",
+        description: "Por favor, faça login com sua conta Deriv na página principal antes de usar o robô.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     if (!selectedBotType || !selectedStrategy) {
       toast({
         title: "Seleção necessária",
@@ -534,6 +545,12 @@ export function BotPage() {
       });
       return;
     }
+    
+    // Atualizar UI para feedback visual imediato
+    toast({
+      title: "Iniciando robô...",
+      description: "Conectando à API Deriv e inicializando operações.",
+    });
     
     // Configurar botService com os parâmetros apropriados
     const entryNum = parseFloat(entryValue || "0.35");
@@ -546,6 +563,13 @@ export function BotPage() {
                         selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
     
     try {
+      console.log("[BOT] Configurando parâmetros do robô:");
+      console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
+      console.log(`[BOT] - Valor de entrada: ${entryNum}`);
+      console.log(`[BOT] - Meta de lucro: ${profitNum}`);
+      console.log(`[BOT] - Limite de perdas: ${lossNum}`);
+      console.log(`[BOT] - Tipo de contrato: ${contractType}`);
+      
       // Configurar botService
       botService.setSettings({
         entryValue: entryNum,
@@ -557,9 +581,18 @@ export function BotPage() {
       });
       
       // Configurar estratégia ativa no botService
-      botService.setActiveStrategy(selectedStrategy);
+      const strategySet = botService.setActiveStrategy(selectedStrategy);
+      if (!strategySet) {
+        toast({
+          title: "Erro na estratégia",
+          description: "Não foi possível carregar a estratégia selecionada.",
+          variant: "destructive"
+        });
+        return;
+      }
       
       // Iniciar o botService
+      console.log("[BOT] Chamando botService.start()...");
       const success = await botService.start();
       
       if (success) {
@@ -576,13 +609,6 @@ export function BotPage() {
         if (accountInfo) {
           // Solicitar saldo atualizado da API
           requestBalance();
-          
-          // Mostrar informação de início de operação
-          console.log("[BOT] Bot de trading iniciado com as seguintes configurações:");
-          console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
-          console.log(`[BOT] - Valor de entrada: ${entryNum}`);
-          console.log(`[BOT] - Meta de lucro: ${profitNum}`);
-          console.log(`[BOT] - Limite de perdas: ${lossNum}`);
         }
         
         const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
@@ -592,9 +618,10 @@ export function BotPage() {
           description: `Robô ${strategyInfo?.name} está operando agora.`,
         });
       } else {
+        console.error("[BOT] botService.start() retornou false");
         toast({
           title: "Erro ao iniciar",
-          description: "Não foi possível iniciar o robô. Verifique sua conexão e tente novamente.",
+          description: "A API Deriv não respondeu corretamente. Verifique sua conexão, recarregue a página e tente novamente.",
           variant: "destructive"
         });
       }
@@ -602,7 +629,7 @@ export function BotPage() {
       console.error("[BOT] Erro ao iniciar botService:", error);
       toast({
         title: "Erro ao iniciar",
-        description: `Não foi possível iniciar o robô: ${error}`,
+        description: "Ocorreu um erro ao iniciar o robô. Tente recarregar a página e fazer login novamente.",
         variant: "destructive"
       });
     }
