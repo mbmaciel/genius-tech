@@ -1,199 +1,152 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { processOAuthRedirect, processAuthorization, UserAccount } from "@/lib/oauthProcessor";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { derivAPI } from "@/lib/derivApi";
 import { useToast } from "@/hooks/use-toast";
+import { derivAPI, authorizeDerivAPI } from "@/lib/websocketManager";
 
 export default function OAuthCallback() {
-  const [isProcessing, setIsProcessing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [accounts, setAccounts] = useState<UserAccount[]>([]);
-  const [userName, setUserName] = useState<string>("");
   const [, navigate] = useLocation();
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [message, setMessage] = useState("Processando autenticação...");
   const { toast } = useToast();
 
+  // Extrair parâmetros da URL
   useEffect(() => {
     const processOAuth = async () => {
       try {
-        // Extrair os dados da URL
-        const currentUrl = window.location.href;
-        console.log("Processando URL de redirecionamento:", currentUrl);
+        // Conex URL exata: https://84781f0a-b9d4-46b0-ab6f-750ffe9a64f7-00-2ynik35d9muy1.worf.replit.dev/oauth-callback
+        console.log("Processando retorno OAuth...");
+        console.log("URL atual:", window.location.href);
         
-        const result = processOAuthRedirect(currentUrl);
-        console.log("Resultado do processamento OAuth:", result);
-
-        if (result.error) {
-          setError(result.error);
-          setIsProcessing(false);
-          return;
-        }
-
-        if (!result.token && (!result.accounts || result.accounts.length === 0)) {
-          setError("Não foi possível extrair dados de conta da URL de redirecionamento.");
-          setIsProcessing(false);
-          return;
-        }
-
-        // Salvar as contas processadas
-        if (result.accounts && result.accounts.length > 0) {
-          setAccounts(result.accounts);
-        }
-
-        // Tentar autorizar com o token principal
-        const mainToken = result.token || (result.accounts && result.accounts.length > 0 ? result.accounts[0].token : null);
+        const urlParams = new URLSearchParams(window.location.search);
         
-        if (mainToken) {
+        // Verificar erro de autorização
+        if (urlParams.has("error")) {
+          const error = urlParams.get("error");
+          const errorDescription = urlParams.get("error_description");
+          throw new Error(`${error}: ${errorDescription}`);
+        }
+        
+        // Verificar se existem parâmetros de contas e tokens
+        const urlAccounts = urlParams.get("acct");
+        const urlTokens = urlParams.get("token");
+        
+        if (!urlAccounts || !urlTokens) {
+          throw new Error("Parâmetros de conta ou token ausentes na URL");
+        }
+        
+        // Transformar string de contas em array
+        const accounts = urlAccounts.split(',');
+        // Transformar string de tokens em array
+        const tokens = urlTokens.split(',');
+        
+        if (accounts.length !== tokens.length) {
+          throw new Error("Número de contas e tokens não correspondem");
+        }
+        
+        // Criar estrutura de dados para armazenar as contas
+        const accountsWithTokens = accounts.map((acc, index) => ({
+          account: acc,
+          token: tokens[index]
+        }));
+        
+        console.log("Contas encontradas:", accountsWithTokens);
+        
+        // Armazenar as contas e tokens na localStorage para uso posterior
+        localStorage.setItem('deriv_accounts', JSON.stringify(accountsWithTokens));
+        
+        // Se houver pelo menos uma conta, salvar o primeiro token como ativo
+        if (accountsWithTokens.length > 0) {
+          localStorage.setItem('deriv_active_account', accountsWithTokens[0].account);
+          localStorage.setItem('deriv_api_token', accountsWithTokens[0].token);
+          
+          // Conectar ao WebSocket da Deriv
+          await derivAPI.connect();
+          
+          // Autorizar com o token recebido
           try {
-            // Conectar ao WebSocket se não estiver conectado
-            if (!derivAPI.isConnected()) {
-              await derivAPI.connect();
-            }
+            const authResponse = await authorizeDerivAPI(accountsWithTokens[0].token);
+            console.log("Autorização bem-sucedida:", authResponse);
             
-            // Fazer a autorização
-            const authResult = await derivAPI.authorize(mainToken);
+            // Atualizar estado para sucesso
+            setStatus("success");
+            setMessage("Autenticação realizada com sucesso. Redirecionando...");
             
-            if (authResult) {
-              console.log("Autorização bem-sucedida:", authResult);
-              
-              // Salvar o token atual no localStorage para uso futuro
-              localStorage.setItem('deriv_api_token', mainToken);
-              
-              // Processar a resposta de autorização para salvar detalhes das contas
-              if (authResult.account_list) {
-                await processAuthorization(mainToken);
-              }
-              
-              setUserName(authResult.fullname || "");
-              setSuccess(true);
-              
-              // Notificar o usuário
-              toast({
-                title: "Conectado com sucesso",
-                description: `Bem-vindo ${authResult.fullname || "à plataforma Genius Technology Trading"}!`,
-              });
-              
-              // Disparar evento de login bem-sucedido para componentes que estejam escutando
-              const loginEvent = new CustomEvent('deriv:login_success', {
-                detail: { accounts: result.accounts, authorizeResponse: authResult }
-              });
-              document.dispatchEvent(loginEvent);
-            } else {
-              setError("Falha na autenticação com o token fornecido.");
-            }
-          } catch (authError: any) {
+            // Notificar o usuário
+            toast({
+              title: "Conexão estabelecida",
+              description: `Conectado com sucesso a ${accountsWithTokens.length} conta(s).`,
+            });
+            
+            // Redirecionar para o dashboard após 2 segundos
+            setTimeout(() => {
+              navigate("/dashboard");
+            }, 2000);
+          } catch (authError) {
             console.error("Erro ao autorizar:", authError);
-            setError(`Erro de autorização: ${authError.message || "Erro desconhecido"}`);
+            throw new Error(`Erro de autorização: ${authError.message || 'Falha na autenticação com o token'}`);
           }
         } else {
-          setError("Não foi possível obter um token válido para autorização.");
+          throw new Error("Nenhuma conta foi recebida na autenticação");
         }
-      } catch (e: any) {
-        console.error("Erro no processamento do OAuth:", e);
-        setError(`Erro no processamento: ${e.message || "Erro desconhecido"}`);
-      } finally {
-        setIsProcessing(false);
+      } catch (error) {
+        console.error("Erro durante o processo de OAuth:", error);
+        setStatus("error");
+        setMessage(`Erro na autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+        
+        toast({
+          variant: "destructive",
+          title: "Erro na autenticação",
+          description: "Ocorreu um erro ao processar a autenticação. Por favor, tente novamente.",
+        });
+        
+        // Redirecionar para a página de login após 3 segundos
+        setTimeout(() => {
+          navigate("/login");
+        }, 3000);
       }
     };
-
+    
     processOAuth();
-  }, [toast]);
-
-  const handleRedirect = () => {
-    if (success) {
-      navigate("/dashboard");
-    } else {
-      navigate("/login");
-    }
-  };
+  }, [navigate, toast]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0e1a33] py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md bg-[#162746] border-[#3a7bd5] border">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center text-white">
-            {isProcessing ? "Processando Autenticação" : success ? "Autenticação Concluída" : "Erro de Autenticação"}
-          </CardTitle>
-          <CardDescription className="text-center text-[#8492b4]">
-            {isProcessing 
-              ? "Estamos processando sua autenticação com a Deriv..." 
-              : success 
-                ? `Você foi autenticado com sucesso na plataforma Genius Technology Trading.`
-                : "Ocorreu um erro durante o processo de autenticação."}
-          </CardDescription>
-        </CardHeader>
+    <div className="flex flex-col justify-center items-center min-h-screen bg-[#0c111b] text-white">
+      <div className="max-w-md w-full p-8 bg-[#13203a] rounded-lg shadow-lg">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-semibold mb-2">Autenticação Deriv</h1>
+          <div className={`text-sm ${status === "error" ? "text-red-400" : "text-[#8492b4]"}`}>
+            {message}
+          </div>
+        </div>
         
-        <CardContent className="space-y-4 pt-4">
-          {isProcessing ? (
-            <div className="flex justify-center py-8">
-              <svg className="animate-spin h-12 w-12 text-[#00e5b3]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        {status === "loading" && (
+          <div className="flex justify-center my-8">
+            <div className="w-10 h-10 border-4 border-[#00e5b3] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+        
+        {status === "success" && (
+          <div className="flex flex-col items-center my-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-          ) : success ? (
-            <div className="space-y-4">
-              <div className="flex justify-center">
-                <div className="rounded-full bg-[#00e5b3]/20 p-3">
-                  <svg className="h-8 w-8 text-[#00e5b3]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                </div>
-              </div>
-              
-              <p className="text-white text-center">
-                {userName ? `Olá, ${userName}!` : 'Você agora está conectado à sua conta Deriv.'}
-              </p>
-              
-              {accounts.length > 0 && (
-                <div className="bg-[#1f3158] p-2 rounded-md text-center text-sm">
-                  <p className="text-[#8492b4] mb-2">Contas conectadas:</p>
-                  <ul className="text-white">
-                    {accounts.map((account, index) => (
-                      <li key={index} className="mb-1">
-                        {account.account} - {account.currency} 
-                        <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${account.isVirtual ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
-                          {account.isVirtual ? 'Demo' : 'Real'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <Button 
-                onClick={handleRedirect}
-                className="w-full bg-[#00e5b3] hover:bg-[#00c69a] text-[#0e1a33]"
-              >
-                Ir para o Dashboard
-              </Button>
+            <p className="text-[#00e5b3] text-lg">Redirecionando para o Dashboard...</p>
+          </div>
+        )}
+        
+        {status === "error" && (
+          <div className="flex flex-col items-center my-8">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-center">
-                <div className="rounded-full bg-red-500/20 p-3">
-                  <svg className="h-8 w-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                  </svg>
-                </div>
-              </div>
-              
-              <p className="text-white text-center">
-                {error || "Ocorreu um erro durante a autenticação."}
-              </p>
-              
-              <Button 
-                onClick={handleRedirect}
-                className="w-full bg-[#3a7bd5] hover:bg-[#4a8be5] text-white"
-              >
-                Voltar para a página de login
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <p className="text-red-400 text-lg">Redirecionando para a página de Login...</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
