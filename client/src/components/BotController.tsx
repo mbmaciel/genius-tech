@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { simpleBotService } from "../services/simpleBotService";
+import { simpleBotDirectService } from "../services/simpleBotDirectService";
 
 interface BotControllerProps {
   entryValue: number;
@@ -45,13 +45,13 @@ export function BotController({
     };
 
     // Registrar listeners
-    simpleBotService.addEventListener(handleStatusChange);
-    simpleBotService.addEventListener(handleStatsUpdate);
+    simpleBotDirectService.addEventListener(handleStatusChange);
+    simpleBotDirectService.addEventListener(handleStatsUpdate);
 
     // Limpar listeners ao desmontar
     return () => {
-      simpleBotService.removeEventListener(handleStatusChange);
-      simpleBotService.removeEventListener(handleStatsUpdate);
+      simpleBotDirectService.removeEventListener(handleStatusChange);
+      simpleBotDirectService.removeEventListener(handleStatsUpdate);
     };
   }, [onStatusChange, onStatsChange]);
 
@@ -111,7 +111,7 @@ export function BotController({
         martingaleFactor: 1.5
       });
       
-      simpleBotService.setSettings({
+      simpleBotDirectService.setSettings({
         entryValue,
         profitTarget,
         lossLimit,
@@ -120,7 +120,7 @@ export function BotController({
       
       // Definir estratégia ativa
       console.log('[BOT_CONTROLLER] Definindo estratégia ativa:', selectedStrategy);
-      simpleBotService.setActiveStrategy(selectedStrategy);
+      simpleBotDirectService.setActiveStrategy(selectedStrategy);
       
       // Iniciar o bot com pequeno atraso para garantir que a UI atualize primeiro
       console.log('[BOT_CONTROLLER] Iniciando bot com delay para UI...');
@@ -128,10 +128,10 @@ export function BotController({
       // Usar um timeout para garantir que a interface atualize primeiro
       setTimeout(() => {
         try {
-          console.log('[BOT_CONTROLLER] Chamando simpleBotService.start() de forma direta...');
+          console.log('[BOT_CONTROLLER] Chamando simpleBotDirectService.start() de forma direta...');
           
-          // Forçar tipo para simpleBotService para que TypeScript reconheça o método
-          const botService = simpleBotService as typeof simpleBotService;
+          // Forçar tipo para simpleBotDirectService para que TypeScript reconheça o método
+          const botService = simpleBotDirectService as typeof simpleBotDirectService;
           
           // Chamar diretamente sem await para evitar problemas de contexto
           const promise = botService.start();
@@ -188,7 +188,7 @@ export function BotController({
   const stopBot = () => {
     try {
       console.log('[BOT_CONTROLLER] Parando bot...');
-      simpleBotService.stop();
+      simpleBotDirectService.stop();
       setStatus('idle');
       onStatusChange('idle');
       toast({

@@ -6,10 +6,10 @@ import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
 import { BotController } from "@/components/BotController";
 import derivApiService from "@/services/derivApiService";
-import { simpleBotService } from "@/services/simpleBotService";
+import { simpleBotDirectService } from "@/services/simpleBotDirectService";
 
 // Log para indicar uso da versão modificada
-console.log('[BOT_PAGE] Usando BotController com versão simplificada do bot');
+console.log('[BOT_PAGE] Usando BotController com versão direta do bot que usa o WebSocket frontend');
 
 export function BotPage() {
   const { toast } = useToast();

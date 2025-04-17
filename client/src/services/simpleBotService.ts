@@ -1,11 +1,9 @@
 /**
  * Serviço para trading automatizado com API Deriv
- * Versão 2023.4 - EXCLUSIVAMENTE para operações reais (sem simulação)
- * Utiliza uma conexão WebSocket dedicada e separada para operações com token OAuth
- * Completamente independente da conexão WebSocket do frontend
+ * Versão 2023.5 - EXCLUSIVAMENTE para operações reais (sem simulação)
+ * Utiliza o token OAuth do cliente para operações
+ * Usa a mesma conexão WebSocket que recebe os ticks do mercado
  */
-
-import { tradingWebSocket } from '../lib/tradingWebSocketManager';
 
 export type BotStatus = 'idle' | 'running' | 'paused' | 'error';
 export type ContractType = 'DIGITOVER' | 'DIGITUNDER' | 'CALL' | 'PUT';
