@@ -245,89 +245,98 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                {/* Este seletor de contas renderizado diretamente, sem usar o componente */}
-                <div className="dropdown-container mr-2">
-                  <select
-                    className="bg-[#1d2a45] text-white text-sm py-2 px-4 rounded-md border border-[#3a4b6b] hover:bg-[#2a3756] cursor-pointer"
-                    onChange={(e) => {
-                      const selectedAccount = e.target.value;
-                      // Buscar a conta correspondente
-                      const derivAccounts = localStorage.getItem('deriv_accounts');
-                      if (derivAccounts) {
-                        try {
-                          const accounts = JSON.parse(derivAccounts);
-                          const selectedAcc = accounts.find((acc: any) => acc.loginid === selectedAccount);
-                          if (selectedAcc && selectedAcc.token) {
-                            // Executar a autorização da conta
-                            fetch('https://ws.binaryws.com/websockets/v3?app_id=71403', {
-                              method: 'POST',
-                              body: JSON.stringify({
-                                authorize: selectedAcc.token
-                              })
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                              if (data.authorize) {
-                                // Atualizar o localStorage com a nova conta ativa
-                                localStorage.setItem('deriv_account_info', JSON.stringify(data.authorize));
+                {/* Container de botões para contas */}
+                <div className="account-buttons-container mr-2 flex gap-2">
+                  {(() => {
+                    const accountsStr = localStorage.getItem('deriv_accounts');
+                    if (accountsStr) {
+                      try {
+                        const accounts = JSON.parse(accountsStr);
+                        return accounts.map((acc: any) => {
+                          // Determine if this is the active account
+                          const isActive = accountInfo && accountInfo.loginid === acc.loginid;
+                          
+                          // Create different styles for active vs inactive accounts
+                          const buttonStyle = isActive
+                            ? "bg-indigo-600 text-white font-medium py-2 px-3 rounded-md text-sm" 
+                            : "bg-[#1d2a45] text-white py-2 px-3 rounded-md hover:bg-[#2a3756] text-sm border border-[#3a4b6b]";
+                          
+                          // Format account text based on type (demo/real)
+                          const accountText = acc.isVirtual 
+                            ? `${acc.loginid} (Demo)`
+                            : `${acc.loginid} (${acc.currency})`;
+
+                          return (
+                            <button
+                              key={acc.loginid}
+                              className={buttonStyle}
+                              onClick={() => {
+                                if (isActive) return; // Skip if already active
                                 
-                                // Atualizar estado
-                                setAccountInfo({
-                                  loginid: data.authorize.loginid,
-                                  email: data.authorize.email,
-                                  name: data.authorize.fullname,
-                                  balance: data.authorize.balance,
-                                  currency: data.authorize.currency,
-                                  isVirtual: data.authorize.is_virtual,
-                                  landingCompanyName: data.authorize.landing_company_name
-                                });
+                                // Use the authorizeAccount function from the accountManager
+                                const { authorizeAccount } = require('../lib/accountManager');
                                 
-                                // Iniciar assinatura de saldo para a nova conta
-                                startBalanceSubscription(data.authorize.loginid);
-                                
-                                toast({
-                                  title: "Conta alternada",
-                                  description: `Agora usando a conta ${data.authorize.loginid}`,
-                                });
-                              }
-                            })
-                            .catch(error => {
-                              console.error('Erro ao alternar conta:', error);
-                              toast({
-                                title: 'Erro ao alternar conta',
-                                description: 'Não foi possível autorizar a conta selecionada.',
-                                variant: 'destructive',
-                              });
-                            });
-                          }
-                        } catch (error) {
-                          console.error('Erro ao processar contas:', error);
-                        }
+                                authorizeAccount(acc.token)
+                                  .then((data: any) => {
+                                    // Atualizar o localStorage com a nova conta ativa
+                                    localStorage.setItem('deriv_account_info', JSON.stringify(data));
+                                    localStorage.setItem('deriv_active_account', acc.loginid);
+                                    
+                                    // Atualizar estado
+                                    setAccountInfo({
+                                      loginid: data.loginid,
+                                      email: data.email,
+                                      name: data.fullname,
+                                      balance: data.balance,
+                                      currency: data.currency,
+                                      isVirtual: data.is_virtual,
+                                      landingCompanyName: data.landing_company_name
+                                    });
+                                    
+                                    // Iniciar assinatura de saldo para a nova conta
+                                    startBalanceSubscription(data.loginid);
+                                    
+                                    toast({
+                                      title: "Conta alternada",
+                                      description: `Agora usando a conta ${data.loginid}`,
+                                    });
+                                  })
+                                  .catch((error: Error) => {
+                                    console.error('Erro ao alternar conta:', error);
+                                    toast({
+                                      title: 'Erro ao alternar conta',
+                                      description: error.message || 'Não foi possível autorizar a conta selecionada.',
+                                      variant: 'destructive',
+                                    });
+                                  });
+                              }}
+                            >
+                              {accountText}
+                            </button>
+                          );
+                        });
+                      } catch (error) {
+                        console.error('Erro ao carregar contas:', error);
+                        return (
+                          <button 
+                            className="bg-[#1d2a45] text-white py-2 px-3 rounded-md" 
+                            disabled
+                          >
+                            Erro ao carregar contas
+                          </button>
+                        );
                       }
-                    }}
-                  >
-                    {/* Opção padrão */}
-                    <option value="">Selecionar Conta</option>
+                    }
                     
-                    {/* Carregar opções de contas do localStorage */}
-                    {(() => {
-                      const accountsStr = localStorage.getItem('deriv_accounts');
-                      if (accountsStr) {
-                        try {
-                          const accounts = JSON.parse(accountsStr);
-                          return accounts.map((acc: any) => (
-                            <option key={acc.loginid} value={acc.loginid}>
-                              {acc.loginid} ({acc.currency}) {acc.isVirtual ? '- Demo' : ''}
-                            </option>
-                          ));
-                        } catch (error) {
-                          console.error('Erro ao carregar contas:', error);
-                          return null;
-                        }
-                      }
-                      return null;
-                    })()}
-                  </select>
+                    return (
+                      <button 
+                        className="bg-[#1d2a45] text-white py-2 px-3 rounded-md" 
+                        disabled
+                      >
+                        Sem contas disponíveis
+                      </button>
+                    );
+                  })()}
                 </div>
                 
                 <button 
