@@ -188,9 +188,11 @@ class WebSocketManager {
    */
   public authorize(token: string): Promise<any> {
     this.token = token;
+    // Formato correto de acordo com a documentação da API
     return this.sendRequest({
       authorize: token,
-      passthrough: { app_id: this.appId }
+      add_to_login_history: 1, // Para rastrear atividade
+      req_id: Date.now().toString()
     });
   }
 
