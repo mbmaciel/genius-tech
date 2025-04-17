@@ -245,54 +245,56 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                <button 
-                  onClick={() => {
-                    // Limpar dados de autenticação
-                    localStorage.removeItem('deriv_token');
-                    localStorage.removeItem('deriv_account_info');
-                    localStorage.removeItem('deriv_accounts');
-                    setIsAuthenticated(false);
-                    setAccountInfo(null);
-                    
-                    toast({
-                      title: "Logout concluído",
-                      description: "Você foi desconectado com sucesso.",
-                    });
-                  }}
-                  className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors"
-                >
-                  Logout DERIV
-                </button>
+                <div className="flex items-center space-x-3">
+                  <AccountSelector 
+                    onAccountChanged={(newAccountInfo) => {
+                      setAccountInfo(newAccountInfo);
+                      
+                      // Inicia nova assinatura de saldo para a conta selecionada
+                      if (newAccountInfo && newAccountInfo.loginid) {
+                        startBalanceSubscription(newAccountInfo.loginid);
+                      }
+                      
+                      toast({
+                        title: "Conta alternada",
+                        description: `Agora usando a conta ${newAccountInfo.loginid}`,
+                      });
+                    }}
+                  />
+                  
+                  <button 
+                    onClick={() => {
+                      // Limpar dados de autenticação
+                      localStorage.removeItem('deriv_token');
+                      localStorage.removeItem('deriv_account_info');
+                      localStorage.removeItem('deriv_accounts');
+                      setIsAuthenticated(false);
+                      setAccountInfo(null);
+                      
+                      toast({
+                        title: "Logout concluído",
+                        description: "Você foi desconectado com sucesso.",
+                      });
+                    }}
+                    className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors whitespace-nowrap"
+                  >
+                    Logout DERIV
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
         
-        {/* Seletor de contas e informação da conta se estiver autenticado */}
+        {/* Informação da conta se estiver autenticado */}
         {isAuthenticated && accountInfo && (
           <div className="mb-6">
             <div className="bg-[#13203a] rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h2 className="text-lg text-white font-medium">Seletor de contas</h2>
-                  <p className="text-xs text-gray-400">Selecione uma conta para operar</p>
+                  <h2 className="text-lg text-white font-medium">Informações da conta</h2>
+                  <p className="text-xs text-gray-400">{accountInfo.isVirtual ? 'Conta de demonstração' : 'Conta real'}</p>
                 </div>
-                <AccountSelector 
-                  onAccountChanged={(newAccountInfo) => {
-                    setAccountInfo(newAccountInfo);
-                    
-                    // Inicia nova assinatura de saldo para a conta selecionada
-                    if (newAccountInfo && newAccountInfo.loginid) {
-                      startBalanceSubscription(newAccountInfo.loginid);
-                    }
-                    
-                    toast({
-                      title: "Conta alternada",
-                      description: `Agora usando a conta ${newAccountInfo.loginid}`,
-                    });
-                  }}
-                  className="w-80"
-                />
               </div>
               
               {accountInfo && accountInfo.balance && (
