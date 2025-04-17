@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { startKeepAlive, stopKeepAlive } from "@/lib/websocketKeepAlive";
 import { useToast } from "@/hooks/use-toast";
 import { DerivConnectButton } from "@/components/DerivConnectButton";
@@ -23,7 +23,41 @@ export default function Dashboard() {
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
   const { toast } = useToast();
   
-  // Função para iniciar a assinatura de atualizações de saldo em tempo real
+  // Referência para o callback de atualização de saldo
+  const balanceUpdateRef = useRef<((balanceData: any) => void) | null>(null);
+  
+  // Efeito para gerenciar a assinatura de saldo
+  useEffect(() => {
+    // Função para atualizar o saldo no estado
+    const handleBalanceUpdate = (balanceData: any) => {
+      console.log('[Balance] Saldo atualizado:', balanceData);
+      setAccountInfo((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          balance: balanceData.balance,
+          currency: balanceData.currency
+        };
+      });
+    };
+    
+    // Armazenar a referência da função para poder removê-la posteriormente
+    balanceUpdateRef.current = handleBalanceUpdate;
+    
+    // Adicionar o listener apenas uma vez
+    balanceService.addBalanceListener(handleBalanceUpdate);
+    
+    // Limpeza ao desmontar o componente
+    return () => {
+      if (balanceUpdateRef.current) {
+        balanceService.removeBalanceListener(balanceUpdateRef.current);
+        balanceUpdateRef.current = null;
+      }
+      balanceService.unsubscribeBalance();
+    };
+  }, []); // Sem dependências para evitar recriação
+  
+  // Função para iniciar a assinatura de saldo para uma conta específica
   const startBalanceSubscription = useCallback(async (loginId: string) => {
     try {
       setIsLoadingBalance(true);
@@ -36,21 +70,8 @@ export default function Dashboard() {
       if (account && account.token) {
         console.log(`[Balance] Iniciando assinatura de saldo para ${loginId}`);
         
-        // Registrar listener para atualizações em tempo real
-        const handleBalanceUpdate = (balanceData: any) => {
-          console.log('[Balance] Saldo atualizado:', balanceData);
-          setAccountInfo((prev: any) => ({
-            ...prev,
-            balance: balanceData.balance,
-            currency: balanceData.currency
-          }));
-        };
-        
-        // Remover qualquer listener existente e adicionar o novo
-        balanceService.removeBalanceListener(handleBalanceUpdate);
-        balanceService.addBalanceListener(handleBalanceUpdate);
-        
         // Iniciar a assinatura (que por padrão agora é true)
+        // O callback já está registrado no efeito acima
         await balanceService.getBalance(account.token);
       }
     } catch (error) {
@@ -65,7 +86,7 @@ export default function Dashboard() {
     }
   }, [toast]);
   
-  // Efeito para verificar se já existe uma sessão autenticada
+  // Efeito para verificar se já existe uma sessão autenticada - executado quando startBalanceSubscription muda
   useEffect(() => {
     const storedToken = localStorage.getItem('deriv_token');
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
@@ -78,16 +99,16 @@ export default function Dashboard() {
         
         // Iniciar a assinatura de saldo em tempo real
         if (parsedAccountInfo && parsedAccountInfo.loginid) {
-          // Pequeno atraso para garantir que o estado foi atualizado
-          setTimeout(() => {
+          // Sem efetuar nova chamada se já foi montado uma vez
+          if (!balanceUpdateRef.current) {
             startBalanceSubscription(parsedAccountInfo.loginid);
-          }, 500);
+          }
         }
       } catch (error) {
         console.error('Erro ao processar dados de conta armazenados:', error);
       }
     }
-  }, [startBalanceSubscription]);
+  }, [startBalanceSubscription]); // Depende da função de assinatura
 
   // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
