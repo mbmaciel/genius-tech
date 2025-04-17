@@ -10,6 +10,9 @@ import { oauthDirectService } from "@/services/oauthDirectService";
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
+// Não precisamos mais do botão de OAuth direto, pois o usuário já estará autenticado
+// quando chegar à página do bot
+
 export function BotPage() {
   const { toast } = useToast();
   
@@ -87,193 +90,219 @@ export function BotPage() {
     previousBalance: 0
   });
 
+  // Estado para controlar se o usuário está autenticado
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
     console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
+    
+    // Verificar parâmetros OAuth na URL
+    const url = window.location.href;
+    if (url.includes('acct1=') && url.includes('token1=')) {
+      console.log('[BOT] Detectados parâmetros OAuth na URL, processando...');
+      // Importar funções para processar tokens
+      import('@/lib/accountManager').then(({ extractAccountsFromUrl, saveAccounts, authorizeAccount }) => {
+        (async () => {
+          try {
+            // Extrair contas da URL
+            const accounts = extractAccountsFromUrl(url);
+            
+            if (accounts.length > 0) {
+              // Salvar todas as contas no localStorage
+              saveAccounts(accounts);
+              
+              // Salvar o token principal
+              localStorage.setItem('deriv_oauth_token', accounts[0].token);
+              
+              // Autorizar e salvar detalhes
+              const accountInfo = await authorizeAccount(accounts[0].token);
+              localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
+              
+              // Limpar URL de parâmetros OAuth
+              window.history.replaceState({}, document.title, window.location.pathname);
+              
+              // Recarregar a página para usar os novos tokens
+              window.location.reload();
+            }
+          } catch (error) {
+            console.error('[BOT] Erro ao processar parâmetros OAuth:', error);
+            setIsAuthenticated(false);
+          }
+        })();
+      });
+      return;
+    }
     
     // Verificar se há informações de conta no localStorage
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
     const storedAuthToken = localStorage.getItem('deriv_oauth_token');
     
-    if (storedAccountInfo) {
+    if (storedAccountInfo && storedAuthToken) {
       try {
         const parsedInfo = JSON.parse(storedAccountInfo);
         setAccountInfo(parsedInfo);
+        setAuthToken(storedAuthToken);
+        setIsAuthenticated(true);
         
-        // Verificar se temos o token OAuth armazenado
-        if (storedAuthToken) {
-          console.log('[BOT] Token OAuth encontrado no localStorage');
-          setAuthToken(storedAuthToken);
-          
-          // Configurar valores iniciais
-          setOperation(prev => ({
-            ...prev,
-            buyPrice: parseFloat(entryValue) || 0
-          }));
-          
-          // Configurar handlers para eventos do serviço OAuth Direct
-          const handleEvents = (event: any) => {
-            // Tick recebido
-            if (event.type === 'tick') {
-              const price = event.price;
-              const lastDigit = event.lastDigit;
-              
-              // Atualizar últimos dígitos
-              setLastDigits(prev => {
-                const updated = [lastDigit, ...prev];
-                return updated.slice(0, 20);
-              });
-              
-              // Atualizar estatísticas de dígitos
-              updateDigitStats(lastDigit);
-              
-              console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
-            }
+        console.log('[BOT] Autenticação verificada com sucesso');
+        
+        // Configurar valores iniciais
+        setOperation(prev => ({
+          ...prev,
+          buyPrice: parseFloat(entryValue) || 0
+        }));
+        
+        // Configurar handlers para eventos do serviço OAuth Direct
+        const handleEvents = (event: any) => {
+          // Tick recebido
+          if (event.type === 'tick') {
+            const price = event.price;
+            const lastDigit = event.lastDigit;
             
-            // Evento de autorização bem-sucedida
-            if (event.type === 'authorized') {
-              console.log('[OAUTH_DIRECT] Autorização realizada com sucesso na conta:', event.account?.loginid);
+            // Atualizar últimos dígitos
+            setLastDigits(prev => {
+              const updated = [lastDigit, ...prev];
+              return updated.slice(0, 20);
+            });
+            
+            // Atualizar estatísticas de dígitos
+            updateDigitStats(lastDigit);
+            
+            console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+          }
+          
+          // Evento de autorização bem-sucedida
+          if (event.type === 'authorized') {
+            console.log('[OAUTH_DIRECT] Autorização realizada com sucesso na conta:', event.account?.loginid);
+            
+            // Atualizar informações da conta se necessário
+            if (event.account) {
+              const updatedAccount = {
+                ...parsedInfo,
+                loginid: event.account.loginid,
+                balance: event.account.balance?.toString() || parsedInfo.balance,
+                currency: event.account.currency || parsedInfo.currency
+              };
               
-              // Atualizar informações da conta se necessário
-              if (event.account) {
-                const updatedAccount = {
+              setAccountInfo(updatedAccount);
+              console.log('[OAUTH_DIRECT] Informações da conta atualizadas');
+            }
+          }
+          
+          // Atualização de saldo
+          if (event.type === 'balance_update' && event.balance) {
+            if (accountInfo) {
+              const newBalance = parseFloat(event.balance.balance);
+              const currentBalance = parseFloat(accountInfo.balance);
+              
+              // Atualizar informações da conta apenas se o saldo mudou
+              if (newBalance !== currentBalance) {
+                setAccountInfo({
                   ...accountInfo,
-                  loginid: event.account.loginid,
-                  balance: event.account.balance?.toString() || accountInfo.balance,
-                  currency: event.account.currency || accountInfo.currency
-                };
+                  balance: newBalance.toFixed(2)
+                });
                 
-                setAccountInfo(updatedAccount);
-                console.log('[OAUTH_DIRECT] Informações da conta atualizadas');
-              }
-            }
-            
-            // Atualização de saldo
-            if (event.type === 'balance_update' && event.balance) {
-              if (accountInfo) {
-                const newBalance = parseFloat(event.balance.balance);
-                const currentBalance = parseFloat(accountInfo.balance);
+                // Atualizar saldo em tempo real
+                setRealTimeBalance({
+                  balance: newBalance,
+                  previousBalance: currentBalance
+                });
                 
-                // Atualizar informações da conta apenas se o saldo mudou
-                if (newBalance !== currentBalance) {
-                  setAccountInfo({
-                    ...accountInfo,
-                    balance: newBalance.toFixed(2)
-                  });
-                  
-                  // Atualizar saldo em tempo real
-                  setRealTimeBalance({
-                    balance: newBalance,
-                    previousBalance: currentBalance
-                  });
-                  
-                  console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance}`);
-                }
+                console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance}`);
               }
             }
+          }
+          
+          // Compra de contrato
+          if (event.type === 'contract_purchased') {
+            console.log('[OAUTH_DIRECT] Contrato comprado:', event.contract_id);
             
-            // Compra de contrato
-            if (event.type === 'contract_purchased') {
-              console.log('[OAUTH_DIRECT] Contrato comprado:', event.contract_id);
-              
-              // Atualizar estado de operação
-              setOperation(prev => ({
-                ...prev,
-                status: 'comprado'
-              }));
-              
-              toast({
-                title: "Contrato comprado",
-                description: `ID: ${event.contract_id}, Valor: $${event.buy_price}`,
-              });
+            // Atualizar estado de operação
+            setOperation(prev => ({
+              ...prev,
+              status: 'comprado'
+            }));
+            
+            toast({
+              title: "Contrato comprado",
+              description: `ID: ${event.contract_id}, Valor: $${event.buy_price}`,
+            });
+          }
+          
+          // Atualização de contrato
+          if (event.type === 'contract_update') {
+            // Log para acompanhamento do contrato
+            console.log('[OAUTH_DIRECT] Atualização do contrato:', event.contract?.contract_id);
+          }
+          
+          // Encerramento de contrato
+          if (event.type === 'contract_finished') {
+            console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
+            
+            // Atualizar estatísticas
+            if (event.is_win) {
+              setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+            } else {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
             }
             
-            // Atualização de contrato
-            if (event.type === 'contract_update') {
-              // Log para acompanhamento do contrato
-              console.log('[OAUTH_DIRECT] Atualização do contrato:', event.contract?.contract_id);
-            }
+            // Atualizar estado da operação
+            setOperation({
+              entry: operation.entry,
+              buyPrice: operation.buyPrice,
+              profit: event.profit,
+              status: 'vendendo'
+            });
             
-            // Encerramento de contrato
-            if (event.type === 'contract_finished') {
-              console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
-              
-              // Atualizar estatísticas
-              if (event.is_win) {
-                setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-              } else {
-                setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-              }
-              
-              // Atualizar estado da operação
+            // Exibir notificação de resultado
+            toast({
+              title: event.is_win ? "Operação Vencedora!" : "Operação Perdedora",
+              description: `Resultado: $${event.profit.toFixed(2)}`,
+              variant: event.is_win ? "default" : "destructive",
+            });
+            
+            // Resetar estado após conclusão
+            setTimeout(() => {
               setOperation({
                 entry: operation.entry,
                 buyPrice: operation.buyPrice,
-                profit: event.profit,
-                status: 'vendendo'
+                profit: 0,
+                status: null
               });
-              
-              // Exibir notificação de resultado
-              toast({
-                title: event.is_win ? "Operação Vencedora!" : "Operação Perdedora",
-                description: `Resultado: $${event.profit.toFixed(2)}`,
-                variant: event.is_win ? "default" : "destructive",
-              });
-              
-              // Resetar estado após conclusão
-              setTimeout(() => {
-                setOperation({
-                  entry: operation.entry,
-                  buyPrice: operation.buyPrice,
-                  profit: 0,
-                  status: null
-                });
-              }, 3000);
-            }
-            
-            // Erros
-            if (event.type === 'error') {
-              console.error('[OAUTH_DIRECT] Erro:', event.message);
-              toast({
-                title: "Erro na operação",
-                description: event.message,
-                variant: "destructive"
-              });
-            }
-          };
+            }, 3000);
+          }
           
-          // Registrar handler no serviço OAuth
-          oauthDirectService.addEventListener(handleEvents);
+          // Erros
+          if (event.type === 'error') {
+            console.error('[OAUTH_DIRECT] Erro:', event.message);
+            toast({
+              title: "Erro na operação",
+              description: event.message,
+              variant: "destructive"
+            });
+          }
+        };
+        
+        // Registrar handler no serviço OAuth
+        oauthDirectService.addEventListener(handleEvents);
+        
+        return () => {
+          // Limpar recursos ao desmontar
+          oauthDirectService.removeEventListener(handleEvents);
           
-          return () => {
-            // Limpar recursos ao desmontar
-            oauthDirectService.removeEventListener(handleEvents);
-            
-            // Parar serviço se estiver rodando
-            if (botStatus === 'running') {
-              oauthDirectService.stop();
-            }
-          };
-        } else {
-          console.log('[BOT] Token OAuth não encontrado, operações de trading não estarão disponíveis');
-          toast({
-            title: "Token não encontrado",
-            description: "É necessário fazer login novamente para obter acesso às operações",
-            variant: "destructive"
-          });
-          
-          // Redirecionar para página inicial para fazer login novamente
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 3000);
-          return;
-        }
+          // Parar serviço se estiver rodando
+          if (botStatus === 'running') {
+            oauthDirectService.stop();
+          }
+        };
       } catch (error) {
         console.error('[BOT] Erro ao carregar dados da conta:', error);
+        setIsAuthenticated(false);
       }
     } else {
-      // Redirecionar para a página de login se não autenticado
-      window.location.href = '/';
+      console.log('[BOT] Usuário não autenticado');
+      setIsAuthenticated(false);
     }
   }, []);
   
