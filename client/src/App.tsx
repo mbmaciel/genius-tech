@@ -1,32 +1,23 @@
-import { Route, Switch } from "wouter";
-import { Toaster } from "@/components/ui/toast";
-import Login from "@/pages/login";
-import OAuthCallback from "@/pages/oauth-callback";
-import Dashboard from "@/pages/dashboard";
-import BotPage from "@/pages/bot-page";
-import { useEffect } from "react";
+import { useState } from "react";
+import { Switch, Route, useLocation } from "wouter";
+import { Toaster } from "@/components/ui/toaster";
+import { Dashboard } from "@/pages/dashboard";
+import { Login } from "@/pages/login";
+import { BotPage } from "@/pages/bot-page";
 
-export default function App() {
-  // Verificar se há um token salvo ao iniciar a aplicação
-  useEffect(() => {
-    // Inicialização, se necessário
-    console.log("Aplicação iniciada");
-  }, []);
+function App() {
+  const [location] = useLocation();
 
   return (
-    <>
-      <Switch>
-        <Route path="/" component={Login} />
-        <Route path="/login" component={Login} />
-        <Route path="/oauth-callback" component={OAuthCallback} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/bot" component={BotPage} />
-        <Route>
-          {/* Rota 404 - redireciona para Login */}
-          <Login />
-        </Route>
-      </Switch>
+    <div className="App">
       <Toaster />
-    </>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/login" component={Login} />
+        <Route path="/bot" component={BotPage} />
+      </Switch>
+    </div>
   );
 }
+
+export default App;

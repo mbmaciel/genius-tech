@@ -1,740 +1,659 @@
-import React, { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect, useRef } from 'react';
+import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { 
-  PlayIcon, PauseIcon, SquareIcon as StopIcon, AlertCircleIcon, SettingsIcon, 
-  ArrowUpIcon, ArrowDownIcon, RefreshCwIcon, ArrowRightCircleIcon, 
-  BarChart2Icon, TrendingUpIcon, HistoryIcon, 
-  ZapIcon, DatabaseIcon, CpuIcon
-} from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { Switch } from "@/components/ui/switch";
 
-// Tipos para as estratégias
-interface BinaryBotStrategy {
-  id: string;
-  name: string;
-  description: string;
-  type: 'OVER' | 'UNDER' | 'BOTH' | 'RISE' | 'FALL' | 'ADVANCED';
-  config: {
-    initialStake: number;
-    martingaleFactor: number;
-    maxMartingaleLevel: number;
-    targetProfit: number;
-    stopLoss: number;
-    prediction?: number;
-  }
-}
-
-// Configurações predefinidas das estratégias
-const botStrategies: BinaryBotStrategy[] = [
-  {
-    id: "iron-over",
-    name: "Iron Over",
-    description: "Estratégia para operações OVER com martingale controlado",
-    type: "OVER",
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 0.5,
-      maxMartingaleLevel: 1,
-      targetProfit: 10,
-      stopLoss: 2,
-      prediction: 5
-    }
-  },
-  {
-    id: "iron-under",
-    name: "Iron Under",
-    description: "Estratégia para operações UNDER com martingale controlado",
-    type: "UNDER",
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 0.5,
-      maxMartingaleLevel: 1,
-      targetProfit: 10,
-      stopLoss: 2,
-      prediction: 4
-    }
-  },
-  {
-    id: "bot-low",
-    name: "Bot Low",
-    description: "Estratégia para dígitos baixos com recuperação controlada",
-    type: "UNDER",
-    config: {
-      initialStake: 3,
-      martingaleFactor: 0.4,
-      maxMartingaleLevel: 3,
-      targetProfit: 10,
-      stopLoss: 20,
-      prediction: 2
-    }
-  },
-  {
-    id: "green",
-    name: "Green",
-    description: "Robô Green com análise avançada de tendências",
-    type: "ADVANCED",
-    config: {
-      initialStake: 1,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 25,
-      stopLoss: 15
-    }
-  },
-  {
-    id: "maxpro",
-    name: "MaxPro",
-    description: "Estratégia otimizada para índices voláteis",
-    type: "BOTH",
-    config: {
-      initialStake: 3,
-      martingaleFactor: 0.4,
-      maxMartingaleLevel: 3,
-      targetProfit: 10,
-      stopLoss: 20,
-      prediction: 3
-    }
-  },
-  {
-    id: "manual-under",
-    name: "Manual Under",
-    description: "Estratégia manual para UNDER com configurações ajustáveis",
-    type: "UNDER",
-    config: {
-      initialStake: 2,
-      martingaleFactor: 2,
-      maxMartingaleLevel: 2,
-      targetProfit: 25,
-      stopLoss: 2,
-      prediction: 6
-    }
-  },
-  {
-    id: "manual-over",
-    name: "Manual Over",
-    description: "Estratégia manual para OVER com configurações ajustáveis",
-    type: "OVER",
-    config: {
-      initialStake: 2,
-      martingaleFactor: 1,
-      maxMartingaleLevel: 2,
-      targetProfit: 2,
-      stopLoss: 2,
-      prediction: 2
-    }
-  },
-  {
-    id: "profit-pro",
-    name: "Profit Pro",
-    description: "Estratégia avançada com configurações ajustáveis pelo usuário",
-    type: "BOTH",
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 3,
-      targetProfit: 10,
-      stopLoss: 10
-    }
-  },
-  {
-    id: "wise-pro",
-    name: "Wise Pro",
-    description: "Estratégia baseada em tendências de mercado",
-    type: "RISE",
-    config: {
-      initialStake: 1,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 25,
-      stopLoss: 100
-    }
-  },
-  {
-    id: "advance",
-    name: "Advance",
-    description: "Sistema avançado com análise de porcentagem",
-    type: "BOTH",
-    config: {
-      initialStake: 5,
-      martingaleFactor: 1,
-      maxMartingaleLevel: 2,
-      targetProfit: 10,
-      stopLoss: 100,
-      prediction: 1
-    }
-  }
-];
-
-// Status de uma operação
-type OperationStatus = 'idle' | 'running' | 'paused' | 'completed' | 'stopped' | 'error';
-
-// Estatísticas da operação
-interface BotStats {
-  wins: number;
-  losses: number;
-  winRate: number;
-  currentProfit: number;
-  maxProfit: number;
-  maxLoss: number;
-  consecutiveWins: number;
-  consecutiveLosses: number;
-  totalOperations: number;
-  startTime: Date | null;
-  elapsedTime: string;
-}
-
-// Componente principal da página do bot
-export default function BotPage() {
-  const [selectedStrategy, setSelectedStrategy] = useState<BinaryBotStrategy | null>(null);
-  const [activeConfig, setActiveConfig] = useState<BinaryBotStrategy['config'] | null>(null);
-  const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle');
-  const [progress, setProgress] = useState(0);
-  const [autoMode, setAutoMode] = useState(true);
-  const [accountBalance, setAccountBalance] = useState<number | null>(null);
-  const [accountCurrency, setAccountCurrency] = useState<string>('USD');
+export function BotPage() {
+  const { toast } = useToast();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
   
-  // Estatísticas iniciais
-  const initialStats: BotStats = {
+  // Estado para autenticação e dados da conta
+  const [accountInfo, setAccountInfo] = useState<any>(null);
+  
+  // Estado para controle do robô
+  const [botStatus, setBotStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  
+  // Estados para dados do gráfico
+  const [ticks, setTicks] = useState<string>("10");
+  const [lastDigits, setLastDigits] = useState<number[]>([]);
+  const [digitStats, setDigitStats] = useState<{
+    digit: number;
+    count: number;
+    percentage: number;
+  }[]>(Array.from({ length: 10 }, (_, i) => ({ 
+    digit: i, 
+    count: 0, 
+    percentage: 0 
+  })));
+  
+  // Estados para configurações do bot
+  const [entryValue, setEntryValue] = useState<string>("0.35");
+  const [profitTarget, setProfitTarget] = useState<string>("");
+  const [lossLimit, setLossLimit] = useState<string>("");
+  const [virtualLoss, setVirtualLoss] = useState<string>("");
+  const [selectedBotType, setSelectedBotType] = useState<"lite" | "premium" | "">("");
+  
+  // Estado para operações
+  const [operation, setOperation] = useState<{
+    entry: number;
+    buyPrice: number;
+    profit: number;
+    status: 'comprado' | 'vendendo' | null;
+  }>({
+    entry: 1584.42,
+    buyPrice: 0,
+    profit: 0,
+    status: null
+  });
+  
+  // Estado para estatísticas
+  const [stats, setStats] = useState({
     wins: 0,
-    losses: 0,
-    winRate: 0,
-    currentProfit: 0,
-    maxProfit: 0,
-    maxLoss: 0,
-    consecutiveWins: 0,
-    consecutiveLosses: 0,
-    totalOperations: 0,
-    startTime: null,
-    elapsedTime: '00:00:00'
-  };
-  
-  const [stats, setStats] = useState<BotStats>(initialStats);
-  
-  // Efeito para monitorar o progresso durante a operação
+    losses: 0
+  });
+
+  // Verificar autenticação e carregar dados iniciais
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    
-    if (operationStatus === 'running') {
-      timer = setInterval(() => {
-        // Simulando progresso (na implementação real, isso viria da automação)
-        setProgress(prev => {
-          const targetProgress = (stats.currentProfit / (activeConfig?.targetProfit || 1)) * 100;
-          return Math.min(Math.max(0, targetProgress), 100);
-        });
+    // Verificar se há informações de conta no localStorage
+    const storedAccountInfo = localStorage.getItem('deriv_account_info');
+    if (storedAccountInfo) {
+      try {
+        const parsedInfo = JSON.parse(storedAccountInfo);
+        setAccountInfo(parsedInfo);
         
-        // Atualizando tempo decorrido
-        if (stats.startTime) {
-          const now = new Date();
-          const diff = now.getTime() - stats.startTime.getTime();
-          const hours = Math.floor(diff / 3600000).toString().padStart(2, '0');
-          const minutes = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-          const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-          
-          setStats(prev => ({
-            ...prev,
-            elapsedTime: `${hours}:${minutes}:${seconds}`
-          }));
-        }
-      }, 1000);
+        // Configurar valores iniciais
+        setOperation(prev => ({
+          ...prev,
+          buyPrice: parseFloat(entryValue) || 0
+        }));
+        
+        // Iniciar conexão WebSocket para R_100
+        setupWebSocket();
+        
+        return () => {
+          // Limpar WebSocket ao desmontar
+          cleanup();
+        };
+      } catch (error) {
+        console.error('Erro ao carregar dados da conta:', error);
+      }
+    } else {
+      // Redirecionar para a página de login se não autenticado
+      window.location.href = '/';
     }
-    
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [operationStatus, stats.startTime, activeConfig, stats.currentProfit]);
-  
-  useEffect(() => {
-    // Simulando o carregamento do saldo da conta
-    setAccountBalance(1000);
-    setAccountCurrency('USD');
   }, []);
   
-  // Função para selecionar uma estratégia
-  const handleStrategySelect = (strategyId: string) => {
-    const strategy = botStrategies.find(s => s.id === strategyId);
-    if (strategy) {
-      setSelectedStrategy(strategy);
-      setActiveConfig({...strategy.config});
+  // Função para configurar WebSocket
+  const setupWebSocket = () => {
+    if (wsRef.current) return;
+    
+    try {
+      console.log('[R100] Conectando ao WebSocket da Deriv...');
+      wsRef.current = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+      
+      wsRef.current.onopen = () => {
+        console.log('[R100] Conexão estabelecida com sucesso!');
+        
+        // Autorizar com token (usando o token dedicado para R_100)
+        if (wsRef.current) {
+          wsRef.current.send(JSON.stringify({
+            authorize: 'jybcQm0FbKr7evp' // Token fixo para R_100
+          }));
+        }
+        
+        // Resetar contagem de tentativas
+        reconnectAttemptsRef.current = 0;
+      };
+      
+      wsRef.current.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          
+          // Resposta de autorização
+          if (data.msg_type === 'authorize') {
+            console.log('[R100] Autenticação bem-sucedida!');
+            // Inscrever-se para receber ticks do R_100
+            subscribeToTicks();
+          }
+          
+          // Resposta de tick
+          if (data.msg_type === 'tick') {
+            const price = data.tick.quote;
+            const lastDigit = Math.floor(price * 100) % 10;
+            
+            // Atualizar últimos dígitos
+            setLastDigits(prev => {
+              const updated = [lastDigit, ...prev];
+              return updated.slice(0, 20);
+            });
+            
+            // Atualizar estatísticas de dígitos
+            updateDigitStats(lastDigit);
+            
+            // Simular operação se o bot estiver rodando
+            if (botStatus === 'running') {
+              simulateOperation();
+            }
+          }
+          
+        } catch (error) {
+          console.error('[R100] Erro ao processar mensagem:', error);
+        }
+      };
+      
+      wsRef.current.onerror = (error) => {
+        console.error('[R100] Erro na conexão:', error);
+        cleanup();
+        scheduleReconnect();
+      };
+      
+      wsRef.current.onclose = () => {
+        console.log('[R100] WebSocket fechado e recursos liberados');
+        wsRef.current = null;
+        scheduleReconnect();
+      };
+      
+    } catch (error) {
+      console.error('[R100] Erro ao configurar WebSocket:', error);
+      scheduleReconnect();
     }
   };
   
-  // Funções para controle da automação
-  const startBot = () => {
-    if (!selectedStrategy || !activeConfig) return;
+  // Função para limpar recursos
+  const cleanup = () => {
+    if (wsRef.current) {
+      console.log('[R100] Parando sistema de keep-alive');
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  };
+  
+  // Função para agendar reconexão
+  const scheduleReconnect = () => {
+    if (reconnectAttemptsRef.current >= 10) {
+      console.log('[R100] Número máximo de tentativas de reconexão atingido.');
+      return;
+    }
     
-    setOperationStatus('running');
-    setStats({
-      ...initialStats,
-      startTime: new Date()
-    });
+    const delay = 2000; // 2 segundos
+    reconnectAttemptsRef.current += 1;
     
-    // Aqui seria a lógica para iniciar a automação real usando a API Deriv
-    console.log(`Iniciando operação com estratégia ${selectedStrategy.name}`, activeConfig);
+    console.log(`[R100] Agendando reconexão em ${delay/1000}s (tentativa ${reconnectAttemptsRef.current}/10)`);
+    
+    setTimeout(() => {
+      console.log(`[R100] Tentativa de reconexão ${reconnectAttemptsRef.current}/10...`);
+      setupWebSocket();
+    }, delay);
   };
   
-  const pauseBot = () => {
-    setOperationStatus('paused');
-    // Aqui seria a lógica para pausar a automação
+  // Inscrever-se para ticks do R_100
+  const subscribeToTicks = () => {
+    if (!wsRef.current) return;
+    
+    wsRef.current.send(JSON.stringify({
+      ticks: 'R_100',
+      subscribe: 1
+    }));
+    
+    console.log('[R100] Inscrito em R_100 em tempo real');
   };
   
-  const stopBot = () => {
-    setOperationStatus('stopped');
-    // Aqui seria a lógica para parar a automação e resetar
-  };
-  
-  const resetBot = () => {
-    setOperationStatus('idle');
-    setStats(initialStats);
-    setProgress(0);
-    // Aqui seria a lógica para resetar completamente a automação
-  };
-  
-  // Função para atualizar configurações
-  const updateConfig = (key: keyof BinaryBotStrategy['config'], value: number) => {
-    if (activeConfig) {
-      setActiveConfig({
-        ...activeConfig,
-        [key]: value
+  // Atualizar estatísticas de dígitos
+  const updateDigitStats = (newDigit: number) => {
+    setDigitStats(prev => {
+      // Contagem de dígitos nos últimos ticks
+      const counts: number[] = Array(10).fill(0);
+      const updatedLastDigits = [newDigit, ...lastDigits].slice(0, parseInt(ticks));
+      
+      updatedLastDigits.forEach(d => {
+        if (d >= 0 && d <= 9) counts[d]++;
       });
+      
+      // Cálculo de percentuais
+      const total = updatedLastDigits.length;
+      return prev.map((stat, i) => ({
+        digit: i,
+        count: counts[i],
+        percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
+      }));
+    });
+  };
+  
+  // Função para simular uma operação
+  const simulateOperation = () => {
+    // Simulação simples: a cada 10 ticks, há 70% de chance de uma operação
+    if (Math.random() > 0.9) {
+      const isWin = Math.random() > 0.5;
+      const entryNum = parseFloat(entryValue);
+      const profit = isWin ? parseFloat((entryNum * 0.95).toFixed(2)) : 0;
+      
+      if (isWin) {
+        setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        setOperation({
+          entry: operation.entry,
+          buyPrice: entryNum,
+          profit: profit,
+          status: 'vendendo'
+        });
+      } else {
+        setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        setOperation({
+          entry: operation.entry,
+          buyPrice: entryNum,
+          profit: 0,
+          status: 'comprado'
+        });
+      }
     }
   };
   
-  // Simulação de uma operação (apenas para demonstração)
-  const simulateOperation = (win: boolean) => {
-    if (operationStatus !== 'running') return;
-    
-    setStats(prev => {
-      const newStats = { ...prev };
-      
-      if (win) {
-        newStats.wins += 1;
-        newStats.consecutiveWins += 1;
-        newStats.consecutiveLosses = 0;
-        newStats.currentProfit += activeConfig?.initialStake ? activeConfig.initialStake * 0.92 : 0;
-      } else {
-        newStats.losses += 1;
-        newStats.consecutiveLosses += 1;
-        newStats.consecutiveWins = 0;
-        newStats.currentProfit -= activeConfig?.initialStake || 0;
-      }
-      
-      newStats.totalOperations += 1;
-      newStats.winRate = (newStats.wins / newStats.totalOperations) * 100;
-      newStats.maxProfit = Math.max(newStats.maxProfit, newStats.currentProfit);
-      newStats.maxLoss = Math.min(newStats.maxLoss, newStats.currentProfit);
-      
-      return newStats;
+  // Iniciar o bot
+  const handleStartBot = () => {
+    setBotStatus('running');
+    setOperation({
+      entry: 1584.42,
+      buyPrice: parseFloat(entryValue),
+      profit: 0,
+      status: 'comprado'
     });
+    
+    toast({
+      title: "Bot iniciado",
+      description: "O robô de trading está operando agora.",
+    });
+  };
+  
+  // Pausar o bot
+  const handlePauseBot = () => {
+    setBotStatus('paused');
+    
+    toast({
+      title: "Bot pausado",
+      description: "As operações foram pausadas.",
+    });
+  };
+  
+  // Limpar histórico
+  const handleClearHistory = () => {
+    setStats({ wins: 0, losses: 0 });
+    setOperation({
+      entry: 1584.42,
+      buyPrice: parseFloat(entryValue),
+      profit: 0,
+      status: null
+    });
+    
+    toast({
+      title: "Histórico limpo",
+      description: "O histórico de operações foi limpo.",
+    });
+  };
+  
+  // Função para obter a cor da barra com base na porcentagem
+  const getBarColor = (percentage: number) => {
+    return percentage >= 20 ? 'bg-red-500' : 'bg-gray-500';
+  };
+  
+  // Renderizar botão de ação principal (Executar/Pausar)
+  const renderActionButton = () => {
+    if (botStatus === 'running') {
+      return (
+        <button 
+          onClick={handlePauseBot}
+          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded font-medium"
+        >
+          Pausar BOT
+        </button>
+      );
+    } else {
+      return (
+        <button 
+          onClick={handleStartBot}
+          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded font-medium"
+        >
+          Executar BOT
+        </button>
+      );
+    }
   };
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 bg-[#111827] text-white min-h-screen">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Robô de Automações</h1>
-        <div className="flex items-center space-x-2">
-          {accountBalance !== null && (
-            <Card className="bg-[#1a2234] border-none">
-              <CardContent className="p-2">
-                <div className="flex items-center">
-                  <DatabaseIcon className="mr-2 h-4 w-4 text-emerald-400" />
-                  <span className="font-medium">
-                    {accountBalance.toFixed(2)} {accountCurrency}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+    <div className="flex min-h-screen bg-[#0a1324]">
+      {/* Barra Lateral */}
+      <div className="w-16 group hover:w-56 transition-all duration-300 ease-in-out bg-[#13203a] flex flex-col items-center py-6 overflow-hidden">
+        <div className="flex items-center justify-center mb-6">
+          <svg className="w-10 h-10 text-white flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="24" height="24" rx="12" fill="#4F46E5" />
+            <path d="M16.5 8.25H13.5L12 6.75L10.5 8.25H7.5L6 9.75V12.75L7.5 14.25V17.25L9 18.75H15L16.5 17.25V14.25L18 12.75V9.75L16.5 8.25Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 12.75C12.8284 12.75 13.5 12.0784 13.5 11.25C13.5 10.4216 12.8284 9.75 12 9.75C11.1716 9.75 10.5 10.4216 10.5 11.25C10.5 12.0784 11.1716 12.75 12 12.75Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 12.75V15.75" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="ml-3 font-bold text-white text-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">Genius Trading</span>
+        </div>
+        
+        {/* Links de navegação */}
+        <div className="w-full">
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="w-full flex items-center px-3 py-2 text-white hover:bg-[#1d2a45] rounded-md transition-all duration-200 hover:scale-105 mb-2">
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+            </div>
+            <span className="ml-3 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">Dashboard</span>
+          </button>
+          
+          <button className="w-full flex items-center px-3 py-2 text-white bg-indigo-600 rounded-md transition-all duration-200 hover:scale-105 mb-2">
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+              </svg>
+            </div>
+            <span className="ml-3 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">Automações</span>
+          </button>
+          
+          <button className="w-full flex items-center px-3 py-2 text-white hover:bg-[#1d2a45] rounded-md transition-all duration-200 hover:scale-105">
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <span className="ml-3 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">Perfil</span>
+          </button>
         </div>
       </div>
       
-      <Tabs defaultValue="strategies" className="w-full">
-        <TabsList className="bg-[#1a2234] border-b border-gray-700 w-full justify-start">
-          <TabsTrigger value="strategies" className="data-[state=active]:bg-[#2d3748]">
-            Estratégias
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-[#2d3748]">
-            Configurações
-          </TabsTrigger>
-          <TabsTrigger value="stats" className="data-[state=active]:bg-[#2d3748]">
-            Estatísticas
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="strategies" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {botStrategies.map(strategy => (
-              <Card 
-                key={strategy.id} 
-                className={`bg-[#1a2234] border cursor-pointer transition-all hover:border-blue-500 ${selectedStrategy?.id === strategy.id ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-700'}`}
-                onClick={() => handleStrategySelect(strategy.id)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{strategy.name}</CardTitle>
-                      <CardDescription className="text-gray-400 mt-1">
-                        {strategy.description}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center justify-center rounded-full bg-blue-500/20 p-1">
-                      {strategy.type === 'OVER' && <ArrowUpIcon className="h-4 w-4 text-blue-500" />}
-                      {strategy.type === 'UNDER' && <ArrowDownIcon className="h-4 w-4 text-red-500" />}
-                      {strategy.type === 'BOTH' && <RefreshCwIcon className="h-4 w-4 text-green-500" />}
-                      {strategy.type === 'RISE' && <TrendingUpIcon className="h-4 w-4 text-green-500" />}
-                      {strategy.type === 'FALL' && <TrendingUpIcon className="h-4 w-4 text-red-500" style={{ transform: 'rotate(180deg)' }} />}
-                      {strategy.type === 'ADVANCED' && <CpuIcon className="h-4 w-4 text-purple-500" />}
-                    </div>
+      {/* Conteúdo Principal */}
+      <div className="flex-1 p-6">
+        {/* Header - Informações da conta */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-white">Robô de Automações</h1>
+          
+          <div className="flex items-center">
+            {accountInfo && (
+              <div className="flex items-center mr-4 bg-[#13203a] rounded-md px-3 py-2 border border-[#2a3756]">
+                <div className="flex items-center">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${accountInfo.isVirtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                  <div className="text-sm text-white mr-3">
+                    {accountInfo.loginid}
                   </div>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="flex flex-wrap gap-1">
-                    <div className="flex items-center bg-blue-500/10 text-blue-500 rounded px-2 py-0.5 text-xs">
-                      <DatabaseIcon className="mr-1 h-3 w-3" /> 
-                      {strategy.config.initialStake} USD
-                    </div>
-                    <div className="flex items-center bg-green-500/10 text-green-500 rounded px-2 py-0.5 text-xs">
-                      <ArrowRightCircleIcon className="mr-1 h-3 w-3" /> 
-                      Alvo: {strategy.config.targetProfit} USD
-                    </div>
-                    <div className="flex items-center bg-red-500/10 text-red-500 rounded px-2 py-0.5 text-xs">
-                      <AlertCircleIcon className="mr-1 h-3 w-3" /> 
-                      Stop: {strategy.config.stopLoss} USD
-                    </div>
-                    {strategy.config.prediction !== undefined && (
-                      <div className="flex items-center bg-purple-500/10 text-purple-500 rounded px-2 py-0.5 text-xs">
-                        <ZapIcon className="mr-1 h-3 w-3" /> 
-                        Digit: {strategy.config.prediction}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-0">
-                  <Button 
-                    className="w-full" 
-                    variant="outline" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStrategySelect(strategy.id);
-                      startBot();
-                    }}
-                    disabled={operationStatus === 'running'}
-                  >
-                    Selecionar
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="settings" className="mt-4">
-          <Card className="bg-[#1a2234] border-none">
-            <CardHeader>
-              <CardTitle>Configurações da Estratégia</CardTitle>
-              <CardDescription>
-                Ajuste os parâmetros para otimizar sua operação
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!selectedStrategy && (
-                <div className="text-center py-8 text-gray-400">
-                  <SettingsIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Selecione uma estratégia para configurar</p>
                 </div>
-              )}
-              
-              {selectedStrategy && activeConfig && (
-                <>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <Label htmlFor="initialStake">Entrada Inicial</Label>
-                        <span className="text-sm text-gray-400">{activeConfig.initialStake} USD</span>
-                      </div>
-                      <Slider 
-                        id="initialStake"
-                        min={0.35} 
-                        max={10} 
-                        step={0.05} 
-                        value={[activeConfig.initialStake]} 
-                        onValueChange={(values) => updateConfig('initialStake', values[0])}
-                        disabled={operationStatus === 'running'}
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <Label htmlFor="martingaleFactor">Fator de Martingale</Label>
-                        <span className="text-sm text-gray-400">x{activeConfig.martingaleFactor}</span>
-                      </div>
-                      <Slider 
-                        id="martingaleFactor"
-                        min={0.2} 
-                        max={3} 
-                        step={0.1} 
-                        value={[activeConfig.martingaleFactor]} 
-                        onValueChange={(values) => updateConfig('martingaleFactor', values[0])}
-                        disabled={operationStatus === 'running'}
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <Label htmlFor="maxMartingaleLevel">Nível de Martingale</Label>
-                        <span className="text-sm text-gray-400">{activeConfig.maxMartingaleLevel}</span>
-                      </div>
-                      <Slider 
-                        id="maxMartingaleLevel"
-                        min={1} 
-                        max={5} 
-                        step={1} 
-                        value={[activeConfig.maxMartingaleLevel]} 
-                        onValueChange={(values) => updateConfig('maxMartingaleLevel', Math.round(values[0]))}
-                        disabled={operationStatus === 'running'}
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <Label htmlFor="targetProfit">Meta de Lucro</Label>
-                        <span className="text-sm text-gray-400">{activeConfig.targetProfit} USD</span>
-                      </div>
-                      <Slider 
-                        id="targetProfit"
-                        min={1} 
-                        max={50} 
-                        step={1} 
-                        value={[activeConfig.targetProfit]} 
-                        onValueChange={(values) => updateConfig('targetProfit', values[0])}
-                        disabled={operationStatus === 'running'}
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <Label htmlFor="stopLoss">Stop Loss</Label>
-                        <span className="text-sm text-gray-400">{activeConfig.stopLoss} USD</span>
-                      </div>
-                      <Slider 
-                        id="stopLoss"
-                        min={1} 
-                        max={50} 
-                        step={1} 
-                        value={[activeConfig.stopLoss]} 
-                        onValueChange={(values) => updateConfig('stopLoss', values[0])}
-                        disabled={operationStatus === 'running'}
-                      />
-                    </div>
-                    
-                    {selectedStrategy.type !== 'RISE' && selectedStrategy.type !== 'FALL' && selectedStrategy.type !== 'ADVANCED' && (
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <Label htmlFor="prediction">Previsão (Dígito)</Label>
-                          <span className="text-sm text-gray-400">
-                            {activeConfig.prediction !== undefined ? activeConfig.prediction : 'N/A'}
-                          </span>
-                        </div>
-                        <Slider 
-                          id="prediction"
-                          min={0} 
-                          max={9} 
-                          step={1} 
-                          value={[activeConfig.prediction !== undefined ? activeConfig.prediction : 5]} 
-                          onValueChange={(values) => updateConfig('prediction', Math.round(values[0]))}
-                          disabled={operationStatus === 'running' || selectedStrategy.type === 'ADVANCED'}
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center space-x-2 pt-4">
-                      <Switch 
-                        id="autoMode" 
-                        checked={autoMode}
-                        onCheckedChange={setAutoMode}
-                        disabled={operationStatus === 'running'}
-                      />
-                      <Label htmlFor="autoMode">Modo Automático</Label>
-                    </div>
+                <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
+                <div className="flex items-center">
+                  <div className="text-xs text-gray-400 mr-1">Tipo:</div>
+                  <div className="text-sm text-white mr-3">
+                    {accountInfo.isVirtual ? 'Demo' : 'Real'}
                   </div>
-                </>
-              )}
-            </CardContent>
-            <CardFooter className="border-t border-gray-700 flex justify-between">
-              <Button 
-                variant="outline"
-                onClick={resetBot}
-                disabled={operationStatus === 'idle'}
-              >
-                Resetar
-              </Button>
-              <div className="space-x-2">
-                {operationStatus === 'idle' && (
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={startBot}
-                    disabled={!selectedStrategy}
-                  >
-                    <PlayIcon className="mr-2 h-4 w-4" />
-                    Iniciar
-                  </Button>
-                )}
-                
-                {operationStatus === 'running' && (
-                  <Button
-                    variant="outline"
-                    onClick={pauseBot}
-                  >
-                    <PauseIcon className="mr-2 h-4 w-4" />
-                    Pausar
-                  </Button>
-                )}
-                
-                {operationStatus === 'paused' && (
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => setOperationStatus('running')}
-                  >
-                    <PlayIcon className="mr-2 h-4 w-4" />
-                    Continuar
-                  </Button>
-                )}
-                
-                {(operationStatus === 'running' || operationStatus === 'paused') && (
-                  <Button
-                    variant="destructive"
-                    onClick={stopBot}
-                  >
-                    <StopIcon className="mr-2 h-4 w-4" />
-                    Parar
-                  </Button>
-                )}
+                </div>
+                <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
+                <div className="flex items-center">
+                  <div className="text-xs text-gray-400 mr-1">Saldo:</div>
+                  <div className="text-sm font-medium text-white">
+                    {accountInfo.balance} <span className="text-xs">{accountInfo.currency}</span>
+                  </div>
+                </div>
               </div>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="stats" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className="bg-[#1a2234] border-none">
-              <CardHeader>
-                <CardTitle>Progresso da Operação</CardTitle>
-                <CardDescription>
-                  {operationStatus === 'running' && "Operação em andamento"}
-                  {operationStatus === 'paused' && "Operação em pausa"}
-                  {operationStatus === 'idle' && "Robô pronto para iniciar"}
-                  {operationStatus === 'stopped' && "Operação interrompida"}
-                  {operationStatus === 'completed' && "Operação concluída"}
-                  {operationStatus === 'error' && "Erro na operação"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <Label>Progresso da meta</Label>
-                    <span className="text-sm text-gray-400">{progress.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2" />
-                </div>
-                
-                <div className="pt-4 grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Tempo de Execução</Label>
-                    <p className="font-mono">{stats.elapsedTime}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Lucro Atual</Label>
-                    <p className={`font-mono ${stats.currentProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {stats.currentProfit >= 0 ? '+' : ''}{stats.currentProfit.toFixed(2)} USD
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Botões de simulação (apenas para demo) */}
-                {operationStatus === 'running' && (
-                  <div className="flex space-x-2 pt-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-green-500 border-green-500/20 hover:bg-green-500/10"
-                      onClick={() => simulateOperation(true)}
-                    >
-                      Simular Win
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-red-500 border-red-500/20 hover:bg-red-500/10"
-                      onClick={() => simulateOperation(false)}
-                    >
-                      Simular Loss
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            )}
             
-            <Card className="bg-[#1a2234] border-none">
-              <CardHeader>
-                <CardTitle>Estatísticas</CardTitle>
-                <CardDescription>
-                  Métricas da operação atual
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Total de Operações</Label>
-                    <p className="font-mono">{stats.totalOperations}</p>
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="bg-[#1d2a45] text-white py-2 px-3 rounded-md border border-[#3a4b6b] hover:bg-[#2a3756] transition-colors"
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+        
+        {/* Grade Principal */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Coluna Esquerda - Configurações do bot e operações */}
+          <div className="space-y-6">
+            {/* Seleção de Bots */}
+            <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+              <h2 className="text-lg text-white font-medium mb-4">Selecione um bot:</h2>
+              <div>
+                <button 
+                  onClick={() => setSelectedBotType("lite")}
+                  className={`w-full text-left mb-2 p-3 rounded ${selectedBotType === "lite" ? "bg-blue-600" : "bg-[#1d2a45]"} text-white`}
+                >
+                  Lite Bots
+                </button>
+                <button 
+                  onClick={() => setSelectedBotType("premium")}
+                  className={`w-full text-left p-3 rounded ${selectedBotType === "premium" ? "bg-purple-600" : "bg-[#1d2a45]"} text-white`}
+                >
+                  Premium Bots
+                </button>
+              </div>
+            </div>
+            
+            {/* Configurações de Trading */}
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <h2 className="text-lg text-white font-medium mb-4">Qual o valor de entrada?</h2>
+                <Input
+                  type="number"
+                  value={entryValue}
+                  onChange={e => setEntryValue(e.target.value)}
+                  placeholder="0.35"
+                  className="bg-[#1d2a45] border-[#3a4b6b] text-white"
+                />
+              </div>
+              
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <h2 className="text-lg text-white font-medium mb-4">Adicionar Virtual Loss?</h2>
+                <Input
+                  value={virtualLoss}
+                  onChange={e => setVirtualLoss(e.target.value)}
+                  placeholder="Digite o número do Virtual Loss"
+                  className="bg-[#1d2a45] border-[#3a4b6b] text-white"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <h2 className="text-lg text-white font-medium mb-4">Meta de Lucro</h2>
+                <Input
+                  value={profitTarget}
+                  onChange={e => setProfitTarget(e.target.value)}
+                  placeholder="Qual é a meta de lucro?"
+                  className="bg-[#1d2a45] border-[#3a4b6b] text-white"
+                />
+              </div>
+              
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <h2 className="text-lg text-white font-medium mb-4">Limite de Perdas Seguidas</h2>
+                <Input
+                  value={lossLimit}
+                  onChange={e => setLossLimit(e.target.value)}
+                  placeholder="Qual o limite de perdas seguidas?"
+                  className="bg-[#1d2a45] border-[#3a4b6b] text-white"
+                />
+              </div>
+            </div>
+            
+            {/* Informações de Conta e Estatísticas */}
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <div className="flex items-center">
+                  <div className="mr-3">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M16 12h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+                      <path d="M12 6v2m0 12v-2"></path>
+                    </svg>
                   </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Win Rate</Label>
-                    <p className="font-mono">{stats.winRate.toFixed(1)}%</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Wins</Label>
-                    <p className="font-mono text-green-500">{stats.wins}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Losses</Label>
-                    <p className="font-mono text-red-500">{stats.losses}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Wins Consecutivos</Label>
-                    <p className="font-mono">{stats.consecutiveWins}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Losses Consecutivos</Label>
-                    <p className="font-mono">{stats.consecutiveLosses}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Lucro Máximo</Label>
-                    <p className="font-mono text-green-500">+{stats.maxProfit.toFixed(2)} USD</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-400">Perda Máxima</Label>
-                    <p className="font-mono text-red-500">{stats.maxLoss.toFixed(2)} USD</p>
+                  <div>
+                    <div className="text-xs text-gray-400">Balanço USD</div>
+                    <div className="text-lg font-medium text-white">$ {accountInfo?.balance || '0.00'}</div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <div className="flex items-center">
+                  <div className="mr-3">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Lucro/Perdas</div>
+                    <div className={`text-lg font-medium ${operation.profit > 0 ? 'text-green-500' : 'text-white'}`}>
+                      $ {operation.profit.toFixed(2)} ({operation.profit > 0 ? '+' : ''}
+                      {operation.buyPrice ? ((operation.profit / operation.buyPrice) * 100).toFixed(2) : '0.00'}%)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Área de operações - Aparece quando o bot está rodando */}
+            {botStatus !== 'idle' && (
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <h2 className="text-lg text-white font-medium mb-4">
+                  {operation.status === 'comprado' ? 'Comprado' : 'Vendendo'}
+                </h2>
+                <div className="bg-[#1d2a45] rounded-md overflow-hidden">
+                  <div className="grid grid-cols-3 text-sm text-gray-400 p-3 border-b border-[#2a3756]">
+                    <div>Entrada</div>
+                    <div>Preço de compra</div>
+                    <div>Lucro/Perda</div>
+                  </div>
+                  <div className="grid grid-cols-3 p-3 text-white">
+                    <div>{operation.entry.toFixed(2)}</div>
+                    <div>{operation.buyPrice.toFixed(2)}</div>
+                    <div className={operation.profit > 0 ? 'text-green-500' : ''}>
+                      {operation.profit.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between mt-4">
+                  <div>
+                    <span className="text-sm text-gray-400 mr-1">Ganhos:</span>
+                    <span className="font-medium text-white">{stats.wins}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 mr-1">Perdas:</span>
+                    <span className="font-medium text-white">{stats.losses}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Botões de Ação */}
+            <div className="flex space-x-4">
+              {renderActionButton()}
+              
+              <button 
+                onClick={handleClearHistory}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded font-medium"
+              >
+                Limpar Histórico
+              </button>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+          
+          {/* Coluna Direita - Gráficos */}
+          <div className="space-y-6">
+            {/* Gráfico Deriv */}
+            <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+              <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
+              <div className="relative w-full rounded border border-[#192339] overflow-hidden" style={{ height: "320px" }}>
+                <iframe 
+                  src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=24h&chart_type=line&theme=dark&toolbar=1&show_formula=0&candles=false" 
+                  className="absolute inset-0 w-full h-full"
+                  style={{ border: "none", background: "#0f1b31" }}
+                  title="Volatility 25 Index Chart"
+                  allow="fullscreen"
+                ></iframe>
+              </div>
+            </div>
+            
+            {/* Gráfico de Barras */}
+            <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
+                <Select value={ticks} onValueChange={setTicks}>
+                  <SelectTrigger className="bg-[#1d2a45] border-[#3a4b6b] text-white h-8 text-xs w-24">
+                    <SelectValue>{ticks} Ticks</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
+                    <SelectItem value="10">10 Ticks</SelectItem>
+                    <SelectItem value="25">25 Ticks</SelectItem>
+                    <SelectItem value="50">50 Ticks</SelectItem>
+                    <SelectItem value="100">100 Ticks</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="relative">
+                {/* Legendas do eixo Y */}
+                <div className="flex flex-col justify-between absolute left-0 top-0 h-48 text-xs text-gray-400 py-2">
+                  <div>50</div>
+                  <div>40</div>
+                  <div>30</div>
+                  <div>20</div>
+                  <div>10</div>
+                  <div>0</div>
+                </div>
+                
+                {/* Gráfico de barras */}
+                <div className="pl-8 h-48">
+                  <div className="flex justify-between items-end h-full">
+                    {digitStats.map((stat) => (
+                      <div key={stat.digit} className="flex flex-col items-center">
+                        {stat.percentage > 0 && (
+                          <div className="text-xs font-medium text-white mb-1">
+                            {stat.percentage}%
+                          </div>
+                        )}
+                        <div 
+                          className={`w-7 ${getBarColor(stat.percentage)}`}
+                          style={{ 
+                            height: stat.percentage === 0 ? '0px' : `${Math.min(100, Math.max(4, stat.percentage * 2))}px` 
+                          }}
+                        ></div>
+                        <div className="mt-1 text-sm text-white">{stat.digit}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Legenda */}
+                <div className="flex items-center justify-end my-3">
+                  <div className="w-3 h-3 bg-red-500 mr-1"></div>
+                  <span className="text-xs text-gray-400">Últimos {ticks} Dígitos (%)</span>
+                </div>
+              </div>
+              
+              {/* Últimos dígitos */}
+              <div className="bg-[#1d2a45] p-2 rounded flex flex-wrap justify-center mt-2">
+                {lastDigits.map((digit, index) => (
+                  <span key={index} className="w-7 h-7 flex items-center justify-center text-white border border-[#3a4b6b] m-1 rounded-md">
+                    {digit}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Aviso de risco */}
+        <div className="bg-[#13203a] rounded-lg p-4 mt-6 text-xs text-[#8492b4] leading-relaxed">
+          <p>
+            AVISO DE RISCO: Os produtos disponibilizados através deste site incluem opções binárias, contratos por diferenças ("CFDs") e outros derivativos complexos. A negociação de opções binárias pode não ser adequada para todos. A negociação de CFDs implica um elevado grau de risco, uma vez que a alavancagem pode trabalhar tanto para a sua vantagem como para a sua desvantagem. Como resultado, os produtos disponibilizados neste site podem não ser adequados para todo o tipo de investidor, devido ao risco de se perder todo o capital investido. Nunca se deve investir dinheiro que precisa e nunca se deve negociar com dinheiro emprestado. Antes de negociar os complexos produtos disponibilizados, certifique-se de que compreende os riscos envolvidos e aprenda mais sobre a negociação responsável.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
