@@ -536,8 +536,16 @@ export function BotPage() {
               <div>
                 <button 
                   onClick={() => {
-                    setSelectedBotType("lite");
-                    setSelectedStrategy("");
+                    if (botStatus !== 'running') {
+                      setSelectedBotType("lite");
+                      setSelectedStrategy("");
+                    } else {
+                      toast({
+                        title: "Bot em execução",
+                        description: "Pause o bot antes de trocar de estratégia.",
+                        variant: "destructive"
+                      });
+                    }
                   }}
                   className={`w-full text-left mb-2 p-3 rounded ${selectedBotType === "lite" ? "bg-blue-600" : "bg-[#1d2a45]"} text-white`}
                 >
@@ -547,8 +555,16 @@ export function BotPage() {
                 </button>
                 <button 
                   onClick={() => {
-                    setSelectedBotType("premium");
-                    setSelectedStrategy("");
+                    if (botStatus !== 'running') {
+                      setSelectedBotType("premium");
+                      setSelectedStrategy("");
+                    } else {
+                      toast({
+                        title: "Bot em execução",
+                        description: "Pause o bot antes de trocar de estratégia.",
+                        variant: "destructive"
+                      });
+                    }
                   }}
                   className={`w-full text-left p-3 rounded ${selectedBotType === "premium" ? "bg-purple-600" : "bg-[#1d2a45]"} text-white`}
                 >
@@ -565,7 +581,17 @@ export function BotPage() {
                     {strategies[selectedBotType].map(strategy => (
                       <button
                         key={strategy.id}
-                        onClick={() => setSelectedStrategy(strategy.id)}
+                        onClick={() => {
+                          if (botStatus !== 'running') {
+                            setSelectedStrategy(strategy.id);
+                          } else {
+                            toast({
+                              title: "Bot em execução",
+                              description: "Pause o bot antes de trocar de estratégia.",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
                         className={`text-left p-2 rounded text-white text-sm ${
                           selectedStrategy === strategy.id ? "bg-indigo-600" : "bg-[#1d2a45]"
                         }`}
@@ -581,12 +607,18 @@ export function BotPage() {
                 <div className="mt-4">
                   <div className="flex justify-between">
                     <h3 className="text-sm text-gray-400">Estratégia selecionada:</h3>
-                    <button 
-                      onClick={() => setSelectedStrategy("")}
-                      className="text-xs text-blue-400 hover:text-blue-300"
-                    >
-                      Trocar estratégia
-                    </button>
+                    {botStatus !== 'running' ? (
+                      <button 
+                        onClick={() => setSelectedStrategy("")}
+                        className="text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        Trocar estratégia
+                      </button>
+                    ) : (
+                      <span className="text-xs text-yellow-400">
+                        (Pause o bot para trocar)
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 p-3 rounded bg-indigo-600 text-white flex justify-between items-center">
                     <span className="font-medium">
