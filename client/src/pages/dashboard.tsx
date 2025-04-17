@@ -22,6 +22,10 @@ export default function Dashboard() {
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
   const [showAccountOptions, setShowAccountOptions] = useState<boolean>(false);
+  // Volatility 25 Index data
+  const [vol25Data, setVol25Data] = useState<{time: number, price: number}[]>([]);
+  const [vol25Connected, setVol25Connected] = useState<boolean>(false);
+  const vol25SocketRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
   
   // Referência para o callback de atualização de saldo
@@ -561,14 +565,20 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Gráfico Deriv */}
+          {/* Gráfico Deriv - Volatility 25 Index */}
           <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
-            <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
-            <div className="relative h-72 w-full bg-[#192339] rounded border border-[#2a3756] overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[#8492b4]">Carregando gráfico da Deriv...</span>
-              </div>
-              {/* Aqui seria renderizado o gráfico da Deriv */}
+            <h2 className="text-lg text-white font-medium mb-4">
+              Gráfico Volatility 25 Index
+              <span className="ml-2 text-xs text-gray-400">(Deriv)</span>
+            </h2>
+            <div className="relative w-full rounded border border-[#2a3756] overflow-hidden" style={{ height: "400px" }}>
+              <iframe 
+                src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=1m&theme=dark" 
+                className="absolute inset-0 w-full h-full"
+                style={{ border: "none" }}
+                title="Volatility 25 Index Chart"
+                allow="fullscreen"
+              ></iframe>
             </div>
           </div>
         </div>
