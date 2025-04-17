@@ -497,13 +497,12 @@ class SimpleBotService {
             // Formatar solicitação de compra com o ID da proposta
             // Baseado na documentação da API fornecida no arquivo "Contrato de Compra (solicitação.txt)"
             const buyRequest = {
-              req_id: `buy_${operationId}`,
               buy: proposal.id,
               price: amount
             };
             
             try {
-              const buyResponse = await derivAPI.sendRequest(buyRequest);
+              const buyResponse = await tradingWebSocket.sendRequest(buyRequest);
               
               if (buyResponse.error) {
                 console.error('[SIMPLEBOT] Erro ao comprar contrato:', buyResponse.error);
@@ -567,124 +566,74 @@ class SimpleBotService {
    * @returns Promise que resolve quando o contrato for finalizado
    */
   private monitorRealContract(contractId: string | number): Promise<boolean> {
-    console.log(`[SIMPLEBOT] Monitorando contrato real ID: ${contractId}`);
+    console.log(`[SIMPLEBOT] Monitorando contrato real ID: ${contractId} usando WebSocket de trading dedicado`);
     
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       try {
-        // Importar API de forma assíncrona
-        const { derivAPI } = await import('../lib/websocketManager');
+        if (!tradingWebSocket.isConnected() || !tradingWebSocket.isAuthorized()) {
+          console.error('[SIMPLEBOT] WebSocket de trading não está conectado ou autorizado');
+          this.scheduleNextOperation();
+          return reject(new Error('WebSocket de trading não está conectado ou autorizado'));
+        }
         
         // Formato correto usando o schema atualizado da API
         const monitorRequest = {
-          req_id: `monitor_${Date.now().toString()}`,
           proposal_open_contract: 1,
           contract_id: contractId,
           subscribe: 1
         };
         
-        console.log('[SIMPLEBOT] Enviando solicitação de monitoramento:', monitorRequest);
+        console.log('[SIMPLEBOT] Enviando solicitação de monitoramento via WebSocket de trading:', monitorRequest);
         
-        // Enviar solicitação para monitorar o contrato
-        const response = await derivAPI.sendRequest(monitorRequest);
-        
-        if (response.error) {
-          console.error('[SIMPLEBOT] Erro ao monitorar contrato:', response.error);
-          this.scheduleNextOperation();
-          return reject(new Error(`Erro ao monitorar: ${response.error.message || 'Erro desconhecido'}`));
-        }
-        
-        console.log('[SIMPLEBOT] Resposta de monitoramento:', response);
-        
-        // Registrar callback para atualizações do contrato
-        const contractHandler = (event: CustomEvent) => {
-          const data = event.detail;
-          
-          // Verificar se é uma atualização para nosso contrato
-          if (data && 
-              data.msg_type === 'proposal_open_contract' && 
-              data.proposal_open_contract && 
-              data.proposal_open_contract.contract_id == contractId) {
-            
-            const contract = data.proposal_open_contract;
-            
-            // Log detalhado das atualizações de contrato
-            console.log(`[SIMPLEBOT] Atualização de contrato ID ${contractId}:`, contract);
-            
-            // Verificar se o contrato foi finalizado
-            if (contract.status !== 'open') {
-              // Remover o listener do evento
-              window.removeEventListener('deriv_api_response', contractHandler as EventListener);
-              
-              // Processar o resultado
-              const isWin = contract.status === 'won';
-              const profit = parseFloat(contract.profit);
-              
-              console.log(`[SIMPLEBOT] Contrato finalizado: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
-              
-              if (isWin) {
-                this.stats.wins++;
-                this.stats.consecutiveWins++;
-                this.stats.consecutiveLosses = 0;
-              } else {
-                this.stats.losses++;
-                this.stats.consecutiveLosses++;
-                this.stats.consecutiveWins = 0;
-              }
-              
-              this.stats.totalProfit += profit;
-              
-              // Notificar resultado da operação com TODOS os detalhes do contrato
-              this.emitEvent({
-                type: 'operation_finished',
-                result: isWin ? 'win' : 'loss',
-                profit,
-                contract: {
-                  contract_id: contract.contract_id,
-                  contract_type: contract.contract_type,
-                  buy_price: parseFloat(contract.buy_price),
-                  symbol: contract.underlying,
-                  status: contract.status,
-                  profit: profit,
-                  entry_spot: contract.entry_spot,
-                  exit_spot: contract.exit_spot,
-                  barrier: contract.barrier,
-                  purchase_time: contract.purchase_time,
-                  date_expiry: contract.date_expiry
-                }
-              });
-              
-              // Atualizar estatísticas
-              this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
-              
-              // Cancelar a subscrição
-              if (data.subscription && data.subscription.id) {
-                console.log('[SIMPLEBOT] Cancelando subscrição:', data.subscription.id);
-                derivAPI.sendRequest({
-                  forget: data.subscription.id
-                }).catch(err => {
-                  console.error('[SIMPLEBOT] Erro ao cancelar subscrição:', err);
-                });
-              }
-              
-              // Agendar próxima operação
+        // Enviar solicitação para monitorar o contrato usando a conexão dedicada
+        tradingWebSocket.sendRequest(monitorRequest)
+          .then(response => {
+            if (response.error) {
+              console.error('[SIMPLEBOT] Erro ao monitorar contrato:', response.error);
               this.scheduleNextOperation();
-              
-              // Resolver a promise
-              resolve(true);
+              reject(new Error(`Erro ao monitorar: ${response.error.message || 'Erro desconhecido'}`));
+              return;
             }
-          }
-        };
-        
-        // Registrar para ouvir eventos de resposta da API
-        window.addEventListener('deriv_api_response', contractHandler as EventListener);
-        
-        // Configurar um timeout de segurança para evitar que a promise nunca resolva
-        setTimeout(() => {
-          console.log('[SIMPLEBOT] Timeout de monitoramento de contrato excedido');
-          window.removeEventListener('deriv_api_response', contractHandler as EventListener);
-          this.scheduleNextOperation();
-          resolve(false);
-        }, 300000); // 5 minutos de timeout
+            
+            console.log('[SIMPLEBOT] Resposta de monitoramento via WebSocket de trading:', response);
+            
+            // Configurar um timeout de segurança para evitar que a promise nunca resolva
+            const timeoutId = setTimeout(() => {
+              console.log('[SIMPLEBOT] Timeout de monitoramento de contrato excedido');
+              this.scheduleNextOperation();
+              resolve(false);
+            }, 300000); // 5 minutos de timeout
+            
+            // As atualizações de contrato serão recebidas via evento onContractUpdate
+            // que foi configurado no construtor e processadas pelo método processContractCompletion
+            
+            // Para compatibilidade: registrar um handler adicional para monitorar o final do contrato
+            const contractUpdateListener = (contract: any) => {
+              // Verificar se é o contrato que estamos monitorando
+              if (contract && contract.contract_id == contractId) {
+                // Verificar se o contrato foi finalizado
+                if (contract.status !== 'open') {
+                  console.log(`[SIMPLEBOT] Contrato ${contractId} finalizado via listener de monitoramento`);
+                  
+                  // Limpar o timeout
+                  clearTimeout(timeoutId);
+                  
+                  // Resolver a promise
+                  resolve(true);
+                }
+              }
+            };
+            
+            // Não precisamos registrar um listener temporário
+            // pois já temos um no construtor que chama processContractCompletion
+            // O método processContractCompletion vai resolver a promise quando o contrato finalizar
+            
+          })
+          .catch(error => {
+            console.error('[SIMPLEBOT] Erro ao enviar solicitação de monitoramento:', error);
+            this.scheduleNextOperation();
+            reject(error);
+          });
         
       } catch (err) {
         console.error('[SIMPLEBOT] Exceção ao monitorar contrato:', err);

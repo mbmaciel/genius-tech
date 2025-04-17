@@ -56,6 +56,14 @@ class TradingWebSocketManager {
   public setEvents(events: TradingWebSocketEvents): void {
     this.events = { ...this.events, ...events };
   }
+  
+  /**
+   * Obtém os eventos atuais registrados
+   * @returns Objeto com os eventos registrados
+   */
+  public getEvents(): TradingWebSocketEvents {
+    return { ...this.events };
+  }
 
   /**
    * Verifica se o socket está conectado
