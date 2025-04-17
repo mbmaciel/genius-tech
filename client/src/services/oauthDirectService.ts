@@ -801,26 +801,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const amount = parseFloat(this.settings.entryValue.toString());
       const prediction = this.settings.prediction || 5;
       
-      // Criar solicitação de compra corrigida para incluir o basis e amount
-      // Corrigir formato da requisição de compra para formato aceito pela API
-      const buyRequest = {
+      // Formato correto da requisição de compra para a API Deriv
+      // NOVO FORMATO DE REQUISIÇÃO CORRIGIDO - SEM USAR PRICE NEM PARAMETERS 
+      const buyRequest = JSON.parse(JSON.stringify({
         buy: 1,
-        price: amount,
-        parameters: {
-          contract_type: contractType,
-          currency: "USD",
-          duration: 5,
-          duration_unit: "t",
-          symbol: "R_100",
-          barrier: prediction.toString(),
-          basis: "stake", // Especificar basis como stake para resolver o erro
-          amount: amount  // Incluir o valor do stake como amount em vez de price
-        }
-      };
+        basis: "stake", 
+        amount: amount,
+        symbol: "R_100",
+        barrier: prediction.toString(),
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t"
+      }));
       
       // Verificar se estamos usando o token da conta selecionada pelo usuário
       const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequest);
+      // Instrução especial para debug - mostrar o formato correto nos logs
+      const buyRequestForLog = {
+        buy: 1,
+        basis: "stake", 
+        amount: amount,
+        symbol: "R_100",
+        barrier: prediction.toString(),
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t"
+      };
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequestForLog);
       
       // Se não estamos usando o token primário, corrigir para usar o token primário
       if (!activeTokenInfo || !activeTokenInfo.primary) {

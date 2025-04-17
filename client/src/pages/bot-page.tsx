@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
-import { BotAccountSelector } from "@/components/BotAccountSelector";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -154,6 +153,22 @@ export function BotPage() {
         setAuthToken(storedAuthToken);
         setIsAuthenticated(true);
         
+        // Carregar automaticamente a conta da dashboard
+        const dashboardAccount: DerivAccount = {
+          loginid: parsedInfo.loginid || '',
+          token: storedAuthToken,
+          currency: parsedInfo.currency || 'USD',
+          balance: parsedInfo.balance ? parseFloat(parsedInfo.balance) : 0,
+          isVirtual: (parsedInfo.loginid || '').startsWith('VRT')
+        };
+        
+        // Definir como conta selecionada
+        setSelectedAccount(dashboardAccount);
+        
+        // Informar o serviço OAuth Direct para usar esta conta
+        oauthDirectService.setActiveAccount(dashboardAccount.loginid, dashboardAccount.token);
+        
+        console.log('[BOT] Usando automaticamente a conta da dashboard:', dashboardAccount.loginid);
         console.log('[BOT] Autenticação verificada com sucesso');
         
         // Configurar valores iniciais
@@ -572,22 +587,8 @@ export function BotPage() {
     );
   };
 
-  // Handler para seleção de conta
-  const handleAccountSelected = (account: DerivAccount) => {
-    console.log('[BOT_PAGE] Conta selecionada:', account.loginid);
-    setSelectedAccount(account);
-    
-    // Atualizar token de autorização
-    setAuthToken(account.token);
-    
-    // Notificar o oauthDirectService sobre a mudança de conta
-    oauthDirectService.setActiveAccount(account.loginid, account.token);
-    
-    toast({
-      title: "Conta selecionada",
-      description: `Operando na conta ${account.loginid} (${account.isVirtual ? 'Demo' : 'Real'})`,
-    });
-  };
+  // A função handleAccountSelected foi removida pois agora usamos
+  // automaticamente a conta selecionada na dashboard
 
   return (
     <div className="flex min-h-screen bg-[#0a1324]">
@@ -699,8 +700,39 @@ export function BotPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna da esquerda - Controles e Configurações */}
           <div className="lg:col-span-1 space-y-5">
-            {/* Seletor de Contas */}
-            <BotAccountSelector onAccountSelected={handleAccountSelected} />
+            {/* Informações da Conta */}
+            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
+              <h2 className="text-lg font-semibold text-white mb-4">Conta para Operação</h2>
+              {selectedAccount ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Conta:</span>
+                    <span className="font-medium text-white">{selectedAccount.loginid}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <span className="font-medium text-white">{selectedAccount.isVirtual ? 'Demo' : 'Real'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Moeda:</span>
+                    <span className="font-medium text-white">{selectedAccount.currency}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Saldo:</span>
+                    <span className="font-medium text-white">{realTimeBalance.balance.toFixed(2)} {selectedAccount.currency}</span>
+                  </div>
+                  <div className="text-xs mt-3 text-gray-400">
+                    <p>Operando com a conta selecionada na dashboard.</p>
+                    <p>Para trocar de conta, volte à dashboard.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-yellow-300">
+                  <p>Nenhuma conta autenticada</p>
+                  <p>Volte à dashboard para selecionar uma conta</p>
+                </div>
+              )}
+            </div>
             
             {/* Painel de Controle Principal */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
