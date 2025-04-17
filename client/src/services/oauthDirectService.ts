@@ -2,6 +2,7 @@
  * Serviço de trading que estabelece conexão direta com o servidor Deriv via OAuth
  * 
  * Mantém uma conexão WebSocket dedicada, independente do frontend
+ * VERSÃO ATUALIZADA: Suporta múltiplos tokens e contas do usuário
  */
 import { 
   TradingEvent, 
@@ -9,9 +10,18 @@ import {
   OAuthDirectServiceInterface 
 } from './oauthDirectService.interface';
 
+interface TokenInfo {
+  token: string;
+  loginid?: string;
+  authorized: boolean;
+  connected: boolean;
+  primary: boolean;
+}
+
 class OAuthDirectService implements OAuthDirectServiceInterface {
   private webSocket: WebSocket | null = null;
-  private token: string | null = null;
+  private tokens: TokenInfo[] = [];
+  private activeToken: string | null = null;
   private isRunning: boolean = false;
   private eventListeners: Array<(event: TradingEvent) => void> = [];
   private currentContractId: string | number | null = null;
@@ -28,32 +38,73 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private pingInterval: any = null;
   private reconnectTimeout: any = null;
   private reconnectAttempts: number = 0;
+  private initialized: boolean = false;
   
   constructor() {
     console.log('[OAUTH_DIRECT] Inicializando serviço de trading OAuth com conexão dedicada');
     
-    // Tentar obter token do localStorage
-    this.token = localStorage.getItem('deriv_oauth_token');
-    
-    if (this.token) {
-      console.log('[OAUTH_DIRECT] Token OAuth encontrado no localStorage');
-    } else {
-      // Tentar obter a partir das contas salvas
-      try {
-        const accountsStr = localStorage.getItem('deriv_accounts');
-        if (accountsStr) {
-          const accounts = JSON.parse(accountsStr);
-          if (accounts && accounts.length > 0) {
-            const account = accounts.find((acc: any) => acc.token);
-            if (account) {
-              this.token = account.token;
-              console.log('[OAUTH_DIRECT] Token OAuth obtido das contas salvas');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[OAUTH_DIRECT] Erro ao obter token das contas salvas:', error);
+    // Inicializar com os tokens disponíveis
+    this.loadAllTokens();
+  }
+  
+  /**
+   * Carrega todos os tokens disponíveis de todas as fontes
+   */
+  private loadAllTokens(): void {
+    try {
+      this.tokens = []; // Resetar lista de tokens
+      
+      // 1. Tentar obter token principal do localStorage
+      const mainToken = localStorage.getItem('deriv_oauth_token');
+      if (mainToken) {
+        this.addToken(mainToken, true);
+        console.log('[OAUTH_DIRECT] Token OAuth principal encontrado no localStorage');
       }
+      
+      // 2. Tentar obter tokens adicionais das contas salvas
+      const accountsStr = localStorage.getItem('deriv_accounts');
+      if (accountsStr) {
+        try {
+          const accounts = JSON.parse(accountsStr);
+          if (accounts && Array.isArray(accounts) && accounts.length > 0) {
+            accounts.forEach((acc: any) => {
+              if (acc.token && (!mainToken || acc.token !== mainToken)) {
+                this.addToken(acc.token, false, acc.loginid);
+              }
+            });
+            console.log(`[OAUTH_DIRECT] ${accounts.length} contas encontradas no localStorage`);
+          }
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao processar contas salvas:', error);
+        }
+      }
+      
+      // Se encontramos pelo menos um token, usar o primeiro como ativo
+      if (this.tokens.length > 0) {
+        const primaryToken = this.tokens.find(t => t.primary) || this.tokens[0];
+        this.activeToken = primaryToken.token;
+        console.log(`[OAUTH_DIRECT] Total de ${this.tokens.length} tokens carregados. Token ativo: ${primaryToken.loginid || 'desconhecido'}`);
+      } else {
+        console.warn('[OAUTH_DIRECT] Nenhum token encontrado em qualquer fonte!');
+      }
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao carregar tokens:', error);
+    }
+  }
+  
+  /**
+   * Adiciona um token à lista se ele ainda não existir
+   */
+  private addToken(token: string, isPrimary: boolean = false, loginid?: string): void {
+    // Verificar se o token já existe na lista
+    if (!this.tokens.some(t => t.token === token)) {
+      this.tokens.push({
+        token: token,
+        loginid: loginid,
+        authorized: false,
+        connected: false,
+        primary: isPrimary
+      });
     }
   }
   
@@ -63,10 +114,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private setupWebSocket(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       try {
-        if (!this.token) {
-          console.error('[OAUTH_DIRECT] Token OAuth não encontrado');
-          reject(new Error('Token OAuth não encontrado'));
-          return;
+        // Verificar se temos tokens disponíveis
+        if (this.tokens.length === 0) {
+          // Tentar carregar novamente os tokens
+          this.loadAllTokens();
+          
+          if (this.tokens.length === 0) {
+            console.error('[OAUTH_DIRECT] Nenhum token OAuth encontrado');
+            reject(new Error('Nenhum token OAuth encontrado. Faça login novamente.'));
+            return;
+          }
+        }
+        
+        // Verificar se temos um token ativo
+        if (!this.activeToken) {
+          this.activeToken = this.tokens[0].token;
         }
         
         // Limpar conexão existente se houver
@@ -88,9 +150,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           // Configurar ping para manter conexão
           this.setupKeepAlive();
           
-          // Autorizar com token OAuth
-          this.authorize()
-            .then(() => resolve(true))
+          // Iniciar processo de autorização com todos os tokens
+          this.authorizeAllTokens()
+            .then(() => {
+              this.initialized = true;
+              resolve(true);
+            })
             .catch((error) => reject(error));
         };
         
@@ -324,42 +389,66 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
-   * Autoriza a conexão com o token OAuth
+   * Autoriza todos os tokens disponíveis sequencialmente
    */
-  private authorize(): Promise<void> {
+  private authorizeAllTokens(): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      console.log(`[OAUTH_DIRECT] Iniciando autorização de ${this.tokens.length} tokens`);
+      
+      if (this.tokens.length === 0) {
+        reject(new Error('Nenhum token disponível para autorização'));
+        return;
+      }
+      
+      let authorizedAtLeastOne = false;
+      
+      // Tenta autorizar cada token sequencialmente
+      for (const tokenInfo of this.tokens) {
+        try {
+          await this.authorizeToken(tokenInfo.token);
+          
+          // Marcar como autorizado
+          tokenInfo.authorized = true;
+          tokenInfo.connected = true;
+          
+          // Se for o primeiro token autorizado com sucesso, defina como ativo
+          if (!authorizedAtLeastOne) {
+            this.activeToken = tokenInfo.token;
+            authorizedAtLeastOne = true;
+            
+            // Já podemos inscrever para ticks com o primeiro token autorizado
+            this.subscribeToTicks();
+          }
+          
+          console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${tokenInfo.loginid || 'desconhecido'}`);
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] Falha ao autorizar token ${tokenInfo.loginid || 'desconhecido'}:`, error);
+          // Continuamos para o próximo token, não rejeitamos a Promise aqui
+        }
+      }
+      
+      // Se pelo menos um token foi autorizado, consideramos bem-sucedido
+      if (authorizedAtLeastOne) {
+        console.log('[OAUTH_DIRECT] Autorização concluída com sucesso para pelo menos um token');
+        resolve();
+      } else {
+        reject(new Error('Nenhum token pôde ser autorizado. Verifique suas credenciais.'));
+      }
+    });
+  }
+  
+  /**
+   * Autoriza um token específico
+   */
+  private authorizeToken(token: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket não está conectado'));
         return;
       }
       
-      // Atualizar token caso esteja ausente, verificando novamente no localStorage
-      if (!this.token) {
-        this.token = localStorage.getItem('deriv_oauth_token');
-        
-        // Se ainda não encontrou, tentar obter das contas salvas
-        if (!this.token) {
-          try {
-            const accountsStr = localStorage.getItem('deriv_accounts');
-            if (accountsStr) {
-              const accounts = JSON.parse(accountsStr);
-              if (accounts && accounts.length > 0) {
-                const account = accounts.find((acc: any) => acc.token);
-                if (account) {
-                  this.token = account.token;
-                  console.log('[OAUTH_DIRECT] Token OAuth obtido das contas salvas');
-                }
-              }
-            }
-          } catch (error) {
-            console.error('[OAUTH_DIRECT] Erro ao obter token das contas salvas:', error);
-          }
-        }
-      }
-      
-      if (!this.token) {
-        console.error('[OAUTH_DIRECT] Token OAuth não encontrado após tentativas adicionais');
-        reject(new Error('Token OAuth não encontrado. Faça login novamente.'));
+      if (!token) {
+        reject(new Error('Token inválido'));
         return;
       }
       
@@ -381,40 +470,22 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             if (data.error) {
               console.error('[OAUTH_DIRECT] Erro na autorização:', data.error.message);
-              
-              // Verificar se o erro é de autorização inválida
-              if (data.error.code === 'InvalidToken') {
-                // Tentar obter um token alternativo
-                const accountsStr = localStorage.getItem('deriv_accounts');
-                if (accountsStr) {
-                  try {
-                    const accounts = JSON.parse(accountsStr);
-                    // Encontrar outro token que não seja o atual que falhou
-                    const alternativeAccount = accounts.find((acc: any) => 
-                      acc.token && acc.token !== this.token);
-                    
-                    if (alternativeAccount) {
-                      console.log('[OAUTH_DIRECT] Tentando token alternativo');
-                      this.token = alternativeAccount.token;
-                      
-                      // Tentar novamente com o token alternativo
-                      this.webSocket?.send(JSON.stringify({
-                        authorize: this.token
-                      }));
-                      
-                      // Adicionar handler novamente
-                      this.webSocket?.addEventListener('message', authHandler);
-                      return; // Não rejeitar ainda, tentando com token alternativo
-                    }
-                  } catch (error) {
-                    console.error('[OAUTH_DIRECT] Erro ao processar contas alternativas:', error);
-                  }
-                }
-              }
-              
               reject(new Error(data.error.message));
             } else {
-              console.log('[OAUTH_DIRECT] Autorização bem-sucedida!');
+              console.log('[OAUTH_DIRECT] Autorização bem-sucedida para:', data.authorize?.loginid);
+              
+              // Atualizar loginid do token correspondente
+              const tokenIndex = this.tokens.findIndex(t => t.token === token);
+              if (tokenIndex >= 0) {
+                this.tokens[tokenIndex].loginid = data.authorize?.loginid;
+              }
+              
+              // Notificar autorização bem-sucedida
+              this.notifyListeners({
+                type: 'authorized',
+                account: data.authorize
+              });
+              
               resolve();
             }
           }
@@ -428,7 +499,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Enviar solicitação de autorização
       this.webSocket.send(JSON.stringify({
-        authorize: this.token
+        authorize: token
       }));
     });
   }
@@ -502,14 +573,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       console.log('[OAUTH_DIRECT] Iniciando serviço de trading...');
       
-      // Verificar se temos o token OAuth
-      if (!this.token) {
-        console.error('[OAUTH_DIRECT] Token OAuth não encontrado');
-        this.notifyListeners({
-          type: 'error',
-          message: 'Token OAuth não encontrado. Faça login novamente.'
-        });
-        return false;
+      // Verificar se temos tokens disponíveis
+      if (this.tokens.length === 0) {
+        // Tentar carregar novamente os tokens
+        this.loadAllTokens();
+        
+        if (this.tokens.length === 0) {
+          console.error('[OAUTH_DIRECT] Nenhum token OAuth disponível');
+          this.notifyListeners({
+            type: 'error',
+            message: 'Nenhum token OAuth encontrado. Faça login novamente.'
+          });
+          return false;
+        }
       }
       
       // Configurar a conexão WebSocket se não existir
@@ -527,6 +603,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
+      // Verificar se temos um token ativo e autorizado
+      const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken && t.authorized);
+      if (!activeTokenInfo) {
+        console.error('[OAUTH_DIRECT] Nenhum token ativo e autorizado disponível');
+        this.notifyListeners({
+          type: 'error',
+          message: 'Problema com a autorização. Tente fazer login novamente.'
+        });
+        return false;
+      }
+      
       // Atualizar estado
       this.isRunning = true;
       
@@ -541,7 +628,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.scheduleNextOperation(2000);
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[OAUTH_DIRECT] Erro ao iniciar bot:', error);
       this.notifyListeners({
         type: 'error',
@@ -652,6 +739,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
     }
     
+    // Verificar se temos um token ativo e autorizado
+    if (!this.activeToken) {
+      console.error('[OAUTH_DIRECT] Nenhum token ativo disponível');
+      
+      // Verificar se temos algum token autorizado
+      const authorizedToken = this.tokens.find(t => t.authorized);
+      if (authorizedToken) {
+        this.activeToken = authorizedToken.token;
+        console.log(`[OAUTH_DIRECT] Usando token autorizado: ${authorizedToken.loginid || 'desconhecido'}`);
+      } else {
+        this.notifyListeners({
+          type: 'error',
+          message: 'Nenhum token autorizado disponível. Faça login novamente.'
+        });
+        return;
+      }
+    }
+    
     try {
       // Determinar o tipo de contrato com base na estratégia
       let contractType = 'DIGITOVER';
@@ -683,7 +788,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       };
       
-      console.log('[OAUTH_DIRECT] Enviando solicitação de compra:', buyRequest);
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${this.tokens.find(t => t.token === this.activeToken)?.loginid || 'desconhecido'}:`, buyRequest);
       
       // Enviar solicitação se o WebSocket estiver disponível
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
@@ -699,7 +804,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         amount: amount,
         prediction: prediction
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('[OAUTH_DIRECT] Erro ao executar operação:', error);
       this.notifyListeners({
         type: 'error',
