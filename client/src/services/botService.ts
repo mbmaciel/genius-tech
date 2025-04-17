@@ -362,13 +362,20 @@ class BotService {
     
     // Cancelar contratos ativos se existirem
     if (this.currentContract) {
-      derivApiService.sellContract(this.currentContract.contract_id)
-        .then(() => {
+      // Usar a conexão OAuth para vender o contrato
+      derivAPI.sendRequest({
+        sell: this.currentContract.contract_id,
+        price: 0 // Vender pelo preço de mercado
+      }).then(response => {
+        if (response.error) {
+          console.error('[BOT_SERVICE] Erro ao vender contrato:', response.error.message);
+        } else {
+          console.log('[BOT_SERVICE] Contrato vendido com sucesso:', response.sell);
           this.currentContract = null;
-        })
-        .catch(error => {
-          console.error('Erro ao vender contrato ativo:', error);
-        });
+        }
+      }).catch(error => {
+        console.error('[BOT_SERVICE] Erro ao vender contrato:', error);
+      });
     }
   }
   
@@ -539,12 +546,30 @@ class BotService {
         return;
       }
       
-      console.log('[BOT_SERVICE] Comprando contrato...');
-      const contract = await derivApiService.buyContract(amount, type, 'R_100', 1, prediction);
+      console.log('[BOT_SERVICE] Comprando contrato usando a conexão OAuth...');
       
-      if (!contract) {
-        console.error('[BOT_SERVICE] Falha ao comprar contrato. Token OAuth pode estar inválido');
-        this.emitEvent({ type: 'error', message: 'Falha ao comprar contrato. Verifique seu token OAuth' });
+      // Usar a conexão OAuth para comprar o contrato
+      const buyResponse = await derivAPI.sendRequest({
+        buy: 1,
+        price: amount,
+        parameters: {
+          amount: amount,
+          basis: 'stake',
+          contract_type: type,
+          currency: 'USD', // Valor padrão, será substituído pelo correto da conta
+          duration: 1,
+          duration_unit: 't',
+          symbol: 'R_100',
+          ...(prediction !== undefined && { prediction: prediction })
+        }
+      });
+      
+      if (buyResponse.error) {
+        console.error('[BOT_SERVICE] Erro na compra:', buyResponse.error.message);
+        this.emitEvent({ 
+          type: 'error', 
+          message: `Falha ao comprar contrato: ${buyResponse.error.message}` 
+        });
         
         // Tentar novamente após um intervalo
         this.operationTimer = setTimeout(() => {
@@ -556,8 +581,28 @@ class BotService {
         return;
       }
       
+      // Compra bem-sucedida, criar objeto de contrato
+      const contract: Contract = {
+        contract_id: buyResponse.buy.contract_id,
+        contract_type: type,
+        buy_price: buyResponse.buy.buy_price,
+        symbol: 'R_100',
+        status: 'open',
+        purchase_time: buyResponse.buy.purchase_time,
+        payout: buyResponse.buy.payout
+      };
+      
       this.currentContract = contract;
       this.emitEvent({ type: 'operation_started', contract });
+      
+      // Solicitar atualizações sobre o status do contrato
+      derivAPI.sendRequest({
+        proposal_open_contract: 1,
+        contract_id: contract.contract_id,
+        subscribe: 1
+      }).catch(err => {
+        console.error('[BOT_SERVICE] Erro ao solicitar atualizações do contrato:', err);
+      });
       
       // O resultado será processado no evento de atualização de contrato
     } catch (error) {
@@ -637,6 +682,7 @@ class BotService {
    */
   private handleBalanceUpdate(balance: any): void {
     if (balance) {
+      console.log('[BOT_SERVICE] Atualização de balanço recebida:', balance);
       this.emitEvent({ 
         type: 'balance_update', 
         balance: balance.balance, 
@@ -669,7 +715,7 @@ class BotService {
 
 // Função para verificar o estado de autorização
 function isApiAuthorized(): boolean {
-  return (derivApiService as any).authorized || false;
+  return derivAPI && derivAPI.getAuthorization() ? true : false;
 }
 
 // Exporta uma instância única do serviço

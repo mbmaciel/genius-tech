@@ -252,6 +252,14 @@ class WebSocketManager {
       });
     }
   }
+  
+  /**
+   * Verifica se o cliente está autorizado
+   * @returns token de autorização ou null se não autorizado
+   */
+  public getAuthorization(): string | null {
+    return this.token;
+  }
 
   /**
    * Agenda uma tentativa de reconexão
