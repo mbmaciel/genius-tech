@@ -389,14 +389,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
-   * Autoriza apenas o token da conta selecionada na dashboard
+   * Autoriza o token da conta selecionada pelo usuário
    */
   private authorizeAllTokens(): Promise<void> {
     return new Promise(async (resolve, reject) => {
-      // Definir variáveis de controle
-      let authorizedPrimaryToken = false;
-      let authorizedAnyToken = false;
-
       console.log(`[OAUTH_DIRECT] Verificando se há uma conta ativa selecionada pelo usuário`);
       
       if (this.tokens.length === 0) {
@@ -404,39 +400,74 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return;
       }
       
-      // Primeiro vamos verificar se temos uma conta ativa escolhida pelo usuário
+      // Verificar qual token deve ser usado prioritariamente
       let selectedToken = null;
       
-      // Verificar se existe token primário (selecionado pelo usuário)
-      const primaryToken = this.tokens.find(t => t.primary);
+      // 1. Verificar se já temos um token marcado como primário (explicitamente escolhido pelo usuário)
+      const primaryToken = this.tokens.find(t => t.primary === true);
+      
       if (primaryToken) {
-        console.log(`[OAUTH_DIRECT] Usando conta selecionada pelo usuário: ${primaryToken.loginid || 'desconhecida'}`);
+        // Usuário já escolheu uma conta específica através da interface
+        console.log(`[OAUTH_DIRECT] Usando conta explicitamente selecionada pelo usuário: ${primaryToken.loginid || 'desconhecida'}`);
         selectedToken = primaryToken;
-      } else {
-        // Se não temos token primário, vamos verificar se temos um token da dashboard
-        const dashboardToken = localStorage.getItem('deriv_oauth_token');
-        
-        if (dashboardToken) {
-          console.log('[OAUTH_DIRECT] Nenhuma conta selecionada, usando token da dashboard');
-          
-          // Verificar se este token já existe na nossa lista
-          let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
-          
-          if (!tokenInfo) {
-            // Se não existe, adicionamos ele
-            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
-            this.addToken(dashboardToken, true);
-            tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+      } 
+      // 2. Se não temos token primário, usar o token ativo (se houver)
+      else if (this.activeToken) {
+        const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
+        if (activeTokenInfo) {
+          console.log(`[OAUTH_DIRECT] Usando token atualmente ativo: ${activeTokenInfo.loginid || 'desconhecido'}`);
+          selectedToken = activeTokenInfo;
+        }
+      }
+      // 3. Se não temos token primário nem ativo, buscar no localStorage
+      else {
+        const savedToken = localStorage.getItem('deriv_selected_account');
+        if (savedToken) {
+          try {
+            const savedAccount = JSON.parse(savedToken);
+            if (savedAccount && savedAccount.token) {
+              const savedTokenInfo = this.tokens.find(t => 
+                t.token === savedAccount.token || 
+                (savedAccount.loginid && t.loginid === savedAccount.loginid)
+              );
+              
+              if (savedTokenInfo) {
+                console.log(`[OAUTH_DIRECT] Usando conta salva no localStorage: ${savedTokenInfo.loginid || 'desconhecida'}`);
+                selectedToken = savedTokenInfo;
+              }
+            }
+          } catch (e) {
+            console.error('[OAUTH_DIRECT] Erro ao processar conta salva no localStorage:', e);
           }
-          
-          selectedToken = tokenInfo;
-        } else {
-          // Se não temos nenhum token, vamos usar o primeiro da lista
-          console.log('[OAUTH_DIRECT] Nenhum token de dashboard encontrado, usando o primeiro token disponível');
-          selectedToken = this.tokens[0];
         }
       }
       
+      // 4. Se ainda não temos um token selecionado, verificar tokens da dashboard
+      if (!selectedToken) {
+        const dashboardToken = localStorage.getItem('deriv_oauth_token');
+        if (dashboardToken) {
+          let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+          if (!tokenInfo) {
+            // Se não existe, adicionamos ele
+            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
+            this.addToken(dashboardToken, false); // Não é primário por padrão
+            tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+          }
+          
+          if (tokenInfo) {
+            console.log(`[OAUTH_DIRECT] Usando token da dashboard: ${tokenInfo.loginid || 'desconhecido'}`);
+            selectedToken = tokenInfo;
+          }
+        }
+      }
+      
+      // 5. Em último caso, usar o primeiro token disponível
+      if (!selectedToken && this.tokens.length > 0) {
+        console.log('[OAUTH_DIRECT] Nenhum token específico encontrado, usando o primeiro disponível');
+        selectedToken = this.tokens[0];
+      }
+      
+      // Agora que temos um token selecionado, autorizá-lo
       if (selectedToken) {
         // Atualizar o token ativo para todas as operações
         this.activeToken = selectedToken.token;
@@ -449,18 +480,50 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           selectedToken.authorized = true;
           selectedToken.connected = true;
           
+          // Garantir que este seja o token primário
+          this.tokens.forEach(t => {
+            t.primary = (t === selectedToken);
+          });
+          
           console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${selectedToken.loginid || 'desconhecido'}`);
           
           // Inscrever para ticks
           this.subscribeToTicks();
           
+          // Salvar esta escolha para futuras reconexões
+          try {
+            localStorage.setItem('deriv_selected_account', JSON.stringify({
+              token: selectedToken.token,
+              loginid: selectedToken.loginid
+            }));
+          } catch (e) {
+            console.error('[OAUTH_DIRECT] Erro ao salvar conta selecionada:', e);
+          }
+          
           resolve();
         } catch (error) {
           console.error('[OAUTH_DIRECT] Falha ao autorizar token da conta:', error);
-          reject(error);
+          
+          // Tentar próximo token se houver falha
+          const nextToken = this.tokens.find(t => t !== selectedToken);
+          if (nextToken) {
+            console.log(`[OAUTH_DIRECT] Tentando token alternativo: ${nextToken.loginid || 'desconhecido'}`);
+            this.activeToken = nextToken.token;
+            try {
+              await this.authorizeToken(nextToken.token);
+              nextToken.authorized = true;
+              nextToken.connected = true;
+              this.subscribeToTicks();
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          } else {
+            reject(error);
+          }
         }
       } else {
-        reject(new Error('Falha ao configurar token da conta'));
+        reject(new Error('Nenhum token disponível para autorização'));
       }
     });
   }
