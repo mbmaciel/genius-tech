@@ -25,17 +25,8 @@ export default function LoginPage() {
   const [processingOAuth, setProcessingOAuth] = useState(false);
   const [oauthAccounts, setOauthAccounts] = useState<any[]>([]);
 
-  // Verificar se já está logado e redirecionar automaticamente
-  useEffect(() => {
-    // Se o usuário já estiver logado, redireciona para a dashboard
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    const storedAccountInfo = localStorage.getItem('deriv_account_info');
-    
-    if (isLoggedIn || storedAccountInfo) {
-      console.log('Usuário já está logado, redirecionando para dashboard');
-      window.location.href = '/dashboard';
-    }
-  }, []);
+  // Efeito para verificar status de login apenas em ambientes de produção
+  // Desabilitado para permitir visualizar a página de login para testes
   
   // Efeito para verificar se há tokens na URL
   useEffect(() => {

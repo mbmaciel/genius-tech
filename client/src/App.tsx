@@ -43,14 +43,17 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
 };
 
 function App() {
-  const [location] = useLocation();
-  
+  // Versão simplificada: rota raiz redireciona sempre para página de login
   return (
     <div className="App">
       <Toaster />
       <Switch>
         <Route path="/login" component={Login} />
-        <Route path="/" component={(props: any) => <ProtectedRoute component={Dashboard} {...props} />} />
+        <Route path="/" component={() => {
+          // Redirecionar raiz para login
+          window.location.href = '/login';
+          return null;
+        }} />
         <Route path="/dashboard" component={(props: any) => <ProtectedRoute component={Dashboard} {...props} />} />
         <Route path="/bot" component={(props: any) => <ProtectedRoute component={BotPage} {...props} />} />
       </Switch>
