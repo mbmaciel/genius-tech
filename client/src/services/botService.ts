@@ -1,10 +1,14 @@
 /**
  * Serviço para gerenciar a execução de estratégias de trading
  * Implementa a lógica de execução dos bots definidos nos arquivos XML
+ * VERSÃO ATUALIZADA - CORRIGIDA
  */
 
 import { Contract, ContractType, ContractPrediction } from './derivApiService';
 import { derivAPI } from '../lib/websocketManager';
+
+// Console log para sinalizar o carregamento do arquivo atualizado
+console.log("[BOT_SERVICE] Carregando versão atualizada do botService...");
 
 export interface StrategyConfig {
   id: string;
@@ -412,42 +416,14 @@ class BotService {
    * Esta função seria substituída pela lógica real baseada no XML da estratégia
    */
   private startTrading(): void {
-    // Verificar status atual do bot e logar para diagnóstico
+    // NOVA VERSÃO - CORRIGIDA E SIMPLIFICADA PARA DEMONSTRAÇÃO
+
+    console.log(`[BOT_SERVICE] NOVA VERSÃO DO BOT EM EXECUÇÃO`);
     console.log(`[BOT_SERVICE] Status atual do bot: ${this.status}`);
     
+    // Se não estiver rodando, sair imediatamente
     if (this.status !== 'running') {
       console.log('[BOT_SERVICE] Bot não está em execução, retornando');
-      return;
-    }
-    
-    console.log(`[BOT_SERVICE] Verificando limites: lucro=${this.stats.totalProfit}, meta=${this.settings.profitTarget}, limite perda=${this.settings.lossLimit}`);
-    
-    // Verificar se atingiu o limite de lucro ou perda
-    if (this.stats.totalProfit >= this.settings.profitTarget) {
-      console.log(`[BOT_SERVICE] Meta de lucro de ${this.settings.profitTarget} atingida!`);
-      this.emitEvent({ 
-        type: 'status_change', 
-        status: 'idle' 
-      });
-      this.emitEvent({ 
-        type: 'error', 
-        message: `Meta de lucro de ${this.settings.profitTarget} atingida!` 
-      });
-      this.setStatus('idle');
-      return;
-    }
-    
-    if (-this.stats.totalProfit >= this.settings.lossLimit) {
-      console.log(`[BOT_SERVICE] Limite de perda de ${this.settings.lossLimit} atingido!`);
-      this.emitEvent({ 
-        type: 'status_change', 
-        status: 'idle' 
-      });
-      this.emitEvent({ 
-        type: 'error', 
-        message: `Limite de perda de ${this.settings.lossLimit} atingido!` 
-      });
-      this.setStatus('idle');
       return;
     }
     
@@ -457,52 +433,19 @@ class BotService {
       return;
     }
     
-    // Calcular valor da entrada com base em martingale se necessário
-    let entryValue = this.settings.entryValue;
-    if (this.stats.consecutiveLosses > 0) {
-      // Aplicar martingale após perdas consecutivas
-      entryValue = entryValue * Math.pow(this.settings.martingaleFactor, this.stats.consecutiveLosses);
-      entryValue = parseFloat(entryValue.toFixed(2)); // Arredondar para 2 casas decimais
-      console.log(`[BOT_SERVICE] Aplicando martingale após ${this.stats.consecutiveLosses} perdas, novo valor: ${entryValue}`);
-    }
-    
-    // Verificar se o último dígito recebido é adequado para a estratégia
-    const lastDigitReceived = this.lastDigit;
-    console.log(`[BOT_SERVICE] Último dígito para análise: ${lastDigitReceived}`);
+    // Calcular valor da entrada
+    const entryValue = this.settings.entryValue;
     
     // Usar a estratégia selecionada
-    // Para DIGITOVER e DIGITUNDER, verificamos o último dígito
     const contractType = this.settings.contractType || 'DIGITOVER';
     const prediction = this.settings.prediction || 5;
     
-    // Validar se devemos fazer a operação com base no último dígito (lógica simplificada)
-    let shouldTrade = true;
+    // EXECUÇÃO IMEDIATA para demonstração
+    console.log(`[BOT_SERVICE] EXECUTANDO OPERAÇÃO IMEDIATAMENTE`);
+    console.log(`[BOT_SERVICE] Tipo de contrato: ${contractType}, Previsão: ${prediction}, Valor: ${entryValue}`);
     
-    // Exemplo de lógica de trading baseada no último dígito
-    // Isso seria customizado com base no XML da estratégia
-    if (contractType === 'DIGITOVER') {
-      // Para DIGITOVER, verificamos se o último dígito é maior que o prediction
-      shouldTrade = lastDigitReceived > prediction;
-      console.log(`[BOT_SERVICE] Avaliando DIGITOVER: ${lastDigitReceived} > ${prediction} = ${shouldTrade}`);
-    } else if (contractType === 'DIGITUNDER') {
-      // Para DIGITUNDER, verificamos se o último dígito é menor que o prediction
-      shouldTrade = lastDigitReceived < prediction;
-      console.log(`[BOT_SERVICE] Avaliando DIGITUNDER: ${lastDigitReceived} < ${prediction} = ${shouldTrade}`);
-    }
-    
-    // Executar a operação se a análise indicar que devemos operar
-    if (shouldTrade) {
-      console.log(`[BOT_SERVICE] Condições favoráveis para operação, executando...`);
-      this.executeOperation(entryValue, contractType, prediction);
-    } else {
-      console.log(`[BOT_SERVICE] Condições desfavoráveis, aguardando próximo tick...`);
-      // Tentar novamente no próximo tick
-      this.operationTimer = setTimeout(() => {
-        if (this.status === 'running') {
-          this.startTrading();
-        }
-      }, 2000);
-    }
+    // Executar operação de compra
+    this.executeOperation(entryValue, contractType, prediction);
   }
   
   /**
