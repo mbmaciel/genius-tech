@@ -165,8 +165,7 @@ function authenticate() {
   
   try {
     const authRequest = {
-      authorize: TOKEN,
-      app_id: APP_ID
+      authorize: TOKEN
     };
     
     socket!.send(JSON.stringify(authRequest));
@@ -265,8 +264,7 @@ export function subscribeToSymbol(symbol: string): Promise<boolean> {
   try {
     const request = {
       ticks: symbol,
-      subscribe: 1,
-      app_id: APP_ID
+      subscribe: 1
     };
     
     socket!.send(JSON.stringify(request));
@@ -299,8 +297,7 @@ export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
   
   try {
     const request = {
-      forget_all: ["ticks"],
-      app_id: APP_ID
+      forget_all: ["ticks"]
     };
     
     socket!.send(JSON.stringify(request));
