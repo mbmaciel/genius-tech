@@ -55,10 +55,10 @@ export function BotController({
     };
   }, [onStatusChange, onStatsChange]);
 
-  // Iniciar o bot - VERSÃO CORRIGIDA
+  // Iniciar o bot - VERSÃO CORRIGIDA E MELHORADA
   const startBot = async () => {
     try {
-      console.log('[BOT_CONTROLLER] Iniciando bot (VERSÃO CORRIGIDA)...');
+      console.log('[BOT_CONTROLLER] Iniciando bot (VERSÃO CORRIGIDA E MELHORADA)...');
       
       // Verificar se a estratégia foi selecionada
       if (!selectedStrategy) {
@@ -96,30 +96,50 @@ export function BotController({
       // Iniciar o bot com pequeno atraso para garantir que a UI atualize primeiro
       console.log('[BOT_CONTROLLER] Iniciando bot com delay para UI...');
       
-      setTimeout(async () => {
+      // Usar um timeout para garantir que a interface atualize primeiro
+      setTimeout(() => {
         try {
-          console.log('[BOT_CONTROLLER] Chamando simpleBotService.start()...');
-          const success = await simpleBotService.start();
+          console.log('[BOT_CONTROLLER] Chamando simpleBotService.start() de forma direta...');
           
-          console.log('[BOT_CONTROLLER] Resultado do start():', success);
+          // Forçar tipo para simpleBotService para que TypeScript reconheça o método
+          const botService = simpleBotService as typeof simpleBotService;
           
-          if (success) {
-            toast({
-              title: "Bot iniciado",
-              description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
-            });
-          } else {
-            console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
+          // Chamar diretamente sem await para evitar problemas de contexto
+          const promise = botService.start();
+          
+          // Tratar resultado da inicialização
+          promise.then(success => {
+            console.log('[BOT_CONTROLLER] Resultado do start():', success);
+            
+            if (success) {
+              toast({
+                title: "Bot iniciado",
+                description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
+              });
+            } else {
+              console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
+              setStatus('idle');
+              onStatusChange('idle');
+              toast({
+                title: "Falha ao iniciar bot",
+                description: "Verifique se sua sessão está ativa e tente novamente.",
+                variant: "destructive"
+              });
+            }
+          }).catch(error => {
+            console.error('[BOT_CONTROLLER] Erro ao iniciar bot via promise:', error);
             setStatus('idle');
             onStatusChange('idle');
             toast({
-              title: "Falha ao iniciar bot",
-              description: "Verifique se sua sessão está ativa e tente novamente.",
+              title: "Erro ao iniciar bot",
+              description: "Ocorreu um erro ao iniciar o bot. Veja o console para detalhes.",
               variant: "destructive"
             });
-          }
+          });
         } catch (e) {
-          console.error('[BOT_CONTROLLER] Erro no delay de start():', e);
+          console.error('[BOT_CONTROLLER] Erro no timeout de start():', e);
+          setStatus('idle');
+          onStatusChange('idle');
         }
       }, 100);
       

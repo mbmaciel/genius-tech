@@ -99,7 +99,7 @@ class SimpleBotService {
    * Inicia a execução do bot
    */
   public async start(): Promise<boolean> {
-    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO CORRIGIDA');
+    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO SUPER CORRIGIDA');
     
     if (this.status === 'running') {
       console.log('[SIMPLEBOT] Bot já está rodando, ignorando chamada');
@@ -117,14 +117,39 @@ class SimpleBotService {
       this.status = 'running';
       this.emitEvent({ type: 'status_change', status: this.status });
       
-      // Simular operação para demonstração da interface
-      console.log('[SIMPLEBOT] Iniciando simulação de operações');
-      setTimeout(() => {
-        if (this.status === 'running') {
-          console.log('[SIMPLEBOT] Executando primeira operação simulada');
-          this.simulateOperation();
+      // Limpar qualquer timer anterior
+      if (this.operationTimer) {
+        clearTimeout(this.operationTimer);
+        this.operationTimer = null;
+      }
+      
+      // Usar uma função imediata para iniciar a operação
+      const startFirstOperation = () => {
+        try {
+          console.log('[SIMPLEBOT] Iniciando simulação de operações (imediata)');
+          
+          // Verificar novamente se o bot ainda está ativo
+          if (this.status === 'running') {
+            console.log('[SIMPLEBOT] Executando primeira operação simulada (imediata)');
+            this.simulateOperation();
+          } else {
+            console.log('[SIMPLEBOT] Bot não está mais rodando ao tentar iniciar simulação');
+          }
+        } catch (err) {
+          console.error('[SIMPLEBOT] Erro ao iniciar primeira operação:', err);
         }
-      }, 1000);
+      };
+      
+      // Chamar diretamente (sem setTimeout) para garantir execução
+      startFirstOperation();
+      
+      // Por segurança, também agendamos com setTimeout
+      this.operationTimer = setTimeout(() => {
+        if (this.status === 'running' && this.stats.wins === 0 && this.stats.losses === 0) {
+          console.log('[SIMPLEBOT] Verificação de segurança: primeira operação não iniciou, tentando novamente');
+          startFirstOperation();
+        }
+      }, 2000);
       
       return true;
     } catch (error) {
@@ -211,44 +236,58 @@ class SimpleBotService {
     // Após 5 segundos, simular finalização da operação
     console.log('[SIMPLEBOT] Programando conclusão da operação em 5 segundos');
     this.operationTimer = setTimeout(() => {
-      // Gerar resultado aleatório (vitória/derrota)
-      const isWin = Math.random() > 0.5;
-      const profit = isWin ? contract.buy_price * 0.9 : -contract.buy_price;
-      
-      console.log(`[SIMPLEBOT] Operação concluída: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
-      
-      if (isWin) {
-        this.stats.wins++;
-        this.stats.consecutiveWins++;
-        this.stats.consecutiveLosses = 0;
-      } else {
-        this.stats.losses++;
-        this.stats.consecutiveLosses++;
-        this.stats.consecutiveWins = 0;
-      }
-      
-      this.stats.totalProfit += profit;
-      
-      // Notificar resultado da operação
-      this.emitEvent({
-        type: 'operation_finished',
-        result: isWin ? 'win' : 'loss',
-        profit,
-        contract: {
-          ...contract,
-          status: isWin ? 'won' : 'lost',
-          profit
+      try {
+        // Verificar novamente se o bot ainda está rodando
+        if (this.status !== 'running') {
+          console.log('[SIMPLEBOT] Bot não está mais rodando durante a operação, cancelando');
+          return;
         }
-      });
-      
-      // Atualizar estatísticas
-      this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
-      
-      // Programar próxima operação
-      console.log('[SIMPLEBOT] Programando próxima operação em 3 segundos');
-      this.operationTimer = setTimeout(() => {
-        this.simulateOperation();
-      }, 3000);
+
+        // Gerar resultado aleatório (vitória/derrota)
+        const isWin = Math.random() > 0.5;
+        const profit = isWin ? contract.buy_price * 0.9 : -contract.buy_price;
+        
+        console.log(`[SIMPLEBOT] Operação concluída: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
+        
+        if (isWin) {
+          this.stats.wins++;
+          this.stats.consecutiveWins++;
+          this.stats.consecutiveLosses = 0;
+        } else {
+          this.stats.losses++;
+          this.stats.consecutiveLosses++;
+          this.stats.consecutiveWins = 0;
+        }
+        
+        this.stats.totalProfit += profit;
+        
+        // Notificar resultado da operação
+        this.emitEvent({
+          type: 'operation_finished',
+          result: isWin ? 'win' : 'loss',
+          profit,
+          contract: {
+            ...contract,
+            status: isWin ? 'won' : 'lost',
+            profit
+          }
+        });
+        
+        // Atualizar estatísticas
+        this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
+        
+        // Programar próxima operação
+        console.log('[SIMPLEBOT] Programando próxima operação em 3 segundos');
+        this.operationTimer = setTimeout(() => {
+          try {
+            this.simulateOperation();
+          } catch (error) {
+            console.error('[SIMPLEBOT] Erro ao iniciar próxima operação:', error);
+          }
+        }, 3000);
+      } catch (error) {
+        console.error('[SIMPLEBOT] Erro durante a simulação de operação:', error);
+      }
     }, 5000);
   }
   
