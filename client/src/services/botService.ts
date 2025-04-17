@@ -377,10 +377,36 @@ class BotService {
     prediction: ContractPrediction
   ): Promise<void> {
     try {
+      console.log(`[BOT_SERVICE] Executando operação: ${type} ${prediction} valor=${amount}`);
+      
+      // IMPORTANTE: Verificar e atualizar token OAuth antes da operação
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (!oauthToken) {
+        this.emitEvent({ 
+          type: 'error', 
+          message: 'Token OAuth não disponível. Reconecte sua conta no Dashboard' 
+        });
+        
+        this.operationTimer = setTimeout(() => {
+          if (this.status === 'running') {
+            this.startTrading();
+          }
+        }, 10000);
+        
+        return;
+      }
+      
+      // Tentar conectar explicitamente com o token OAuth antes da operação
+      if (!(derivApiService as any).authorized) {
+        console.log('[BOT_SERVICE] Reconectando com token OAuth antes da operação...');
+        await derivApiService.connect(oauthToken);
+      }
+      
       const contract = await derivApiService.buyContract(amount, type, 'R_100', 1, prediction);
       
       if (!contract) {
-        this.emitEvent({ type: 'error', message: 'Falha ao comprar contrato' });
+        console.error('[BOT_SERVICE] Falha ao comprar contrato. Token OAuth pode estar inválido');
+        this.emitEvent({ type: 'error', message: 'Falha ao comprar contrato. Verifique seu token OAuth' });
         
         // Tentar novamente após um intervalo
         this.operationTimer = setTimeout(() => {

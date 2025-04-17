@@ -49,9 +49,33 @@ class DerivApiService {
    * @param token Token de autorização opcional
    */
   public async connect(token?: string): Promise<boolean> {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('[DERIV_API] WebSocket já está conectado');
-      return true;
+    // Forçar fechamento da conexão anterior para garantir uma conexão limpa
+    if (this.ws) {
+      try {
+        console.log('[DERIV_API] Fechando conexão WebSocket existente...');
+        this.ws.onclose = null; // Remover handler para evitar reconexão automática
+        this.ws.close();
+        this.ws = null;
+        this.authorized = false; // Resetar estado de autorização
+      } catch (e) {
+        console.error('[DERIV_API] Erro ao fechar conexão:', e);
+      }
+    }
+    
+    // Se token fornecido, sempre atualizá-lo
+    if (token) {
+      console.log('[DERIV_API] Token fornecido explicitamente, atualizando...');
+      this.token = token;
+      // Salvar no localStorage para uso futuro
+      localStorage.setItem('deriv_oauth_token', token);
+    } else {
+      // Se não foi fornecido, tentar usar o do localStorage
+      const storedToken = localStorage.getItem('deriv_oauth_token');
+      if (storedToken) {
+        console.log('[DERIV_API] Usando token OAuth do localStorage');
+        token = storedToken;
+        this.token = storedToken;
+      }
     }
     
     try {
@@ -59,24 +83,29 @@ class DerivApiService {
         console.log('[DERIV_API] Conectando ao WebSocket da Deriv...');
         this.ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089'); // Usando o app_id padrão
         
+        // Configurar timeout para conexão
+        const connectionTimeout = setTimeout(() => {
+          console.error('[DERIV_API] Timeout na conexão WebSocket');
+          if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+          }
+          resolve(false);
+        }, 10000); // 10 segundos de timeout
+        
         this.ws.onopen = async () => {
           console.log('[DERIV_API] Conexão estabelecida com a API Deriv');
+          clearTimeout(connectionTimeout); // Limpar timeout
           this.notifyConnectionListeners(true);
           
-          // Se não foi fornecido token, tentar usar o token OAuth do localStorage
-          if (!token) {
-            const oauthToken = localStorage.getItem('deriv_oauth_token');
-            if (oauthToken) {
-              console.log('[DERIV_API] Usando token OAuth do localStorage para operações');
-              token = oauthToken;
-            }
-          }
-          
           if (token) {
+            console.log('[DERIV_API] Autorizando com token:', token.substring(0, 10) + '...');
             this.token = token;
             const authorized = await this.authorize(token);
+            console.log('[DERIV_API] Autorização ' + (authorized ? 'bem-sucedida' : 'falhou'));
             resolve(authorized);
           } else {
+            console.log('[DERIV_API] Sem token para autorização, usando apenas para dados');
             resolve(true);
           }
         };
@@ -221,9 +250,29 @@ class DerivApiService {
     duration: number = 1, 
     prediction?: ContractPrediction
   ): Promise<Contract | null> {
+    // IMPORTANTE: Verificar se temos o token OAuth mais recente antes de operar
+    const oauthToken = localStorage.getItem('deriv_oauth_token');
+    if (oauthToken && oauthToken !== this.token) {
+      console.log('[DERIV_API] Token OAuth mudou, reconectando para operações...');
+      // Reconectar com o novo token OAuth
+      await this.connect(oauthToken);
+    }
+    
     if (!this.authorized) {
-      console.error('Não autorizado. Faça login primeiro.');
-      return null;
+      console.error('[DERIV_API] Não autorizado para comprar contratos. Verificando OAuth...');
+      // Nova tentativa usando token OAuth explicitamente
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (oauthToken) {
+        console.log('[DERIV_API] Tentando autorizar com token OAuth para compra de contrato');
+        const authorized = await this.authorize(oauthToken);
+        if (!authorized) {
+          console.error('[DERIV_API] Falha na autorização com token OAuth');
+          return null;
+        }
+      } else {
+        console.error('[DERIV_API] Token OAuth não disponível');
+        return null;
+      }
     }
     
     return new Promise((resolve) => {
@@ -272,9 +321,29 @@ class DerivApiService {
    * @param contractId ID do contrato a ser vendido
    */
   public async sellContract(contractId: number): Promise<boolean> {
+    // IMPORTANTE: Verificar se temos o token OAuth mais recente antes de operar
+    const oauthToken = localStorage.getItem('deriv_oauth_token');
+    if (oauthToken && oauthToken !== this.token) {
+      console.log('[DERIV_API] Token OAuth mudou, reconectando para vender contrato...');
+      // Reconectar com o novo token OAuth
+      await this.connect(oauthToken);
+    }
+    
     if (!this.authorized) {
-      console.error('Não autorizado. Faça login primeiro.');
-      return false;
+      console.error('[DERIV_API] Não autorizado para vender contrato. Verificando OAuth...');
+      // Nova tentativa usando token OAuth explicitamente
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (oauthToken) {
+        console.log('[DERIV_API] Tentando autorizar com token OAuth para vender contrato');
+        const authorized = await this.authorize(oauthToken);
+        if (!authorized) {
+          console.error('[DERIV_API] Falha na autorização com token OAuth');
+          return false;
+        }
+      } else {
+        console.error('[DERIV_API] Token OAuth não disponível');
+        return false;
+      }
     }
     
     return new Promise((resolve) => {
@@ -454,9 +523,29 @@ class DerivApiService {
    * Obtém informações do saldo da conta
    */
   public async getBalance(): Promise<any> {
+    // IMPORTANTE: Verificar se temos o token OAuth mais recente antes de qualquer operação
+    const oauthToken = localStorage.getItem('deriv_oauth_token');
+    if (oauthToken && oauthToken !== this.token) {
+      console.log('[DERIV_API] Token OAuth mudou, reconectando para atualização de saldo...');
+      // Reconectar com o novo token OAuth
+      await this.connect(oauthToken);
+    }
+    
     if (!this.authorized) {
-      console.error('Não autorizado. Faça login primeiro.');
-      return null;
+      console.error('[DERIV_API] Não autorizado para obter saldo. Verificando OAuth...');
+      // Nova tentativa usando token OAuth explicitamente  
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (oauthToken) {
+        console.log('[DERIV_API] Tentando autorizar com token OAuth para obter saldo');
+        const authorized = await this.authorize(oauthToken);
+        if (!authorized) {
+          console.error('[DERIV_API] Falha na autorização com token OAuth');
+          return null;
+        }
+      } else {
+        console.error('[DERIV_API] Token OAuth não disponível para obter saldo');
+        return null;
+      }
     }
     
     return new Promise((resolve) => {
