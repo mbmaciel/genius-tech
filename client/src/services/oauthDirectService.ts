@@ -802,8 +802,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const prediction = this.settings.prediction || 5;
       
       // Criar solicitação de compra corrigida para incluir o basis e amount
+      // Corrigir formato da requisição de compra para formato aceito pela API
       const buyRequest = {
         buy: 1,
+        price: amount,
         parameters: {
           contract_type: contractType,
           currency: "USD",
@@ -843,7 +845,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         contract_type: contractType,
         amount: amount,
         prediction: prediction,
-        loginid: activeAccount?.loginid
+        loginid: activeTokenInfo?.loginid
       });
     } catch (error: any) {
       console.error('[OAUTH_DIRECT] Erro ao executar operação:', error);
