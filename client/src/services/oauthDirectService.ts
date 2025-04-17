@@ -397,60 +397,70 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       let authorizedPrimaryToken = false;
       let authorizedAnyToken = false;
 
-      console.log(`[OAUTH_DIRECT] Buscando token da conta selecionada na dashboard`);
+      console.log(`[OAUTH_DIRECT] Verificando se há uma conta ativa selecionada pelo usuário`);
       
       if (this.tokens.length === 0) {
         reject(new Error('Nenhum token disponível para autorização'));
         return;
       }
       
-      // Verificar se temos um token da dashboard
-      const dashboardToken = localStorage.getItem('deriv_oauth_token');
+      // Primeiro vamos verificar se temos uma conta ativa escolhida pelo usuário
+      let selectedToken = null;
       
-      if (!dashboardToken) {
-        reject(new Error('Nenhum token de dashboard encontrado. Por favor, selecione uma conta na dashboard'));
-        return;
-      }
-      
-      console.log('[OAUTH_DIRECT] Token da dashboard encontrado, autorizando apenas esta conta');
-      
-      // Verificar se este token já existe na nossa lista
-      let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
-      
-      if (!tokenInfo) {
-        // Se não existe, adicionamos ele
-        console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
-        this.addToken(dashboardToken, true);
-        tokenInfo = this.tokens.find(t => t.token === dashboardToken);
-      }
-      
-      if (tokenInfo) {
-        // Marcar o token como primário
-        tokenInfo.primary = true;
+      // Verificar se existe token primário (selecionado pelo usuário)
+      const primaryToken = this.tokens.find(t => t.primary);
+      if (primaryToken) {
+        console.log(`[OAUTH_DIRECT] Usando conta selecionada pelo usuário: ${primaryToken.loginid || 'desconhecida'}`);
+        selectedToken = primaryToken;
+      } else {
+        // Se não temos token primário, vamos verificar se temos um token da dashboard
+        const dashboardToken = localStorage.getItem('deriv_oauth_token');
         
-        // Definir como token ativo para todas as operações
-        this.activeToken = dashboardToken;
+        if (dashboardToken) {
+          console.log('[OAUTH_DIRECT] Nenhuma conta selecionada, usando token da dashboard');
+          
+          // Verificar se este token já existe na nossa lista
+          let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+          
+          if (!tokenInfo) {
+            // Se não existe, adicionamos ele
+            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
+            this.addToken(dashboardToken, true);
+            tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+          }
+          
+          selectedToken = tokenInfo;
+        } else {
+          // Se não temos nenhum token, vamos usar o primeiro da lista
+          console.log('[OAUTH_DIRECT] Nenhum token de dashboard encontrado, usando o primeiro token disponível');
+          selectedToken = this.tokens[0];
+        }
+      }
+      
+      if (selectedToken) {
+        // Atualizar o token ativo para todas as operações
+        this.activeToken = selectedToken.token;
         
         try {
           // Autorizar apenas este token
-          await this.authorizeToken(dashboardToken);
+          await this.authorizeToken(selectedToken.token);
           
           // Marcar como autorizado
-          tokenInfo.authorized = true;
-          tokenInfo.connected = true;
+          selectedToken.authorized = true;
+          selectedToken.connected = true;
           
-          console.log(`[OAUTH_DIRECT] Token da dashboard autorizado com sucesso: ${tokenInfo.loginid || 'desconhecido'}`);
+          console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${selectedToken.loginid || 'desconhecido'}`);
           
           // Inscrever para ticks
           this.subscribeToTicks();
           
           resolve();
         } catch (error) {
-          console.error(`[OAUTH_DIRECT] Falha ao autorizar token da dashboard:`, error);
+          console.error('[OAUTH_DIRECT] Falha ao autorizar token da conta:', error);
           reject(error);
         }
       } else {
-        reject(new Error('Falha ao configurar token da dashboard'));
+        reject(new Error('Falha ao configurar token da conta'));
       }
     });
   }
