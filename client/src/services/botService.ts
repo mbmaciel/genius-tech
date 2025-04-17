@@ -377,11 +377,12 @@ class BotService {
     prediction: ContractPrediction
   ): Promise<void> {
     try {
-      console.log(`[BOT_SERVICE] Executando operação: ${type} ${prediction} valor=${amount}`);
+      console.log(`[BOT_SERVICE] Iniciando operação: ${type} ${prediction} valor=${amount}`);
       
-      // IMPORTANTE: Verificar e atualizar token OAuth antes da operação
+      // IMPORTANTE: Verificar token OAuth antes da operação
       const oauthToken = localStorage.getItem('deriv_oauth_token');
       if (!oauthToken) {
+        console.error('[BOT_SERVICE] Token OAuth não disponível');
         this.emitEvent({ 
           type: 'error', 
           message: 'Token OAuth não disponível. Reconecte sua conta no Dashboard' 
@@ -394,47 +395,6 @@ class BotService {
         }, 10000);
         
         return;
-      }
-      
-      // IMPORTANTE: Sempre reconectar com token OAuth antes de cada operação
-      // para garantir que estamos usando a conexão mais recente
-      console.log('[BOT_SERVICE] Reconectando com token OAuth antes da operação...');
-      const connected = await derivApiService.connect(oauthToken);
-      
-      if (!connected) {
-        this.emitEvent({ 
-          type: 'error', 
-          message: 'Falha ao conectar com token OAuth' 
-        });
-        
-        this.operationTimer = setTimeout(() => {
-          if (this.status === 'running') {
-            this.startTrading();
-          }
-        }, 5000);
-        
-        return;
-      }
-      
-      // Verificar explicitamente a autorização
-      if (!(derivApiService as any).authorized) {
-        console.log('[BOT_SERVICE] Autorizando explicitamente com token OAuth...');
-        const authorized = await derivApiService.authorize(oauthToken);
-        
-        if (!authorized) {
-          this.emitEvent({ 
-            type: 'error', 
-            message: 'Token OAuth inválido ou expirado. Reconecte sua conta no Dashboard' 
-          });
-          
-          this.operationTimer = setTimeout(() => {
-            if (this.status === 'running') {
-              this.startTrading();
-            }
-          }, 10000);
-          
-          return;
-        }
       }
       
       console.log('[BOT_SERVICE] Comprando contrato...');
