@@ -252,18 +252,34 @@ export function BotPage() {
   
   // Função para simular uma operação utilizando o serviço de bot
   const simulateOperation = () => {
-    // Simulação mais realista com base no BotService
-    if (Math.random() > 0.9) {
-      const isWin = Math.random() > 0.5;
-      const entryNum = parseFloat(entryValue);
+    // Verificar se o bot está executando e tem uma estratégia selecionada
+    if (botStatus !== 'running' || !selectedStrategy) {
+      return;
+    }
+    
+    // Aumentar a chance de uma operação para demonstração
+    if (Math.random() > 0.85) {
+      console.log("[BOT] Executando operação de trading com estratégia:", selectedStrategy);
+      
+      const entryNum = parseFloat(entryValue || "0.35");
+      // Determinar o tipo de contrato com base na estratégia
+      const contractType = selectedBotType === "lite" ? (Math.random() > 0.5 ? 'DIGITOVER' : 'DIGITUNDER') : 
+                           selectedStrategy.includes('over') ? 'DIGITOVER' : 'DIGITUNDER';
+      
+      // Simular resultado da operação (mais chance de ganhar para demonstração)
+      const isWin = Math.random() > 0.4;
       const profit = isWin ? parseFloat((entryNum * 0.95).toFixed(2)) : 0;
+      const loss = isWin ? 0 : entryNum;
       
       // Atualizar saldo em tempo real
       if (accountInfo) {
+        const currentBalance = parseFloat(accountInfo.balance);
         const newBalance = isWin 
-          ? parseFloat(accountInfo.balance) + profit
-          : parseFloat(accountInfo.balance) - entryNum;
+          ? currentBalance + profit
+          : currentBalance - loss;
           
+        console.log(`[BOT] Operação ${isWin ? 'vencedora' : 'perdedora'}: ${isWin ? '+' + profit.toFixed(2) : '-' + loss.toFixed(2)}`);
+        
         setAccountInfo({
           ...accountInfo,
           balance: newBalance.toFixed(2)
@@ -272,10 +288,11 @@ export function BotPage() {
         // Atualizar o saldo em tempo real
         setRealTimeBalance({
           balance: newBalance,
-          previousBalance: parseFloat(accountInfo.balance)
+          previousBalance: currentBalance
         });
       }
       
+      // Atualizar estatísticas
       if (isWin) {
         setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
         setOperation({
@@ -284,13 +301,27 @@ export function BotPage() {
           profit: profit,
           status: 'vendendo'
         });
+        
+        // Exibir notificação de ganho
+        toast({
+          title: "Operação Vencedora!",
+          description: `Lucro: $${profit.toFixed(2)} (+${((profit/entryNum)*100).toFixed(2)}%)`,
+          variant: "default",
+        });
       } else {
         setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
         setOperation({
           entry: operation.entry,
           buyPrice: entryNum,
-          profit: 0,
+          profit: -loss, // Mostrar perda como valor negativo
           status: 'comprado'
+        });
+        
+        // Exibir notificação de perda
+        toast({
+          title: "Operação Perdedora",
+          description: `Perda: -$${loss.toFixed(2)}`,
+          variant: "destructive",
         });
       }
     }
@@ -510,7 +541,9 @@ export function BotPage() {
                   }}
                   className={`w-full text-left mb-2 p-3 rounded ${selectedBotType === "lite" ? "bg-blue-600" : "bg-[#1d2a45]"} text-white`}
                 >
-                  Lite Bots
+                  {selectedBotType === "lite" && selectedStrategy ? 
+                    strategies.lite.find(s => s.id === selectedStrategy)?.name : 
+                    "Lite Bots"}
                 </button>
                 <button 
                   onClick={() => {
@@ -519,7 +552,9 @@ export function BotPage() {
                   }}
                   className={`w-full text-left p-3 rounded ${selectedBotType === "premium" ? "bg-purple-600" : "bg-[#1d2a45]"} text-white`}
                 >
-                  Premium Bots
+                  {selectedBotType === "premium" && selectedStrategy ? 
+                    strategies.premium.find(s => s.id === selectedStrategy)?.name : 
+                    "Premium Bots"}
                 </button>
               </div>
               
