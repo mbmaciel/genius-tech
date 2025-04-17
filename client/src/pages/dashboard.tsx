@@ -502,40 +502,52 @@ export default function Dashboard() {
               </select>
             </div>
             
-            <div className="relative flex flex-col h-64 mt-6">
-              {/* Eixo Y (percentuais) */}
-              <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2">
-                <div>50</div>
-                <div>40</div>
-                <div>30</div>
-                <div>20</div>
-                <div>10</div>
-                <div>0</div>
-              </div>
-              
-              {/* Gráfico de barras com valores absolutos */}
-              <div className="flex h-full pt-0 pb-6 pl-8">
-                {digitStats.map((stat) => (
-                  <div key={stat.digit} className="flex-1 flex flex-col items-center justify-end">
-                    {/* Valor percentual acima da barra somente para barras com valor */}
-                    {stat.percentage > 0 && (
-                      <div className="text-sm font-medium text-white">
-                        {stat.percentage}%
+            <div className="relative w-full h-64 mt-4">
+              {/* Container responsivo para o gráfico */}
+              <div className="relative flex flex-col h-full">
+                {/* Eixo Y (percentuais) com posição fixa */}
+                <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2 z-10">
+                  <div>50</div>
+                  <div>40</div>
+                  <div>30</div>
+                  <div>20</div>
+                  <div>10</div>
+                  <div>0</div>
+                </div>
+                
+                {/* Linhas de grade horizontais */}
+                <div className="absolute left-8 right-2 top-0 bottom-6 flex flex-col justify-between z-0">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
+                  ))}
+                </div>
+                
+                {/* Gráfico de barras responsivo */}
+                <div className="flex h-full pt-0 pb-6 pl-8 pr-2 overflow-x-auto">
+                  <div className="flex flex-1 min-w-0 h-full justify-between">
+                    {digitStats.map((stat) => (
+                      <div key={stat.digit} className="flex flex-col items-center justify-end px-1">
+                        {/* Valor percentual acima da barra somente para barras com valor */}
+                        {stat.percentage > 0 && (
+                          <div className="text-xs font-medium text-white whitespace-nowrap mb-1">
+                            {stat.percentage}%
+                          </div>
+                        )}
+                        
+                        {/* Barra do gráfico com altura proporcional e responsiva */}
+                        <div 
+                          className={`w-full min-w-[20px] max-w-[40px] ${getBarColor(stat.percentage)}`}
+                          style={{ 
+                            height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(3, stat.percentage))}%` 
+                          }}
+                        ></div>
+                        
+                        {/* Número do dígito abaixo da barra */}
+                        <div className="mt-1 text-xs sm:text-sm text-white">{stat.digit}</div>
                       </div>
-                    )}
-                    
-                    {/* Barra do gráfico com altura fixa proporcional à porcentagem */}
-                    <div 
-                      className={`w-10 ${getBarColor(stat.percentage)}`}
-                      style={{ 
-                        height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(5, stat.percentage))}%` 
-                      }}
-                    ></div>
-                    
-                    {/* Número do dígito abaixo da barra */}
-                    <div className="mt-2 text-sm text-white">{stat.digit}</div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             </div>
             
