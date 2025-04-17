@@ -203,16 +203,22 @@ export default function LoginPage() {
     // URL base da Deriv para OAuth
     const derivBaseUrl = "https://oauth.deriv.com/oauth2/authorize";
     
+    // Obter a URL atual para redirecionamento
+    const currentUrl = window.location.href;
+    const baseUrl = currentUrl.split('?')[0]; // Remove quaisquer parâmetros existentes
+    
     // Parâmetros da solicitação
     const params = new URLSearchParams({
       app_id: APP_ID.toString(),
       l: "pt", // Idioma português
-      brand: "deriv" // Marca da Deriv
+      brand: "deriv", // Marca da Deriv
+      redirect_uri: baseUrl // URL de redirecionamento (volta para esta página)
     });
     
     // URL completa para redirecionamento
     const redirectUrl = `${derivBaseUrl}?${params.toString()}`;
     console.log('[AUTH] Iniciando processo de login na Deriv via OAuth:', redirectUrl);
+    console.log('[AUTH] URL de redirecionamento configurada:', baseUrl);
     
     // Redirecionamento para página de login da Deriv
     window.location.href = redirectUrl;

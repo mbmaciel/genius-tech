@@ -95,12 +95,20 @@ export default function Dashboard() {
   useEffect(() => {
     const storedToken = localStorage.getItem('deriv_token');
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
+    const storedOAuthToken = localStorage.getItem('deriv_oauth_token');
     
     if (storedToken && storedAccountInfo) {
       try {
         const parsedAccountInfo = JSON.parse(storedAccountInfo);
         setIsAuthenticated(true);
         setAccountInfo(parsedAccountInfo);
+        
+        // Verificar e registrar a presença do token OAuth para debug
+        if (storedOAuthToken) {
+          console.log('[DASHBOARD] Token OAuth encontrado:', storedOAuthToken.substring(0, 10) + '...');
+        } else {
+          console.log('[DASHBOARD] Alerta: Token OAuth não encontrado. Operações de trading não funcionarão.');
+        }
         
         // Iniciar a assinatura de saldo em tempo real
         if (parsedAccountInfo && parsedAccountInfo.loginid) {
