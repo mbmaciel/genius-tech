@@ -88,7 +88,7 @@ export function BotController({
       // Tentar estabelecer conexão WebSocket com token OAuth
       try {
         const { derivAPI } = await import('../lib/websocketManager');
-        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance().readyState !== WebSocket.OPEN) {
+        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance()?.readyState !== WebSocket.OPEN) {
           console.log('[BOT_CONTROLLER] Estabelecendo conexão WebSocket...');
           await derivAPI.connect();
           await derivAPI.authorize(token);

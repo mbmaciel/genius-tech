@@ -16,10 +16,20 @@ class WebSocketManager {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 2000;
+  private isAuthorizing: boolean = false;
+  private lastError: string | null = null;
+  private isTokenSaved: boolean = false;
 
   private static instance: WebSocketManager;
 
   private constructor() {
+    // Verificar se há um token OAuth salvo no local storage
+    const savedToken = localStorage.getItem('deriv_oauth_token');
+    if (savedToken) {
+      this.token = savedToken;
+      this.isTokenSaved = true;
+    }
+    
     this.initEventListeners();
   }
 
@@ -187,12 +197,39 @@ class WebSocketManager {
    * @returns Promise com o resultado da autorização
    */
   public authorize(token: string): Promise<any> {
+    // Evitar reautorizar com o mesmo token se já estiver autorizando
+    if (this.isAuthorizing && this.token === token) {
+      console.log("Já está autorizando com o mesmo token, aguardando...");
+      return Promise.resolve({ already_authorizing: true });
+    }
+    
+    // Salvar token no localStorage para persistência
+    localStorage.setItem('deriv_oauth_token', token);
     this.token = token;
+    this.isAuthorizing = true;
+    
     // Formato correto de acordo com a documentação da API
     return this.sendRequest({
       authorize: token,
       add_to_login_history: 1, // Para rastrear atividade
       req_id: Date.now().toString()
+    }).then(response => {
+      this.isAuthorizing = false;
+      
+      // Se a autorização for bem-sucedida, configurar o nome da conta no localStorage
+      if (response.authorize && response.authorize.loginid) {
+        localStorage.setItem('deriv_account_id', response.authorize.loginid);
+        if (response.authorize.email) {
+          localStorage.setItem('deriv_account_email', response.authorize.email);
+        }
+      }
+      
+      return response;
+    }).catch(error => {
+      this.isAuthorizing = false;
+      this.lastError = error.message || "Erro na autorização";
+      console.error("Erro na autorização:", error);
+      throw error;
     });
   }
 

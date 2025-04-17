@@ -298,11 +298,40 @@ class SimpleBotService {
           console.log('[SIMPLEBOT] WebSocket não está conectado, tentando reconectar...');
           try {
             await derivAPI.connect();
-            await derivAPI.authorize(token);
-            console.log('[SIMPLEBOT] Reconexão e autorização bem-sucedidas');
+            console.log('[SIMPLEBOT] Conexão WebSocket estabelecida, autorizando...');
+            const authResponse = await derivAPI.authorize(token);
+            
+            if (authResponse.error) {
+              console.error('[SIMPLEBOT] Erro na autorização:', authResponse.error);
+              this.emitEvent({
+                type: 'error',
+                message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
+              });
+              this.simulateOperation(); // Fallback para simulação
+              return resolve(false);
+            }
+            
+            console.log('[SIMPLEBOT] Autorização bem-sucedida:', authResponse.authorize?.loginid);
           } catch (connError) {
             console.error('[SIMPLEBOT] Erro ao reconectar/autorizar:', connError);
+            this.emitEvent({
+              type: 'error',
+              message: 'Falha na conexão com a API Deriv'
+            });
             this.simulateOperation(); // Fallback para simulação
+            return resolve(false);
+          }
+        } else {
+          console.log('[SIMPLEBOT] WebSocket já está conectado, verificando autorização...');
+          try {
+            // Verificar se a conexão está autorizada
+            if (!derivAPI.getAuthorization()) {
+              console.log('[SIMPLEBOT] Conexão não está autorizada, autorizando...');
+              await derivAPI.authorize(token);
+            }
+          } catch (authError) {
+            console.error('[SIMPLEBOT] Erro ao autorizar conexão existente:', authError);
+            this.simulateOperation();
             return resolve(false);
           }
         }
