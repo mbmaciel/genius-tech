@@ -188,8 +188,15 @@ export function BotPage() {
             // Atualizar estatísticas de dígitos
             updateDigitStats(lastDigit);
             
-            // Simular operação se o bot estiver rodando
+            // Imprimir informações do tick
+            console.log(`[BOT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+            
+            // Executar operação se o bot estiver rodando
             if (botStatus === 'running') {
+              // Verificar se há operação em andamento
+              console.log(`[BOT] Status da operação: ${operation.status || 'nenhuma'}`);
+              
+              // Chamar a função para operar
               simulateOperation();
             }
           }
@@ -289,8 +296,9 @@ export function BotPage() {
       return;
     }
     
-    // Aumentar a chance de uma operação para demonstração
-    if (Math.random() > 0.85) {
+    // Realizar operação de trading com maior frequência
+    // Reduzir a barreira para executar operações (chance de 40% a cada tick)
+    if (Math.random() > 0.6) {
       console.log("[BOT] Executando operação real de trading com estratégia:", selectedStrategy);
       
       const entryNum = parseFloat(entryValue || "0.35");
@@ -490,7 +498,7 @@ export function BotPage() {
       entry: 1584.42,
       buyPrice: parseFloat(entryValue),
       profit: 0,
-      status: 'comprado'
+      status: null // Começar sem operação para poder iniciar uma nova
     });
     
     // Solicitar saldo atual em tempo real
