@@ -180,6 +180,24 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
             const accountInfo = response.authorize;
             localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
             
+            // Exibe detalhes das contas disponíveis no console
+            console.log('============ DETALHES DE CONTAS DISPONÍVEIS ============');
+            if (accountInfo.account_list && Array.isArray(accountInfo.account_list)) {
+              accountInfo.account_list.forEach((acc: any, index: number) => {
+                console.log(`Conta ${index + 1}:`);
+                console.log(`- ID: ${acc.loginid}`);
+                console.log(`- Tipo: ${acc.account_type}`);
+                console.log(`- Moeda: ${acc.currency}`);
+                console.log(`- Virtual: ${acc.is_virtual ? 'Sim' : 'Não'}`);
+                console.log(`- Categoria: ${acc.account_category}`);
+                console.log(`- Empresa: ${acc.landing_company_name}`);
+                console.log('--------------------------------------------------');
+              });
+            } else {
+              console.log('Nenhuma lista de contas disponível na resposta.');
+            }
+            console.log('======================================================');
+            
             // Atualiza as informações da primeira conta com detalhes completos
             updateAccountInfo(accounts[0].loginid, {
               fullAccountInfo: accountInfo,
@@ -250,9 +268,29 @@ export async function authorizeAccount(token: string): Promise<any> {
           if (response.authorize) {
             clearTimeout(timeout);
             
+            const accountInfo = response.authorize;
+            
+            // Exibe detalhes das contas disponíveis no console
+            console.log('============ DETALHES DE CONTAS DISPONÍVEIS ============');
+            if (accountInfo.account_list && Array.isArray(accountInfo.account_list)) {
+              accountInfo.account_list.forEach((acc: any, index: number) => {
+                console.log(`Conta ${index + 1}:`);
+                console.log(`- ID: ${acc.loginid}`);
+                console.log(`- Tipo: ${acc.account_type}`);
+                console.log(`- Moeda: ${acc.currency}`);
+                console.log(`- Virtual: ${acc.is_virtual ? 'Sim' : 'Não'}`);
+                console.log(`- Categoria: ${acc.account_category}`);
+                console.log(`- Empresa: ${acc.landing_company_name}`);
+                console.log('--------------------------------------------------');
+              });
+            } else {
+              console.log('Nenhuma lista de contas disponível na resposta.');
+            }
+            console.log('======================================================');
+            
             // Fecha a conexão e resolve a promessa com as informações da conta
             ws.close();
-            resolve(response.authorize);
+            resolve(accountInfo);
           }
         } catch (e) {
           console.error('Erro ao processar mensagem WebSocket:', e);
