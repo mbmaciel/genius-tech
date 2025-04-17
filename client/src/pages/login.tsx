@@ -56,6 +56,9 @@ export default function LoginPage() {
                 // Salvar informações detalhadas da conta
                 localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
                 
+                // Salvar o token OAuth para usá-lo em operações de trading
+                localStorage.setItem('deriv_oauth_token', accounts[0].token);
+                
                 // Atualiza as informações da conta
                 updateAccountInfo(accounts[0].loginid, {
                   fullAccountInfo: accountInfo,

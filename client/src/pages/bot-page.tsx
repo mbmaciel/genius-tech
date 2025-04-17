@@ -88,10 +88,20 @@ export function BotPage() {
   useEffect(() => {
     // Verificar se há informações de conta no localStorage
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
+    const storedAuthToken = localStorage.getItem('deriv_oauth_token');
+    
     if (storedAccountInfo) {
       try {
         const parsedInfo = JSON.parse(storedAccountInfo);
         setAccountInfo(parsedInfo);
+        
+        // Verificar se temos o token OAuth armazenado
+        if (storedAuthToken) {
+          console.log('[BOT] Token OAuth encontrado no localStorage');
+          setAuthToken(storedAuthToken);
+        } else {
+          console.log('[BOT] Token OAuth não encontrado, operações de trading não estarão disponíveis');
+        }
         
         // Configurar valores iniciais
         setOperation(prev => ({
@@ -132,7 +142,9 @@ export function BotPage() {
           if (authToken) {
             console.log('[BOT] Autorizando com token OAuth do usuário...');
             wsRef.current.send(JSON.stringify({
-              authorize: authToken
+              authorize: authToken,
+              // Especificar que queremos adicionar à história de login
+              add_to_login_history: 1
             }));
           } else {
             console.log('[BOT] Autorizando com token fixo para ticks (sem permissão para operar)...');
@@ -312,6 +324,17 @@ export function BotPage() {
     
     // Verificar se já estamos processando uma operação para evitar duplicatas
     if (operation.status === 'comprado') {
+      return;
+    }
+    
+    // Verificar se temos o token de autorização para operações
+    if (!authToken) {
+      console.log('[BOT] Sem token OAuth para operações. Por favor, faça login novamente.');
+      toast({
+        title: "Token não encontrado",
+        description: "Você precisa autenticar com uma conta Deriv para operar. Por favor retorne à página inicial e faça login.",
+        variant: "destructive"
+      });
       return;
     }
     
