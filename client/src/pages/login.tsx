@@ -32,35 +32,47 @@ export default function LoginPage() {
         // Verificar se há parâmetros de conta/token na URL
         const url = window.location.href;
         console.log('[AUTH] Verificando URL de redirecionamento:', url);
+        
+        // Verificar se a URL contém os parâmetros de token da Deriv
         if (url.includes('acct1=') && url.includes('token1=')) {
+          console.log('[AUTH] Detectados parâmetros de autenticação da Deriv na URL');
           setProcessingOAuth(true);
           
           // Extrair contas da URL
           const accounts = extractAccountsFromUrl(url);
-          console.log('Contas extraídas da URL:', accounts);
+          console.log('[AUTH] Contas extraídas da URL:', accounts);
           
           if (accounts.length > 0) {
             setOauthAccounts(accounts);
             
-            // Salvar contas no localStorage
+            // Salvar todas as contas no localStorage
             saveAccounts(accounts);
+            console.log(`[AUTH] Armazenadas ${accounts.length} contas no localStorage`);
             
-            // Autorizar todas as contas de uma vez
+            // Sempre salvar o token principal para operações de trading
+            // Este é o token que será usado para comprar/vender contratos
+            localStorage.setItem('deriv_oauth_token', accounts[0].token);
+            console.log('[AUTH] Token OAuth principal armazenado:', accounts[0].token.substring(0, 10) + '...');
+            
             try {
-              // Se tiver múltiplas contas, usa a autorização múltipla
+              // Autorização das contas
               if (accounts.length > 1) {
+                console.log('[AUTH] Autorizando múltiplas contas...');
                 await authorizeMultipleAccounts(accounts);
+                
+                // Para múltiplas contas, ainda precisamos obter detalhes da primeira
+                // para garantir que temos as informações completas no accountInfo
+                const primaryAccountInfo = await authorizeAccount(accounts[0].token);
+                localStorage.setItem('deriv_account_info', JSON.stringify(primaryAccountInfo));
               } else {
-                // Para apenas uma conta, usa a autorização simples
+                // Para apenas uma conta, autorizar e salvar detalhes
+                console.log('[AUTH] Autorizando conta única...');
                 const accountInfo = await authorizeAccount(accounts[0].token);
                 
-                // Salvar informações detalhadas da conta
+                // Salvar informações detalhadas da conta principal
                 localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
                 
-                // Salvar o token OAuth para usá-lo em operações de trading
-                localStorage.setItem('deriv_oauth_token', accounts[0].token);
-                
-                // Atualiza as informações da conta
+                // Atualiza as informações da conta no registro de contas
                 updateAccountInfo(accounts[0].loginid, {
                   fullAccountInfo: accountInfo,
                   email: accountInfo.email,
@@ -68,6 +80,9 @@ export default function LoginPage() {
                   balance: accountInfo.balance
                 });
               }
+              
+              // Log de sucesso
+              console.log('[AUTH] Autenticação concluída com sucesso para todas as contas');
               
               // Exibe mensagem de sucesso
               const activeAccount = accounts[0];
@@ -77,11 +92,12 @@ export default function LoginPage() {
               });
               
               // Forçar o redirecionamento direto para o dashboard
-              console.log('Autenticação bem-sucedida, redirecionando para dashboard...');
+              console.log('[AUTH] Redirecionando para dashboard...');
               window.location.href = '/dashboard';
               
             } catch (authError: any) {
               const errorMessage = authError && authError.message ? authError.message : 'Erro desconhecido';
+              console.error('[AUTH] Erro durante autorização:', errorMessage);
               throw new Error(`Falha na autorização: ${errorMessage}`);
             }
           } else {
@@ -204,21 +220,23 @@ export default function LoginPage() {
     const derivBaseUrl = "https://oauth.deriv.com/oauth2/authorize";
     
     // Obter a URL atual para redirecionamento
+    // Deriv exige que seja a mesma URL exata que receberá os parâmetros depois
+    // Não podemos usar a URL completa do login pois o redirecionamento deve ser para a mesma URL
     const currentUrl = window.location.href;
-    const baseUrl = currentUrl.split('?')[0]; // Remove quaisquer parâmetros existentes
+    // Vamos usar a própria URL de login como redirecionamento
+    // isso garantirá que os parâmetros acct1, token1, etc serão recebidos nesta mesma página
     
     // Parâmetros da solicitação
     const params = new URLSearchParams({
       app_id: APP_ID.toString(),
       l: "pt", // Idioma português
       brand: "deriv", // Marca da Deriv
-      redirect_uri: baseUrl // URL de redirecionamento (volta para esta página)
     });
     
     // URL completa para redirecionamento
     const redirectUrl = `${derivBaseUrl}?${params.toString()}`;
     console.log('[AUTH] Iniciando processo de login na Deriv via OAuth:', redirectUrl);
-    console.log('[AUTH] URL de redirecionamento configurada:', baseUrl);
+    console.log('[AUTH] Quando autorizado, a Deriv redirecionará de volta para esta página com os tokens');
     
     // Redirecionamento para página de login da Deriv
     window.location.href = redirectUrl;
