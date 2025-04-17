@@ -558,7 +558,7 @@ export function BotPage() {
                 </button>
               </div>
               
-              {selectedBotType && (
+              {selectedBotType && !selectedStrategy && (
                 <div className="mt-4">
                   <h3 className="text-sm text-gray-400 mb-2">Escolha uma estratégia:</h3>
                   <div className="grid grid-cols-1 gap-2">
@@ -573,6 +573,30 @@ export function BotPage() {
                         {strategy.name}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedStrategy && (
+                <div className="mt-4">
+                  <div className="flex justify-between">
+                    <h3 className="text-sm text-gray-400">Estratégia selecionada:</h3>
+                    <button 
+                      onClick={() => setSelectedStrategy("")}
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                    >
+                      Trocar estratégia
+                    </button>
+                  </div>
+                  <div className="mt-2 p-3 rounded bg-indigo-600 text-white flex justify-between items-center">
+                    <span className="font-medium">
+                      {selectedBotType === "lite" 
+                        ? strategies.lite.find(s => s.id === selectedStrategy)?.name 
+                        : strategies.premium.find(s => s.id === selectedStrategy)?.name}
+                    </span>
+                    <span className="text-xs bg-indigo-700 px-2 py-1 rounded">
+                      {selectedBotType === "lite" ? "Lite" : "Premium"}
+                    </span>
                   </div>
                 </div>
               )}
