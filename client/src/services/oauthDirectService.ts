@@ -3,22 +3,13 @@
  * 
  * Mantém uma conexão WebSocket dedicada, independente do frontend
  */
+import { 
+  TradingEvent, 
+  TradingSettings, 
+  OAuthDirectServiceInterface 
+} from './oauthDirectService.interface';
 
-interface TradingEvent {
-  type: string;
-  [key: string]: any;
-}
-
-interface TradingSettings {
-  entryValue: string | number;
-  profitTarget?: string | number;
-  lossLimit?: string | number;
-  martingaleFactor?: number;
-  contractType?: string;
-  prediction?: number;
-}
-
-class OAuthDirectService {
+class OAuthDirectService implements OAuthDirectServiceInterface {
   private webSocket: WebSocket | null = null;
   private token: string | null = null;
   private isRunning: boolean = false;
