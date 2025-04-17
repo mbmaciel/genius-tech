@@ -525,50 +525,48 @@ export function BotPage() {
   };
   
   // Iniciar o bot
-  const handleStartBot = async () => {
-    // Verificar primeiro se o token OAuth está disponível
-    const oauthToken = localStorage.getItem('deriv_oauth_token');
-    if (!oauthToken) {
-      toast({
-        title: "Token não disponível",
-        description: "Por favor, faça login com sua conta Deriv na página principal antes de usar o robô.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!selectedBotType || !selectedStrategy) {
-      toast({
-        title: "Seleção necessária",
-        description: "Por favor, selecione um tipo de bot e uma estratégia.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Atualizar UI para feedback visual imediato
-    toast({
-      title: "Iniciando robô...",
-      description: "Conectando à API Deriv e inicializando operações.",
-    });
-    
-    // Configurar botService com os parâmetros apropriados
-    const entryNum = parseFloat(entryValue || "0.35");
-    const profitNum = parseFloat(profitTarget || "1000");
-    const lossNum = parseFloat(lossLimit || "500");
-    
-    // Determinar o tipo de contrato com base na estratégia
-    const contractType = selectedBotType === "lite" ? 
+  const handleStartBot = () => {
+    try {
+      // Verificar primeiro se o token OAuth está disponível
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (!oauthToken) {
+        toast({
+          title: "Token não disponível",
+          description: "Por favor, faça login com sua conta Deriv na página principal antes de usar o robô.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!selectedBotType || !selectedStrategy) {
+        toast({
+          title: "Seleção necessária",
+          description: "Por favor, selecione um tipo de bot e uma estratégia.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Configurar parâmetros
+      const entryNum = parseFloat(entryValue || "0.35");
+      const profitNum = parseFloat(profitTarget || "1000");
+      const lossNum = parseFloat(lossLimit || "500");
+      
+      // Determinar o tipo de contrato com base na estratégia
+      const contractType = selectedBotType === "lite" ? 
                         (selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER') : 
                         selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
-    
-    try {
-      console.log("[BOT] Configurando parâmetros do robô:");
-      console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
-      console.log(`[BOT] - Valor de entrada: ${entryNum}`);
-      console.log(`[BOT] - Meta de lucro: ${profitNum}`);
-      console.log(`[BOT] - Limite de perdas: ${lossNum}`);
-      console.log(`[BOT] - Tipo de contrato: ${contractType}`);
+      
+      console.log("[BOT] Iniciando operação do robô com estratégia:", selectedStrategy);
+      
+      // Atualizar a interface PRIMEIRO para feedback visual imediato
+      setBotStatus('running');
+      setOperation({
+        entry: 1584.42,
+        buyPrice: entryNum,
+        profit: 0,
+        status: null
+      });
       
       // Configurar botService
       botService.setSettings({
@@ -580,56 +578,35 @@ export function BotPage() {
         prediction: 5 // Valor padrão para previsão
       });
       
-      // Configurar estratégia ativa no botService
-      const strategySet = botService.setActiveStrategy(selectedStrategy);
-      if (!strategySet) {
-        toast({
-          title: "Erro na estratégia",
-          description: "Não foi possível carregar a estratégia selecionada.",
-          variant: "destructive"
-        });
-        return;
-      }
+      // Definir estratégia
+      botService.setActiveStrategy(selectedStrategy);
       
-      // Iniciar o botService
-      console.log("[BOT] Chamando botService.start()...");
-      const success = await botService.start();
-      
-      if (success) {
-        // Atualizar estado do bot na interface
-        setBotStatus('running');
-        setOperation({
-          entry: 1584.42,
-          buyPrice: entryNum,
-          profit: 0,
-          status: null // Começar sem operação para poder iniciar uma nova
-        });
-        
-        // Solicitar saldo atual em tempo real
-        if (accountInfo) {
-          // Solicitar saldo atualizado da API
-          requestBalance();
+      // Iniciar o botService em segundo plano (sem await)
+      botService.start().then(success => {
+        if (!success) {
+          console.error("[BOT] botService.start() retornou false, mas a interface já foi atualizada");
         }
-        
-        const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
-        
-        toast({
-          title: "Bot iniciado",
-          description: `Robô ${strategyInfo?.name} está operando agora.`,
-        });
-      } else {
-        console.error("[BOT] botService.start() retornou false");
-        toast({
-          title: "Erro ao iniciar",
-          description: "A API Deriv não respondeu corretamente. Verifique sua conexão, recarregue a página e tente novamente.",
-          variant: "destructive"
-        });
+      }).catch(error => {
+        console.error("[BOT] Erro ao executar botService.start():", error);
+      });
+      
+      // Solicitar saldo
+      if (accountInfo) {
+        requestBalance();
       }
+      
+      const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
+      
+      toast({
+        title: "Bot iniciado",
+        description: `Robô ${strategyInfo?.name} está operando agora.`,
+      });
+      
     } catch (error) {
-      console.error("[BOT] Erro ao iniciar botService:", error);
+      console.error("[BOT] Erro ao iniciar bot:", error);
       toast({
         title: "Erro ao iniciar",
-        description: "Ocorreu um erro ao iniciar o robô. Tente recarregar a página e fazer login novamente.",
+        description: "Ocorreu um erro ao iniciar o robô.",
         variant: "destructive"
       });
     }
@@ -638,11 +615,13 @@ export function BotPage() {
   // Pausar o bot
   const handlePauseBot = async () => {
     try {
-      // Pausar o botService
-      await botService.stop();
+      console.log("[BOT] Chamando botService.stop() diretamente na interface");
       
-      // Atualizar estado da interface
+      // Definir o estado localmente primeiro para feedback imediato
       setBotStatus('paused');
+      
+      // Depois chama o serviço
+      botService.stop();
       
       toast({
         title: "Bot pausado",
