@@ -389,60 +389,64 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
-   * Autoriza todos os tokens disponíveis sequencialmente
+   * Autoriza apenas o token da conta selecionada na dashboard
    */
   private authorizeAllTokens(): Promise<void> {
     return new Promise(async (resolve, reject) => {
-      console.log(`[OAUTH_DIRECT] Iniciando autorização de ${this.tokens.length} tokens`);
+      console.log(`[OAUTH_DIRECT] Buscando token da conta selecionada na dashboard`);
       
       if (this.tokens.length === 0) {
         reject(new Error('Nenhum token disponível para autorização'));
         return;
       }
       
-      let authorizedAtLeastOne = false;
-      let primaryTokenAuthorized = false;
+      // Verificar se temos um token da dashboard
+      const dashboardToken = localStorage.getItem('deriv_oauth_token');
       
-      // Primeiro criar uma cópia ordenada dos tokens onde o token primário vem primeiro
-      const sortedTokens = [...this.tokens].sort((a, b) => {
-        if (a.primary && !b.primary) return -1;
-        if (!a.primary && b.primary) return 1;
-        return 0;
-      });
+      if (!dashboardToken) {
+        reject(new Error('Nenhum token de dashboard encontrado. Por favor, selecione uma conta na dashboard'));
+        return;
+      }
       
-      console.log('[OAUTH_DIRECT] Tokens ordenados para autorização (token primário primeiro)');
+      console.log('[OAUTH_DIRECT] Token da dashboard encontrado, autorizando apenas esta conta');
       
-      // Tenta autorizar cada token sequencialmente na ordem de prioridade
-      for (const tokenInfo of sortedTokens) {
+      // Verificar se este token já existe na nossa lista
+      let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+      
+      if (!tokenInfo) {
+        // Se não existe, adicionamos ele
+        console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
+        this.addToken(dashboardToken, true);
+        tokenInfo = this.tokens.find(t => t.token === dashboardToken);
+      }
+      
+      if (tokenInfo) {
+        // Marcar o token como primário
+        tokenInfo.primary = true;
+        
+        // Definir como token ativo para todas as operações
+        this.activeToken = dashboardToken;
+        
         try {
-          await this.authorizeToken(tokenInfo.token);
+          // Autorizar apenas este token
+          await this.authorizeToken(dashboardToken);
           
           // Marcar como autorizado
           tokenInfo.authorized = true;
           tokenInfo.connected = true;
           
-          // Se este token é o primário (escolhido pelo usuário), definir como ativo
-          if (tokenInfo.primary) {
-            this.activeToken = tokenInfo.token;
-            primaryTokenAuthorized = true;
-            
-            console.log(`[OAUTH_DIRECT] Token primário autorizado e definido como ativo: ${tokenInfo.loginid}`);
-            
-            // Inscrever para ticks com o token primário
-            this.subscribeToTicks();
-          }
-          // Se nenhum token primário foi autorizado ainda, use este como fallback
-          else if (!authorizedAtLeastOne && !primaryTokenAuthorized) {
-            this.activeToken = tokenInfo.token;
-            // Não inscrever para ticks ainda, esperando pelo token primário
-          }
+          console.log(`[OAUTH_DIRECT] Token da dashboard autorizado com sucesso: ${tokenInfo.loginid || 'desconhecido'}`);
           
-          authorizedAtLeastOne = true;
-          console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${tokenInfo.loginid || 'desconhecido'}`);
+          // Inscrever para ticks
+          this.subscribeToTicks();
+          
+          resolve();
         } catch (error) {
-          console.error(`[OAUTH_DIRECT] Falha ao autorizar token ${tokenInfo.loginid || 'desconhecido'}:`, error);
-          // Continuamos para o próximo token, não rejeitamos a Promise aqui
+          console.error(`[OAUTH_DIRECT] Falha ao autorizar token da dashboard:`, error);
+          reject(error);
         }
+      } else {
+        reject(new Error('Falha ao configurar token da dashboard'));
       }
       
       // Se o token primário foi autorizado com sucesso, inscrever para ticks
@@ -801,35 +805,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const amount = parseFloat(this.settings.entryValue.toString());
       const prediction = this.settings.prediction || 5;
       
-      // Formato correto da requisição de compra para a API Deriv
-      // NOVO FORMATO DE REQUISIÇÃO CORRIGIDO - SEM USAR PRICE NEM PARAMETERS 
-      const buyRequest = JSON.parse(JSON.stringify({
-        buy: 1,
-        basis: "stake", 
-        amount: amount,
-        symbol: "R_100",
-        barrier: prediction.toString(),
-        contract_type: contractType,
-        currency: "USD",
-        duration: 5,
-        duration_unit: "t"
-      }));
-      
       // Verificar se estamos usando o token da conta selecionada pelo usuário
       const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
-      // Instrução especial para debug - mostrar o formato correto nos logs
-      const buyRequestForLog = {
-        buy: 1,
-        basis: "stake", 
-        amount: amount,
-        symbol: "R_100",
-        barrier: prediction.toString(),
-        contract_type: contractType,
-        currency: "USD",
-        duration: 5,
-        duration_unit: "t"
-      };
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequestForLog);
       
       // Se não estamos usando o token primário, corrigir para usar o token primário
       if (!activeTokenInfo || !activeTokenInfo.primary) {
@@ -841,12 +818,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // Enviar solicitação se o WebSocket estiver disponível
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        this.webSocket.send(JSON.stringify(buyRequest));
-      } else {
-        throw new Error('WebSocket não está disponível ou conectado');
-      }
+      // COMPLETAMENTE NOVO FORMATO DA REQUISIÇÃO
+      // Criando uma nova requisição de compra no formato correto
+      this.executeBuyRequest(contractType, amount, prediction, activeTokenInfo?.loginid);
       
       // Notificar sobre o início da operação
       this.notifyListeners({
@@ -865,6 +839,40 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Agendar próxima operação mesmo com erro
       this.scheduleNextOperation();
+    }
+  }
+  
+  /**
+   * Executa uma requisição de compra com formato correto
+   */
+  private executeBuyRequest(contractType: string, amount: number, prediction: number, loginid?: string): void {
+    try {
+      // Formato correto da requisição para a API Deriv - sem subestrutura "parameters"
+      const buyRequest = {
+        buy: 1,
+        basis: "stake", 
+        amount: amount,
+        symbol: "R_100",
+        barrier: prediction.toString(),
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t"
+      };
+      
+      console.log(`[OAUTH_DIRECT] Nova solicitação de compra formatada com token ${loginid || 'desconhecido'}:`, buyRequest);
+      
+      // Enviar solicitação se o WebSocket estiver disponível
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        const requestString = JSON.stringify(buyRequest);
+        console.log(`[OAUTH_DIRECT] Enviando string de requisição: ${requestString}`);
+        this.webSocket.send(requestString);
+      } else {
+        throw new Error('WebSocket não está disponível ou conectado');
+      }
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao enviar solicitação de compra:', error);
+      throw error;
     }
   }
   
