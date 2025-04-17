@@ -600,7 +600,21 @@ export function BotPage() {
                   </div>
                   <div>
                     <div className="text-xs text-gray-400">Balanço USD</div>
-                    <div className="text-lg font-medium text-white">$ {accountInfo?.balance || '0.00'}</div>
+                    <div className={`text-lg font-medium ${
+                      realTimeBalance.balance > (realTimeBalance.previousBalance || 0) 
+                        ? 'text-green-500' 
+                        : realTimeBalance.balance < (realTimeBalance.previousBalance || 0)
+                          ? 'text-red-500'
+                          : 'text-white'
+                    }`}>
+                      $ {accountInfo?.balance || '0.00'}
+                      {realTimeBalance.balance !== realTimeBalance.previousBalance && realTimeBalance.previousBalance && (
+                        <span className="text-xs ml-1">
+                          ({realTimeBalance.balance > realTimeBalance.previousBalance ? '+' : ''}
+                          {(realTimeBalance.balance - realTimeBalance.previousBalance).toFixed(2)})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -795,8 +809,20 @@ export function BotPage() {
                 <div className="w-3 h-3 bg-green-500 mr-2 rounded-full"></div>
                 <h2 className="text-white font-medium">Balanço USD</h2>
               </div>
-              <div className="text-xl font-bold text-white">
+              <div className={`text-xl font-bold ${
+                realTimeBalance.balance > (realTimeBalance.previousBalance || 0) 
+                  ? 'text-green-500' 
+                  : realTimeBalance.balance < (realTimeBalance.previousBalance || 0)
+                    ? 'text-red-500'
+                    : 'text-white'
+              }`}>
                 $ {accountInfo?.balance || '174.06'}
+                {realTimeBalance.balance !== realTimeBalance.previousBalance && realTimeBalance.previousBalance && (
+                  <span className="text-sm ml-1">
+                    ({realTimeBalance.balance > realTimeBalance.previousBalance ? '+' : ''}
+                    {(realTimeBalance.balance - realTimeBalance.previousBalance).toFixed(2)})
+                  </span>
+                )}
               </div>
             </div>
             

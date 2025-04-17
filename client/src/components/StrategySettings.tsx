@@ -132,7 +132,7 @@ export function StrategySettings({
                 />
               </div>
               
-              {strategy.type !== 'RISE' && strategy.type !== 'FALL' && strategy.type !== 'ADVANCED' && (
+              {strategy.type !== 'RISE' && strategy.type !== 'FALL' && (
                 <div>
                   <div className="flex justify-between mb-2">
                     <Label htmlFor="prediction">Previsão (Dígito)</Label>
@@ -147,7 +147,7 @@ export function StrategySettings({
                     step={1} 
                     value={[config.prediction !== undefined ? config.prediction : 5]} 
                     onValueChange={(values) => updateConfig('prediction', Math.round(values[0]))}
-                    disabled={disabled || strategy.type === 'ADVANCED'}
+                    disabled={disabled}
                   />
                 </div>
               )}
