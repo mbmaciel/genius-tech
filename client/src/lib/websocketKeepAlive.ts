@@ -286,8 +286,11 @@ export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
     return Promise.reject(new Error("Símbolo não informado"));
   }
   
-  // Remove do conjunto de símbolos inscritos
-  subscribedSymbols.delete(symbol);
+  // Remove do array de símbolos inscritos
+  const index = subscribedSymbols.indexOf(symbol);
+  if (index !== -1) {
+    subscribedSymbols.splice(index, 1);
+  }
   
   // Se não estiver conectado, não precisa fazer nada
   if (!isConnected()) {
@@ -388,7 +391,7 @@ export function closeWebSocket() {
     reconnectTimeout = null;
   }
   
-  subscribedSymbols.clear();
+  subscribedSymbols = []; // Limpa o array
   console.log("[R100] WebSocket fechado e recursos liberados");
 }
 
