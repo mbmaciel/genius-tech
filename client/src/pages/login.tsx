@@ -285,23 +285,6 @@ export default function LoginPage() {
             >
               {isLoading ? 'Entrando...' : 'Login'}
             </Button>
-            
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-slate-700"></span>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-[#151b25] px-2 text-slate-400">ou</span>
-              </div>
-            </div>
-            
-            <Button 
-              type="button"
-              onClick={handleDerivLogin}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Entrar com Deriv
-            </Button>
           </form>
           
           <div className="mt-4 text-center text-sm text-slate-400">
