@@ -135,6 +135,7 @@ function App() {
         }} />
         <Route path="/dashboard" component={(props: any) => <ProtectedRoute component={Dashboard} {...props} />} />
         <Route path="/bot" component={(props: any) => <ProtectedRoute component={BotPage} {...props} />} />
+        <Route path="/token-test" component={(props: any) => <ProtectedRoute component={() => import("@/pages/token-test-page").then(mod => mod.default)} {...props} />} />
       </Switch>
     </div>
   );

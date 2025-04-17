@@ -4,6 +4,8 @@
  * Usa apenas o token OAuth para operações reais com a API Deriv
  */
 
+// Esta declaração foi removida por estar duplicada no final do arquivo
+
 export type TradingWebSocketStatus = 'disconnected' | 'connecting' | 'connected' | 'authorized' | 'error';
 
 export interface TradingWebSocketEvents {
@@ -554,12 +556,13 @@ class TradingWebSocketManager {
 export const tradingWebSocket = TradingWebSocketManager.getInstance();
 
 // Exporta função de teste de token para uso externo
-export const testOAuthToken = (token: string): Promise<{
+export function testOAuthToken(token: string): Promise<{
   isValid: boolean;
   loginid?: string;
   balance?: number;
   currency?: string;
   error?: string;
-}> => {
+}> {
+  console.log('[TEST] Iniciando teste de token OAuth:', token.substring(0, 5) + '...');
   return tradingWebSocket.testToken(token);
-};
+}
