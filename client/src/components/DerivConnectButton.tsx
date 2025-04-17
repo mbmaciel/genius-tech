@@ -21,17 +21,17 @@ export function DerivConnectButton({ className, onSuccess }: DerivConnectProps) 
       // Constrói a URL de autorização da Deriv
       const scope = 'read admin payments trade';
       
-      // Redirecionamento para a página de login que processará o retorno
-      const redirectUri = encodeURIComponent(window.location.origin + '/login');
+      // IMPORTANTE: Agora redirecionamos para a raiz do site, onde os tokens serão processados
+      const redirectUri = encodeURIComponent(window.location.origin);
       const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
 
       console.log('[AUTH] Iniciando processo de login na Deriv via OAuth do dashboard');
-      console.log('[AUTH] URL de redirecionamento configurada:', redirectUri);
+      console.log('[AUTH] URL de redirecionamento configurada para raiz:', redirectUri);
       
       // Registra a janela para processar o retorno
       localStorage.setItem('derivOAuthPending', 'true');
       
-      // Abre a janela de autorização
+      // Abre a janela de autorização da Deriv
       window.location.href = authUrl;
     } catch (err) {
       console.error('Erro ao iniciar autenticação:', err);

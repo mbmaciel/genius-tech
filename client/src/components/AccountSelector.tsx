@@ -30,9 +30,35 @@ export function AccountSelector({ onAccountChanged, className = '' }: AccountSel
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Carregar contas disponíveis
+  // Carregar contas disponíveis (de todas as contas autorizadas)
   useEffect(() => {
     const loadAccounts = () => {
+      // Primeiro verificamos se temos as contas salvas no localStorage
+      const savedAccountsStr = localStorage.getItem('deriv_accounts');
+      if (savedAccountsStr) {
+        try {
+          const savedAccounts = JSON.parse(savedAccountsStr);
+          if (Array.isArray(savedAccounts) && savedAccounts.length > 0) {
+            // Usamos diretamente as contas salvas que já têm tokens
+            setAccounts(savedAccounts);
+            
+            // Selecionar a conta ativa por padrão
+            const activeAccountId = localStorage.getItem('deriv_active_account');
+            if (activeAccountId) {
+              setSelectedAccount(activeAccountId);
+            } else {
+              // Ou seleciona a primeira conta
+              setSelectedAccount(savedAccounts[0].loginid);
+            }
+            
+            return; // Retorna cedo se encontramos contas
+          }
+        } catch (error) {
+          console.error('Erro ao carregar contas salvas:', error);
+        }
+      }
+      
+      // Fallback: Carrega da informação da conta atual se não tiver lista completa
       const accountInfoStr = localStorage.getItem('deriv_account_info');
       if (!accountInfoStr) return;
       
@@ -97,7 +123,14 @@ export function AccountSelector({ onAccountChanged, className = '' }: AccountSel
       // Autorizar a conta para obter informações atualizadas
       const accountInfo = await authorizeAccount(account.token);
       
-      // Atualizar o localStorage com a nova conta ativa
+      // IMPORTANTE: Atualizar o token OAuth principal para operações de trading
+      localStorage.setItem('deriv_oauth_token', account.token);
+      console.log(`[CONTA] Token OAuth atualizado para conta ${loginid}`);
+      
+      // Definir a conta ativa no sistema
+      localStorage.setItem('deriv_active_account', loginid);
+      
+      // Atualizar o localStorage com as informações da nova conta ativa
       localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
       
       // Atualizar estado local
