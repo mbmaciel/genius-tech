@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 70% 13%;
+    --foreground: 0 0% 100%;
+    
+    --card: 217 50% 18%;
+    --card-foreground: 0 0% 100%;
+    
+    --popover: 217 50% 18%;
+    --popover-foreground: 0 0% 100%;
+    
+    --primary: 165 100% 45%;
+    --primary-foreground: 217 50% 13%;
+    
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 217 33% 25%;
+    --muted-foreground: 215 15% 65%;
+    
+    --accent: 217 50% 25%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 217 50% 22%;
+    --input: 217 50% 22%;
+    --ring: 165 100% 45%;
+    
+    --radius: 0.5rem;
+    
+    --chart-1: 165 100% 45%;
+    --chart-2: 217 80% 60%;
+    --chart-3: 262 80% 60%;
+    --chart-4: 325 80% 60%;
+    --chart-5: 35 80% 60%;
+    
+    --sidebar-background: 217 50% 18%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 165 100% 45%;
+    --sidebar-primary-foreground: 217 50% 13%;
+    --sidebar-accent: 217 50% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 50% 22%;
+    --sidebar-ring: 165 100% 45%;
+  }
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: hsl(220, 70%, 13%);
+  color: white;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.side-nav-item.active {
+  border-left: 3px solid hsl(165, 100%, 45%);
+  background-color: hsl(165, 100%, 45%, 0.1);
+}
+
+.digit-cell {
+  transition: all 0.3s ease;
+}
+
+.connection-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
