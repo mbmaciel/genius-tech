@@ -99,10 +99,10 @@ class SimpleBotService {
    * Inicia a execução do bot
    */
   public async start(): Promise<boolean> {
-    console.log('[SIMPLEBOT] Método start() chamado');
+    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO CORRIGIDA');
     
     if (this.status === 'running') {
-      console.log('[SIMPLEBOT] Bot já está rodando');
+      console.log('[SIMPLEBOT] Bot já está rodando, ignorando chamada');
       return true;
     }
     
@@ -111,14 +111,29 @@ class SimpleBotService {
       return false;
     }
     
-    // Atualizar status do bot
-    this.status = 'running';
-    this.emitEvent({ type: 'status_change', status: this.status });
-    
-    // Simular operação para demonstração da interface
-    this.simulateOperation();
-    
-    return true;
+    try {
+      // Atualizar status do bot
+      console.log('[SIMPLEBOT] Atualizando status para running');
+      this.status = 'running';
+      this.emitEvent({ type: 'status_change', status: this.status });
+      
+      // Simular operação para demonstração da interface
+      console.log('[SIMPLEBOT] Iniciando simulação de operações');
+      setTimeout(() => {
+        if (this.status === 'running') {
+          console.log('[SIMPLEBOT] Executando primeira operação simulada');
+          this.simulateOperation();
+        }
+      }, 1000);
+      
+      return true;
+    } catch (error) {
+      console.error('[SIMPLEBOT] Erro ao iniciar bot:', error);
+      this.status = 'error';
+      this.emitEvent({ type: 'status_change', status: 'error' });
+      this.emitEvent({ type: 'error', message: 'Erro ao iniciar bot' });
+      return false;
+    }
   }
   
   /**
@@ -170,7 +185,14 @@ class SimpleBotService {
    * Simula uma operação para fins de UI
    */
   private simulateOperation(): void {
-    if (this.status !== 'running') return;
+    console.log('[SIMPLEBOT] Executando simulação de operação');
+    
+    if (this.status !== 'running') {
+      console.log('[SIMPLEBOT] Bot não está em status running, não vai simular operação');
+      return;
+    }
+    
+    console.log('[SIMPLEBOT] Criando contrato simulado');
     
     const contract = {
       contract_id: Math.floor(Math.random() * 1000000),
@@ -183,13 +205,17 @@ class SimpleBotService {
     };
     
     // Notificar início de operação
+    console.log('[SIMPLEBOT] Emitindo evento de operação iniciada');
     this.emitEvent({ type: 'operation_started', contract });
     
     // Após 5 segundos, simular finalização da operação
+    console.log('[SIMPLEBOT] Programando conclusão da operação em 5 segundos');
     this.operationTimer = setTimeout(() => {
       // Gerar resultado aleatório (vitória/derrota)
       const isWin = Math.random() > 0.5;
       const profit = isWin ? contract.buy_price * 0.9 : -contract.buy_price;
+      
+      console.log(`[SIMPLEBOT] Operação concluída: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
       
       if (isWin) {
         this.stats.wins++;
@@ -219,6 +245,7 @@ class SimpleBotService {
       this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
       
       // Programar próxima operação
+      console.log('[SIMPLEBOT] Programando próxima operação em 3 segundos');
       this.operationTimer = setTimeout(() => {
         this.simulateOperation();
       }, 3000);
