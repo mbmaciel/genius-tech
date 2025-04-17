@@ -401,9 +401,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       let authorizedAtLeastOne = false;
+      let primaryTokenAuthorized = false;
       
-      // Tenta autorizar cada token sequencialmente
-      for (const tokenInfo of this.tokens) {
+      // Primeiro criar uma cópia ordenada dos tokens onde o token primário vem primeiro
+      const sortedTokens = [...this.tokens].sort((a, b) => {
+        if (a.primary && !b.primary) return -1;
+        if (!a.primary && b.primary) return 1;
+        return 0;
+      });
+      
+      console.log('[OAUTH_DIRECT] Tokens ordenados para autorização (token primário primeiro)');
+      
+      // Tenta autorizar cada token sequencialmente na ordem de prioridade
+      for (const tokenInfo of sortedTokens) {
         try {
           await this.authorizeToken(tokenInfo.token);
           
@@ -411,20 +421,37 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           tokenInfo.authorized = true;
           tokenInfo.connected = true;
           
-          // Se for o primeiro token autorizado com sucesso, defina como ativo
-          if (!authorizedAtLeastOne) {
+          // Se este token é o primário (escolhido pelo usuário), definir como ativo
+          if (tokenInfo.primary) {
             this.activeToken = tokenInfo.token;
-            authorizedAtLeastOne = true;
+            primaryTokenAuthorized = true;
             
-            // Já podemos inscrever para ticks com o primeiro token autorizado
+            console.log(`[OAUTH_DIRECT] Token primário autorizado e definido como ativo: ${tokenInfo.loginid}`);
+            
+            // Inscrever para ticks com o token primário
             this.subscribeToTicks();
           }
+          // Se nenhum token primário foi autorizado ainda, use este como fallback
+          else if (!authorizedAtLeastOne && !primaryTokenAuthorized) {
+            this.activeToken = tokenInfo.token;
+            // Não inscrever para ticks ainda, esperando pelo token primário
+          }
           
+          authorizedAtLeastOne = true;
           console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${tokenInfo.loginid || 'desconhecido'}`);
         } catch (error) {
           console.error(`[OAUTH_DIRECT] Falha ao autorizar token ${tokenInfo.loginid || 'desconhecido'}:`, error);
           // Continuamos para o próximo token, não rejeitamos a Promise aqui
         }
+      }
+      
+      // Se o token primário foi autorizado com sucesso, inscrever para ticks
+      if (primaryTokenAuthorized) {
+        // Já inscreveu para ticks acima
+      }
+      // Caso contrário, usar qualquer token autorizado e inscrever para ticks
+      else if (authorizedAtLeastOne) {
+        this.subscribeToTicks();
       }
       
       // Se pelo menos um token foi autorizado, consideramos bem-sucedido
@@ -774,10 +801,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const amount = parseFloat(this.settings.entryValue.toString());
       const prediction = this.settings.prediction || 5;
       
-      // Criar solicitação de compra corrigida para incluir o basis
+      // Criar solicitação de compra corrigida para incluir o basis e amount
       const buyRequest = {
         buy: 1,
-        price: amount,
         parameters: {
           contract_type: contractType,
           currency: "USD",
@@ -786,13 +812,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           symbol: "R_100",
           barrier: prediction.toString(),
           basis: "stake", // Especificar basis como stake para resolver o erro
-          amount: amount  // Incluir o valor do stake
+          amount: amount  // Incluir o valor do stake como amount em vez de price
         }
       };
       
-      // Obter o loginId da conta ativa
-      const activeAccount = this.tokens.find(t => t.token === this.activeToken);
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeAccount?.loginid || 'desconhecido'}:`, buyRequest);
+      // Verificar se estamos usando o token da conta selecionada pelo usuário
+      const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequest);
+      
+      // Se não estamos usando o token primário, corrigir para usar o token primário
+      if (!activeTokenInfo || !activeTokenInfo.primary) {
+        // Se não for o token primário, vamos tentar encontrar o token primário
+        const primaryToken = this.tokens.find(t => t.primary);
+        if (primaryToken) {
+          this.activeToken = primaryToken.token;
+          console.log(`[OAUTH_DIRECT] Corrigindo para usar o token primário: ${primaryToken.loginid}`);
+        }
+      }
       
       // Enviar solicitação se o WebSocket estiver disponível
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
