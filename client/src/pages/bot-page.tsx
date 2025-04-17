@@ -6,6 +6,7 @@ import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
 import { BotController } from "@/components/BotController";
 import derivApiService from "@/services/derivApiService";
+import { simpleBotService } from "@/services/simpleBotService";
 
 // Log para indicar uso da versão modificada
 console.log('[BOT_PAGE] Usando BotController com versão simplificada do bot');
@@ -571,8 +572,8 @@ export function BotPage() {
         status: null
       });
       
-      // Configurar botService
-      botService.setSettings({
+      // Configurar simpleBotService
+      simpleBotService.setSettings({
         entryValue: entryNum,
         profitTarget: profitNum,
         lossLimit: lossNum,
@@ -582,15 +583,15 @@ export function BotPage() {
       });
       
       // Definir estratégia
-      botService.setActiveStrategy(selectedStrategy);
+      simpleBotService.setActiveStrategy(selectedStrategy);
       
-      // Iniciar o botService em segundo plano (sem await)
-      botService.start().then(success => {
+      // Iniciar o simpleBotService em segundo plano (sem await)
+      simpleBotService.start().then(success => {
         if (!success) {
-          console.error("[BOT] botService.start() retornou false, mas a interface já foi atualizada");
+          console.error("[BOT] simpleBotService.start() retornou false, mas a interface já foi atualizada");
         }
       }).catch(error => {
-        console.error("[BOT] Erro ao executar botService.start():", error);
+        console.error("[BOT] Erro ao executar simpleBotService.start():", error);
       });
       
       // Solicitar saldo
