@@ -567,15 +567,12 @@ export default function Dashboard() {
           
           {/* Gráfico Deriv - Volatility 25 Index */}
           <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
-            <h2 className="text-lg text-white font-medium mb-4">
-              Gráfico Volatility 25 Index
-              <span className="ml-2 text-xs text-gray-400">(Deriv)</span>
-            </h2>
-            <div className="relative w-full rounded border border-[#2a3756] overflow-hidden" style={{ height: "400px" }}>
+            <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
+            <div className="relative w-full rounded border border-[#192339] overflow-hidden" style={{ height: "312px" }}>
               <iframe 
-                src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=1m&theme=dark" 
+                src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=24h&chart_type=line&theme=dark&toolbar=0&grid=0&show_formula=0" 
                 className="absolute inset-0 w-full h-full"
-                style={{ border: "none" }}
+                style={{ border: "none", background: "#0f1b31" }}
                 title="Volatility 25 Index Chart"
                 allow="fullscreen"
               ></iframe>
