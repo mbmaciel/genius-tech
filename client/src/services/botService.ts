@@ -195,10 +195,14 @@ class BotService {
       this.lastDigit = parseInt(lastChar, 10);
       
       console.log(`[BOT_SERVICE] Tick recebido: ${price}, último dígito: ${this.lastDigit}`);
+      console.log(`[BOT_SERVICE] Estado atual: status=${this.status}, temContrato=${this.currentContract !== null}, temTimer=${this.operationTimer !== null}`);
       
       // Se o bot estiver em execução e sem contrato ativo, avaliar se deve operar
       if (this.status === 'running' && !this.currentContract && !this.operationTimer) {
+        console.log('[BOT_SERVICE] Condições satisfeitas para iniciar trading');
         this.startTrading();
+      } else {
+        console.log('[BOT_SERVICE] Aguardando condições para operar');
       }
     }
   }
@@ -427,6 +431,9 @@ class BotService {
    * Esta função seria substituída pela lógica real baseada no XML da estratégia
    */
   private startTrading(): void {
+    // Verificar status atual do bot e logar para diagnóstico
+    console.log(`[BOT_SERVICE] Status atual do bot: ${this.status}`);
+    
     if (this.status !== 'running') {
       console.log('[BOT_SERVICE] Bot não está em execução, retornando');
       return;
