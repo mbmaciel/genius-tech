@@ -342,18 +342,31 @@ class SimpleBotDirectService {
       return false;
     }
     
-    // Obter a referência do WebSocket ativo na página (do componente BotPage)
-    // Esta é a principal diferença: usamos o WebSocket já existente
-    const wsRef = (window as any).activeWebSocket;
+    // Verificar o WebSocket armazenado localmente primeiro
+    let wsRef = this.webSocket;
     
+    // Se não temos um WebSocket interno, verificar a referência global
     if (!wsRef || wsRef.readyState !== WebSocket.OPEN) {
-      console.error('[SIMPLEBOT] WebSocket não disponível ou não está conectado');
-      this.emitEvent({
-        type: 'error',
-        message: 'Conexão com servidor não disponível'
-      });
-      return false;
+      wsRef = (window as any).activeWebSocket;
+      
+      if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+        // Registrar este WebSocket para uso se ainda não estiver registrado
+        if (this.webSocket !== wsRef) {
+          console.log('[SIMPLEBOT] WebSocket encontrado globalmente, atualizando referência interna');
+          this.webSocket = wsRef;
+        }
+      } else {
+        console.error('[SIMPLEBOT] WebSocket não disponível ou não está conectado (nem interna nem global)');
+        this.emitEvent({
+          type: 'error',
+          message: 'Conexão com servidor não disponível. Tente atualizar a página.'
+        });
+        return false;
+      }
     }
+    
+    // Log para debug
+    console.log('[SIMPLEBOT] WebSocket disponível e pronto para operações');
     
     try {
       // Construir parâmetros formatados conforme documentação da API
@@ -409,11 +422,31 @@ class SimpleBotDirectService {
    * Registra o WebSocket ativo e configura listeners para respostas
    */
   public registerWebSocket(ws: WebSocket): void {
-    (window as any).activeWebSocket = ws;
-    console.log('[SIMPLEBOT] WebSocket registrado para operações de trading');
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[SIMPLEBOT] Tentativa de registrar WebSocket não conectado');
+      return;
+    }
     
-    // Adicionar listener para mensagens recebidas
-    this.setupMessageListener(ws);
+    try {
+      // Armazenar no window para acesso global
+      (window as any).activeWebSocket = ws;
+      // Armazenar como referência interna também
+      this.webSocket = ws;
+      
+      console.log('[SIMPLEBOT] WebSocket registrado com sucesso para operações de trading');
+      
+      // Adicionar listener para mensagens recebidas
+      this.setupMessageListener(ws);
+      
+      // Verificar se está autorizado
+      const token = localStorage.getItem('deriv_oauth_token');
+      if (token && this.token !== token) {
+        this.token = token;
+        console.log('[SIMPLEBOT] Token OAuth atualizado durante registro de WebSocket');
+      }
+    } catch (error) {
+      console.error('[SIMPLEBOT] Erro ao registrar WebSocket:', error);
+    }
   }
   
   /**

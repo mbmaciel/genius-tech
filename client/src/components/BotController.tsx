@@ -85,21 +85,11 @@ export function BotController({
       setStatus('running');
       onStatusChange('running');
       
-      // Verificar se o WebSocket já está registrado no simpleBotDirectService
-      const wsInstance = (window as any).activeWebSocket;
-      if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
-        console.error('[BOT_CONTROLLER] WebSocket não está disponível ou conectado');
-        toast({
-          title: "Erro de conexão",
-          description: "A conexão WebSocket não está disponível. Por favor, recarregue a página.",
-          variant: "destructive"
-        });
-        setStatus('idle');
-        onStatusChange('idle');
-        return;
-      } else {
-        console.log('[BOT_CONTROLLER] WebSocket já registrado e pronto para operações');
-      }
+      // Não vamos mais verificar o WebSocket aqui, pois o simpleBotDirectService
+      // agora vai verificar tanto a referência interna quanto a global
+      
+      // Log para depuração
+      console.log('[BOT_CONTROLLER] Iniciando serviço sem verificação prévia de WebSocket');
       
       // Configurar bot com os parâmetros atuais
       console.log('[BOT_CONTROLLER] Configurando parâmetros do bot', {

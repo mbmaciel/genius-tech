@@ -155,7 +155,11 @@ export function BotPage() {
             
             // Registrar este WebSocket no serviço do bot para permitir operações
             simpleBotDirectService.registerWebSocket(wsRef.current);
-            console.log('[BOT] WebSocket registrado no serviço de trading para operações.');
+            
+            // Garantir que o WebSocket esteja disponível globalmente
+            (window as any).activeWebSocket = wsRef.current;
+            
+            console.log('[BOT] WebSocket registrado no serviço de trading para operações e disponibilizado globalmente.');
           } else {
             console.log('[BOT] Autorizando com token fixo para ticks (sem permissão para operar)...');
             wsRef.current.send(JSON.stringify({
