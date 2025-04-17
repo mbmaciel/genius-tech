@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { Toaster } from "@/components/ui/toaster";
-import { Dashboard } from "@/pages/dashboard";
-import { Login } from "@/pages/login";
+import { Toaster } from "@/components/ui/toast";
+import Dashboard from "@/pages/dashboard";
+import Login from "@/pages/login";
 import { BotPage } from "@/pages/bot-page";
 
 function App() {
