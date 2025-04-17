@@ -170,15 +170,58 @@ class DerivApiService {
       await this.connect();
     }
     
+    // Verificar se temos tokens adicionais no localStorage
+    const allTokens: string[] = [];
+    const storedTokens = localStorage.getItem('deriv_all_tokens');
+    
+    if (storedTokens) {
+      try {
+        const tokenArray = JSON.parse(storedTokens);
+        if (Array.isArray(tokenArray)) {
+          tokenArray.forEach(t => {
+            if (t !== token && allTokens.length < 25) {
+              allTokens.push(t);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[DERIV_API] Erro ao analisar tokens armazenados:', e);
+      }
+    }
+    
+    console.log(`[DERIV_API] Autorizando com token principal e ${allTokens.length} tokens adicionais`);
+    
     return new Promise((resolve) => {
-      this.sendRequest({ authorize: token }, (response) => {
+      // Usar o formato de autorização multi-token
+      const authRequest: any = { 
+        authorize: token,
+        add_to_login_history: 1
+      };
+      
+      // Adicionar tokens adicionais se existirem
+      if (allTokens.length > 0) {
+        authRequest.tokens = allTokens;
+      }
+      
+      this.sendRequest(authRequest, (response) => {
         if (response.error) {
-          console.error('Erro de autorização:', response.error.message);
+          console.error('[DERIV_API] Erro de autorização:', response.error.message);
           this.authorized = false;
           resolve(false);
         } else {
+          console.log('[DERIV_API] Autorização bem-sucedida com detalhes da conta:', 
+            response.authorize ? 
+            `ID: ${response.authorize.loginid}, Tipo: ${response.authorize.is_virtual ? 'Virtual' : 'Real'}, Moeda: ${response.authorize.currency}` :
+            'Sem detalhes da conta');
+            
           this.authorized = true;
           this.token = token;
+          
+          // Armazenar tokens no localStorage
+          if (!storedTokens) {
+            localStorage.setItem('deriv_all_tokens', JSON.stringify([token]));
+          }
+          
           resolve(true);
         }
       });

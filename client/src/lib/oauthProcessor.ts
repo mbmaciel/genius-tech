@@ -152,6 +152,11 @@ export const processOAuthRedirect = (url: string) => {
     // Salvar as contas processadas para uso posterior
     localStorage.setItem('deriv_processed_accounts', JSON.stringify(userAccounts));
     
+    // Salvar todos os tokens em um array para uso com autorização múltipla
+    const allTokens = userAccounts.map(acc => acc.token);
+    localStorage.setItem('deriv_all_tokens', JSON.stringify(allTokens));
+    console.log(`[OAuthProcessor] Salvando ${allTokens.length} tokens para autorização múltipla`);
+    
     // Limpar o estado salvo após uso
     localStorage.removeItem('deriv_oauth_state');
     
