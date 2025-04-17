@@ -33,6 +33,25 @@ export function BotPage() {
   const [lossLimit, setLossLimit] = useState<string>("");
   const [virtualLoss, setVirtualLoss] = useState<string>("");
   const [selectedBotType, setSelectedBotType] = useState<"lite" | "premium" | "">("");
+  const [selectedStrategy, setSelectedStrategy] = useState<string>("");
+  
+  // Definir estratégias disponíveis
+  const strategies = {
+    lite: [
+      { id: "profitpro", name: "Profit Pro", file: "Profitpro Atualizado.xml" },
+      { id: "manualunder", name: "Manual Under", file: "Manual Under.xml" },
+      { id: "advance", name: "Advance", file: "Advance .xml" },
+      { id: "wisetendencia", name: "Wise Pro Tendência", file: "WISE PRO TENDENCIA.xml" }
+    ],
+    premium: [
+      { id: "ironover", name: "Iron Over", file: "IRON OVER.xml" },
+      { id: "ironunder", name: "Iron Under", file: "IRON UNDER.xml" },
+      { id: "botlow", name: "Bot Low", file: "BOT LOW.xml" },
+      { id: "maxpro", name: "Max Pro", file: "MAXPRO .xml" },
+      { id: "green", name: "Green", file: "green.xml" },
+      { id: "manualover", name: "Manual Over", file: "manual Over.xml" }
+    ]
+  };
   
   // Estado para operações
   const [operation, setOperation] = useState<{
@@ -250,6 +269,15 @@ export function BotPage() {
   
   // Iniciar o bot
   const handleStartBot = () => {
+    if (!selectedBotType || !selectedStrategy) {
+      toast({
+        title: "Seleção necessária",
+        description: "Por favor, selecione um tipo de bot e uma estratégia.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setBotStatus('running');
     setOperation({
       entry: 1584.42,
@@ -258,9 +286,11 @@ export function BotPage() {
       status: 'comprado'
     });
     
+    const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
+    
     toast({
       title: "Bot iniciado",
-      description: "O robô de trading está operando agora.",
+      description: `Robô ${strategyInfo?.name} está operando agora.`,
     });
   };
   
@@ -419,18 +449,43 @@ export function BotPage() {
               <h2 className="text-lg text-white font-medium mb-4">Selecione um bot:</h2>
               <div>
                 <button 
-                  onClick={() => setSelectedBotType("lite")}
+                  onClick={() => {
+                    setSelectedBotType("lite");
+                    setSelectedStrategy("");
+                  }}
                   className={`w-full text-left mb-2 p-3 rounded ${selectedBotType === "lite" ? "bg-blue-600" : "bg-[#1d2a45]"} text-white`}
                 >
                   Lite Bots
                 </button>
                 <button 
-                  onClick={() => setSelectedBotType("premium")}
+                  onClick={() => {
+                    setSelectedBotType("premium");
+                    setSelectedStrategy("");
+                  }}
                   className={`w-full text-left p-3 rounded ${selectedBotType === "premium" ? "bg-purple-600" : "bg-[#1d2a45]"} text-white`}
                 >
                   Premium Bots
                 </button>
               </div>
+              
+              {selectedBotType && (
+                <div className="mt-4">
+                  <h3 className="text-sm text-gray-400 mb-2">Escolha uma estratégia:</h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {strategies[selectedBotType].map(strategy => (
+                      <button
+                        key={strategy.id}
+                        onClick={() => setSelectedStrategy(strategy.id)}
+                        className={`text-left p-2 rounded text-white text-sm ${
+                          selectedStrategy === strategy.id ? "bg-indigo-600" : "bg-[#1d2a45]"
+                        }`}
+                      >
+                        {strategy.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Configurações de Trading */}
