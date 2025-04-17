@@ -1,6 +1,6 @@
 /**
  * Serviço para trading automatizado com API Deriv
- * Versão 2023.2 - Executa operações reais
+ * Versão 2023.3 - EXCLUSIVAMENTE para operações reais (sem simulação)
  */
 
 import { derivAPI } from '../lib/websocketManager';
@@ -119,10 +119,10 @@ class SimpleBotService {
   }
   
   /**
-   * Inicia a execução do bot (Versão híbrida: tenta operações reais e, se falhar, usa simulação)
+   * Inicia a execução do bot (APENAS operações reais, sem fallback para simulação)
    */
   public async start(): Promise<boolean> {
-    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO HÍBRIDA (real ou simulada)');
+    console.log('[SIMPLEBOT] Método start() chamado - APENAS OPERAÇÕES REAIS (sem simulação)');
     
     if (this.status === 'running') {
       console.log('[SIMPLEBOT] Bot já está rodando, ignorando chamada');
@@ -146,14 +146,26 @@ class SimpleBotService {
         this.operationTimer = null;
       }
       
-      // Primeiro tentamos uma operação real
+      // Verificar se temos token OAuth
+      const token = localStorage.getItem('deriv_oauth_token');
+      if (!token) {
+        console.error('[SIMPLEBOT] Não foi possível iniciar: Token OAuth não encontrado');
+        this.emitEvent({ 
+          type: 'error', 
+          message: 'Token OAuth não encontrado. Faça login com sua conta Deriv.' 
+        });
+        this.status = 'error';
+        return false;
+      }
+      
+      // Iniciar operação real
       const startRealOperation = async () => {
         try {
-          console.log('[SIMPLEBOT] Tentando iniciar operação REAL');
+          console.log('[SIMPLEBOT] Iniciando operação REAL');
           
           // Verificar novamente se o bot ainda está ativo
           if (this.status === 'running') {
-            // Primeiro tentar uma operação real
+            // Executar operação real
             await this.executeRealOperation();
             return true;
           } else {
@@ -162,43 +174,41 @@ class SimpleBotService {
           }
         } catch (err) {
           console.error('[SIMPLEBOT] Erro ao iniciar operação real:', err);
+          // Notificar o erro, mas não fazer fallback para simulação
+          this.emitEvent({ 
+            type: 'error', 
+            message: 'Erro ao executar operação real. Tente novamente.' 
+          });
+          
+          // Se ainda estiver rodando, agendar próxima tentativa
+          if (this.status === 'running') {
+            this.scheduleNextOperation();
+          }
           return false;
         }
       };
 
-      // Tentar operação real, mas se falhar, usamos simulação
-      const successWithReal = await startRealOperation().catch(() => false);
+      // Iniciar operação real, sem fallback para simulação
+      const successWithReal = await startRealOperation().catch(err => {
+        console.error('[SIMPLEBOT] Exceção ao iniciar operação real:', err);
+        return false;
+      });
       
       if (!successWithReal) {
-        console.log('[SIMPLEBOT] Operação real falhou ou não está disponível, usando simulação como fallback');
+        console.error('[SIMPLEBOT] Falha ao iniciar operação real. Sem fallback para simulação.');
         
-        // Função para iniciar operação simulada
-        const startSimulatedOperation = () => {
-          try {
-            console.log('[SIMPLEBOT] Iniciando operações SIMULADAS (fallback)');
-            
-            if (this.status === 'running') {
-              console.log('[SIMPLEBOT] Executando operação simulada');
-              this.simulateOperation();
-            } else {
-              console.log('[SIMPLEBOT] Bot não está mais rodando');
-            }
-          } catch (err) {
-            console.error('[SIMPLEBOT] Erro ao iniciar operação simulada:', err);
-          }
-        };
+        // Notificar o erro
+        this.emitEvent({ 
+          type: 'error', 
+          message: 'Falha ao iniciar operação real. Verificando conexão.' 
+        });
         
-        // Iniciar simulação imediatamente
-        startSimulatedOperation();
-      }
-      
-      // Verificação de segurança após 2 segundos
-      this.operationTimer = setTimeout(() => {
-        if (this.status === 'running' && this.stats.wins === 0 && this.stats.losses === 0) {
-          console.log('[SIMPLEBOT] Verificação de segurança: primeira operação não iniciou, usando simulação');
-          this.simulateOperation();
+        // Programar nova tentativa se o bot ainda estiver rodando
+        if (this.status === 'running') {
+          console.log('[SIMPLEBOT] Agendando nova tentativa de operação real...');
+          this.scheduleNextOperation();
         }
-      }, 2000);
+      }
       
       return true;
     } catch (error) {
@@ -287,10 +297,10 @@ class SimpleBotService {
           console.error('[SIMPLEBOT] Token OAuth não encontrado, impossível fazer operações reais');
           this.emitEvent({ 
             type: 'error', 
-            message: 'Token OAuth não encontrado'
+            message: 'Token OAuth não encontrado. Faça login com sua conta Deriv.'
           });
-          this.simulateOperation(); // Fallback para simulação apenas se não houver token
-          return resolve(false);
+          // Sem fallback para simulação
+          return reject(new Error('Token OAuth não encontrado'));
         }
         
         // Verificar se o websocket está conectado e autorizado
@@ -307,8 +317,8 @@ class SimpleBotService {
                 type: 'error',
                 message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
               });
-              this.simulateOperation(); // Fallback para simulação
-              return resolve(false);
+              // Sem fallback para simulação
+              return reject(new Error(`Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`));
             }
             
             console.log('[SIMPLEBOT] Autorização bem-sucedida:', authResponse.authorize?.loginid);
@@ -318,8 +328,8 @@ class SimpleBotService {
               type: 'error',
               message: 'Falha na conexão com a API Deriv'
             });
-            this.simulateOperation(); // Fallback para simulação
-            return resolve(false);
+            // Sem fallback para simulação
+            return reject(new Error('Falha na conexão com a API Deriv'));
           }
         } else {
           console.log('[SIMPLEBOT] WebSocket já está conectado, verificando autorização...');
@@ -331,8 +341,8 @@ class SimpleBotService {
             }
           } catch (authError) {
             console.error('[SIMPLEBOT] Erro ao autorizar conexão existente:', authError);
-            this.simulateOperation();
-            return resolve(false);
+            // Sem fallback para simulação
+            return reject(new Error('Erro ao autorizar conexão existente'));
           }
         }
         
@@ -604,91 +614,20 @@ class SimpleBotService {
   }
   
   /**
-   * Simula uma operação para exibição na interface
+   * Esta função foi desativada pois o sistema agora suporta APENAS operações reais
+   * Mantida apenas para compatibilidade com código existente, mas não executa nenhuma ação
    */
   private simulateOperation(): void {
-    console.log('[SIMPLEBOT] Executando simulação de operação');
+    console.error('[SIMPLEBOT] Função simulateOperation() foi chamada, mas está desativada');
     
-    if (this.status !== 'running') {
-      console.log('[SIMPLEBOT] Bot não está em status running, não vai simular operação');
-      return;
-    }
+    // Notificar erro
+    this.emitEvent({
+      type: 'error',
+      message: 'Operações simuladas estão desativadas. O sistema agora suporta apenas operações reais.'
+    });
     
-    console.log('[SIMPLEBOT] Criando contrato simulado');
-    
-    // Criar contrato simulado baseado nas configurações
-    const contract = {
-      contract_id: Math.floor(Math.random() * 1000000),
-      contract_type: this.settings.contractType || 'DIGITOVER',
-      buy_price: this.settings.entryValue,
-      symbol: 'R_100',
-      status: 'open',
-      purchase_time: Math.floor(Date.now() / 1000),
-      payout: this.settings.entryValue * 1.9
-    };
-    
-    // Notificar início de operação
-    console.log('[SIMPLEBOT] Emitindo evento de operação iniciada');
-    this.emitEvent({ type: 'operation_started', contract });
-    
-    // Após 5 segundos, simular finalização da operação
-    console.log('[SIMPLEBOT] Programando conclusão da operação em 5 segundos');
-    this.operationTimer = setTimeout(() => {
-      try {
-        // Verificar novamente se o bot ainda está rodando
-        if (this.status !== 'running') {
-          console.log('[SIMPLEBOT] Bot não está mais rodando durante a operação, cancelando');
-          return;
-        }
-
-        // Gerar resultado aleatório (vitória/derrota)
-        const isWin = Math.random() > 0.5;
-        const profit = isWin ? contract.buy_price * 0.9 : -contract.buy_price;
-        
-        console.log(`[SIMPLEBOT] Operação concluída: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
-        
-        if (isWin) {
-          this.stats.wins++;
-          this.stats.consecutiveWins++;
-          this.stats.consecutiveLosses = 0;
-        } else {
-          this.stats.losses++;
-          this.stats.consecutiveLosses++;
-          this.stats.consecutiveWins = 0;
-        }
-        
-        this.stats.totalProfit += profit;
-        
-        // Notificar resultado da operação
-        this.emitEvent({
-          type: 'operation_finished',
-          result: isWin ? 'win' : 'loss',
-          profit,
-          contract: {
-            ...contract,
-            status: isWin ? 'won' : 'lost',
-            profit
-          }
-        });
-        
-        // Atualizar estatísticas
-        this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
-        
-        // Programar próxima operação se o bot ainda estiver rodando
-        if (this.status === 'running') {
-          console.log('[SIMPLEBOT] Programando próxima operação em 3 segundos');
-          this.operationTimer = setTimeout(() => {
-            try {
-              this.simulateOperation();
-            } catch (error) {
-              console.error('[SIMPLEBOT] Erro ao iniciar próxima operação:', error);
-            }
-          }, 3000);
-        }
-      } catch (error) {
-        console.error('[SIMPLEBOT] Erro durante a simulação de operação:', error);
-      }
-    }, 5000);
+    // Agendar próxima tentativa de operação real
+    this.scheduleNextOperation();
   }
   
   /**
