@@ -134,12 +134,15 @@ export default function LoginPage() {
       // Apenas para demonstração - normalmente verificaria credenciais
       if (email && password) {
         localStorage.setItem('isLoggedIn', 'true');
-        setLocation('/dashboard');
         
         toast({
           title: 'Login bem-sucedido',
           description: 'Bem-vindo à plataforma de trading!',
         });
+        
+        // Usar window.location.href para garantir o redirecionamento
+        console.log('Redirecionando para o dashboard após login bem-sucedido');
+        window.location.href = '/dashboard';
       } else {
         toast({
           title: 'Erro de login',
