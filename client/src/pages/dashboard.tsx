@@ -245,42 +245,109 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-3">
-                  <AccountSelector 
-                    onAccountChanged={(newAccountInfo) => {
-                      setAccountInfo(newAccountInfo);
-                      
-                      // Inicia nova assinatura de saldo para a conta selecionada
-                      if (newAccountInfo && newAccountInfo.loginid) {
-                        startBalanceSubscription(newAccountInfo.loginid);
+                {/* Este seletor de contas renderizado diretamente, sem usar o componente */}
+                <div className="dropdown-container mr-2">
+                  <select
+                    className="bg-[#1d2a45] text-white text-sm py-2 px-4 rounded-md border border-[#3a4b6b] hover:bg-[#2a3756] cursor-pointer"
+                    onChange={(e) => {
+                      const selectedAccount = e.target.value;
+                      // Buscar a conta correspondente
+                      const derivAccounts = localStorage.getItem('deriv_accounts');
+                      if (derivAccounts) {
+                        try {
+                          const accounts = JSON.parse(derivAccounts);
+                          const selectedAcc = accounts.find((acc: any) => acc.loginid === selectedAccount);
+                          if (selectedAcc && selectedAcc.token) {
+                            // Executar a autorização da conta
+                            fetch('https://ws.binaryws.com/websockets/v3?app_id=71403', {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                authorize: selectedAcc.token
+                              })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                              if (data.authorize) {
+                                // Atualizar o localStorage com a nova conta ativa
+                                localStorage.setItem('deriv_account_info', JSON.stringify(data.authorize));
+                                
+                                // Atualizar estado
+                                setAccountInfo({
+                                  loginid: data.authorize.loginid,
+                                  email: data.authorize.email,
+                                  name: data.authorize.fullname,
+                                  balance: data.authorize.balance,
+                                  currency: data.authorize.currency,
+                                  isVirtual: data.authorize.is_virtual,
+                                  landingCompanyName: data.authorize.landing_company_name
+                                });
+                                
+                                // Iniciar assinatura de saldo para a nova conta
+                                startBalanceSubscription(data.authorize.loginid);
+                                
+                                toast({
+                                  title: "Conta alternada",
+                                  description: `Agora usando a conta ${data.authorize.loginid}`,
+                                });
+                              }
+                            })
+                            .catch(error => {
+                              console.error('Erro ao alternar conta:', error);
+                              toast({
+                                title: 'Erro ao alternar conta',
+                                description: 'Não foi possível autorizar a conta selecionada.',
+                                variant: 'destructive',
+                              });
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Erro ao processar contas:', error);
+                        }
                       }
-                      
-                      toast({
-                        title: "Conta alternada",
-                        description: `Agora usando a conta ${newAccountInfo.loginid}`,
-                      });
                     }}
-                  />
-                  
-                  <button 
-                    onClick={() => {
-                      // Limpar dados de autenticação
-                      localStorage.removeItem('deriv_token');
-                      localStorage.removeItem('deriv_account_info');
-                      localStorage.removeItem('deriv_accounts');
-                      setIsAuthenticated(false);
-                      setAccountInfo(null);
-                      
-                      toast({
-                        title: "Logout concluído",
-                        description: "Você foi desconectado com sucesso.",
-                      });
-                    }}
-                    className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors whitespace-nowrap"
                   >
-                    Logout DERIV
-                  </button>
+                    {/* Opção padrão */}
+                    <option value="">Selecionar Conta</option>
+                    
+                    {/* Carregar opções de contas do localStorage */}
+                    {(() => {
+                      const accountsStr = localStorage.getItem('deriv_accounts');
+                      if (accountsStr) {
+                        try {
+                          const accounts = JSON.parse(accountsStr);
+                          return accounts.map((acc: any) => (
+                            <option key={acc.loginid} value={acc.loginid}>
+                              {acc.loginid} ({acc.currency}) {acc.isVirtual ? '- Demo' : ''}
+                            </option>
+                          ));
+                        } catch (error) {
+                          console.error('Erro ao carregar contas:', error);
+                          return null;
+                        }
+                      }
+                      return null;
+                    })()}
+                  </select>
                 </div>
+                
+                <button 
+                  onClick={() => {
+                    // Limpar dados de autenticação
+                    localStorage.removeItem('deriv_token');
+                    localStorage.removeItem('deriv_account_info');
+                    localStorage.removeItem('deriv_accounts');
+                    setIsAuthenticated(false);
+                    setAccountInfo(null);
+                    
+                    toast({
+                      title: "Logout concluído",
+                      description: "Você foi desconectado com sucesso.",
+                    });
+                  }}
+                  className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors whitespace-nowrap"
+                >
+                  Logout DERIV
+                </button>
               </div>
             )}
           </div>
