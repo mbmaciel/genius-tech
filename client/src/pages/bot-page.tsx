@@ -145,6 +145,33 @@ export function BotPage() {
             console.log('[R100] Autenticação bem-sucedida!');
             // Inscrever-se para receber ticks do R_100
             subscribeToTicks();
+            // Inscrever-se para atualizações de saldo
+            requestBalance();
+          }
+          
+          // Resposta de saldo
+          if (data.msg_type === 'balance') {
+            console.log('[R100] Atualização de saldo recebida:', data.balance);
+            if (accountInfo && data.balance) {
+              const newBalance = parseFloat(data.balance.balance);
+              const currentBalance = parseFloat(accountInfo.balance);
+              
+              // Atualizar informações da conta apenas se o saldo mudou
+              if (newBalance !== currentBalance) {
+                setAccountInfo({
+                  ...accountInfo,
+                  balance: newBalance.toFixed(2)
+                });
+                
+                // Atualizar saldo em tempo real
+                setRealTimeBalance({
+                  balance: newBalance,
+                  previousBalance: currentBalance
+                });
+                
+                console.log(`[R100] Saldo atualizado: ${currentBalance} -> ${newBalance}`);
+              }
+            }
           }
           
           // Resposta de tick
@@ -250,81 +277,200 @@ export function BotPage() {
     });
   };
   
-  // Função para simular uma operação utilizando o serviço de bot
+  // Função para executar operações reais utilizando a API Deriv
   const simulateOperation = () => {
     // Verificar se o bot está executando e tem uma estratégia selecionada
     if (botStatus !== 'running' || !selectedStrategy) {
       return;
     }
     
+    // Verificar se já estamos processando uma operação para evitar duplicatas
+    if (operation.status === 'comprado') {
+      return;
+    }
+    
     // Aumentar a chance de uma operação para demonstração
     if (Math.random() > 0.85) {
-      console.log("[BOT] Executando operação de trading com estratégia:", selectedStrategy);
+      console.log("[BOT] Executando operação real de trading com estratégia:", selectedStrategy);
       
       const entryNum = parseFloat(entryValue || "0.35");
+      
       // Determinar o tipo de contrato com base na estratégia
-      const contractType = selectedBotType === "lite" ? (Math.random() > 0.5 ? 'DIGITOVER' : 'DIGITUNDER') : 
-                           selectedStrategy.includes('over') ? 'DIGITOVER' : 'DIGITUNDER';
+      const contractType = selectedBotType === "lite" ? 
+                           (selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER') : 
+                           selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
       
-      // Simular resultado da operação (mais chance de ganhar para demonstração)
-      const isWin = Math.random() > 0.4;
-      const profit = isWin ? parseFloat((entryNum * 0.95).toFixed(2)) : 0;
-      const loss = isWin ? 0 : entryNum;
+      // Determinar o dígito com base no último dígito recebido do stream de ticks
+      const targetDigit = lastDigits.length > 0 ? lastDigits[0] : 5; // valor padrão 5 se não houver dígitos
       
-      // Atualizar saldo em tempo real
-      if (accountInfo) {
-        const currentBalance = parseFloat(accountInfo.balance);
-        const newBalance = isWin 
-          ? currentBalance + profit
-          : currentBalance - loss;
-          
-        console.log(`[BOT] Operação ${isWin ? 'vencedora' : 'perdedora'}: ${isWin ? '+' + profit.toFixed(2) : '-' + loss.toFixed(2)}`);
+      // Enviar solicitação de compra de contrato
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const buyParams = {
+          buy: 1,
+          price: entryNum,
+          parameters: {
+            contract_type: contractType,
+            symbol: "R_100",
+            duration: 5,
+            duration_unit: "t",
+            barrier: targetDigit.toString(), // Usar o último dígito como barreira
+            currency: accountInfo?.currency || "USD"
+          }
+        };
         
-        setAccountInfo({
-          ...accountInfo,
-          balance: newBalance.toFixed(2)
-        });
-        
-        // Atualizar o saldo em tempo real
-        setRealTimeBalance({
-          balance: newBalance,
-          previousBalance: currentBalance
-        });
-      }
-      
-      // Atualizar estatísticas
-      if (isWin) {
-        setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        // Atualizar estado de operação
         setOperation({
           entry: operation.entry,
           buyPrice: entryNum,
-          profit: profit,
-          status: 'vendendo'
-        });
-        
-        // Exibir notificação de ganho
-        toast({
-          title: "Operação Vencedora!",
-          description: `Lucro: $${profit.toFixed(2)} (+${((profit/entryNum)*100).toFixed(2)}%)`,
-          variant: "default",
-        });
-      } else {
-        setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        setOperation({
-          entry: operation.entry,
-          buyPrice: entryNum,
-          profit: -loss, // Mostrar perda como valor negativo
+          profit: 0,
           status: 'comprado'
         });
         
-        // Exibir notificação de perda
+        // Exibir notificação de compra
         toast({
-          title: "Operação Perdedora",
-          description: `Perda: -$${loss.toFixed(2)}`,
+          title: "Enviando ordem",
+          description: `Comprando ${contractType} sobre ${targetDigit} por $${entryNum}`,
+        });
+        
+        console.log("[BOT] Enviando ordem de compra:", buyParams);
+        
+        // Enviar solicitação de compra para a API
+        wsRef.current.send(JSON.stringify(buyParams));
+        
+        // Configurar listener para resposta da compra
+        const buyResponseHandler = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Verificar se é uma resposta de compra
+            if (data.msg_type === 'buy') {
+              console.log("[BOT] Resposta de compra recebida:", data);
+              
+              if (data.error) {
+                // Erro na compra
+                toast({
+                  title: "Erro na compra",
+                  description: data.error.message || "Não foi possível executar a compra",
+                  variant: "destructive",
+                });
+                
+                setOperation({
+                  ...operation,
+                  status: null
+                });
+                
+              } else if (data.buy) {
+                // Compra bem-sucedida
+                const contractId = data.buy.contract_id;
+                const buyPrice = data.buy.buy_price;
+                
+                toast({
+                  title: "Contrato comprado",
+                  description: `ID: ${contractId}, Valor: $${buyPrice}`,
+                });
+                
+                // Monitorar contrato para atualizar resultado
+                monitorContract(contractId);
+              }
+            }
+            
+            // Verificar se é uma atualização de contrato
+            if (data.msg_type === 'proposal_open_contract') {
+              const contract = data.proposal_open_contract;
+              
+              if (contract.contract_id && contract.is_sold === 1) {
+                // Contrato foi encerrado
+                const isWin = contract.profit >= 0;
+                const profit = parseFloat(contract.profit);
+                
+                // Atualizar estatísticas
+                if (isWin) {
+                  setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+                  setOperation({
+                    entry: operation.entry,
+                    buyPrice: entryNum,
+                    profit: profit,
+                    status: 'vendendo'
+                  });
+                  
+                  // Exibir notificação de ganho
+                  toast({
+                    title: "Operação Vencedora!",
+                    description: `Lucro: $${profit.toFixed(2)} (+${((profit/entryNum)*100).toFixed(2)}%)`,
+                    variant: "default",
+                  });
+                } else {
+                  setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+                  setOperation({
+                    entry: operation.entry,
+                    buyPrice: entryNum,
+                    profit: profit, // Profit é negativo quando há perda
+                    status: 'comprado'
+                  });
+                  
+                  // Exibir notificação de perda
+                  toast({
+                    title: "Operação Perdedora",
+                    description: `Perda: $${Math.abs(profit).toFixed(2)}`,
+                    variant: "destructive",
+                  });
+                }
+                
+                // Atualizar saldo em tempo real
+                if (accountInfo) {
+                  // Verificar saldo atual (fazer uma solicitação de saldo)
+                  requestBalance();
+                }
+                
+                // Remover listener após conclusão
+                wsRef.current?.removeEventListener('message', buyResponseHandler);
+              }
+            }
+          } catch (error) {
+            console.error("[BOT] Erro ao processar resposta da API:", error);
+          }
+        };
+        
+        // Adicionar listener temporário
+        wsRef.current.addEventListener('message', buyResponseHandler);
+        
+        // Remover listener após 2 minutos para evitar acúmulo
+        setTimeout(() => {
+          wsRef.current?.removeEventListener('message', buyResponseHandler);
+        }, 120000);
+      } else {
+        toast({
+          title: "Erro de conexão",
+          description: "WebSocket não está conectado. Tente novamente.",
           variant: "destructive",
         });
       }
     }
+  };
+  
+  // Função para monitorar contrato específico
+  const monitorContract = (contractId: number) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    
+    wsRef.current.send(JSON.stringify({
+      proposal_open_contract: 1,
+      contract_id: contractId,
+      subscribe: 1
+    }));
+    
+    console.log(`[BOT] Monitorando contrato ID: ${contractId}`);
+  };
+  
+  // Função para solicitar atualização de saldo
+  const requestBalance = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    
+    wsRef.current.send(JSON.stringify({
+      balance: 1,
+      subscribe: 1
+    }));
+    
+    console.log("[BOT] Solicitando atualização de saldo");
   };
   
   // Iniciar o bot
@@ -347,29 +493,17 @@ export function BotPage() {
       status: 'comprado'
     });
     
-    // Simular atualização de saldo em tempo real
+    // Solicitar saldo atual em tempo real
     if (accountInfo) {
-      // Iniciar um intervalo para atualizar o saldo a cada poucos segundos
-      const balanceInterval = setInterval(() => {
-        if (botStatus === 'running') {
-          // Usar realTimeBalance para simular variações sutis
-          const currentBalance = parseFloat(accountInfo.balance);
-          const variation = (Math.random() * 0.04) - 0.02; // Variação entre -0.02 e 0.02
-          const newBalance = currentBalance + variation;
-          
-          setRealTimeBalance({
-            balance: newBalance,
-            previousBalance: currentBalance
-          });
-          
-          setAccountInfo({
-            ...accountInfo,
-            balance: newBalance.toFixed(2)
-          });
-        } else {
-          clearInterval(balanceInterval);
-        }
-      }, 5000);
+      // Solicitar saldo atualizado da API
+      requestBalance();
+      
+      // Mostrar informação de início de operação
+      console.log("[BOT] Bot de trading iniciado com as seguintes configurações:");
+      console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
+      console.log(`[BOT] - Valor de entrada: ${entryValue || "0.35"}`);
+      console.log(`[BOT] - Meta de lucro: ${profitTarget || "N/A"}`);
+      console.log(`[BOT] - Limite de perdas: ${lossLimit || "N/A"}`);
     }
     
     const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
