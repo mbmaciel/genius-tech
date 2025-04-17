@@ -612,8 +612,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       console.log('[OAUTH_DIRECT] Enviando solicitação de compra:', buyRequest);
       
-      // Enviar solicitação
-      this.webSocket.send(JSON.stringify(buyRequest));
+      // Enviar solicitação se o WebSocket estiver disponível
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        this.webSocket.send(JSON.stringify(buyRequest));
+      } else {
+        throw new Error('WebSocket não está disponível ou conectado');
+      }
       
       // Notificar sobre o início da operação
       this.notifyListeners({

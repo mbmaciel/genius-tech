@@ -550,7 +550,20 @@ export function BotPage() {
         {/* Links de navegação */}
         <div className="w-full">
           <button 
-            onClick={() => window.location.href = '/'}
+            onClick={() => {
+              // Se o robô estiver rodando, confirmar antes de sair
+              if (botStatus === 'running') {
+                const confirmExit = window.confirm("O robô está em execução. Deseja realmente voltar para o dashboard? Isso irá parar todas as operações.");
+                if (confirmExit) {
+                  oauthDirectService.stop();
+                  // Redirecionar para o dashboard após a parada
+                  window.location.href = '/dashboard';
+                }
+              } else {
+                // Se não estiver rodando, sair direto para o dashboard
+                window.location.href = '/dashboard';
+              }
+            }}
             className="w-full flex items-center px-3 py-2 text-white hover:bg-[#1d2a45] rounded-md transition-all duration-200 hover:scale-105 mb-2">
             <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
