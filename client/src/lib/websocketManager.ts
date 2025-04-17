@@ -8,7 +8,7 @@ class WebSocketManager {
   private socket: WebSocket | null = null;
   private token: string | null = null;
   private appId: string = "71403"; // App ID da Deriv
-  private endpoint: string = "wss://ws.binaryws.com/websockets/v3";
+  private endpoint: string = "wss://ws.derivws.com/websockets/v3"; // Endpoint atualizado
   private requestCallbacks: Map<string, (response: any) => void> = new Map();
   private authListeners: Array<(isAuthorized: boolean, account?: any) => void> = [];
   private balanceListeners: Array<(balance: any) => void> = [];

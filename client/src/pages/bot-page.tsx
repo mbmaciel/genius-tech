@@ -137,7 +137,7 @@ export function BotPage() {
     
     try {
       console.log('[R100] Conectando ao WebSocket da Deriv...');
-      wsRef.current = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+      wsRef.current = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
       
       wsRef.current.onopen = () => {
         console.log('[R100] Conexão estabelecida com sucesso!');
