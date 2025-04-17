@@ -1,114 +1,96 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useToast } from "@/hooks/use-toast";
-import { loginWithDeriv } from "@/lib/websocketManager";
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 
-export default function Login() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [, navigate] = useLocation();
+export default function LoginPage() {
+  const [_, setLocation] = useLocation();
   const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLoginWithDeriv = () => {
-    try {
-      setIsLoading(true);
-      loginWithDeriv(); // Redirecionará para o fluxo OAuth da Deriv
-    } catch (error) {
-      console.error("Erro ao iniciar login:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao iniciar login",
-        description: "Ocorreu um erro ao iniciar o processo de login. Por favor, tente novamente.",
-      });
-      setIsLoading(false);
-    }
-  };
-
-  const handleDirectLogin = (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Simular login direto para o dashboard (para dev/teste)
     setIsLoading(true);
-    
+
+    // Simulação de login bem-sucedido - na implementação real, isso seria uma chamada à API
     setTimeout(() => {
-      navigate("/dashboard");
+      setIsLoading(false);
+      
+      // Apenas para demonstração - normalmente verificaria credenciais
+      if (email && password) {
+        localStorage.setItem('isLoggedIn', 'true');
+        setLocation('/dashboard');
+        
+        toast({
+          title: 'Login bem-sucedido',
+          description: 'Bem-vindo à plataforma de trading!',
+        });
+      } else {
+        toast({
+          title: 'Erro de login',
+          description: 'Por favor, preencha todos os campos.',
+          variant: 'destructive',
+        });
+      }
     }, 1000);
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen bg-[#0c111b] text-white p-4">
-      <div className="max-w-md w-full p-8 bg-[#13203a] rounded-lg shadow-lg">
-        {/* Logo e título */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-lg bg-indigo-600 flex items-center justify-center mx-auto mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-white"
-            >
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold">Genius Technology Trading</h1>
-          <p className="text-[#8492b4] mt-2">
-            Plataforma de trading completa para a API Deriv
-          </p>
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#0c1117]">
+      <div className="flex flex-col items-center mb-8">
+        <h1 className="text-3xl font-bold text-white mb-1">ONE BOT PREMIUM</h1>
+        <div className="text-slate-400 text-center max-w-md">
+          <h2 className="text-xl font-medium mb-1">Área de membros</h2>
+          <p>A maior inovação no mercado de operações automatizadas!</p>
         </div>
+      </div>
 
-        {/* Botões de login */}
-        <div className="space-y-4">
-          {/* Botão de login com Deriv (OAuth) */}
-          <button
-            onClick={handleLoginWithDeriv}
-            disabled={isLoading}
-            className="w-full py-3 bg-[#00e5b3] hover:bg-[#00c49c] text-[#0c111b] font-medium rounded-lg transition-colors focus:ring-2 focus:ring-[#00e5b3] focus:ring-opacity-50 flex items-center justify-center"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-[#0c111b] border-t-transparent rounded-full animate-spin mr-2"></div>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-2"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <circle cx="12" cy="12" r="4"></circle>
-              </svg>
-            )}
-            {isLoading ? "Conectando..." : "Conectar com Deriv"}
-          </button>
+      <Card className="w-full max-w-md bg-[#151b25] border-slate-800 text-white">
+        <CardContent className="pt-6">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm text-slate-400">E-mail / Login</label>
+              <Input 
+                type="email" 
+                placeholder="Digite o seu e-mail" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-[#0c1117] border-slate-700 text-white"
+              />
+            </div>
 
-          {/* Botão de login direto (para desenvolvimento) */}
-          <form onSubmit={handleDirectLogin} className="space-y-4">
-            <button
-              type="submit"
+            <div className="space-y-2">
+              <label className="text-sm text-slate-400">Senha</label>
+              <Input 
+                type="password" 
+                placeholder="Digite a sua senha" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-[#0c1117] border-slate-700 text-white"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
               disabled={isLoading}
-              className="w-full py-3 bg-[#1d2a45] hover:bg-[#28375c] text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-[#1d2a45] focus:ring-opacity-50"
             >
-              {isLoading ? "Entrando..." : "Entrar no Dashboard"}
-            </button>
+              {isLoading ? 'Entrando...' : 'Login'}
+            </Button>
           </form>
-        </div>
-
-        {/* Aviso de risco */}
-        <div className="mt-8 text-xs text-[#8492b4] leading-relaxed">
-          <p>
-            AVISO DE RISCO: Os produtos oferecidos por Deriv.com e suas afiliadas envolvem risco e podem resultar em perdas. O trading de opções binárias pode não ser adequado para todos, por favor considere os Termos e Condições. A alavancagem cria risco adicional e exposição a perdas. Opere apenas com o que você pode se dar ao luxo de perder.
-          </p>
-        </div>
+          
+          <div className="mt-4 text-center text-sm text-slate-400">
+            Não possui conta? <a href="/register" className="text-indigo-400 hover:underline">Cadastre-se agora mesmo</a>.
+          </div>
+        </CardContent>
+      </Card>
+      
+      <div className="mt-8 text-slate-500 text-center text-sm">
+        &copy; {new Date().getFullYear()} Genius Technology Trading. Todos os direitos reservados.
       </div>
     </div>
   );
