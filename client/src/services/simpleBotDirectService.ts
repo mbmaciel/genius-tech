@@ -406,11 +406,100 @@ class SimpleBotDirectService {
   }
   
   /**
-   * Registra o WebSocket ativo
+   * Registra o WebSocket ativo e configura listeners para respostas
    */
   public registerWebSocket(ws: WebSocket): void {
     (window as any).activeWebSocket = ws;
     console.log('[SIMPLEBOT] WebSocket registrado para operações de trading');
+    
+    // Adicionar listener para mensagens recebidas
+    this.setupMessageListener(ws);
+  }
+  
+  /**
+   * Configura listener para mensagens do WebSocket
+   */
+  private setupMessageListener(ws: WebSocket): void {
+    // Função de manipulação de mensagens
+    const messageHandler = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Resposta de compra de contrato
+        if (data.msg_type === 'buy') {
+          console.log('[SIMPLEBOT] Resposta de compra recebida:', data);
+          
+          if (data.error) {
+            // Erro na compra
+            console.error('[SIMPLEBOT] Erro ao comprar contrato:', data.error.message);
+            this.emitEvent({
+              type: 'error',
+              message: data.error.message || 'Erro ao executar a compra'
+            });
+            
+            // Agendar nova operação
+            this.scheduleNextOperation();
+            
+          } else if (data.buy) {
+            // Compra bem-sucedida
+            const contractId = data.buy.contract_id;
+            const buyPrice = data.buy.buy_price;
+            
+            console.log(`[SIMPLEBOT] Contrato comprado com sucesso: ID ${contractId}, Valor $${buyPrice}`);
+            this.currentContractId = contractId;
+            
+            // Monitorar o contrato
+            this.monitorContract(contractId, ws);
+          }
+        }
+        
+        // Atualização de contrato aberto
+        if (data.msg_type === 'proposal_open_contract') {
+          const contract = data.proposal_open_contract;
+          
+          // Verificar se é o contrato atual
+          if (contract && contract.contract_id === this.currentContractId) {
+            // Verificar se o contrato foi encerrado
+            if (contract.is_sold === 1) {
+              console.log('[SIMPLEBOT] Contrato encerrado:', contract);
+              
+              // Atualizar estatísticas e agendar próxima operação
+              this.processContractCompletion(contract);
+              this.currentContractId = null;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[SIMPLEBOT] Erro ao processar mensagem do WebSocket:', error);
+      }
+    };
+    
+    // Adicionar o listener ao WebSocket
+    ws.addEventListener('message', messageHandler);
+  }
+  
+  /**
+   * Monitora um contrato específico
+   */
+  private monitorContract(contractId: number | string, ws: WebSocket): void {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[SIMPLEBOT] WebSocket não está pronto para monitorar contrato');
+      return;
+    }
+    
+    // Inscrever para atualizações do contrato
+    const subscribeRequest = {
+      proposal_open_contract: 1,
+      contract_id: contractId,
+      subscribe: 1
+    };
+    
+    try {
+      ws.send(JSON.stringify(subscribeRequest));
+      console.log(`[SIMPLEBOT] Monitorando contrato ID ${contractId}`);
+    } catch (error) {
+      console.error('[SIMPLEBOT] Erro ao iniciar monitoramento do contrato:', error);
+    }
   }
 }
 

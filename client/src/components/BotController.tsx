@@ -85,22 +85,20 @@ export function BotController({
       setStatus('running');
       onStatusChange('running');
       
-      // Tentar estabelecer conexão WebSocket com token OAuth
-      try {
-        const { derivAPI } = await import('../lib/websocketManager');
-        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance()?.readyState !== WebSocket.OPEN) {
-          console.log('[BOT_CONTROLLER] Estabelecendo conexão WebSocket...');
-          await derivAPI.connect();
-          await derivAPI.authorize(token);
-          console.log('[BOT_CONTROLLER] Conexão WebSocket estabelecida e autorizada');
-        }
-      } catch (connError) {
-        console.error('[BOT_CONTROLLER] Erro ao estabelecer conexão:', connError);
+      // Verificar se o WebSocket já está registrado no simpleBotDirectService
+      const wsInstance = (window as any).activeWebSocket;
+      if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+        console.error('[BOT_CONTROLLER] WebSocket não está disponível ou conectado');
         toast({
           title: "Erro de conexão",
-          description: "Não foi possível conectar à API Deriv. Verifique sua conexão.",
+          description: "A conexão WebSocket não está disponível. Por favor, recarregue a página.",
           variant: "destructive"
         });
+        setStatus('idle');
+        onStatusChange('idle');
+        return;
+      } else {
+        console.log('[BOT_CONTROLLER] WebSocket já registrado e pronto para operações');
       }
       
       // Configurar bot com os parâmetros atuais
