@@ -242,21 +242,6 @@ export default function LoginPage() {
           <div className="mt-4 text-center text-sm text-slate-400">
             Não possui conta? <a href="/register" className="text-indigo-400 hover:underline">Cadastre-se agora mesmo</a>.
           </div>
-          
-          <div className="mt-4 pt-4 border-t border-slate-700 flex justify-center">
-            <Button 
-              onClick={() => {
-                // URL de autorização OAuth da Deriv
-                const scope = 'read admin payments trade';
-                const redirectUri = encodeURIComponent(window.location.origin);
-                const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
-                window.location.href = authUrl;
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              Entrar com a Deriv
-            </Button>
-          </div>
         </CardContent>
       </Card>
       
