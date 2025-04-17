@@ -1,22 +1,27 @@
 /**
- * WebSocketKeepAlive - Conexão permanente com a API Deriv para obter dados do R_100
- * Esta conexão é separada da conexão OAuth e usada exclusivamente para obter dados em tempo real
+ * WebSocketKeepAlive - Módulo para manter conexão contínua com a API da Deriv
  * 
- * Implementação baseada na documentação oficial da Deriv:
- * https://api.deriv.com/docs/getting-started/websocket-intro/
+ * Este módulo implementa uma conexão WebSocket dedicada e exclusiva para obter 
+ * dados do índice sintético R_100, separada da conexão principal de autenticação.
+ * 
+ * Implementação baseada na documentação oficial:
+ * https://api.deriv.com/docs/
  */
 
-// Configuração da conexão WebSocket
-const TOKEN = 'jybcQm0FbKr7evp'; // Token exclusivo para R_100
-const APP_ID = 71403; // App ID do projeto
-const WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=' + APP_ID; 
+// Configuração e constantes
+const TOKEN = 'jybcQm0FbKr7evp'; // Token fixo exclusivo para obter dados do R_100
+const APP_ID = 71403; // App ID da aplicação
+const BASE_URL = 'wss://ws.derivws.com/websockets/v3';
 
-// Estado global
+// Estado global da conexão
 let socket: WebSocket | null = null;
-let reconnectTimeout: NodeJS.Timeout | null = null;
 let pingInterval: NodeJS.Timeout | null = null;
-let tickListeners: Array<(tick: any) => void> = [];
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let tickListeners: ((tick: any) => void)[] = [];
 let subscribedSymbols = new Set<string>();
+let isReconnecting = false;
+let reconnectAttempts = 0;
+let MAX_RECONNECT_ATTEMPTS = 10;
 
 /**
  * Verifica se o WebSocket está conectado
@@ -26,177 +31,153 @@ export const isConnected = (): boolean => {
 };
 
 /**
- * Conecta ao WebSocket da Deriv usando o token específico para R_100
+ * Conecta ao servidor WebSocket da Deriv
+ * Retorna Promise<boolean> indicando sucesso ou falha
  */
 export const connectWebSocket = async (): Promise<boolean> => {
-  // Se já está conectado, não reconecta
+  // Se já tem uma conexão aberta, retorna sucesso
   if (isConnected()) {
     return true;
   }
 
+  // Se está reconectando, não inicia outra tentativa
+  if (isReconnecting) {
+    return false;
+  }
+
+  // Marca estado de reconexão
+  isReconnecting = true;
+
   try {
-    // Limpar qualquer conexão anterior
-    if (socket) {
-      try {
-        socket.close();
-      } catch (e) {
-        console.error("[R100] Erro ao fechar conexão anterior:", e);
-      }
-      socket = null;
-    }
+    // Limpa recursos anteriores
+    cleanupResources();
 
-    // Limpar timers existentes
-    if (pingInterval) {
-      clearInterval(pingInterval);
-      pingInterval = null;
-    }
-    
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-      reconnectTimeout = null;
-    }
+    // Constrói URL com app_id como parâmetro de consulta
+    const url = `${BASE_URL}?app_id=${APP_ID}`;
+    console.log(`[R100] Conectando a ${url}`);
 
-    console.log("[R100] Conectando ao WebSocket da Deriv...");
-
-    // Criar nova conexão
-    socket = new WebSocket(WS_URL);
+    // Cria nova conexão
+    socket = new WebSocket(url);
 
     return new Promise((resolve) => {
       // Timeout para evitar espera indefinida
-      const connectionTimeout = setTimeout(() => {
-        if (!isConnected()) {
-          console.warn("[R100] Timeout na conexão WebSocket");
-          if (socket) socket.close();
+      const timeout = setTimeout(() => {
+        console.warn('[R100] Timeout na conexão');
+        if (socket) {
+          socket.close();
           socket = null;
-          resolve(false);
         }
+        isReconnecting = false;
+        resolve(false);
       }, 10000);
 
+      // Evento de abertura da conexão
       socket!.onopen = () => {
-        clearTimeout(connectionTimeout);
-        console.log("[R100] Conexão estabelecida com sucesso!");
-        
-        // Configurar ping para manter a conexão ativa
+        clearTimeout(timeout);
+        console.log('[R100] Conexão WebSocket estabelecida com sucesso');
+        reconnectAttempts = 0;
+        isReconnecting = false;
+
+        // Inicia ping para manter a conexão ativa
         startPingInterval();
-        
-        // Autenticar com o token
+
+        // Envia autenticação
         authenticate();
-        
+
         resolve(true);
       };
 
+      // Evento de erro na conexão
+      socket!.onerror = (error) => {
+        console.error('[R100] Erro na conexão WebSocket:', error);
+        // O evento onclose será chamado automaticamente
+      };
+
+      // Evento de fechamento da conexão
       socket!.onclose = (event) => {
-        clearTimeout(connectionTimeout);
+        clearTimeout(timeout);
         console.warn(`[R100] Conexão fechada: ${event.code}`);
-        
-        // Limpar ping interval
-        if (pingInterval) {
-          clearInterval(pingInterval);
-          pingInterval = null;
-        }
-        
+
+        cleanupResources(false);
         socket = null;
-        
-        // Agendar reconexão
+        isReconnecting = false;
+
+        // Agenda reconexão
         scheduleReconnect();
-        
+
         resolve(false);
       };
 
-      socket!.onerror = (error) => {
-        console.error("[R100] Erro na conexão:", error);
-        // onclose será chamado automaticamente
-      };
-
+      // Evento de mensagem recebida
       socket!.onmessage = (event) => {
         try {
           const response = JSON.parse(event.data);
           
           if (response.tick) {
+            // Notifica sobre novo tick
             notifyTickListeners(response.tick);
           } 
           else if (response.error) {
-            console.error("[R100] Erro da API:", response.error);
+            console.error('[R100] Erro da API Deriv:', response.error);
           }
           else if (response.authorize) {
-            console.log("[R100] Autenticação bem-sucedida!");
+            console.log('[R100] Autenticação bem-sucedida!');
             
-            // Se tiver símbolos subscritos anteriormente, reinscrever
-            if (subscribedSymbols.size > 0) {
-              for (const symbol of subscribedSymbols) {
-                subscribeToSymbol(symbol);
-              }
-            } else {
-              // Inscrever no R_100 por padrão
-              subscribeToSymbol('R_100');
-            }
+            // Inscreve nos ticks após autenticação
+            subscribeToDefaultSymbols();
           }
         } catch (error) {
-          console.error("[R100] Erro ao processar mensagem:", error);
+          console.error('[R100] Erro ao processar mensagem:', error);
         }
       };
     });
-  } catch (error) {
-    console.error("[R100] Erro ao configurar WebSocket:", error);
+  } 
+  catch (error) {
+    console.error('[R100] Erro ao configurar WebSocket:', error);
+    isReconnecting = false;
     scheduleReconnect();
     return false;
   }
 };
 
 /**
- * Autentica usando o token
+ * Autentica usando o token fixo para R_100
  */
 function authenticate() {
   if (!isConnected()) return;
   
   try {
-    const authRequest = {
+    const request = {
       authorize: TOKEN
     };
     
-    socket!.send(JSON.stringify(authRequest));
+    socket!.send(JSON.stringify(request));
   } catch (error) {
-    console.error("[R100] Erro ao enviar autenticação:", error);
+    console.error('[R100] Erro ao enviar autenticação:', error);
   }
 }
 
 /**
- * Agenda reconexão
+ * Inicia inscrições em símbolos padrão ou previamente salvos
  */
-function scheduleReconnect() {
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout);
+function subscribeToDefaultSymbols() {
+  if (subscribedSymbols.size > 0) {
+    // Reinscrever em símbolos previamente salvos
+    Array.from(subscribedSymbols).forEach(symbol => {
+      subscribeToSymbol(symbol);
+    });
+  } else {
+    // Inscrever no R_100 por padrão
+    subscribeToSymbol('R_100');
   }
-  
-  reconnectTimeout = setTimeout(() => {
-    connectWebSocket().catch(console.error);
-  }, 5000);
 }
 
 /**
- * Configura o intervalo de ping para manter conexão ativa
- */
-function startPingInterval() {
-  if (pingInterval) {
-    clearInterval(pingInterval);
-  }
-  
-  pingInterval = setInterval(() => {
-    if (isConnected()) {
-      socket!.send(JSON.stringify({ ping: 1 }));
-    } else {
-      clearInterval(pingInterval!);
-      pingInterval = null;
-    }
-  }, 30000); // Ping a cada 30 segundos
-}
-
-/**
- * Inscreve para receber ticks de um símbolo
+ * Inscreve para receber atualizações de um símbolo específico
  */
 export function subscribeToSymbol(symbol: string): Promise<boolean> {
   if (!symbol) {
-    return Promise.reject(new Error("Símbolo não informado"));
+    return Promise.reject(new Error('Símbolo inválido'));
   }
   
   // Adiciona ao conjunto de símbolos inscritos
@@ -204,7 +185,13 @@ export function subscribeToSymbol(symbol: string): Promise<boolean> {
   
   // Se não estiver conectado, tenta conectar primeiro
   if (!isConnected()) {
-    return connectWebSocket();
+    return connectWebSocket().then(success => {
+      if (!success) {
+        console.error(`[R100] Não foi possível inscrever em ${symbol} - conexão falhou`);
+        return false;
+      }
+      return true;
+    });
   }
   
   try {
@@ -223,11 +210,11 @@ export function subscribeToSymbol(symbol: string): Promise<boolean> {
 }
 
 /**
- * Cancela inscrição de um símbolo
+ * Cancela inscrição de um símbolo específico
  */
 export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
   if (!symbol) {
-    return Promise.reject(new Error("Símbolo não informado"));
+    return Promise.reject(new Error('Símbolo inválido'));
   }
   
   // Remove do conjunto de símbolos inscritos
@@ -246,34 +233,117 @@ export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
     socket!.send(JSON.stringify(request));
     console.log(`[R100] Cancelada inscrição em ticks`);
     
-    // Reinscreve nos símbolos restantes
-    for (const s of subscribedSymbols) {
+    // Reinscreve nos outros símbolos
+    Array.from(subscribedSymbols).forEach(s => {
       if (s !== symbol) {
-        subscribeToSymbol(s);
+        const tickRequest = {
+          ticks: s,
+          subscribe: 1
+        };
+        socket!.send(JSON.stringify(tickRequest));
       }
-    }
+    });
     
     return Promise.resolve(true);
   } catch (error) {
-    console.error("[R100] Erro ao cancelar inscrição:", error);
+    console.error('[R100] Erro ao cancelar inscrição:', error);
     return Promise.reject(error);
   }
+}
+
+/**
+ * Limpa recursos (intervalos, timeouts) sem fechar o socket
+ */
+function cleanupResources(closeSocket: boolean = true) {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    pingInterval = null;
+  }
+  
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+  
+  if (closeSocket && socket) {
+    try {
+      socket.close();
+    } catch (e) {
+      console.error('[R100] Erro ao fechar socket:', e);
+    }
+    socket = null;
+  }
+}
+
+/**
+ * Agenda uma tentativa de reconexão
+ */
+function scheduleReconnect() {
+  // Não agenda reconexão se já atingiu o limite de tentativas
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.warn('[R100] Número máximo de tentativas de reconexão atingido');
+    return;
+  }
+  
+  // Limpa qualquer timeout existente
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+  }
+  
+  // Incrementa contador e calcula delay
+  reconnectAttempts++;
+  const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
+  
+  console.log(`[R100] Agendando reconexão em ${Math.round(delay/1000)}s (tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+  
+  // Agenda nova tentativa
+  reconnectTimeout = setTimeout(() => {
+    console.log(`[R100] Tentativa de reconexão ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}...`);
+    connectWebSocket().catch(console.error);
+  }, delay);
+}
+
+/**
+ * Inicia o intervalo de ping para manter a conexão ativa
+ */
+function startPingInterval() {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+  }
+  
+  pingInterval = setInterval(() => {
+    if (isConnected()) {
+      try {
+        socket!.send(JSON.stringify({ ping: 1 }));
+      } catch (error) {
+        console.error('[R100] Erro ao enviar ping:', error);
+        clearInterval(pingInterval!);
+        pingInterval = null;
+        
+        // Tenta reconectar se o ping falhar
+        connectWebSocket().catch(console.error);
+      }
+    } else {
+      clearInterval(pingInterval!);
+      pingInterval = null;
+    }
+  }, 30000); // Ping a cada 30 segundos
 }
 
 /**
  * Notifica todos os listeners sobre um novo tick
  */
 function notifyTickListeners(tick: any) {
-  // Notifica callbacks registrados
+  // Notifica listeners registrados
   tickListeners.forEach(listener => {
     try {
       listener(tick);
     } catch (error) {
-      console.error("[R100] Erro no listener de tick:", error);
+      console.error('[R100] Erro no listener de tick:', error);
     }
   });
   
-  // Dispara evento customizado para quem quiser escutar via addEventListener
+  // Dispara evento personalizado
   try {
     const event = new CustomEvent('deriv:tick', { 
       detail: { tick },
@@ -282,7 +352,7 @@ function notifyTickListeners(tick: any) {
     });
     document.dispatchEvent(event);
   } catch (error) {
-    console.error("[R100] Erro ao disparar evento de tick:", error);
+    console.error('[R100] Erro ao disparar evento de tick:', error);
   }
 }
 
@@ -292,7 +362,7 @@ function notifyTickListeners(tick: any) {
 export function addTickListener(listener: (tick: any) => void) {
   if (typeof listener !== 'function') return;
   
-  // Evitar duplicação
+  // Evita duplicação
   if (!tickListeners.includes(listener)) {
     tickListeners.push(listener);
   }
@@ -312,42 +382,29 @@ export function removeTickListener(listener: (tick: any) => void) {
  * Fecha a conexão WebSocket e limpa recursos
  */
 export function closeWebSocket() {
-  if (pingInterval) {
-    clearInterval(pingInterval);
-    pingInterval = null;
-  }
+  console.log('[R100] Fechando conexão WebSocket');
   
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout);
-    reconnectTimeout = null;
-  }
+  // Limpa os recursos e fecha o socket
+  cleanupResources(true);
   
-  // Limpar dados
+  // Limpa o estado dos símbolos inscritos
   subscribedSymbols.clear();
   
-  if (socket) {
-    try {
-      socket.close();
-    } catch (error) {
-      console.error("[R100] Erro ao fechar socket:", error);
-    }
-    socket = null;
-  }
-  
-  console.log("[R100] WebSocket fechado e recursos liberados");
+  console.log('[R100] WebSocket fechado e recursos liberados');
 }
 
 /**
- * Inicia o sistema de keep-alive
+ * Inicia o sistema de keep-alive do WebSocket
  */
 export function startKeepAlive() {
-  console.log("[R100] Iniciando sistema de keep-alive");
+  console.log('[R100] Iniciando sistema de keep-alive');
   
+  // Conecta ao WebSocket
   connectWebSocket().catch(error => {
-    console.error("[R100] Erro ao iniciar keep-alive:", error);
+    console.error('[R100] Erro ao iniciar keep-alive:', error);
   });
   
-  // Adicionar event listeners para reconexão automática
+  // Registra event listeners para reconexão automática
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('online', handleNetworkChange);
   window.addEventListener('focus', handleVisibilityChange);
@@ -357,36 +414,46 @@ export function startKeepAlive() {
  * Para o sistema de keep-alive
  */
 export function stopKeepAlive() {
-  console.log("[R100] Interrompendo sistema de keep-alive");
+  console.log('[R100] Parando sistema de keep-alive');
   
+  // Remove event listeners
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('online', handleNetworkChange);
   window.removeEventListener('focus', handleVisibilityChange);
   
+  // Fecha conexão e limpa recursos
   closeWebSocket();
 }
 
 /**
- * Reconecta quando a aba volta a ficar visível
+ * Manipulador de evento de visibilidade da página
  */
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible' && !isConnected()) {
-    console.log("[R100] Página visível novamente, reconectando...");
+    console.log('[R100] Página visível, verificando conexão WebSocket');
     connectWebSocket().catch(console.error);
   }
 }
 
 /**
- * Reconecta quando a conexão de rede volta
+ * Manipulador de evento de rede
  */
 function handleNetworkChange() {
   if (window.navigator.onLine && !isConnected()) {
-    console.log("[R100] Conexão de rede disponível, reconectando...");
+    console.log('[R100] Conexão de rede disponível, reconectando...');
     connectWebSocket().catch(console.error);
   }
 }
 
-// Exportar objeto para uso conveniente
+/**
+ * Redefine o contador de tentativas de reconexão
+ */
+export function resetReconnectAttempts() {
+  reconnectAttempts = 0;
+  console.log('[R100] Contador de tentativas de reconexão redefinido');
+}
+
+// Exporta objeto com todos os métodos
 export default {
   connect: connectWebSocket,
   subscribe: subscribeToSymbol,
@@ -396,5 +463,6 @@ export default {
   isConnected,
   close: closeWebSocket,
   startKeepAlive,
-  stopKeepAlive
+  stopKeepAlive,
+  resetReconnectAttempts
 };
