@@ -273,42 +273,103 @@ export default function Dashboard() {
                               onClick={() => {
                                 if (isActive) return; // Skip if already active
                                 
-                                // Use the authorizeAccount function from the accountManager
-                                const { authorizeAccount } = require('../lib/accountManager');
-                                
-                                authorizeAccount(acc.token)
-                                  .then((data: any) => {
-                                    // Atualizar o localStorage com a nova conta ativa
-                                    localStorage.setItem('deriv_account_info', JSON.stringify(data));
-                                    localStorage.setItem('deriv_active_account', acc.loginid);
+                                // Todas as contas já estão autorizadas, apenas alterne para a conta selecionada
+                                try {
+                                  // Obter informações detalhadas da conta que foram armazenadas na autorização
+                                  const accountInfoKey = `deriv_account_info_${acc.loginid}`;
+                                  const accountInfoStr = localStorage.getItem(accountInfoKey);
+                                  
+                                  if (accountInfoStr) {
+                                    // Se temos informações detalhadas, use-as
+                                    const accountData = JSON.parse(accountInfoStr);
                                     
-                                    // Atualizar estado
+                                    // Atualizar a conta ativa no localStorage
+                                    localStorage.setItem('deriv_active_account', acc.loginid);
+                                    localStorage.setItem('deriv_account_info', accountInfoStr);
+                                    
+                                    // Atualizar o estado do componente com as informações da conta
                                     setAccountInfo({
-                                      loginid: data.loginid,
-                                      email: data.email,
-                                      name: data.fullname,
-                                      balance: data.balance,
-                                      currency: data.currency,
-                                      isVirtual: data.is_virtual,
-                                      landingCompanyName: data.landing_company_name
+                                      loginid: accountData.loginid,
+                                      email: accountData.email,
+                                      name: accountData.fullname,
+                                      balance: accountData.balance,
+                                      currency: accountData.currency,
+                                      isVirtual: accountData.is_virtual,
+                                      landingCompanyName: accountData.landing_company_name
                                     });
                                     
                                     // Iniciar assinatura de saldo para a nova conta
-                                    startBalanceSubscription(data.loginid);
+                                    startBalanceSubscription(acc.loginid);
                                     
                                     toast({
                                       title: "Conta alternada",
-                                      description: `Agora usando a conta ${data.loginid}`,
+                                      description: `Agora usando a conta ${acc.loginid}`,
                                     });
-                                  })
-                                  .catch((error: Error) => {
-                                    console.error('Erro ao alternar conta:', error);
-                                    toast({
-                                      title: 'Erro ao alternar conta',
-                                      description: error.message || 'Não foi possível autorizar a conta selecionada.',
-                                      variant: 'destructive',
-                                    });
+                                  } else {
+                                    // Se não temos informações detalhadas, faça uma nova autorização
+                                    const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=71403');
+                                    
+                                    ws.onopen = () => {
+                                      const authRequest = { authorize: acc.token };
+                                      ws.send(JSON.stringify(authRequest));
+                                    };
+                                    
+                                    ws.onmessage = (event) => {
+                                      const response = JSON.parse(event.data);
+                                      
+                                      if (response.authorize) {
+                                        // Autorização bem-sucedida - atualizar a conta ativa
+                                        localStorage.setItem('deriv_account_info', JSON.stringify(response.authorize));
+                                        localStorage.setItem('deriv_active_account', acc.loginid);
+                                        localStorage.setItem(accountInfoKey, JSON.stringify(response.authorize));
+                                        
+                                        // Atualizar estado com as informações completas da conta
+                                        setAccountInfo({
+                                          loginid: response.authorize.loginid,
+                                          email: response.authorize.email,
+                                          name: response.authorize.fullname,
+                                          balance: response.authorize.balance,
+                                          currency: response.authorize.currency,
+                                          isVirtual: response.authorize.is_virtual,
+                                          landingCompanyName: response.authorize.landing_company_name
+                                        });
+                                        
+                                        // Iniciar assinatura de saldo para a nova conta
+                                        startBalanceSubscription(response.authorize.loginid);
+                                        
+                                        toast({
+                                          title: "Conta alternada",
+                                          description: `Agora usando a conta ${response.authorize.loginid}`,
+                                        });
+                                        
+                                        ws.close();
+                                      } else if (response.error) {
+                                        console.error('Erro na autorização:', response.error);
+                                        toast({
+                                          title: 'Erro ao alternar conta',
+                                          description: response.error.message || 'Falha na autorização',
+                                          variant: 'destructive',
+                                        });
+                                        ws.close();
+                                      }
+                                    };
+                                    
+                                    ws.onerror = () => {
+                                      toast({
+                                        title: 'Erro de conexão',
+                                        description: 'Não foi possível conectar ao servidor da Deriv',
+                                        variant: 'destructive',
+                                      });
+                                    };
+                                  }
+                                } catch (error) {
+                                  console.error('Erro ao alternar conta:', error);
+                                  toast({
+                                    title: 'Erro ao alternar conta',
+                                    description: 'Não foi possível processar a troca de conta',
+                                    variant: 'destructive',
                                   });
+                                }
                               }}
                             >
                               {accountText}

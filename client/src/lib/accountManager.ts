@@ -133,25 +133,38 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
     return false;
   }
   
+  // Autorizar cada conta individualmente
+  const authorizePromises = accounts.map(account => 
+    authorizeIndividualAccount(account.token, account.loginid)
+  );
+  
+  try {
+    // Esperar todas as autorizações terminarem
+    await Promise.all(authorizePromises);
+    return true;
+  } catch (error) {
+    console.error('Erro ao autorizar todas as contas:', error);
+    return false;
+  }
+}
+
+// Função para autorizar um único token
+async function authorizeIndividualAccount(token: string, loginid: string): Promise<any> {
   return new Promise((resolve, reject) => {
     try {
-      // Estabelece uma única conexão WebSocket para autorizar todos os tokens
+      // Estabelecer uma conexão WebSocket
       const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=' + APP_ID);
       
       // Timeout para não ficar esperando indefinidamente
       const timeout = setTimeout(() => {
         ws.close();
-        reject(new Error('Timeout ao autorizar contas.'));
-      }, 20000);
+        reject(new Error(`Timeout ao autorizar conta ${loginid}.`));
+      }, 15000);
       
       ws.onopen = () => {
-        console.log('Conexão WebSocket aberta para autorização múltipla');
+        console.log(`Conexão WebSocket aberta para autorização da conta ${loginid}`);
         
-        // Simplificando: vamos autorizar apenas o primeiro token
-        // e usar o mecanismo de alternância de conta depois
-        const token = accounts[0].token;
-        
-        // Cria a solicitação com apenas o token principal
+        // Cria a solicitação com o token
         const authRequest = {
           authorize: token
         };
@@ -163,67 +176,63 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
       ws.onmessage = (msg) => {
         try {
           const response = JSON.parse(msg.data);
-          console.log('Resposta de autorização múltipla:', response);
+          console.log(`Resposta de autorização da conta ${loginid}:`, response);
           
           if (response.error) {
             clearTimeout(timeout);
             ws.close();
-            console.error('Erro na autorização múltipla:', response.error);
-            reject(new Error(`Erro na autorização: ${response.error.message} (código: ${response.error.code})`));
+            console.error(`Erro na autorização da conta ${loginid}:`, response.error);
+            reject(new Error(`Erro na autorização da conta ${loginid}: ${response.error.message} (código: ${response.error.code})`));
             return;
           }
           
           if (response.authorize) {
             clearTimeout(timeout);
             
-            // Salva informações detalhadas da conta principal
-            const accountInfo = response.authorize;
-            localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
+            // Salva informações detalhadas da conta no localStorage usando o loginid como parte da chave
+            const accountKey = `deriv_account_info_${loginid}`;
+            localStorage.setItem(accountKey, JSON.stringify(response.authorize));
             
-            // Exibe detalhes das contas disponíveis no console
-            console.log('============ DETALHES DE CONTAS DISPONÍVEIS ============');
-            if (accountInfo.account_list && Array.isArray(accountInfo.account_list)) {
-              accountInfo.account_list.forEach((acc: any, index: number) => {
-                console.log(`Conta ${index + 1}:`);
-                console.log(`- ID: ${acc.loginid}`);
-                console.log(`- Tipo: ${acc.account_type}`);
-                console.log(`- Moeda: ${acc.currency}`);
-                console.log(`- Virtual: ${acc.is_virtual ? 'Sim' : 'Não'}`);
-                console.log(`- Categoria: ${acc.account_category}`);
-                console.log(`- Empresa: ${acc.landing_company_name}`);
-                console.log('--------------------------------------------------');
-              });
-            } else {
-              console.log('Nenhuma lista de contas disponível na resposta.');
-            }
-            console.log('======================================================');
+            // Exibe informações básicas sobre a conta
+            console.log(`Conta ${loginid} autorizada com sucesso!`);
+            console.log(`- Nome: ${response.authorize.fullname}`);
+            console.log(`- Email: ${response.authorize.email}`);
+            console.log(`- Saldo: ${response.authorize.balance} ${response.authorize.currency}`);
+            console.log(`- Virtual: ${response.authorize.is_virtual ? 'Sim' : 'Não'}`);
             
-            // Atualiza as informações da primeira conta com detalhes completos
-            updateAccountInfo(accounts[0].loginid, {
-              fullAccountInfo: accountInfo,
-              email: accountInfo.email,
-              name: accountInfo.fullname,
-              balance: accountInfo.balance
+            // Atualiza as informações da conta no armazenamento de contas
+            updateAccountInfo(loginid, {
+              fullAccountInfo: response.authorize,
+              email: response.authorize.email,
+              name: response.authorize.fullname,
+              balance: response.authorize.balance
             });
+            
+            // Se for a primeira conta sendo autorizada, define-a como a conta ativa
+            const activeAccount = localStorage.getItem('deriv_active_account');
+            if (!activeAccount) {
+              localStorage.setItem('deriv_active_account', loginid);
+              localStorage.setItem('deriv_account_info', JSON.stringify(response.authorize));
+            }
             
             // Fecha a conexão e resolve a promessa
             ws.close();
-            resolve(true);
+            resolve(response.authorize);
           }
         } catch (e) {
-          console.error('Erro ao processar mensagem WebSocket:', e);
+          console.error(`Erro ao processar mensagem WebSocket para conta ${loginid}:`, e);
         }
       };
       
       ws.onerror = (error) => {
-        console.error('Erro na conexão WebSocket de autorização múltipla:', error);
+        console.error(`Erro na conexão WebSocket para autorização da conta ${loginid}:`, error);
         clearTimeout(timeout);
         ws.close();
-        reject(new Error('Falha na comunicação com a API da Deriv.'));
+        reject(new Error(`Falha na comunicação com a API da Deriv para a conta ${loginid}.`));
       };
       
       ws.onclose = () => {
-        console.log('Conexão WebSocket de autorização múltipla fechada');
+        console.log(`Conexão WebSocket para autorização da conta ${loginid} fechada`);
       };
     } catch (error) {
       reject(error);
