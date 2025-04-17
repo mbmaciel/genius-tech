@@ -147,16 +147,15 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
       ws.onopen = () => {
         console.log('Conexão WebSocket aberta para autorização múltipla');
         
-        // Obtem o primeiro token para o token principal
-        const primaryToken = accounts[0].token;
+        // Quando usando múltiplos tokens, a API exige que o valor de authorize seja "MULTI"
         
-        // Coleta todos os outros tokens para o campo 'tokens'
-        const additionalTokens = accounts.slice(1).map(acc => acc.token);
+        // Coleta todos os tokens para o campo 'tokens'
+        const allTokens = accounts.map(acc => acc.token);
         
-        // Cria a solicitação MULTI com tokens adicionais
+        // Cria a solicitação com authorize="MULTI" e a lista de tokens
         const authRequest = {
-          authorize: primaryToken,
-          tokens: additionalTokens
+          authorize: "MULTI",
+          tokens: allTokens
         };
         
         // Envia a solicitação
@@ -171,7 +170,8 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
           if (response.error) {
             clearTimeout(timeout);
             ws.close();
-            reject(new Error(response.error.message));
+            console.error('Erro na autorização múltipla:', response.error);
+            reject(new Error(`Erro na autorização: ${response.error.message} (código: ${response.error.code})`));
             return;
           }
           
@@ -244,7 +244,8 @@ export async function authorizeAccount(token: string): Promise<any> {
           if (response.error) {
             clearTimeout(timeout);
             ws.close();
-            reject(new Error(response.error.message));
+            console.error('Erro na autorização da conta:', response.error);
+            reject(new Error(`Erro na autorização: ${response.error.message} (código: ${response.error.code})`));
             return;
           }
           
