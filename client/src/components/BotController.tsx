@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { simpleBotDirectService } from "../services/simpleBotDirectService";
+import { oauthDirectService } from "@/services/oauthDirectService";
 
 interface BotControllerProps {
   entryValue: number;
@@ -10,6 +10,7 @@ interface BotControllerProps {
   selectedStrategy: string;
   onStatusChange: (status: 'idle' | 'running' | 'paused') => void;
   onStatsChange: (stats: { wins: number; losses: number; totalProfit: number }) => void;
+  onTickReceived?: (price: number, lastDigit: number) => void;
 }
 
 export function BotController({
@@ -18,47 +19,97 @@ export function BotController({
   lossLimit,
   selectedStrategy,
   onStatusChange,
-  onStatsChange
+  onStatsChange,
+  onTickReceived
 }: BotControllerProps) {
   const { toast } = useToast();
   const [status, setStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [stats, setStats] = useState({ wins: 0, losses: 0, totalProfit: 0 });
 
-  // Configurar listeners para mudanças de estado do bot
+  // Configurar listeners para eventos do serviço OAuth
   useEffect(() => {
-    const handleStatusChange = (event: any) => {
-      if (event.type === 'status_change') {
-        console.log('[BOT_CONTROLLER] Status alterado para:', event.status);
-        setStatus(event.status);
-        onStatusChange(event.status);
-      }
-    };
-
-    const handleStatsUpdate = (event: any) => {
-      if (event.type === 'stats_updated') {
-        console.log('[BOT_CONTROLLER] Estatísticas atualizadas:', event.stats);
-        onStatsChange({
-          wins: event.stats.wins,
-          losses: event.stats.losses,
-          totalProfit: event.stats.totalProfit
+    // Função para lidar com eventos do serviço de trading
+    const handleTradingEvent = (event: any) => {
+      console.log('[BOT_CONTROLLER] Evento recebido:', event.type);
+      
+      if (event.type === 'error') {
+        // Mostrar erro para o usuário
+        toast({
+          title: "Erro no robô",
+          description: event.message,
+          variant: "destructive"
         });
       }
+      
+      if (event.type === 'authorized') {
+        // Mostrar notificação de autorização bem-sucedida
+        toast({
+          title: "Autorização concluída",
+          description: `Conta: ${event.account?.loginid || 'Deriv'}`,
+        });
+      }
+      
+      if (event.type === 'tick') {
+        // Repassar ticks para o componente pai se necessário
+        if (onTickReceived) {
+          onTickReceived(event.price, event.lastDigit);
+        }
+      }
+      
+      if (event.type === 'contract_purchased') {
+        // Mostrar notificação de compra
+        toast({
+          title: "Contrato comprado",
+          description: `ID: ${event.contract_id}, Valor: $${event.buy_price}`,
+        });
+      }
+      
+      if (event.type === 'contract_finished') {
+        // Atualizar estatísticas
+        const newStats = { ...stats };
+        
+        if (event.is_win) {
+          newStats.wins += 1;
+        } else {
+          newStats.losses += 1;
+        }
+        
+        newStats.totalProfit += event.profit;
+        setStats(newStats);
+        onStatsChange(newStats);
+        
+        // Mostrar notificação de resultado
+        toast({
+          title: event.is_win ? "Operação vencedora!" : "Operação perdedora",
+          description: `Resultado: $${event.profit.toFixed(2)}`,
+          variant: event.is_win ? "default" : "destructive",
+        });
+      }
+      
+      if (event.type === 'bot_started') {
+        setStatus('running');
+        onStatusChange('running');
+      }
+      
+      if (event.type === 'bot_stopped') {
+        setStatus('idle');
+        onStatusChange('idle');
+      }
     };
-
-    // Registrar listeners
-    simpleBotDirectService.addEventListener(handleStatusChange);
-    simpleBotDirectService.addEventListener(handleStatsUpdate);
-
-    // Limpar listeners ao desmontar
+    
+    // Registrar listener
+    oauthDirectService.addEventListener(handleTradingEvent);
+    
+    // Limpar listener ao desmontar
     return () => {
-      simpleBotDirectService.removeEventListener(handleStatusChange);
-      simpleBotDirectService.removeEventListener(handleStatsUpdate);
+      oauthDirectService.removeEventListener(handleTradingEvent);
     };
-  }, [onStatusChange, onStatsChange]);
+  }, [toast, onStatusChange, onStatsChange, stats, onTickReceived]);
 
-  // Iniciar o bot - VERSÃO CORRIGIDA E MELHORADA
+  // Iniciar o bot com o serviço OAuth direto
   const startBot = async () => {
     try {
-      console.log('[BOT_CONTROLLER] Iniciando bot (VERSÃO CORRIGIDA E MELHORADA)...');
+      console.log('[BOT_CONTROLLER] Iniciando bot com serviço OAuth direto...');
       
       // Verificar se a estratégia foi selecionada
       if (!selectedStrategy) {
@@ -81,15 +132,11 @@ export function BotController({
         return;
       }
       
-      // Atualizar status para feedback visual imediato
-      setStatus('running');
-      onStatusChange('running');
-      
-      // Não vamos mais verificar o WebSocket aqui, pois o simpleBotDirectService
-      // agora vai verificar tanto a referência interna quanto a global
-      
-      // Log para depuração
-      console.log('[BOT_CONTROLLER] Iniciando serviço sem verificação prévia de WebSocket');
+      // Feedback visual imediato
+      toast({
+        title: "Iniciando robô...",
+        description: "Estabelecendo conexão dedicada com Deriv...",
+      });
       
       // Configurar bot com os parâmetros atuais
       console.log('[BOT_CONTROLLER] Configurando parâmetros do bot', {
@@ -99,7 +146,7 @@ export function BotController({
         martingaleFactor: 1.5
       });
       
-      simpleBotDirectService.setSettings({
+      oauthDirectService.setSettings({
         entryValue,
         profitTarget,
         lossLimit,
@@ -108,57 +155,27 @@ export function BotController({
       
       // Definir estratégia ativa
       console.log('[BOT_CONTROLLER] Definindo estratégia ativa:', selectedStrategy);
-      simpleBotDirectService.setActiveStrategy(selectedStrategy);
+      oauthDirectService.setActiveStrategy(selectedStrategy);
       
-      // Iniciar o bot com pequeno atraso para garantir que a UI atualize primeiro
-      console.log('[BOT_CONTROLLER] Iniciando bot com delay para UI...');
+      // Iniciar o serviço de trading
+      const success = await oauthDirectService.start();
       
-      // Usar um timeout para garantir que a interface atualize primeiro
-      setTimeout(() => {
-        try {
-          console.log('[BOT_CONTROLLER] Chamando simpleBotDirectService.start() de forma direta...');
-          
-          // Forçar tipo para simpleBotDirectService para que TypeScript reconheça o método
-          const botService = simpleBotDirectService as typeof simpleBotDirectService;
-          
-          // Chamar diretamente sem await para evitar problemas de contexto
-          const promise = botService.start();
-          
-          // Tratar resultado da inicialização
-          promise.then(success => {
-            console.log('[BOT_CONTROLLER] Resultado do start():', success);
-            
-            if (success) {
-              toast({
-                title: "Bot iniciado",
-                description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
-              });
-            } else {
-              console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
-              setStatus('idle');
-              onStatusChange('idle');
-              toast({
-                title: "Falha ao iniciar bot",
-                description: "Verifique se sua sessão está ativa e tente novamente.",
-                variant: "destructive"
-              });
-            }
-          }).catch(error => {
-            console.error('[BOT_CONTROLLER] Erro ao iniciar bot via promise:', error);
-            setStatus('idle');
-            onStatusChange('idle');
-            toast({
-              title: "Erro ao iniciar bot",
-              description: "Ocorreu um erro ao iniciar o bot. Veja o console para detalhes.",
-              variant: "destructive"
-            });
-          });
-        } catch (e) {
-          console.error('[BOT_CONTROLLER] Erro no timeout de start():', e);
-          setStatus('idle');
-          onStatusChange('idle');
-        }
-      }, 100);
+      if (success) {
+        // Atualização de status ocorre via evento bot_started
+        toast({
+          title: "Bot iniciado",
+          description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
+        });
+      } else {
+        console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
+        setStatus('idle');
+        onStatusChange('idle');
+        toast({
+          title: "Falha ao iniciar bot",
+          description: "Verifique se sua sessão está ativa e tente novamente.",
+          variant: "destructive"
+        });
+      }
       
     } catch (error) {
       console.error('[BOT_CONTROLLER] Erro ao iniciar bot:', error);
@@ -176,12 +193,11 @@ export function BotController({
   const stopBot = () => {
     try {
       console.log('[BOT_CONTROLLER] Parando bot...');
-      simpleBotDirectService.stop();
-      setStatus('idle');
-      onStatusChange('idle');
+      oauthDirectService.stop();
+      // Atualização de status ocorre via evento bot_stopped
       toast({
-        title: "Bot parado",
-        description: "O bot foi parado com sucesso.",
+        title: "Parando robô",
+        description: "Aguardando conclusão de operações em andamento...",
       });
     } catch (error) {
       console.error('[BOT_CONTROLLER] Erro ao parar bot:', error);
