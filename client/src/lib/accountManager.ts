@@ -147,15 +147,13 @@ export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promi
       ws.onopen = () => {
         console.log('Conexão WebSocket aberta para autorização múltipla');
         
-        // Quando usando múltiplos tokens, a API exige que o valor de authorize seja "MULTI"
+        // Simplificando: vamos autorizar apenas o primeiro token
+        // e usar o mecanismo de alternância de conta depois
+        const token = accounts[0].token;
         
-        // Coleta todos os tokens para o campo 'tokens'
-        const allTokens = accounts.map(acc => acc.token);
-        
-        // Cria a solicitação com authorize="MULTI" e a lista de tokens
+        // Cria a solicitação com apenas o token principal
         const authRequest = {
-          authorize: "MULTI",
-          tokens: allTokens
+          authorize: token
         };
         
         // Envia a solicitação

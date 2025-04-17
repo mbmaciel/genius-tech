@@ -72,11 +72,9 @@ export default function LoginPage() {
                 description: `${accounts.length} conta(s) autorizada(s) com sucesso!`,
               });
               
-              // Redirecionar para o dashboard após um pequeno delay
-              setTimeout(() => {
-                setProcessingOAuth(false);
-                setLocation('/dashboard');
-              }, 1000);
+              // Forçar o redirecionamento direto para o dashboard
+              console.log('Autenticação bem-sucedida, redirecionando para dashboard...');
+              window.location.href = '/dashboard';
               
             } catch (authError: any) {
               const errorMessage = authError && authError.message ? authError.message : 'Erro desconhecido';
