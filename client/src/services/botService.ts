@@ -97,6 +97,33 @@ class BotService {
    * Lista todas as estratégias disponíveis
    */
   public getStrategies(type?: 'lite' | 'premium'): StrategyConfig[] {
+    // Carregar estratégias do serviço XML
+    try {
+      import('../services/xmlStrategyParser').then(module => {
+        const parser = module.xmlStrategyParser;
+        
+        // Carregar estratégias adicionais dos arquivos XML
+        const xmlStrategies = parser.getAllStrategies();
+        
+        // Adicionar as estratégias do XML, evitando duplicatas por ID
+        xmlStrategies.forEach(xmlStrategy => {
+          const exists = this.strategies.some(s => s.id === xmlStrategy.id);
+          if (!exists) {
+            this.strategies.push({
+              id: xmlStrategy.id,
+              name: xmlStrategy.name,
+              file: `${xmlStrategy.id}.xml`,
+              type: xmlStrategy.category as 'lite' | 'premium'
+            });
+          }
+        });
+      }).catch(err => {
+        console.error('Erro ao carregar parser de estratégias XML:', err);
+      });
+    } catch (err) {
+      console.error('Erro ao importar parser de estratégias XML:', err);
+    }
+    
     if (type) {
       return this.strategies.filter(s => s.type === type);
     }

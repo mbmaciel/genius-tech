@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OperationStatus } from "@/components/OperationStatus";
+import { initStrategyLoader } from "@/utils/strategyLoader";
 
 export function BotPage() {
   const { toast } = useToast();
