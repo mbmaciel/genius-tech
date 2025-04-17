@@ -68,6 +68,27 @@ class SimpleBotService {
   
   constructor() {
     console.log('[SIMPLEBOT] Inicializando serviço de bot de trading real');
+    
+    // Verificar se temos um token OAuth armazenado
+    const token = localStorage.getItem('deriv_oauth_token');
+    if (token) {
+      console.log('[SIMPLEBOT] Token OAuth encontrado, inicializando conexão...');
+      // Importar WebSocketManager de forma assíncrona para evitar dependência cíclica
+      import('../lib/websocketManager').then(({ derivAPI }) => {
+        // Conectar e autorizar com o token
+        derivAPI.connect().then(() => {
+          derivAPI.authorize(token).then(response => {
+            console.log('[SIMPLEBOT] Autorização bem-sucedida com API Deriv:', response.authorize?.loginid);
+          }).catch(err => {
+            console.error('[SIMPLEBOT] Falha na autorização com API Deriv:', err);
+          });
+        }).catch(err => {
+          console.error('[SIMPLEBOT] Falha na conexão com API Deriv:', err);
+        });
+      });
+    } else {
+      console.warn('[SIMPLEBOT] Token OAuth não encontrado, operações reais estarão indisponíveis');
+    }
   }
   
   /**
@@ -259,6 +280,32 @@ class SimpleBotService {
       try {
         // Obter a instância da API
         const { derivAPI } = await import('../lib/websocketManager');
+        
+        // Obter o token OAuth armazenado
+        const token = localStorage.getItem('deriv_oauth_token');
+        if (!token) {
+          console.error('[SIMPLEBOT] Token OAuth não encontrado, impossível fazer operações reais');
+          this.emitEvent({ 
+            type: 'error', 
+            message: 'Token OAuth não encontrado'
+          });
+          this.simulateOperation(); // Fallback para simulação apenas se não houver token
+          return resolve(false);
+        }
+        
+        // Verificar se o websocket está conectado e autorizado
+        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance()?.readyState !== WebSocket.OPEN) {
+          console.log('[SIMPLEBOT] WebSocket não está conectado, tentando reconectar...');
+          try {
+            await derivAPI.connect();
+            await derivAPI.authorize(token);
+            console.log('[SIMPLEBOT] Reconexão e autorização bem-sucedidas');
+          } catch (connError) {
+            console.error('[SIMPLEBOT] Erro ao reconectar/autorizar:', connError);
+            this.simulateOperation(); // Fallback para simulação
+            return resolve(false);
+          }
+        }
         
         // Construir parâmetros formatados conforme documentação da API
         const contractType = this.settings.contractType; // Ex: 'DIGITOVER', 'DIGITUNDER'

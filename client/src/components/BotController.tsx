@@ -70,9 +70,38 @@ export function BotController({
         return;
       }
       
+      // Verificar se o usuário está autenticado através do token OAuth
+      const token = localStorage.getItem('deriv_oauth_token');
+      if (!token) {
+        toast({
+          title: "Autenticação necessária",
+          description: "É necessário fazer login com sua conta Deriv para operar com valores reais.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Atualizar status para feedback visual imediato
       setStatus('running');
       onStatusChange('running');
+      
+      // Tentar estabelecer conexão WebSocket com token OAuth
+      try {
+        const { derivAPI } = await import('../lib/websocketManager');
+        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance().readyState !== WebSocket.OPEN) {
+          console.log('[BOT_CONTROLLER] Estabelecendo conexão WebSocket...');
+          await derivAPI.connect();
+          await derivAPI.authorize(token);
+          console.log('[BOT_CONTROLLER] Conexão WebSocket estabelecida e autorizada');
+        }
+      } catch (connError) {
+        console.error('[BOT_CONTROLLER] Erro ao estabelecer conexão:', connError);
+        toast({
+          title: "Erro de conexão",
+          description: "Não foi possível conectar à API Deriv. Verifique sua conexão.",
+          variant: "destructive"
+        });
+      }
       
       // Configurar bot com os parâmetros atuais
       console.log('[BOT_CONTROLLER] Configurando parâmetros do bot', {
