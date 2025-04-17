@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { startKeepAlive, stopKeepAlive } from "@/lib/websocketKeepAlive";
 import { useToast } from "@/hooks/use-toast";
 import { DerivConnectButton } from "@/components/DerivConnectButton";
+import { AccountSelector } from "@/components/AccountSelector";
+import { AccountInfo } from "@/components/AccountInfo";
+import balanceService, { BalanceResponse } from "@/lib/balanceService";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface DigitData {
   digit: number;
@@ -15,7 +20,48 @@ export default function Dashboard() {
   const [ticks, setTicks] = useState<number>(10);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
   const { toast } = useToast();
+  
+  // Função para atualizar o saldo da conta
+  const updateBalance = useCallback(async () => {
+    const storedToken = localStorage.getItem('deriv_token');
+    if (!storedToken || !isAuthenticated || !accountInfo) return;
+    
+    try {
+      setIsLoadingBalance(true);
+      // Pegando o token da conta ativa
+      const storedAccounts = localStorage.getItem('deriv_accounts');
+      if (!storedAccounts) return;
+      
+      const accounts = JSON.parse(storedAccounts);
+      const currentAccount = accounts.find((acc: any) => acc.loginid === accountInfo.loginid);
+      
+      if (currentAccount && currentAccount.token) {
+        const balanceData = await balanceService.getBalance(currentAccount.token);
+        // Atualizar informações de conta com saldo atualizado
+        setAccountInfo((prev: any) => ({
+          ...prev,
+          balance: balanceData.balance,
+          currency: balanceData.currency
+        }));
+        
+        toast({
+          title: "Saldo atualizado",
+          description: `Saldo atual: ${balanceData.balance} ${balanceData.currency}`,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar saldo:', error);
+      toast({
+        title: "Erro ao atualizar saldo",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, [isAuthenticated, accountInfo, toast]);
   
   // Efeito para verificar se já existe uma sessão autenticada
   useEffect(() => {
@@ -27,11 +73,16 @@ export default function Dashboard() {
         const parsedAccountInfo = JSON.parse(storedAccountInfo);
         setIsAuthenticated(true);
         setAccountInfo(parsedAccountInfo);
+        
+        // Atualizar saldo quando carregar a conta
+        if (parsedAccountInfo && parsedAccountInfo.loginid) {
+          updateBalance();
+        }
       } catch (error) {
         console.error('Erro ao processar dados de conta armazenados:', error);
       }
     }
-  }, []);
+  }, [updateBalance]);
 
   // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
@@ -47,7 +98,7 @@ export default function Dashboard() {
         const lastDigit = Math.floor(price * 10) % 10;
         
         // Atualizar os últimos dígitos
-        setLastDigits(prev => {
+        setLastDigits((prev: number[]) => {
           const newDigits = [...prev, lastDigit];
           // Manter apenas os N últimos dígitos com base no valor de ticks
           return newDigits.slice(-parseInt(ticks.toString()));
@@ -89,7 +140,7 @@ export default function Dashboard() {
     const newTicks = parseInt(e.target.value);
     setTicks(newTicks);
     // Limitar os dígitos existentes ao novo valor
-    setLastDigits(prev => prev.slice(-newTicks));
+    setLastDigits((prev: number[]) => prev.slice(-newTicks));
   };
   
   // Função para obter a cor da barra com base no percentual
@@ -168,15 +219,37 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                <div className="bg-[#1d2a45] px-3 py-1 rounded-md text-white text-sm">
-                  {accountInfo?.email || accountInfo?.loginid || 'Conectado'}
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={updateBalance}
+                  disabled={isLoadingBalance}
+                  className="bg-[#1d2a45] border-[#3a4b6b] text-white hover:bg-[#2a3756] hover:text-white"
+                >
+                  {isLoadingBalance ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Atualizar Saldo
+                </Button>
+                
+                <AccountSelector 
+                  onAccountChanged={(newAccountInfo) => {
+                    setAccountInfo(newAccountInfo);
+                    toast({
+                      title: "Conta alternada",
+                      description: `Agora usando a conta ${newAccountInfo.loginid}`,
+                    });
+                  }}
+                />
                 
                 <button 
                   onClick={() => {
                     // Limpar dados de autenticação
                     localStorage.removeItem('deriv_token');
                     localStorage.removeItem('deriv_account_info');
+                    localStorage.removeItem('deriv_accounts');
                     setIsAuthenticated(false);
                     setAccountInfo(null);
                     
@@ -193,6 +266,13 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        
+        {/* Info da conta se estiver autenticado */}
+        {isAuthenticated && accountInfo && (
+          <div className="mb-6">
+            <AccountInfo accountInfo={accountInfo} />
+          </div>
+        )}
         
         {/* Cards de estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
