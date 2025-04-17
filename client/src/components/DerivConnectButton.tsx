@@ -20,7 +20,8 @@ export function DerivConnectButton({ className, onSuccess }: DerivConnectProps) 
     try {
       // Constrói a URL de autorização da Deriv
       const scope = 'read admin payments trade';
-      const redirectUri = encodeURIComponent(window.location.origin + '/oauth-callback');
+      // Redirecionar para a raiz do site, não para a página de callback específica
+      const redirectUri = encodeURIComponent(window.location.origin);
       const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
 
       // Registra a janela para processar o retorno
