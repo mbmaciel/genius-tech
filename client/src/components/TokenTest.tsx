@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
-import { testOAuthToken } from "@/lib/tradingWebSocketManager";
-import { simpleBotService } from "@/services/simpleBotService";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { tradingWebSocket } from "@/lib/tradingWebSocketManager";
 
-// Token específico para testar
-const SPECIFIC_TOKEN = "wRCpaqmNKnlLBzh";
-
-export function SpecificTokenTest() {
+/**
+ * Componente para testar um token específico (wRCpaqmNKnlLBzh)
+ */
+export function TokenTest() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<{
     isValid: boolean;
@@ -18,67 +17,58 @@ export function SpecificTokenTest() {
     error?: string;
     appliedToBot?: boolean;
   } | null>(null);
-  
-  // Verificar se o token já está salvo no localStorage
-  useEffect(() => {
-    const savedToken = localStorage.getItem('deriv_oauth_token');
-    if (savedToken === SPECIFIC_TOKEN) {
-      setResult(prevResult => ({
-        ...prevResult,
-        isValid: true,
-        appliedToBot: true
-      }));
-    }
-  }, []);
+
+  // Token predefinido para teste
+  const SPECIFIC_TOKEN = "wRCpaqmNKnlLBzh";
 
   const handleTest = async () => {
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
-      console.log('[SPECIFIC_TOKEN] Testando token:', SPECIFIC_TOKEN);
+      console.log("[TOKEN_TEST] Testando token específico:", SPECIFIC_TOKEN);
       
-      // Executar o teste do token
-      const testResult = await testOAuthToken(SPECIFIC_TOKEN);
+      // Usar o testToken do tradingWebSocketManager
+      const testResult = await tradingWebSocket.testToken(SPECIFIC_TOKEN);
+      
+      console.log("[TOKEN_TEST] Resultado do teste:", testResult);
       
       if (testResult.isValid) {
-        // Salvar o token no localStorage
+        // Token é válido, salvar no localStorage
         localStorage.setItem('deriv_oauth_token', SPECIFIC_TOKEN);
+        console.log("[TOKEN_TEST] Token válido e salvo no localStorage");
         
-        // Aplicar o token ao serviço do bot
-        if (simpleBotService) {
-          try {
-            if (typeof simpleBotService.setToken === 'function') {
-              simpleBotService.setToken(SPECIFIC_TOKEN);
-            } else {
-              // Salvar apenas no localStorage para persistência
-              localStorage.setItem('deriv_oauth_token', SPECIFIC_TOKEN);
-              console.log('[SPECIFIC_TOKEN] Token salvo no localStorage, será usado no próximo início do bot');
-            }
-            console.log('[SPECIFIC_TOKEN] Token aplicado ao serviço do bot com sucesso');
-            
-            setResult({
-              ...testResult,
-              appliedToBot: true
-            });
-          } catch (botError) {
-            console.error('[SPECIFIC_TOKEN] Erro ao aplicar token ao bot:', botError);
-            setResult({
-              ...testResult,
-              appliedToBot: false,
-              error: 'Token válido, mas houve um erro ao aplicá-lo ao robô'
-            });
-          }
-        } else {
-          console.log('[SPECIFIC_TOKEN] Serviço do bot não disponível, salvando apenas o token');
+        // Tentar conectar e autorizar o WebSocket com este token
+        await tradingWebSocket.connect();
+        const authResult = await tradingWebSocket.authorize(SPECIFIC_TOKEN);
+        
+        if (!authResult.error) {
+          console.log("[TOKEN_TEST] WebSocket autorizado com sucesso para conta:", authResult.authorize?.loginid);
           setResult({
-            ...testResult,
+            isValid: true,
+            loginid: authResult.authorize?.loginid,
+            balance: authResult.authorize?.balance,
+            currency: authResult.authorize?.currency,
+            appliedToBot: true
+          });
+        } else {
+          console.error("[TOKEN_TEST] Erro na autorização:", authResult.error);
+          setResult({
+            isValid: true,
+            loginid: testResult.loginid,
+            error: `Token válido, mas falhou na autorização: ${authResult.error.message}`,
             appliedToBot: false
           });
         }
       } else {
-        setResult(testResult);
+        // Token inválido
+        console.error("[TOKEN_TEST] Token inválido:", testResult.error);
+        setResult({
+          isValid: false,
+          error: testResult.error
+        });
       }
     } catch (error) {
-      console.error('[SPECIFIC_TOKEN] Erro ao testar token:', error);
+      console.error("[TOKEN_TEST] Erro ao testar token:", error);
       setResult({
         isValid: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido ao testar token'
@@ -121,7 +111,7 @@ export function SpecificTokenTest() {
                     ? 'Token aplicado com sucesso' 
                     : !result.isValid 
                       ? 'Token inválido' 
-                      : 'Token válido, mas não aplicado ao robô'}
+                      : 'Token válido, mas não aplicado completamente'}
                 </h3>
               </div>
               
@@ -136,7 +126,7 @@ export function SpecificTokenTest() {
                     )}
                     {result.appliedToBot && (
                       <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                        Token configurado para uso com o robô de trading.
+                        Token configurado para uso com as WebSockets de trading.
                       </p>
                     )}
                   </>

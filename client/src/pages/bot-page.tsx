@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
 import { BotController } from "@/components/BotController";
-import { SpecificTokenTest } from "@/components/SpecificTokenTest";
+import { TokenTest } from "@/components/TokenTest";
 import derivApiService from "@/services/derivApiService";
 import { simpleBotService } from "@/services/simpleBotService";
 

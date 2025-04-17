@@ -43,10 +43,13 @@ export interface Contract {
   date_expiry?: number;
 }
 
-// Evento simplificado para atualizar a interface
-type BotEvent = { type: string; [key: string]: any };
+type BotEvent = { 
+  type: string; 
+  [key: string]: any 
+};
 
 class SimpleBotService {
+  private token: string | null = null;
   private status: BotStatus = 'idle';
   private currentContractId: number | null = null;
   private activeStrategyId: string | null = null;
@@ -109,6 +112,8 @@ class SimpleBotService {
         .then(result => {
           if (result.isValid) {
             console.log(`[SIMPLEBOT] Token OAuth é válido para a conta ${result.loginid}`);
+            this.token = token;
+            
             // Pré-conectar o WebSocket dedicado para trading
             tradingWebSocket.connect()
               .then(() => {
@@ -132,6 +137,52 @@ class SimpleBotService {
     } else {
       console.warn('[SIMPLEBOT] Token OAuth não encontrado, operações reais estarão indisponíveis');
     }
+  }
+  
+  /**
+   * Define o token de autenticação OAuth para operações reais
+   * @param token Token OAuth da Deriv
+   */
+  public setToken(token: string): void {
+    console.log('[SIMPLEBOT] Definindo novo token OAuth para operações');
+    this.token = token;
+    
+    // Salvar o token no localStorage para persistência
+    localStorage.setItem('deriv_oauth_token', token);
+    
+    // Verificar se o token é válido
+    this.validateToken(token);
+  }
+  
+  /**
+   * Valida um token OAuth com a API Deriv
+   * @param token Token OAuth para validar
+   */
+  private async validateToken(token: string): Promise<boolean> {
+    try {
+      const result = await tradingWebSocket.testToken(token);
+      
+      if (result.isValid) {
+        console.log(`[SIMPLEBOT] Token OAuth válido para conta: ${result.loginid}`);
+        this.token = token;
+        return true;
+      } else {
+        console.error('[SIMPLEBOT] Token OAuth inválido:', result.error);
+        this.token = null;
+        return false;
+      }
+    } catch (error) {
+      console.error('[SIMPLEBOT] Erro ao validar token OAuth:', error);
+      this.token = null;
+      return false;
+    }
+  }
+  
+  /**
+   * Obtém o token OAuth atual
+   */
+  public getToken(): string | null {
+    return this.token;
   }
   
   /**
@@ -220,6 +271,29 @@ class SimpleBotService {
   }
   
   /**
+   * Agenda a próxima operação
+   */
+  private scheduleNextOperation(): void {
+    if (this.status !== 'running') return;
+    
+    // Limpar qualquer timer anterior
+    if (this.operationTimer) {
+      clearTimeout(this.operationTimer);
+    }
+    
+    // Tempo de espera entre operações (3-7 segundos)
+    const delay = 5000;
+    
+    console.log(`[SIMPLEBOT] Próxima operação agendada para ${delay/1000}s`);
+    
+    this.operationTimer = setTimeout(() => {
+      if (this.status === 'running') {
+        this.executeRealOperation();
+      }
+    }, delay);
+  }
+  
+  /**
    * Inicia a execução do bot (APENAS operações reais, sem fallback para simulação)
    */
   public async start(): Promise<boolean> {
@@ -248,8 +322,7 @@ class SimpleBotService {
       }
       
       // Verificar se temos token OAuth
-      const token = localStorage.getItem('deriv_oauth_token');
-      if (!token) {
+      if (!this.token) {
         console.error('[SIMPLEBOT] Não foi possível iniciar: Token OAuth não encontrado');
         this.emitEvent({ 
           type: 'error', 
@@ -260,57 +333,7 @@ class SimpleBotService {
       }
       
       // Iniciar operação real
-      const startRealOperation = async () => {
-        try {
-          console.log('[SIMPLEBOT] Iniciando operação REAL');
-          
-          // Verificar novamente se o bot ainda está ativo
-          if (this.status === 'running') {
-            // Executar operação real
-            await this.executeRealOperation();
-            return true;
-          } else {
-            console.log('[SIMPLEBOT] Bot não está mais rodando ao tentar iniciar operação');
-            return false;
-          }
-        } catch (err) {
-          console.error('[SIMPLEBOT] Erro ao iniciar operação real:', err);
-          // Notificar o erro, mas não fazer fallback para simulação
-          this.emitEvent({ 
-            type: 'error', 
-            message: 'Erro ao executar operação real. Tente novamente.' 
-          });
-          
-          // Se ainda estiver rodando, agendar próxima tentativa
-          if (this.status === 'running') {
-            this.scheduleNextOperation();
-          }
-          return false;
-        }
-      };
-
-      // Iniciar operação real, sem fallback para simulação
-      const successWithReal = await startRealOperation().catch(err => {
-        console.error('[SIMPLEBOT] Exceção ao iniciar operação real:', err);
-        return false;
-      });
-      
-      if (!successWithReal) {
-        console.error('[SIMPLEBOT] Falha ao iniciar operação real. Sem fallback para simulação.');
-        
-        // Notificar o erro
-        this.emitEvent({ 
-          type: 'error', 
-          message: 'Falha ao iniciar operação real. Verificando conexão.' 
-        });
-        
-        // Programar nova tentativa se o bot ainda estiver rodando
-        if (this.status === 'running') {
-          console.log('[SIMPLEBOT] Agendando nova tentativa de operação real...');
-          this.scheduleNextOperation();
-        }
-      }
-      
+      await this.executeRealOperation();
       return true;
     } catch (error) {
       console.error('[SIMPLEBOT] Erro ao iniciar bot:', error);
@@ -353,6 +376,19 @@ class SimpleBotService {
   }
   
   /**
+   * Emite um evento para todos os ouvintes
+   */
+  private emitEvent(event: BotEvent): void {
+    this.eventListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('[SIMPLEBOT] Erro ao notificar ouvinte:', error);
+      }
+    });
+  }
+  
+  /**
    * Obtém o status atual do bot
    */
   public getStatus(): BotStatus {
@@ -369,330 +405,236 @@ class SimpleBotService {
   /**
    * Executa uma operação real usando a API Deriv
    */
-  private executeRealOperation(): Promise<boolean> {
+  private async executeRealOperation(): Promise<boolean> {
     console.log('[SIMPLEBOT] Executando operação REAL no mercado');
     
-    return new Promise(async (resolve, reject) => {
-      if (this.status !== 'running') {
-        console.log('[SIMPLEBOT] Bot não está em status running, não vai executar operação');
-        return reject(new Error('Bot não está em execução'));
-      }
-      
-      // Verificar se temos a estratégia e configurações
-      if (!this.settings.contractType || !this.settings.entryValue) {
-        console.error('[SIMPLEBOT] Configurações incompletas para operação real');
-        this.emitEvent({ 
-          type: 'error', 
-          message: 'Configurações incompletas para operação real'
-        });
-        return reject(new Error('Configurações incompletas'));
-      }
-      
-      try {
-        // Obter o token OAuth armazenado
-        const token = localStorage.getItem('deriv_oauth_token');
-        if (!token) {
-          console.error('[SIMPLEBOT] Token OAuth não encontrado, impossível fazer operações reais');
-          this.emitEvent({ 
-            type: 'error', 
-            message: 'Token OAuth não encontrado. Faça login com sua conta Deriv.'
-          });
-          return reject(new Error('Token OAuth não encontrado'));
-        }
-        
-        // Verificar se o WebSocket dedicado para trading está conectado e autorizado
-        if (!tradingWebSocket.isConnected()) {
-          console.log('[SIMPLEBOT] WebSocket de trading não está conectado, tentando reconectar...');
-          try {
-            await tradingWebSocket.connect();
-            console.log('[SIMPLEBOT] Conexão WebSocket de trading estabelecida, autorizando...');
-            const authResponse = await tradingWebSocket.authorize(token);
-            
-            if (authResponse.error) {
-              console.error('[SIMPLEBOT] Erro na autorização com WebSocket de trading:', authResponse.error);
-              this.emitEvent({
-                type: 'error',
-                message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
-              });
-              return reject(new Error(`Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`));
-            }
-            
-            console.log('[SIMPLEBOT] Autorização de trading bem-sucedida:', authResponse.authorize?.loginid);
-          } catch (connError) {
-            console.error('[SIMPLEBOT] Erro ao reconectar/autorizar WebSocket de trading:', connError);
-            this.emitEvent({
-              type: 'error',
-              message: 'Falha na conexão com a API Deriv para trading'
-            });
-            return reject(new Error('Falha na conexão com a API Deriv para trading'));
-          }
-        } else if (!tradingWebSocket.isAuthorized()) {
-          console.log('[SIMPLEBOT] WebSocket de trading está conectado mas não autorizado, autorizando...');
-          try {
-            const authResponse = await tradingWebSocket.authorize(token);
-            
-            if (authResponse.error) {
-              console.error('[SIMPLEBOT] Erro na autorização de WebSocket já conectado:', authResponse.error);
-              this.emitEvent({
-                type: 'error',
-                message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
-              });
-              return reject(new Error(`Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`));
-            }
-            
-            console.log('[SIMPLEBOT] WebSocket de trading autorizado com sucesso:', authResponse.authorize?.loginid);
-          } catch (authError) {
-            console.error('[SIMPLEBOT] Erro ao autorizar conexão de trading existente:', authError);
-            return reject(new Error('Erro ao autorizar conexão de trading existente'));
-          }
-        }
-        
-        // Construir parâmetros formatados conforme documentação da API
-        const contractType = this.settings.contractType; // Ex: 'DIGITOVER', 'DIGITUNDER'
-        const amount = this.settings.entryValue;
-        const duration = 5; // 5 ticks de duração
-        const prediction = this.settings.prediction || 5; // Previsão padrão: 5
-        
-        console.log(`[SIMPLEBOT] Solicitando proposta para ${contractType} com valor ${amount}`);
-        
-        // Identificador único para esta operação (timestamp)
-        const operationId = Date.now().toString();
-        
-        // Formatar a solicitação de proposta conforme documentação da API
-        const proposalRequest = {
-          proposal: 1,
-          amount,
-          basis: "stake",
-          contract_type: contractType,
-          currency: "USD",
-          duration: duration,
-          duration_unit: "t",
-          symbol: "R_100",
-          barrier: prediction.toString()
-        };
-        
-        console.log('[SIMPLEBOT] Enviando solicitação de proposta pelo WebSocket de trading:', proposalRequest);
-        
-        // Executar solicitação de proposta
-        try {
-          const response = await tradingWebSocket.sendRequest(proposalRequest);
-          
-          if (response.error) {
-            console.error('[SIMPLEBOT] Erro ao solicitar proposta:', response.error);
-            this.emitEvent({ 
-              type: 'error', 
-              message: `Erro ao solicitar proposta: ${response.error.message || 'Erro desconhecido'}`
-            });
-            
-            // Agendar próxima tentativa
-            this.scheduleNextOperation();
-            return reject(new Error(`Erro de proposta: ${response.error.message || 'Erro desconhecido'}`));
-          }
-          
-          // Se temos uma proposta válida, comprar o contrato
-          if (response.proposal) {
-            const proposal = response.proposal;
-            console.log('[SIMPLEBOT] Proposta recebida, comprando contrato...', proposal);
-            
-            // Formatar solicitação de compra com o ID da proposta
-            // Baseado na documentação da API fornecida no arquivo "Contrato de Compra (solicitação.txt)"
-            const buyRequest = {
-              buy: proposal.id,
-              price: amount
-            };
-            
-            try {
-              const buyResponse = await tradingWebSocket.sendRequest(buyRequest);
-              
-              if (buyResponse.error) {
-                console.error('[SIMPLEBOT] Erro ao comprar contrato:', buyResponse.error);
-                this.emitEvent({ 
-                  type: 'error', 
-                  message: `Erro ao comprar contrato: ${buyResponse.error.message || 'Erro desconhecido'}`
-                });
-                
-                // Agendar próxima tentativa
-                this.scheduleNextOperation();
-                return reject(new Error(`Erro na compra: ${buyResponse.error.message || 'Erro desconhecido'}`));
-              }
-              
-              // Contrato comprado com sucesso
-              const contract = buyResponse.buy;
-              
-              console.log('[SIMPLEBOT] Contrato comprado com sucesso:', contract);
-              
-              // Criar objeto de contrato no formato esperado pela UI
-              const contractObj = {
-                contract_id: contract.contract_id,
-                contract_type: contractType,
-                buy_price: parseFloat(contract.buy_price),
-                symbol: "R_100",
-                status: 'open',
-                purchase_time: contract.purchase_time,
-                payout: parseFloat(contract.payout)
-              };
-              
-              // Notificar início de operação
-              this.emitEvent({ type: 'operation_started', contract: contractObj });
-              
-              // Monitorar o contrato até o final
-              await this.monitorRealContract(contract.contract_id);
-              resolve(true);
-            } catch (buyError) {
-              console.error('[SIMPLEBOT] Exceção ao comprar contrato:', buyError);
-              this.scheduleNextOperation();
-              reject(buyError);
-            }
-          } else {
-            console.error('[SIMPLEBOT] Proposta não recebida na resposta');
-            this.scheduleNextOperation();
-            reject(new Error('Proposta não recebida'));
-          }
-        } catch (proposalError) {
-          console.error('[SIMPLEBOT] Exceção ao solicitar proposta:', proposalError);
-          this.scheduleNextOperation();
-          reject(proposalError);
-        }
-      } catch (importError) {
-        console.error('[SIMPLEBOT] Erro ao importar derivAPI:', importError);
-        this.scheduleNextOperation();
-        reject(importError);
-      }
-    });
-  }
-  
-  /**
-   * Monitora um contrato real até sua conclusão
-   * @returns Promise que resolve quando o contrato for finalizado
-   */
-  private monitorRealContract(contractId: string | number): Promise<boolean> {
-    console.log(`[SIMPLEBOT] Monitorando contrato real ID: ${contractId} usando WebSocket de trading dedicado`);
-    
-    return new Promise((resolve, reject) => {
-      try {
-        if (!tradingWebSocket.isConnected() || !tradingWebSocket.isAuthorized()) {
-          console.error('[SIMPLEBOT] WebSocket de trading não está conectado ou autorizado');
-          this.scheduleNextOperation();
-          return reject(new Error('WebSocket de trading não está conectado ou autorizado'));
-        }
-        
-        // Formato correto usando o schema atualizado da API
-        const monitorRequest = {
-          proposal_open_contract: 1,
-          contract_id: contractId,
-          subscribe: 1
-        };
-        
-        console.log('[SIMPLEBOT] Enviando solicitação de monitoramento via WebSocket de trading:', monitorRequest);
-        
-        // Enviar solicitação para monitorar o contrato usando a conexão dedicada
-        tradingWebSocket.sendRequest(monitorRequest)
-          .then(response => {
-            if (response.error) {
-              console.error('[SIMPLEBOT] Erro ao monitorar contrato:', response.error);
-              this.scheduleNextOperation();
-              reject(new Error(`Erro ao monitorar: ${response.error.message || 'Erro desconhecido'}`));
-              return;
-            }
-            
-            console.log('[SIMPLEBOT] Resposta de monitoramento via WebSocket de trading:', response);
-            
-            // Configurar um timeout de segurança para evitar que a promise nunca resolva
-            const timeoutId = setTimeout(() => {
-              console.log('[SIMPLEBOT] Timeout de monitoramento de contrato excedido');
-              this.scheduleNextOperation();
-              resolve(false);
-            }, 300000); // 5 minutos de timeout
-            
-            // As atualizações de contrato serão recebidas via evento onContractUpdate
-            // que foi configurado no construtor e processadas pelo método processContractCompletion
-            
-            // Para compatibilidade: registrar um handler adicional para monitorar o final do contrato
-            const contractUpdateListener = (contract: any) => {
-              // Verificar se é o contrato que estamos monitorando
-              if (contract && contract.contract_id == contractId) {
-                // Verificar se o contrato foi finalizado
-                if (contract.status !== 'open') {
-                  console.log(`[SIMPLEBOT] Contrato ${contractId} finalizado via listener de monitoramento`);
-                  
-                  // Limpar o timeout
-                  clearTimeout(timeoutId);
-                  
-                  // Resolver a promise
-                  resolve(true);
-                }
-              }
-            };
-            
-            // Não precisamos registrar um listener temporário
-            // pois já temos um no construtor que chama processContractCompletion
-            // O método processContractCompletion vai resolver a promise quando o contrato finalizar
-            
-          })
-          .catch(error => {
-            console.error('[SIMPLEBOT] Erro ao enviar solicitação de monitoramento:', error);
-            this.scheduleNextOperation();
-            reject(error);
-          });
-        
-      } catch (err) {
-        console.error('[SIMPLEBOT] Exceção ao monitorar contrato:', err);
-        this.scheduleNextOperation();
-        reject(err);
-      }
-    });
-  }
-  
-  /**
-   * Agenda a próxima operação
-   */
-  private scheduleNextOperation(): void {
     if (this.status !== 'running') {
-      console.log('[SIMPLEBOT] Bot não está mais rodando, não agendando próxima operação');
-      return;
+      console.log('[SIMPLEBOT] Bot não está em status running, não vai executar operação');
+      return false;
     }
     
-    console.log('[SIMPLEBOT] Agendando próxima operação em 3 segundos');
-    this.operationTimer = setTimeout(() => {
-      try {
-        this.executeRealOperation();
-      } catch (error) {
-        console.error('[SIMPLEBOT] Erro ao iniciar próxima operação:', error);
+    // Verificar se temos a estratégia e configurações
+    if (!this.settings.contractType || !this.settings.entryValue) {
+      console.error('[SIMPLEBOT] Configurações incompletas para operação real');
+      this.emitEvent({ 
+        type: 'error', 
+        message: 'Configurações incompletas para operação real'
+      });
+      return false;
+    }
+    
+    try {
+      // Verificar se o WebSocket dedicado para trading está conectado e autorizado
+      if (!tradingWebSocket.isConnected()) {
+        console.log('[SIMPLEBOT] WebSocket de trading não está conectado, tentando reconectar...');
+        try {
+          await tradingWebSocket.connect();
+          console.log('[SIMPLEBOT] Conexão WebSocket de trading estabelecida, autorizando...');
+          const authResponse = await tradingWebSocket.authorize(this.token!);
+          
+          if (authResponse.error) {
+            console.error('[SIMPLEBOT] Erro na autorização com WebSocket de trading:', authResponse.error);
+            this.emitEvent({
+              type: 'error',
+              message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
+            });
+            return false;
+          }
+          
+          console.log('[SIMPLEBOT] Autorização de trading bem-sucedida:', authResponse.authorize?.loginid);
+        } catch (connError) {
+          console.error('[SIMPLEBOT] Erro ao reconectar/autorizar WebSocket de trading:', connError);
+          this.emitEvent({
+            type: 'error',
+            message: 'Falha na conexão com a API Deriv para trading'
+          });
+          return false;
+        }
+      } else if (!tradingWebSocket.isAuthorized()) {
+        console.log('[SIMPLEBOT] WebSocket de trading está conectado mas não autorizado, autorizando...');
+        try {
+          const authResponse = await tradingWebSocket.authorize(this.token!);
+          
+          if (authResponse.error) {
+            console.error('[SIMPLEBOT] Erro na autorização de WebSocket já conectado:', authResponse.error);
+            this.emitEvent({
+              type: 'error',
+              message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
+            });
+            return false;
+          }
+          
+          console.log('[SIMPLEBOT] WebSocket de trading autorizado com sucesso:', authResponse.authorize?.loginid);
+        } catch (authError) {
+          console.error('[SIMPLEBOT] Erro ao autorizar conexão de trading existente:', authError);
+          return false;
+        }
       }
-    }, 3000);
+      
+      // Construir parâmetros formatados conforme documentação da API
+      const contractType = this.settings.contractType; // Ex: 'DIGITOVER', 'DIGITUNDER'
+      const amount = this.settings.entryValue;
+      const duration = 5; // 5 ticks de duração
+      const prediction = this.settings.prediction || 5; // Previsão padrão: 5
+      
+      console.log(`[SIMPLEBOT] Solicitando proposta para ${contractType} com valor ${amount}`);
+      
+      // Identificador único para esta operação (timestamp)
+      const operationId = Date.now().toString();
+      
+      // Formatar a solicitação de proposta conforme documentação da API
+      const proposalRequest = {
+        proposal: 1,
+        amount,
+        basis: "stake",
+        contract_type: contractType,
+        currency: "USD",
+        duration: duration,
+        duration_unit: "t",
+        symbol: "R_100",
+        barrier: prediction.toString()
+      };
+      
+      console.log('[SIMPLEBOT] Enviando solicitação de proposta:', proposalRequest);
+      
+      // Obter proposta de contrato
+      const proposalResponse = await tradingWebSocket.sendRequest(proposalRequest);
+      
+      if (proposalResponse.error) {
+        console.error('[SIMPLEBOT] Erro na solicitação de proposta:', proposalResponse.error);
+        this.emitEvent({ 
+          type: 'error', 
+          message: `Erro na proposta: ${proposalResponse.error.message || 'Erro desconhecido'}` 
+        });
+        
+        // Agendar próxima tentativa
+        this.scheduleNextOperation();
+        return false;
+      }
+      
+      const proposal = proposalResponse.proposal;
+      if (!proposal || !proposal.id) {
+        console.error('[SIMPLEBOT] Proposta recebida inválida ou sem ID');
+        this.scheduleNextOperation();
+        return false;
+      }
+      
+      console.log('[SIMPLEBOT] Proposta recebida com sucesso, ID:', proposal.id);
+      
+      // Notificar sobre o preço de compra
+      this.emitEvent({
+        type: 'proposal_received',
+        proposal: {
+          price: proposal.ask_price,
+          payout: proposal.payout,
+          spot: proposal.spot
+        }
+      });
+      
+      // Comprar o contrato usando a proposta recebida
+      const buyRequest = {
+        buy: proposal.id,
+        price: proposal.ask_price
+      };
+      
+      console.log('[SIMPLEBOT] Comprando contrato com proposta:', buyRequest);
+      
+      // Iniciar notificação de compra
+      this.emitEvent({
+        type: 'contract_purchase_sent',
+        contract: {
+          type: contractType,
+          amount: amount,
+          prediction: prediction
+        }
+      });
+      
+      // Executar compra
+      const buyResponse = await tradingWebSocket.sendRequest(buyRequest);
+      
+      if (buyResponse.error) {
+        console.error('[SIMPLEBOT] Erro na compra do contrato:', buyResponse.error);
+        this.emitEvent({ 
+          type: 'error', 
+          message: `Erro na compra: ${buyResponse.error.message || 'Erro desconhecido'}` 
+        });
+        this.scheduleNextOperation();
+        return false;
+      }
+      
+      // Processar resposta de compra
+      const buy = buyResponse.buy;
+      if (!buy || !buy.contract_id) {
+        console.error('[SIMPLEBOT] Compra retornou resposta inválida ou sem contract_id');
+        this.scheduleNextOperation();
+        return false;
+      }
+      
+      console.log('[SIMPLEBOT] Contrato comprado com sucesso, ID:', buy.contract_id);
+      this.currentContractId = Number(buy.contract_id);
+      
+      // Notificar sobre contrato comprado
+      this.emitEvent({
+        type: 'contract_purchased',
+        contract: {
+          contract_id: buy.contract_id,
+          longcode: buy.longcode,
+          start_time: buy.start_time,
+          buy_price: buy.buy_price
+        }
+      });
+      
+      // Monitorar o resultado do contrato
+      this.monitorContract(buy.contract_id);
+      
+      return true;
+    } catch (error) {
+      console.error('[SIMPLEBOT] Erro não tratado ao executar operação real:', error);
+      this.emitEvent({ 
+        type: 'error', 
+        message: 'Erro ao executar operação real' 
+      });
+      this.scheduleNextOperation();
+      return false;
+    }
   }
   
   /**
-   * Esta função foi desativada pois o sistema agora suporta APENAS operações reais
-   * Mantida apenas para compatibilidade com código existente, mas não executa nenhuma ação
+   * Monitora um contrato específico até que ele seja concluído
+   */
+  private async monitorContract(contractId: string | number): Promise<void> {
+    console.log(`[SIMPLEBOT] Monitorando contrato ${contractId}`);
+    
+    try {
+      // Enviar solicitação para obter atualizações de contrato
+      const request = {
+        proposal_open_contract: 1,
+        contract_id: contractId,
+        subscribe: 1
+      };
+      
+      const response = await tradingWebSocket.sendRequest(request);
+      
+      if (response.error) {
+        console.error(`[SIMPLEBOT] Erro ao monitorar contrato ${contractId}:`, response.error);
+      } else {
+        console.log(`[SIMPLEBOT] Monitorando contrato ${contractId} iniciado`);
+      }
+    } catch (error) {
+      console.error(`[SIMPLEBOT] Exceção ao monitorar contrato ${contractId}:`, error);
+    }
+  }
+  
+  /**
+   * Simular uma operação no mercado
+   * NOTA: Esse método está aqui apenas por compatibilidade, mas não executa simulação.
+   * Ele sempre chama a função de operação real.
    */
   private simulateOperation(): void {
-    console.error('[SIMPLEBOT] Função simulateOperation() foi chamada, mas está desativada');
-    
-    // Notificar erro
-    this.emitEvent({
-      type: 'error',
-      message: 'Operações simuladas estão desativadas. O sistema agora suporta apenas operações reais.'
-    });
-    
-    // Agendar próxima tentativa de operação real
-    this.scheduleNextOperation();
-  }
-  
-  /**
-   * Emite um evento para todos os ouvintes registrados
-   */
-  private emitEvent(event: BotEvent): void {
-    this.eventListeners.forEach(listener => {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error('[SIMPLEBOT] Erro ao processar evento:', error);
-      }
-    });
+    console.log('[SIMPLEBOT] Método simulateOperation() redirecionando para operação REAL');
+    this.executeRealOperation();
   }
 }
 
-// Exportar instância única do serviço
+// Exportar uma única instância do serviço
 export const simpleBotService = new SimpleBotService();
-export default simpleBotService;

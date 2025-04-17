@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toast";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import { BotPage } from "@/pages/bot-page";
+import { TokenTestPage } from "@/pages/token-test-page";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -135,7 +136,7 @@ function App() {
         }} />
         <Route path="/dashboard" component={(props: any) => <ProtectedRoute component={Dashboard} {...props} />} />
         <Route path="/bot" component={(props: any) => <ProtectedRoute component={BotPage} {...props} />} />
-        <Route path="/token-test" component={(props: any) => <ProtectedRoute component={() => import("@/pages/token-test-page").then(mod => mod.default)} {...props} />} />
+        <Route path="/token-test" component={(props: any) => <ProtectedRoute component={TokenTestPage} {...props} />} />
       </Switch>
     </div>
   );
