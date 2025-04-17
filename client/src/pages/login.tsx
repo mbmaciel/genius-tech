@@ -198,7 +198,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#0c1117]">
       <div className="flex flex-col items-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-1">ONE BOT PREMIUM</h1>
+        <h1 className="text-3xl font-bold text-white mb-1">GENIUS TECHNOLOGY TRADING</h1>
         <div className="text-slate-400 text-center max-w-md">
           <h2 className="text-xl font-medium mb-1">Área de membros</h2>
           <p>A maior inovação no mercado de operações automatizadas!</p>
@@ -243,7 +243,7 @@ export default function LoginPage() {
             Não possui conta? <a href="/register" className="text-indigo-400 hover:underline">Cadastre-se agora mesmo</a>.
           </div>
           
-          <div className="mt-4 pt-4 border-t border-slate-700">
+          <div className="mt-4 pt-4 border-t border-slate-700 flex justify-center">
             <Button 
               onClick={() => {
                 // URL de autorização OAuth da Deriv
@@ -252,10 +252,9 @@ export default function LoginPage() {
                 const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
                 window.location.href = authUrl;
               }}
-              variant="outline"
-              className="w-full bg-transparent border-indigo-600 hover:bg-indigo-600/10 text-indigo-400"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              Conectar com Deriv
+              Entrar com a Deriv
             </Button>
           </div>
         </CardContent>
