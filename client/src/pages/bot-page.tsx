@@ -366,12 +366,11 @@ export function BotPage() {
   // Iniciar o bot usando o serviço OAuth Direct
   const handleStartBot = () => {
     try {
-      // Verificar primeiro se o token OAuth está disponível
-      const oauthToken = localStorage.getItem('deriv_oauth_token');
-      if (!oauthToken) {
+      // Verificar se uma conta foi selecionada
+      if (!selectedAccount) {
         toast({
-          title: "Token não disponível",
-          description: "Por favor, faça login com sua conta Deriv na página principal antes de usar o robô.",
+          title: "Conta não selecionada",
+          description: "Por favor, selecione uma conta para operar com o robô.",
           variant: "destructive"
         });
         return;
@@ -397,6 +396,7 @@ export function BotPage() {
                         selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
       
       console.log("[BOT] Iniciando operação do robô com OAuth Direct e estratégia:", selectedStrategy);
+      console.log("[BOT] Usando conta:", selectedAccount.loginid, selectedAccount.isVirtual ? "(Demo)" : "(Real)");
       
       // Atualizar a interface PRIMEIRO para feedback visual imediato
       setBotStatus('running');
@@ -406,6 +406,9 @@ export function BotPage() {
         profit: 0,
         status: null
       });
+      
+      // Garantir que a conta selecionada está ativa no serviço OAuth
+      oauthDirectService.setActiveAccount(selectedAccount.loginid, selectedAccount.token);
       
       // Configurar oauthDirectService (novo serviço com conexão WebSocket dedicada)
       oauthDirectService.setSettings({
@@ -449,7 +452,7 @@ export function BotPage() {
       
       toast({
         title: "Iniciando robô",
-        description: `Conectando ${strategyInfo?.name} ao servidor Deriv...`,
+        description: `Conectando ${strategyInfo?.name} na conta ${selectedAccount.loginid} (${selectedAccount.isVirtual ? 'Demo' : 'Real'})...`,
       });
       
     } catch (error) {
