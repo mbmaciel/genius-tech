@@ -101,14 +101,25 @@ export const connectWebSocket = async (): Promise<boolean> => {
 
       // Evento de erro na conexão
       socket!.onerror = (error) => {
-        console.error("[R100] Erro na conexão:", error);
+        if (window.location.pathname !== '/dashboard') {
+          // Se não estiver no dashboard, é provavelmente erro de navegação
+          console.log("[R100] Conexão interrompida durante navegação");
+        } else {
+          console.error("[R100] Erro na conexão:", error);
+        }
         // onclose será chamado automaticamente
       };
 
       // Evento de fechamento da conexão
       socket!.onclose = (event) => {
         clearTimeout(connectionTimeout);
-        console.warn(`[R100] Conexão fechada: ${event.code}`);
+        
+        // Código 1006 é esperado durante navegação entre páginas
+        if (event.code === 1006) {
+          console.log(`[R100] Conexão interrompida durante navegação`);
+        } else {
+          console.warn(`[R100] Conexão fechada: ${event.code}`);
+        }
         
         socket = null;
         isReconnecting = false;
