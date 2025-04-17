@@ -231,7 +231,7 @@ export default function Dashboard() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl text-white font-semibold">Dashboard</h1>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center">
             {!isAuthenticated ? (
               <DerivConnectButton 
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-2 px-4 rounded-md transition-all duration-200"
@@ -245,20 +245,41 @@ export default function Dashboard() {
                 }}
               />
             ) : (
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                {/* Informações simplificadas da conta */}
+                {accountInfo && (
+                  <div className="flex items-center mr-4 bg-[#13203a] rounded-md px-3 py-2 border border-[#2a3756]">
+                    <div className="flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-2 ${accountInfo.isVirtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                      <div className="text-sm text-white mr-3">
+                        {accountInfo.loginid}
+                      </div>
+                    </div>
+                    <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
+                    <div className="flex items-center">
+                      <div className="text-xs text-gray-400 mr-1">Tipo:</div>
+                      <div className="text-sm text-white mr-3">
+                        {accountInfo.isVirtual ? 'Demo' : 'Real'}
+                      </div>
+                    </div>
+                    <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
+                    <div className="flex items-center">
+                      <div className="text-xs text-gray-400 mr-1">Saldo:</div>
+                      <div className="text-sm font-medium text-white">
+                        {accountInfo.balance} <span className="text-xs">{accountInfo.currency}</span>
+                      </div>
+                      <div className="ml-2 w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Atualizado em tempo real"></div>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Dropdown para seletor de contas */}
-                <div className="dropdown-container mr-2 relative">
+                <div className="dropdown-container mr-3 relative">
                   <button 
                     onClick={() => setShowAccountOptions(!showAccountOptions)}
-                    className="bg-[#1d2a45] text-white py-2 px-4 rounded-md border border-[#3a4b6b] hover:bg-[#2a3756] transition-colors flex items-center"
+                    className="bg-[#1d2a45] text-white py-2 px-3 rounded-md border border-[#3a4b6b] hover:bg-[#2a3756] transition-colors flex items-center"
                   >
-                    {accountInfo ? (
-                      <span className="mr-1">
-                        {accountInfo.loginid} {accountInfo.isVirtual ? "(Demo)" : `(${accountInfo.currency})`}
-                      </span>
-                    ) : (
-                      <span>Selecionar Conta</span>
-                    )}
+                    <span className="mr-1">Contas</span>
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       width="16" 
@@ -269,7 +290,7 @@ export default function Dashboard() {
                       strokeWidth="2" 
                       strokeLinecap="round" 
                       strokeLinejoin="round"
-                      className={`ml-2 transition-transform ${showAccountOptions ? 'rotate-180' : ''}`}
+                      className={`ml-1 transition-transform ${showAccountOptions ? 'rotate-180' : ''}`}
                     >
                       <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
@@ -277,7 +298,7 @@ export default function Dashboard() {
                   
                   {/* Dropdown das contas */}
                   {showAccountOptions && (
-                    <div className="absolute top-full left-0 mt-1 w-64 bg-[#13203a] border border-[#3a4b6b] rounded-md shadow-lg z-10">
+                    <div className="absolute top-full right-0 mt-1 w-64 bg-[#13203a] border border-[#3a4b6b] rounded-md shadow-lg z-10">
                       <div className="p-2 border-b border-[#3a4b6b]">
                         <p className="text-sm text-gray-400">Selecione uma conta</p>
                       </div>
@@ -294,19 +315,7 @@ export default function Dashboard() {
                                     const accountText = acc.isVirtual 
                                       ? `${acc.loginid} (Demo)`
                                       : `${acc.loginid} (${acc.currency})`;
-                                    
-                                    // Recuperar informações mais completas se disponíveis
-                                    let accountDetails = '';
-                                    try {
-                                      const accountInfoKey = `deriv_account_info_${acc.loginid}`;
-                                      const accountInfoStr = localStorage.getItem(accountInfoKey);
-                                      if (accountInfoStr) {
-                                        const accountData = JSON.parse(accountInfoStr);
-                                        const company = accountData.landing_company_name || '';
-                                        accountDetails = company ? ` • ${company}` : '';
-                                      }
-                                    } catch (e) {}
-                                    
+                                                                        
                                     return (
                                       <button
                                         key={acc.loginid}
@@ -425,9 +434,6 @@ export default function Dashboard() {
                                           <div className={`w-2 h-2 rounded-full mr-2 ${isActive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
                                           <div>
                                             <div>{accountText}</div>
-                                            <div className="text-xs text-gray-400">
-                                              {acc.isVirtual ? 'Conta Demo' : 'Conta Real'}{accountDetails}
-                                            </div>
                                           </div>
                                         </div>
                                       </button>
@@ -470,43 +476,14 @@ export default function Dashboard() {
                       description: "Você foi desconectado com sucesso.",
                     });
                   }}
-                  className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors whitespace-nowrap"
+                  className="text-white text-sm py-2 px-3 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors whitespace-nowrap"
                 >
-                  Logout DERIV
+                  Logout
                 </button>
               </div>
             )}
           </div>
         </div>
-        
-        {/* Informação da conta se estiver autenticado */}
-        {isAuthenticated && accountInfo && (
-          <div className="mb-6">
-            <div className="bg-[#13203a] rounded-lg p-4 mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h2 className="text-lg text-white font-medium">Informações da conta</h2>
-                  <p className="text-xs text-gray-400">{accountInfo.isVirtual ? 'Conta de demonstração' : 'Conta real'}</p>
-                </div>
-              </div>
-              
-              {accountInfo && accountInfo.balance && (
-                <div className="flex items-center mt-2 p-2 bg-[#1d2a45] rounded-md">
-                  <div className="px-3 py-1 bg-indigo-600 text-xs font-medium rounded mr-3">
-                    SALDO ATUAL
-                  </div>
-                  <div className="text-lg font-bold text-white">
-                    {accountInfo.balance} {accountInfo.currency}
-                  </div>
-                  <div className="ml-auto text-xs py-1 px-2 rounded bg-green-700 text-white">
-                    Atualizado em tempo real
-                  </div>
-                </div>
-              )}
-            </div>
-            <AccountInfo accountInfo={accountInfo} />
-          </div>
-        )}
         
         {/* Cards de estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
