@@ -1,6 +1,6 @@
 /**
- * Serviço simplificado para demonstração de trading automatizado
- * Versão 2023.1 - Focada na interface
+ * Serviço para trading automatizado com API Deriv
+ * Versão 2023.2 - Executa operações reais
  */
 
 import { derivAPI } from '../lib/websocketManager';
@@ -65,7 +65,7 @@ class SimpleBotService {
   };
   
   constructor() {
-    console.log('[SIMPLEBOT] Inicializando serviço simplificado de bot');
+    console.log('[SIMPLEBOT] Inicializando serviço de bot de trading real');
   }
   
   /**
@@ -99,7 +99,7 @@ class SimpleBotService {
    * Inicia a execução do bot
    */
   public async start(): Promise<boolean> {
-    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO SUPER CORRIGIDA');
+    console.log('[SIMPLEBOT] Método start() chamado - VERSÃO REAL');
     
     if (this.status === 'running') {
       console.log('[SIMPLEBOT] Bot já está rodando, ignorando chamada');
@@ -123,27 +123,27 @@ class SimpleBotService {
         this.operationTimer = null;
       }
       
-      // Usar uma função imediata para iniciar a operação
+      // Função para iniciar a primeira operação
       const startFirstOperation = () => {
         try {
-          console.log('[SIMPLEBOT] Iniciando simulação de operações (imediata)');
+          console.log('[SIMPLEBOT] Iniciando operações reais (imediata)');
           
           // Verificar novamente se o bot ainda está ativo
           if (this.status === 'running') {
-            console.log('[SIMPLEBOT] Executando primeira operação simulada (imediata)');
-            this.simulateOperation();
+            console.log('[SIMPLEBOT] Executando primeira operação real');
+            this.executeRealOperation();
           } else {
-            console.log('[SIMPLEBOT] Bot não está mais rodando ao tentar iniciar simulação');
+            console.log('[SIMPLEBOT] Bot não está mais rodando ao tentar iniciar operações');
           }
         } catch (err) {
           console.error('[SIMPLEBOT] Erro ao iniciar primeira operação:', err);
         }
       };
       
-      // Chamar diretamente (sem setTimeout) para garantir execução
+      // Chamar imediatamente
       startFirstOperation();
       
-      // Por segurança, também agendamos com setTimeout
+      // Verificação de segurança após 2 segundos
       this.operationTimer = setTimeout(() => {
         if (this.status === 'running' && this.stats.wins === 0 && this.stats.losses === 0) {
           console.log('[SIMPLEBOT] Verificação de segurança: primeira operação não iniciou, tentando novamente');
@@ -207,88 +207,235 @@ class SimpleBotService {
   }
   
   /**
-   * Simula uma operação para fins de UI
+   * Executa uma operação real usando a API Deriv
    */
-  private simulateOperation(): void {
-    console.log('[SIMPLEBOT] Executando simulação de operação');
+  private executeRealOperation(): void {
+    console.log('[SIMPLEBOT] Executando operação REAL no mercado');
     
     if (this.status !== 'running') {
-      console.log('[SIMPLEBOT] Bot não está em status running, não vai simular operação');
+      console.log('[SIMPLEBOT] Bot não está em status running, não vai executar operação');
       return;
     }
     
-    console.log('[SIMPLEBOT] Criando contrato simulado');
+    // Verificar se temos a estratégia e configurações
+    if (!this.settings.contractType || !this.settings.entryValue) {
+      console.error('[SIMPLEBOT] Configurações incompletas para operação real');
+      this.emitEvent({ 
+        type: 'error', 
+        message: 'Configurações incompletas para operação real'
+      });
+      return;
+    }
     
-    const contract = {
-      contract_id: Math.floor(Math.random() * 1000000),
-      contract_type: this.settings.contractType || 'DIGITOVER',
-      buy_price: this.settings.entryValue,
-      symbol: 'R_100',
-      status: 'open',
-      purchase_time: Date.now() / 1000,
-      payout: this.settings.entryValue * 1.9
-    };
-    
-    // Notificar início de operação
-    console.log('[SIMPLEBOT] Emitindo evento de operação iniciada');
-    this.emitEvent({ type: 'operation_started', contract });
-    
-    // Após 5 segundos, simular finalização da operação
-    console.log('[SIMPLEBOT] Programando conclusão da operação em 5 segundos');
-    this.operationTimer = setTimeout(() => {
-      try {
-        // Verificar novamente se o bot ainda está rodando
-        if (this.status !== 'running') {
-          console.log('[SIMPLEBOT] Bot não está mais rodando durante a operação, cancelando');
+    // Iniciar contrato de compra com a API Deriv
+    import('../lib/websocketManager').then(({ derivAPI }) => {
+      // Construir parâmetros da proposta
+      const contractType = this.settings.contractType; // Ex: 'DIGITOVER', 'DIGITUNDER'
+      const amount = this.settings.entryValue;
+      const duration = 5; // 5 ticks de duração
+      const prediction = this.settings.prediction || 5; // Previsão padrão: 5
+      
+      console.log(`[SIMPLEBOT] Solicitando proposta para ${contractType} com valor ${amount}`);
+      
+      // Primeiro solicitar uma proposta (cotação)
+      derivAPI.sendRequest({
+        proposal: 1,
+        amount,
+        basis: "stake",
+        contract_type: contractType,
+        currency: "USD",
+        duration: duration,
+        duration_unit: "t",
+        symbol: "R_100",
+        barrier: prediction.toString()
+      }).then(response => {
+        if (response.error) {
+          console.error('[SIMPLEBOT] Erro ao solicitar proposta:', response.error);
+          this.emitEvent({ 
+            type: 'error', 
+            message: `Erro ao solicitar proposta: ${response.error.message}`
+          });
+          
+          // Agendar próxima tentativa
+          this.scheduleNextOperation();
           return;
         }
-
-        // Gerar resultado aleatório (vitória/derrota)
-        const isWin = Math.random() > 0.5;
-        const profit = isWin ? contract.buy_price * 0.9 : -contract.buy_price;
         
-        console.log(`[SIMPLEBOT] Operação concluída: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
-        
-        if (isWin) {
-          this.stats.wins++;
-          this.stats.consecutiveWins++;
-          this.stats.consecutiveLosses = 0;
-        } else {
-          this.stats.losses++;
-          this.stats.consecutiveLosses++;
-          this.stats.consecutiveWins = 0;
+        // Se temos uma proposta válida, comprar o contrato
+        if (response.proposal) {
+          const proposal = response.proposal;
+          console.log('[SIMPLEBOT] Proposta recebida, comprando contrato...');
+          
+          // Fazer compra usando ID da proposta
+          derivAPI.sendRequest({
+            buy: proposal.id,
+            price: amount
+          }).then(buyResponse => {
+            if (buyResponse.error) {
+              console.error('[SIMPLEBOT] Erro ao comprar contrato:', buyResponse.error);
+              this.emitEvent({ 
+                type: 'error', 
+                message: `Erro ao comprar contrato: ${buyResponse.error.message}`
+              });
+              
+              // Agendar próxima tentativa
+              this.scheduleNextOperation();
+              return;
+            }
+            
+            // Contrato comprado com sucesso
+            const contract = buyResponse.buy;
+            
+            console.log('[SIMPLEBOT] Contrato comprado com sucesso:', contract);
+            
+            // Criar objeto de contrato no formato esperado pela UI
+            const contractObj = {
+              contract_id: contract.contract_id,
+              contract_type: contractType,
+              buy_price: parseFloat(contract.buy_price),
+              symbol: "R_100",
+              status: 'open',
+              purchase_time: contract.purchase_time,
+              payout: parseFloat(contract.payout)
+            };
+            
+            // Notificar início de operação
+            this.emitEvent({ type: 'operation_started', contract: contractObj });
+            
+            // Monitorar o contrato até o final
+            this.monitorRealContract(contract.contract_id);
+          }).catch(err => {
+            console.error('[SIMPLEBOT] Exceção ao comprar contrato:', err);
+            this.scheduleNextOperation();
+          });
+        }
+      }).catch(err => {
+        console.error('[SIMPLEBOT] Exceção ao solicitar proposta:', err);
+        this.scheduleNextOperation();
+      });
+    }).catch(err => {
+      console.error('[SIMPLEBOT] Erro ao importar derivAPI:', err);
+      this.scheduleNextOperation();
+    });
+  }
+  
+  /**
+   * Monitora um contrato real até sua conclusão
+   */
+  private monitorRealContract(contractId: string | number): void {
+    console.log(`[SIMPLEBOT] Monitorando contrato real ID: ${contractId}`);
+    
+    import('../lib/websocketManager').then(({ derivAPI }) => {
+      // Usar a proposta para solicitar detalhes do contrato
+      derivAPI.sendRequest({
+        proposal_open_contract: 1,
+        contract_id: contractId,
+        subscribe: 1
+      }).then(response => {
+        if (response.error) {
+          console.error('[SIMPLEBOT] Erro ao monitorar contrato:', response.error);
+          this.scheduleNextOperation();
+          return;
         }
         
-        this.stats.totalProfit += profit;
-        
-        // Notificar resultado da operação
-        this.emitEvent({
-          type: 'operation_finished',
-          result: isWin ? 'win' : 'loss',
-          profit,
-          contract: {
-            ...contract,
-            status: isWin ? 'won' : 'lost',
-            profit
+        // Registrar callback para atualizações do contrato
+        const contractHandler = (event: CustomEvent) => {
+          const data = event.detail;
+          
+          // Verificar se é uma atualização para nosso contrato
+          if (data && 
+              data.msg_type === 'proposal_open_contract' && 
+              data.proposal_open_contract && 
+              data.proposal_open_contract.contract_id == contractId) {
+            
+            const contract = data.proposal_open_contract;
+            
+            // Verificar se o contrato foi finalizado
+            if (contract.status !== 'open') {
+              // Remover o listener do evento
+              window.removeEventListener('deriv_api_response', contractHandler as EventListener);
+              
+              // Processar o resultado
+              const isWin = contract.status === 'won';
+              const profit = parseFloat(contract.profit);
+              
+              console.log(`[SIMPLEBOT] Contrato finalizado: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
+              
+              if (isWin) {
+                this.stats.wins++;
+                this.stats.consecutiveWins++;
+                this.stats.consecutiveLosses = 0;
+              } else {
+                this.stats.losses++;
+                this.stats.consecutiveLosses++;
+                this.stats.consecutiveWins = 0;
+              }
+              
+              this.stats.totalProfit += profit;
+              
+              // Notificar resultado da operação
+              this.emitEvent({
+                type: 'operation_finished',
+                result: isWin ? 'win' : 'loss',
+                profit,
+                contract: {
+                  contract_id: contract.contract_id,
+                  contract_type: contract.contract_type,
+                  buy_price: parseFloat(contract.buy_price),
+                  symbol: contract.underlying,
+                  status: contract.status,
+                  profit: profit,
+                  purchase_time: contract.purchase_time,
+                  date_expiry: contract.date_expiry
+                }
+              });
+              
+              // Atualizar estatísticas
+              this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
+              
+              // Cancelar a subscrição
+              derivAPI.sendRequest({
+                forget: data.subscription.id
+              }).catch(err => {
+                console.error('[SIMPLEBOT] Erro ao cancelar subscrição:', err);
+              });
+              
+              // Agendar próxima operação
+              this.scheduleNextOperation();
+            }
           }
-        });
+        };
         
-        // Atualizar estatísticas
-        this.emitEvent({ type: 'stats_updated', stats: { ...this.stats } });
+        // Registrar para ouvir eventos de resposta da API
+        window.addEventListener('deriv_api_response', contractHandler as EventListener);
         
-        // Programar próxima operação
-        console.log('[SIMPLEBOT] Programando próxima operação em 3 segundos');
-        this.operationTimer = setTimeout(() => {
-          try {
-            this.simulateOperation();
-          } catch (error) {
-            console.error('[SIMPLEBOT] Erro ao iniciar próxima operação:', error);
-          }
-        }, 3000);
+      }).catch(err => {
+        console.error('[SIMPLEBOT] Exceção ao monitorar contrato:', err);
+        this.scheduleNextOperation();
+      });
+    }).catch(err => {
+      console.error('[SIMPLEBOT] Erro ao importar derivAPI:', err);
+      this.scheduleNextOperation();
+    });
+  }
+  
+  /**
+   * Agenda a próxima operação
+   */
+  private scheduleNextOperation(): void {
+    if (this.status !== 'running') {
+      console.log('[SIMPLEBOT] Bot não está mais rodando, não agendando próxima operação');
+      return;
+    }
+    
+    console.log('[SIMPLEBOT] Agendando próxima operação em 3 segundos');
+    this.operationTimer = setTimeout(() => {
+      try {
+        this.executeRealOperation();
       } catch (error) {
-        console.error('[SIMPLEBOT] Erro durante a simulação de operação:', error);
+        console.error('[SIMPLEBOT] Erro ao iniciar próxima operação:', error);
       }
-    }, 5000);
+    }, 3000);
   }
   
   /**

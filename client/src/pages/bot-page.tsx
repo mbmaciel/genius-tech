@@ -663,6 +663,43 @@ export function BotPage() {
   };
   
   // Renderizar botão de ação principal (Executar/Pausar)
+  // Estado para histórico de operações
+  const [operationHistory, setOperationHistory] = useState<{
+    id: number;
+    type: string;
+    result: 'win' | 'loss';
+    amount: number;
+    profit: number;
+    time: Date;
+  }[]>([]);
+  
+  // Use o useEffect para registrar ouvintes de eventos de operação
+  useEffect(() => {
+    const handleOperation = (event: any) => {
+      if (event.type === 'operation_finished') {
+        // Adicionar operação ao histórico
+        const newOperation = {
+          id: typeof event.contract.contract_id === 'number' ? event.contract.contract_id : Math.random(),
+          type: event.contract.contract_type,
+          result: event.result,
+          amount: event.contract.buy_price,
+          profit: event.profit,
+          time: new Date()
+        };
+        
+        setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+      }
+    };
+    
+    // Registrar ouvinte de eventos
+    simpleBotService.addEventListener(handleOperation);
+    
+    // Limpar ouvinte ao desmontar
+    return () => {
+      simpleBotService.removeEventListener(handleOperation);
+    };
+  }, []);
+
   const renderActionButton = () => {
     // Usar o novo BotController para melhor feedback visual e controle
     return (
