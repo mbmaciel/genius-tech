@@ -619,20 +619,20 @@ export function BotPage() {
   // Pausar o bot
   const handlePauseBot = async () => {
     try {
-      console.log("[BOT] Chamando botService.stop() diretamente na interface");
+      console.log("[BOT] Chamando simpleBotService.stop() diretamente na interface");
       
       // Definir o estado localmente primeiro para feedback imediato
       setBotStatus('paused');
       
       // Depois chama o serviço
-      botService.stop();
+      simpleBotService.stop();
       
       toast({
         title: "Bot pausado",
         description: "As operações foram pausadas.",
       });
     } catch (error) {
-      console.error("[BOT] Erro ao pausar botService:", error);
+      console.error("[BOT] Erro ao pausar simpleBotService:", error);
       toast({
         title: "Erro ao pausar",
         description: "Não foi possível pausar o robô corretamente.",
