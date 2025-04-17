@@ -133,7 +133,9 @@ export default function LoginPage() {
       
       // Apenas para demonstração - normalmente verificaria credenciais
       if (email && password) {
+        // Definir que o usuário está logado no localStorage
         localStorage.setItem('isLoggedIn', 'true');
+        console.log('Login bem-sucedido, salvando estado no localStorage');
         
         toast({
           title: 'Login bem-sucedido',
@@ -142,7 +144,9 @@ export default function LoginPage() {
         
         // Usar window.location.href para garantir o redirecionamento
         console.log('Redirecionando para o dashboard após login bem-sucedido');
-        window.location.href = '/dashboard';
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 500); // Pequeno atraso para garantir que o localStorage seja atualizado antes do redirecionamento
       } else {
         toast({
           title: 'Erro de login',

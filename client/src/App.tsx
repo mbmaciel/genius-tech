@@ -11,12 +11,17 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   
   useEffect(() => {
-    // Verificar se há informações de conta no localStorage
+    // Verificar se o usuário está logado através do localStorage
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    // Ou verifica se há informações de conta da Deriv no localStorage
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
     
-    if (storedAccountInfo) {
+    // O usuário está autenticado se estiver logado OU tiver informações da conta Deriv
+    if (isLoggedIn || storedAccountInfo) {
+      console.log('Usuário autenticado:', isLoggedIn ? 'Login local' : 'Conta Deriv');
       setIsAuthenticated(true);
     } else {
+      console.log('Usuário não autenticado, redirecionando para login');
       setIsAuthenticated(false);
       // Redirecionar para a página de login se não autenticado
       setLocation('/login');
