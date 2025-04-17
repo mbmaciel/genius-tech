@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
 import { BotController } from "@/components/BotController";
-import { TokenTest } from "@/components/TokenTest";
 import derivApiService from "@/services/derivApiService";
 import { simpleBotService } from "@/services/simpleBotService";
 
@@ -818,11 +817,6 @@ export function BotPage() {
         
         {/* Grade Principal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Componente de teste de token específico */}
-          <div className="lg:col-span-2 mb-4">
-            <TokenTest />
-          </div>
-          
           {/* Coluna Esquerda - Configurações do bot e operações */}
           <div className="space-y-6">
             {/* Seleção de Bots */}
