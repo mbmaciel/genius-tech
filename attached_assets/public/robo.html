@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robô de Operações - Genius Tecnologic</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0e1a33;
+            --bg-medium: #162440;
+            --bg-light: #1a2b49;
+            --border-color: #243659;
+            --text-primary: #ffffff;
+            --text-secondary: #8492b4;
+            --accent-color: #00e5b3;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', 'Open Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+        
+        .navigation {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            background-color: var(--bg-light);
+            color: var(--text-primary);
+        }
+        
+        .nav-link.active {
+            background-color: var(--bg-light);
+            color: var(--accent-color);
+        }
+        
+        .main-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        .title-icon {
+            background-color: rgba(0, 229, 179, 0.2);
+            padding: 0.75rem;
+            border-radius: 50%;
+            margin-right: 1rem;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        
+        .trading-bot {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
+        }
+        
+        .strategy-section {
+            background-color: var(--bg-medium);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+        }
+        
+        .strategy-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        .strategy-button {
+            display: flex;
+            flex-direction: column;
+            padding: 0.75rem 1rem;
+            background-color: var(--bg-light);
+            border: none;
+            border-radius: 0.375rem;
+            color: var(--text-primary);
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .strategy-button:hover {
+            background-color: rgba(0, 229, 179, 0.1);
+        }
+        
+        .strategy-button.active {
+            background-color: rgba(0, 229, 179, 0.2);
+            border-left: 3px solid var(--accent-color);
+        }
+        
+        .strategy-name {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .strategy-type {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        .strategy-description {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .control-panel {
+            background-color: var(--bg-medium);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .button-primary {
+            background-color: var(--accent-color);
+            color: var(--bg-dark);
+        }
+        
+        .button-primary:hover {
+            background-color: rgba(0, 229, 179, 0.8);
+        }
+        
+        .button-warning {
+            background-color: #f59e0b;
+            color: var(--bg-dark);
+        }
+        
+        .button-warning:hover {
+            background-color: rgba(245, 158, 11, 0.8);
+        }
+        
+        .button-danger {
+            background-color: #ef4444;
+            color: var(--text-primary);
+        }
+        
+        .button-danger:hover {
+            background-color: rgba(239, 68, 68, 0.8);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .stat-item {
+            background-color: var(--bg-light);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .profit-positive {
+            color: var(--accent-color);
+        }
+        
+        .profit-negative {
+            color: #ef4444;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .parameters {
+            margin-top: 1.5rem;
+        }
+        
+        .parameter-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .parameter-label {
+            width: 120px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .parameter-input {
+            flex: 1;
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+        
+        .parameter-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        .digit-display {
+            background-color: var(--bg-medium);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .digit-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+        
+        .digit-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.75rem;
+        }
+        
+        .digit-cell {
+            background-color: var(--bg-light);
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            text-align: center;
+        }
+        
+        .digit-number {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .digit-percentage {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .digit-bar {
+            height: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+            width: 100%;
+            margin-top: 0.5rem;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .digit-bar-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        .d0 { color: #3b82f6; }
+        .d1 { color: #10b981; }
+        .d2 { color: #f59e0b; }
+        .d3 { color: #ef4444; }
+        .d4 { color: #8b5cf6; }
+        .d5 { color: #ec4899; }
+        .d6 { color: #06b6d4; }
+        .d7 { color: #f97316; }
+        .d8 { color: #84cc16; }
+        .d9 { color: #6366f1; }
+        
+        .bar0 { background-color: #3b82f6; }
+        .bar1 { background-color: #10b981; }
+        .bar2 { background-color: #f59e0b; }
+        .bar3 { background-color: #ef4444; }
+        .bar4 { background-color: #8b5cf6; }
+        .bar5 { background-color: #ec4899; }
+        .bar6 { background-color: #06b6d4; }
+        .bar7 { background-color: #f97316; }
+        .bar8 { background-color: #84cc16; }
+        .bar9 { background-color: #6366f1; }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .connection-status.connected {
+            background-color: rgba(0, 229, 179, 0.1);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        .connection-status.disconnected {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+        
+        .status-indicator {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .status-indicator.connected {
+            background-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+        
+        .status-indicator.disconnected {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+        
+        .logs {
+            background-color: var(--bg-medium);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            margin-top: 1.5rem;
+        }
+        
+        .logs-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .logs-content {
+            background-color: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            font-family: 'Consolas', monospace;
+            font-size: 0.875rem;
+            height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            display: flex;
+            margin-bottom: 0.25rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .log-time {
+            color: var(--text-secondary);
+            margin-right: 0.5rem;
+            min-width: 80px;
+        }
+        
+        .log-message {
+            color: var(--text-primary);
+        }
+        
+        .log-message.success {
+            color: var(--accent-color);
+        }
+        
+        .log-message.error {
+            color: #ef4444;
+        }
+        
+        .log-message.warning {
+            color: #f59e0b;
+        }
+        
+        @media (max-width: 768px) {
+            .trading-bot {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .digit-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">Genius Tecnologic</div>
+            <nav class="navigation">
+                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/robo.html" class="nav-link active">Robô de Operações</a>
+            </nav>
+        </header>
+        
+        <div class="main-title">
+            <div class="title-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00e5b3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 8V4H8"></path>
+                    <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+                    <path d="M2 14h2"></path>
+                    <path d="M20 14h2"></path>
+                    <path d="M15 13v2"></path>
+                    <path d="M9 13v2"></path>
+                </svg>
+            </div>
+            <h1>Robô de Operações</h1>
+        </div>
+        
+        <div class="connection-status connected">
+            <div class="status-indicator connected"></div>
+            <span>Conectado à API Deriv</span>
+        </div>
+        
+        <main class="trading-bot">
+            <aside class="strategy-section">
+                <h2 class="section-title">Estratégias</h2>
+                <div class="strategy-list">
+                    <button class="strategy-button active">
+                        <span class="strategy-name">IRON OVER</span>
+                        <span class="strategy-type">Tipo: Over</span>
+                        <span class="strategy-description">Estratégia para dígitos maiores que 5</span>
+                    </button>
+                    
+                    <button class="strategy-button">
+                        <span class="strategy-name">IRON UNDER</span>
+                        <span class="strategy-type">Tipo: Under</span>
+                        <span class="strategy-description">Estratégia para dígitos menores que 5</span>
+                    </button>
+                    
+                    <button class="strategy-button">
+                        <span class="strategy-name">MAXPRO</span>
+                        <span class="strategy-type">Tipo: Even/Odd</span>
+                        <span class="strategy-description">Estratégia para dígitos pares/ímpares</span>
+                    </button>
+                    
+                    <button class="strategy-button">
+                        <span class="strategy-name">GREEN</span>
+                        <span class="strategy-type">Tipo: Mixed</span>
+                        <span class="strategy-description">Estratégia mista para maximizar ganhos</span>
+                    </button>
+                    
+                    <button class="strategy-button">
+                        <span class="strategy-name">PROFIT PRO AT</span>
+                        <span class="strategy-type">Tipo: Mixed</span>
+                        <span class="strategy-description">Estratégia avançada com alto rendimento</span>
+                    </button>
+                    
+                    <button class="strategy-button">
+                        <span class="strategy-name">BOT LOW</span>
+                        <span class="strategy-type">Tipo: Under</span>
+                        <span class="strategy-description">Estratégia para dígitos baixos (0-4)</span>
+                    </button>
+                </div>
+            </aside>
+            
+            <div class="main-content">
+                <section class="control-panel">
+                    <div class="control-header">
+                        <h2 class="section-title">Controles do Robô</h2>
+                        <div class="control-buttons">
+                            <button class="button button-primary" id="startButton">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                Iniciar
+                            </button>
+                            
+                            <button class="button button-warning" id="pauseButton" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="6" y="4" width="4" height="16"></rect>
+                                    <rect x="14" y="4" width="4" height="16"></rect>
+                                </svg>
+                                Pausar
+                            </button>
+                            
+                            <button class="button button-danger" id="stopButton" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                </svg>
+                                Parar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value">$100.00</div>
+                            <div class="stat-label">Saldo</div>
+                        </div>
+                        
+                        <div class="stat-item">
+                            <div class="stat-value profit-positive" id="profitValue">+$0.00</div>
+                            <div class="stat-label">Lucro</div>
+                        </div>
+                        
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalOperations">0</div>
+                            <div class="stat-label">Total de Operações</div>
+                        </div>
+                        
+                        <div class="stat-item">
+                            <div class="stat-value" id="winRate">0%</div>
+                            <div class="stat-label">Taxa de Acerto</div>
+                        </div>
+                    </div>
+                    
+                    <div class="parameters">
+                        <div class="parameter-row">
+                            <label class="parameter-label">Valor da Entrada:</label>
+                            <input type="number" class="parameter-input" id="stakeValue" value="1.00" min="0.35" step="0.01">
+                        </div>
+                        
+                        <div class="parameter-row">
+                            <label class="parameter-label">Duração (ticks):</label>
+                            <input type="number" class="parameter-input" id="durationValue" value="5" min="1" max="10">
+                        </div>
+                        
+                        <div class="parameter-row">
+                            <label class="parameter-label">Martingale:</label>
+                            <input type="number" class="parameter-input" id="martingaleValue" value="1.5" min="1" step="0.1">
+                        </div>
+                        
+                        <div class="parameter-row">
+                            <label class="parameter-label">Stop Win:</label>
+                            <input type="number" class="parameter-input" id="stopWinValue" value="20" min="1">
+                        </div>
+                        
+                        <div class="parameter-row">
+                            <label class="parameter-label">Stop Loss:</label>
+                            <input type="number" class="parameter-input" id="stopLossValue" value="10" min="1">
+                        </div>
+                    </div>
+                </section>
+                
+                <section class="digit-display">
+                    <h2 class="digit-title">Estatísticas de Dígitos - R_100</h2>
+                    <div class="digit-grid">
+                        <div class="digit-cell">
+                            <div class="digit-number d0">0</div>
+                            <div class="digit-percentage">8.2%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar0" style="width: 8.2%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d1">1</div>
+                            <div class="digit-percentage">10.5%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar1" style="width: 10.5%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d2">2</div>
+                            <div class="digit-percentage">9.8%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar2" style="width: 9.8%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d3">3</div>
+                            <div class="digit-percentage">12.1%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar3" style="width: 12.1%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d4">4</div>
+                            <div class="digit-percentage">8.7%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar4" style="width: 8.7%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d5">5</div>
+                            <div class="digit-percentage">11.3%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar5" style="width: 11.3%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d6">6</div>
+                            <div class="digit-percentage">10.8%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar6" style="width: 10.8%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d7">7</div>
+                            <div class="digit-percentage">9.5%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar7" style="width: 9.5%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d8">8</div>
+                            <div class="digit-percentage">9.2%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar8" style="width: 9.2%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="digit-cell">
+                            <div class="digit-number d9">9</div>
+                            <div class="digit-percentage">9.9%</div>
+                            <div class="digit-bar">
+                                <div class="digit-bar-fill bar9" style="width: 9.9%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <section class="logs">
+                    <div class="logs-title">
+                        <h2 class="section-title">Logs de Operações</h2>
+                    </div>
+                    <div class="logs-content" id="logsContent">
+                        <div class="log-entry">
+                            <span class="log-time">10:15:23</span>
+                            <span class="log-message">Robô de Operações inicializado</span>
+                        </div>
+                        <div class="log-entry">
+                            <span class="log-time">10:15:28</span>
+                            <span class="log-message">Aguardando início das operações</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        // Botões de controle
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const stopButton = document.getElementById('stopButton');
+        
+        // Valores estatísticos
+        const profitValue = document.getElementById('profitValue');
+        const totalOperations = document.getElementById('totalOperations');
+        const winRate = document.getElementById('winRate');
+        
+        // Logs
+        const logsContent = document.getElementById('logsContent');
+        
+        // Estado da operação
+        let isRunning = false;
+        let isPaused = false;
+        let profit = 0;
+        let operations = 0;
+        let wins = 0;
+        let currentBotInterval = null;
+        
+        // Adicionar log
+        function addLog(message, type = '') {
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const logTime = document.createElement('span');
+            logTime.className = 'log-time';
+            logTime.textContent = timeStr;
+            
+            const logMessage = document.createElement('span');
+            logMessage.className = `log-message ${type}`;
+            logMessage.textContent = message;
+            
+            logEntry.appendChild(logTime);
+            logEntry.appendChild(logMessage);
+            
+            logsContent.appendChild(logEntry);
+            logsContent.scrollTop = logsContent.scrollHeight;
+        }
+        
+        // Atualizar estatísticas
+        function updateStats() {
+            profitValue.textContent = profit >= 0 ? `+$${profit.toFixed(2)}` : `-$${Math.abs(profit).toFixed(2)}`;
+            profitValue.className = `stat-value ${profit >= 0 ? 'profit-positive' : 'profit-negative'}`;
+            
+            totalOperations.textContent = operations;
+            
+            const winRateValue = operations > 0 ? ((wins / operations) * 100).toFixed(1) : '0.0';
+            winRate.textContent = `${winRateValue}%`;
+        }
+        
+        // Simular operação
+        function simulateOperation() {
+            const stakeValue = parseFloat(document.getElementById('stakeValue').value);
+            const durationValue = parseInt(document.getElementById('durationValue').value);
+            
+            // Resultado aleatório (ganhou ou perdeu)
+            const isWin = Math.random() > 0.4; // 60% de chance de ganhar para demonstração
+            
+            if (isWin) {
+                const winAmount = stakeValue * 0.95; // 95% de retorno
+                profit += winAmount;
+                wins++;
+                operations++;
+                addLog(`Operação finalizada. Ganho: $${winAmount.toFixed(2)}`, 'success');
+            } else {
+                profit -= stakeValue;
+                operations++;
+                addLog(`Operação finalizada. Perda: $${stakeValue.toFixed(2)}`, 'error');
+            }
+            
+            updateStats();
+        }
+        
+        // Eventos dos botões
+        startButton.addEventListener('click', () => {
+            if (isRunning) return;
+            
+            isRunning = true;
+            isPaused = false;
+            
+            startButton.disabled = true;
+            pauseButton.disabled = false;
+            stopButton.disabled = false;
+            
+            addLog('Robô iniciado com a estratégia IRON OVER', 'success');
+            addLog('Analisando dígitos recentes...', '');
+            
+            // Iniciar simulação de operações
+            currentBotInterval = setInterval(() => {
+                if (!isPaused) {
+                    addLog('Iniciando nova operação...', '');
+                    setTimeout(() => {
+                        simulateOperation();
+                    }, 2000);
+                }
+            }, 5000);
+        });
+        
+        pauseButton.addEventListener('click', () => {
+            if (!isRunning) return;
+            
+            if (isPaused) {
+                isPaused = false;
+                pauseButton.textContent = 'Pausar';
+                addLog('Operações retomadas', 'warning');
+            } else {
+                isPaused = true;
+                pauseButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Retomar
+                `;
+                addLog('Operações pausadas', 'warning');
+            }
+        });
+        
+        stopButton.addEventListener('click', () => {
+            if (!isRunning) return;
+            
+            isRunning = false;
+            isPaused = false;
+            
+            startButton.disabled = false;
+            pauseButton.disabled = true;
+            stopButton.disabled = true;
+            
+            pauseButton.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+                Pausar
+            `;
+            
+            clearInterval(currentBotInterval);
+            
+            addLog('Robô parado pelo usuário', 'error');
+        });
+        
+        // Eventos das estratégias
+        document.querySelectorAll('.strategy-button').forEach(button => {
+            button.addEventListener('click', () => {
+                if (isRunning) {
+                    addLog('Pare o robô antes de trocar de estratégia', 'error');
+                    return;
+                }
+                
+                document.querySelectorAll('.strategy-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                button.classList.add('active');
+                
+                const strategyName = button.querySelector('.strategy-name').textContent;
+                addLog(`Estratégia ${strategyName} selecionada`, '');
+            });
+        });
+        
+        // Inicializador
+        addLog('Bem-vindo ao Robô de Operações Genius Tecnologic', '');
+        addLog('Selecione uma estratégia e clique em Iniciar para começar as operações', '');
+    </script>
+</body>
+</html>

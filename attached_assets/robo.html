@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecionando para o Robô de Operações</title>
+    <style>
+        body {
+            font-family: 'Poppins', 'Arial', sans-serif;
+            background-color: #0e1a33;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            background-color: #162440;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 229, 179, 0.3);
+        }
+        
+        h1 {
+            color: #00e5b3;
+            margin-bottom: 20px;
+        }
+        
+        p {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .loader {
+            border: 5px solid #162440;
+            border-top: 5px solid #00e5b3;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Redirecionando...</h1>
+        <p>Aguarde enquanto você é redirecionado para o Robô de Operações Genius Tecnologic.</p>
+        <div class="loader"></div>
+    </div>
+
+    <script>
+        // Função para verificar acesso ao robô e redirecionar
+        async function checkRobotAccess() {
+            try {
+                const response = await fetch('/api/robo-access');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Redirecionar para a URL fornecida pela API
+                    window.location.href = data.url;
+                } else {
+                    // Caso haja um erro, exibir a mensagem
+                    document.querySelector('.container').innerHTML = `
+                        <h1>Acesso Negado</h1>
+                        <p>${data.message || 'Não foi possível acessar o Robô de Operações. Por favor, verifique suas permissões.'}</p>
+                        <p><a href="/" style="color: #00e5b3; text-decoration: none;">Voltar para a página inicial</a></p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar acesso:', error);
+                document.querySelector('.container').innerHTML = `
+                    <h1>Erro de Conexão</h1>
+                    <p>Não foi possível conectar ao servidor. Por favor, tente novamente mais tarde.</p>
+                    <p><a href="/" style="color: #00e5b3; text-decoration: none;">Voltar para a página inicial</a></p>
+                `;
+            }
+        }
+        
+        // Verificar o acesso assim que a página carregar
+        document.addEventListener('DOMContentLoaded', checkRobotAccess);
+    </script>
+</body>
+</html>

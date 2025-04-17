@@ -1,0 +1,3189 @@
+/**
+ * Módulo de integração com a API da Deriv
+ * Implementa comunicação via WebSocket com a Deriv API
+ */
+
+class DerivAPI {
+  private socket: WebSocket | null = null;
+  private isConnected: boolean = false;
+  private messageQueue: any[] = [];
+  private callbacks: Map<string, (response: any) => void> = new Map();
+  private errorListeners: Set<(error: { code: string, message: string }) => void> = new Set();
+  private _token: string | null = null;
+  private reconnectAttempts: number = 0;
+  private isReconnecting: boolean = false;
+  private lastPingTime: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectTimeout: any = null;
+  private activeSubscriptions: Map<string, string> = new Map(); // símbolo -> subscription_id
+  private pingInterval: number | null = null; // Intervalo para enviar pings periódicos
+  private balanceUpdateInterval: number | null = null; // Intervalo para atualização de saldo
+  
+  /**
+   * Restaura assinaturas salvas no sessionStorage após reconexão
+   * Esta função é chamada após autenticação bem-sucedida
+   */
+  private restoreSubscriptionsFromSession(): void {
+    try {
+      const savedSubscriptions = sessionStorage.getItem('activeSubscriptions');
+      if (!savedSubscriptions) {
+        console.log('[DerivAPI] Nenhuma assinatura salva para restaurar');
+        return;
+      }
+
+      const subscriptions = JSON.parse(savedSubscriptions);
+      console.log(`[DerivAPI] Restaurando ${Object.keys(subscriptions).length} assinaturas salvas`);
+
+      // Para cada símbolo salvo, recriar a assinatura
+      Object.keys(subscriptions).forEach(symbol => {
+        // Verificar se já não temos uma assinatura ativa para este símbolo
+        if (!this.activeSubscriptions.has(symbol)) {
+          console.log(`[DerivAPI] Restaurando assinatura para ${symbol}`);
+          // Usar o método subscribeTicks com forceReconnect=true para garantir uma nova assinatura
+          this.subscribeTicks(symbol, true)
+            .then(response => {
+              console.log(`[DerivAPI] Assinatura restaurada com sucesso para ${symbol}`);
+            })
+            .catch(err => {
+              console.error(`[DerivAPI] Erro ao restaurar assinatura para ${symbol}:`, err);
+            });
+        } else {
+          console.log(`[DerivAPI] Assinatura para ${symbol} já está ativa`);
+        }
+      });
+    } catch (error) {
+      console.error('[DerivAPI] Erro ao restaurar assinaturas:', error);
+    }
+  }
+  
+  // Informações da conta armazenadas publicamente baseadas na resposta do schema "authorize"
+  public accountInfo: {
+    loginid: string;
+    balance: number;
+    currency: string;
+    isVirtual: boolean;
+    fullname?: string;
+    email?: string;
+    country?: string;
+    landingCompany?: string;
+    landingCompanyFullname?: string;
+    accountList?: Array<{
+      loginid: string;
+      currency: string;
+      balance?: number;
+      isVirtual: boolean;
+      accountType: string;
+      accountCategory: string;
+      landingCompanyName: string;
+    }>;
+    preferredLanguage?: string;
+    scopes?: string[];
+    userId?: number;
+    upgradableLandingCompanies?: string[];
+    localCurrencies?: Record<string, {fractionalDigits: number}>;
+    oauthDetails?: {
+      appId: number;
+      appName: string;
+      lastUsed: string | null;
+      scopes: string[];
+    };
+  } = {
+    loginid: "",           // ID da conta (será preenchido após autenticação)
+    balance: 0,            // Saldo da conta (será preenchido após autenticação)
+    currency: "USD",       // Moeda da conta (valor padrão)
+    isVirtual: false       // Tipo de conta (será atualizado após autenticação)
+  };
+  
+  // Cache para armazenar dados históricos e reduzir chamadas à API
+  private ticksHistoryCache: Map<string, { data: any, timestamp: number }> = new Map();
+  private symbolDetailsCache: Map<string, { data: any, timestamp: number }> = new Map();
+  
+  // Controle de taxa de requisições
+  private requestTimestamps: number[] = [];
+  private maxRequestsPerMinute: number = 60; // Limite conservador
+  private requestThrottleTimeout: any = null;
+
+  // Singleton
+  private static instance: DerivAPI;
+  
+  public static getInstance(): DerivAPI {
+    if (!DerivAPI.instance) {
+      DerivAPI.instance = new DerivAPI();
+    }
+    return DerivAPI.instance;
+  }
+
+  private constructor() {
+    // Construtor privado para Singleton
+  }
+
+  /**
+   * Inicializa a conexão com a API da Deriv
+   * 
+   * @param apiToken Token de API para autenticação
+   * @param connectOptions Opções adicionais de conexão
+   * @param connectOptions.additionalTokens Tokens adicionais de autenticação (até 25)
+   * @param connectOptions.addToLoginHistory Se deve adicionar ao histórico de login (1) ou não (0)
+   * @returns Promise que resolve para true quando a conexão é estabelecida,
+   * ou um objeto com propriedades authorize/connected quando autenticado
+   */
+  public async connect(
+    apiToken?: string, 
+    connectOptions?: {
+      additionalTokens?: string[],
+      addToLoginHistory?: 0 | 1,
+      forceAuth?: boolean  // Nova opção para forçar re-autorização sem reconexão
+    }
+  ): Promise<boolean | any> {
+    return new Promise((resolve, reject) => {
+      try {
+        // Verificar se já existe uma conexão ou tentativa de reconexão em andamento
+        if (this.isReconnecting) {
+          console.log('[DerivAPI] Já existe uma tentativa de reconexão em andamento, aguardando...');
+          resolve({ alreadyConnecting: true });
+          return;
+        }
+
+        // Definir o flag de reconexão em andamento
+        this.isReconnecting = true;
+
+        // Se já estamos conectados e só precisamos reautorizar (ex: troca de conta)
+        if (this.isConnected && this.socket && (connectOptions?.forceAuth || apiToken)) {
+          console.log('================ REAUTORIZAÇÃO SEM DESCONEXÃO ================');
+          console.log('Mantendo conexão existente e apenas reautorizando com o novo token');
+          console.log('Tokens adicionais:', connectOptions?.additionalTokens?.length || 0);
+          this.isReconnecting = false;
+          
+          // Autorizar com o novo token, mas manter a conexão WebSocket
+          if (apiToken) {
+            this.authorize(
+              apiToken, 
+              { 
+                addToLoginHistory: connectOptions?.addToLoginHistory ?? 1,
+                additionalTokens: connectOptions?.additionalTokens
+              }
+            )
+            .then(resolve)
+            .catch(reject);
+          } else {
+            // Caso não tenha token novo, autoriza com o atual
+            this.authorize(
+              this._token!, 
+              { 
+                addToLoginHistory: connectOptions?.addToLoginHistory ?? 1,
+                additionalTokens: connectOptions?.additionalTokens
+              }
+            )
+            .then(resolve)
+            .catch(reject);
+          }
+          return;
+        }
+        
+        // Se chegamos aqui, precisamos de uma nova conexão WebSocket completa
+        // Verificar se já estamos conectados mas precisamos de nova conexão
+        if (this.isConnected && this.socket) {
+          this.isReconnecting = false;
+          resolve(true);
+          return;
+        }
+
+        // Procurar token em várias possíveis fontes (ordem de prioridade)
+        const localStorageToken = typeof window !== 'undefined' ? localStorage.getItem('deriv_api_token') : null;
+        const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem('derivApiToken') : null;
+        
+        // Usar token na ordem: apiToken (parâmetro) > localStorage > sessionStorage > env
+        this._token = apiToken || localStorageToken || sessionToken || import.meta.env.DERIV_API_TOKEN || null;
+        
+        if (!this._token) {
+          console.error('Token API da Deriv não disponível');
+          reject(new Error('Token API da Deriv não disponível'));
+          return;
+        }
+        
+        // Salvar o token em ambos os storages para maior persistência
+        if (typeof window !== 'undefined') {
+          // Armazenar o token em locais padrão
+          sessionStorage.setItem('derivApiToken', this._token);
+          localStorage.setItem('deriv_api_token', this._token);
+          
+          // Registrar quem fez o login (data/hora) para depuração
+          const loginTimestamp = new Date().toISOString();
+          localStorage.setItem('deriv_last_login', loginTimestamp);
+          
+          console.log('Token salvo para uso persistente:', this._token.substring(0, 4) + '****');
+          console.log('Login registrado em:', loginTimestamp);
+        }
+
+        // Usar a URL WebSocket oficial da Deriv diretamente com app_id 71403
+        // Este é o mesmo app_id usado para o OAuth
+        const APP_ID = 71403;
+        
+        // A URL correta para a API WebSocket da Deriv
+        const wsUrl = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+        
+        console.log("Conectando via WebSocket no endereço:", wsUrl);
+
+        this.socket = new WebSocket(wsUrl);
+
+        this.socket.onopen = () => {
+          console.log('Conexão WebSocket estabelecida com a Deriv API');
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
+          
+          // Configurar ping periódico para evitar timeout de inatividade (a cada 20 segundos)
+          // Frequência reduzida de 60s para 20s para garantir melhor estabilidade
+          if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+          }
+          
+          this.pingInterval = window.setInterval(() => {
+            this.sendPing();
+          }, 20000);
+          
+          // Autoriza imediatamente após conexão
+          // Passa as opções de autorização recebidas na conexão ou usa padrão
+          this.authorize(
+            this._token!, 
+            { 
+              addToLoginHistory: connectOptions?.addToLoginHistory ?? 1,
+              additionalTokens: connectOptions?.additionalTokens
+            }
+          )
+            .then((authResponse) => {
+              // Processar a resposta de autorização se for válida
+              if (authResponse && authResponse.authorize) {
+                this.processAuthorizeResponse(authResponse);
+                
+                // Restaurar assinaturas salvas no sessionStorage após autenticação
+                this.restoreSubscriptionsFromSession();
+              }
+              
+              // Processa mensagens enfileiradas durante desconexão
+              if (this.messageQueue.length > 0) {
+                console.log(`Processando ${this.messageQueue.length} mensagens enfileiradas`);
+                this.messageQueue.forEach(message => {
+                  this.socket?.send(JSON.stringify(message));
+                });
+                this.messageQueue = [];
+              }
+              resolve(authResponse);
+            })
+            .catch(error => {
+              console.error('Erro de autorização:', error);
+              reject(error);
+            });
+        };
+
+        this.socket.onclose = (event) => {
+          console.log(`Conexão WebSocket fechada: ${event.code} - ${event.reason}`);
+          this.isConnected = false;
+          
+          // Tenta reconectar automaticamente
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            const delay = Math.pow(2, this.reconnectAttempts) * 1000; // Backoff exponencial
+            console.log(`Tentando reconectar em ${delay / 1000} segundos... (Tentativa ${this.reconnectAttempts})`);
+            
+            this.reconnectTimeout = setTimeout(() => {
+              this.connect(this._token!);
+            }, delay);
+          } else {
+            console.error('Número máximo de tentativas de reconexão atingido');
+          }
+        };
+
+        this.socket.onerror = (error) => {
+          console.error('Erro na conexão WebSocket:', error);
+          reject(error);
+        };
+
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          // Removido log para melhorar performance
+          // console.debug('Mensagem recebida:', data);
+          
+          // Verifica se há um ID de requisição e callback correspondente
+          if (data.req_id && this.callbacks.has(data.req_id.toString())) {
+            const callback = this.callbacks.get(data.req_id.toString());
+            if (callback) {
+              callback(data);
+              // Remove o callback após o uso para evitar vazamento de memória
+              this.callbacks.delete(data.req_id.toString());
+            }
+          }
+          
+          // Verifica se é uma atualização de assinatura por ID
+          if (data.subscription && data.subscription.id) {
+            const subId = data.subscription.id;
+            
+            // Verifica se temos um callback registrado para esta assinatura
+            if (this.callbacks.has(subId)) {
+              const callback = this.callbacks.get(subId);
+              if (callback) {
+                callback(data);
+                // Não removemos o callback pois é uma assinatura contínua
+              }
+            }
+          }
+          
+          // Eventos que não têm req_id serão tratados aqui
+          if (data.msg_type === 'proposal') {
+            // Emitir evento de proposta recebida
+            document.dispatchEvent(new CustomEvent('deriv:proposal', { detail: data }));
+          } else if (data.msg_type === 'buy') {
+            // Emitir evento de compra concluída
+            document.dispatchEvent(new CustomEvent('deriv:buy', { detail: data }));
+          } else if (data.msg_type === 'proposal_open_contract') {
+            // Emitir evento de contrato aberto atualizado
+            console.log("Contrato atualizado:", data);
+            document.dispatchEvent(new CustomEvent('deriv:contract_update', { detail: data }));
+          } else if (data.msg_type === 'tick') {
+            // Emitir evento de tick recebido com flag para prevenir duplicação
+            // Adicionar o timestamp atual para garantir unicidade
+            const eventId = `tick_${data.tick?.symbol}_${Date.now()}`;
+            document.dispatchEvent(new CustomEvent('deriv:tick', { 
+              detail: {
+                ...data,
+                _eventId: eventId // ID único para ajudar a identificar eventos duplicados
+              }
+            }));
+          } else if (data.msg_type === 'ohlc') {
+            // Emitir evento de candle/OHLC recebido
+            document.dispatchEvent(new CustomEvent('deriv:ohlc', { detail: data }));
+          } else if (data.msg_type === 'history') {
+            // Emitir evento de histórico recebido
+            document.dispatchEvent(new CustomEvent('deriv:history', { detail: data }));
+          } else if (data.msg_type === 'candles') {
+            // Emitir evento de candles recebido
+            document.dispatchEvent(new CustomEvent('deriv:candles', { detail: data }));
+          } else if (data.msg_type === 'balance') {
+            // Emitir evento de atualização de saldo sem fazer log
+            // Usamos flag silent=true para evitar notificações visuais para consultas automáticas
+            document.dispatchEvent(new CustomEvent('deriv:balance_update', { 
+              detail: { ...data, silent: true } 
+            }));
+          } else if (data.msg_type === 'authorize') {
+            // Processar resposta de autorização
+            this.processAuthorizeResponse(data);
+          }
+        };
+      } catch (error) {
+        console.error('Erro ao conectar com a API da Deriv:', error);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Autoriza o acesso à API usando o token
+   * 
+   * A resposta contém um objeto authorize com informações da conta:
+   * - account_list: Lista de contas do usuário
+   * - balance: Saldo da conta
+   * - country: Código de país
+   * - currency: Moeda da conta
+   * - email: Email do usuário
+   * - fullname: Nome completo (vazio para contas virtuais)
+   * - is_virtual: Se é conta virtual (1) ou real (0)
+   * - loginid: ID de login da conta associada ao token
+   * - user_id: ID interno do usuário
+   * 
+   * @param token Token de autenticação principal
+   * @param options Opções adicionais de autorização
+   * @param options.additionalTokens Tokens adicionais de autenticação (até 25)
+   * @param options.addToLoginHistory Se deve adicionar ao histórico de login (1) ou não (0)
+   * @returns Promessa que resolve para objeto com resposta de autorização
+   */
+  private async authorize(
+    token: string, 
+    options?: {
+      additionalTokens?: string[],
+      addToLoginHistory?: 0 | 1,
+      targetAccount?: string
+    }
+  ): Promise<any> {
+    console.log(`======== TENTATIVA DE AUTORIZAÇÃO ========`);
+    console.log(`Token: ${token.substring(0, 6)}... (${token.length} caracteres)`);
+    
+    // Registrar conta alvo, se especificada
+    if (options?.targetAccount) {
+      console.log(`Conta alvo esperada: ${options.targetAccount}`);
+    }
+    
+    // Validação rigorosa do token: deve ser string e seguir padrão específico da API
+    if (typeof token !== 'string' || token.length < 5 || token.length > 128) {
+      console.error(`ERRO: Token inválido (tipo ou tamanho)`);
+      throw new Error(`Token inválido: formato incorreto`);
+    }
+    
+    // Verificar se o token segue o padrão da Deriv (alfanumérico + hífen)
+    const tokenPattern = /^[\w\-]{1,128}$/;
+    if (!tokenPattern.test(token)) {
+      console.error(`ERRO: Token não segue o padrão exigido pela API Deriv`);
+      throw new Error(`Token inválido: não segue o padrão alfanumérico exigido`);
+    }
+    
+    // Verificar se o WebSocket está conectado
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      console.error(`ERRO: WebSocket não está conectado (readyState: ${this.socket?.readyState})`);
+      throw new Error("WebSocket não está conectado. Conecte antes de autorizar.");
+    }
+    
+    // Criar a solicitação de autorização com ID único para rastrear esta requisição
+    const requestId = Date.now();
+    const request: any = { 
+      authorize: token,
+      req_id: requestId
+    };
+    
+    // Armazenar o token atual para uso futuro (reconexão)
+    this._token = token;
+    
+    // Registrar tentativa de autorização
+    const authTimestamp = new Date().toISOString();
+    console.log(`Tentativa de autorização em: ${authTimestamp} (ID: ${requestId})`);
+    
+    // Salvar dados nos storages locais
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('deriv_api_token', token);
+      localStorage.setItem('deriv_auth_timestamp', authTimestamp);
+      localStorage.setItem('deriv_last_auth_req', String(requestId));
+    }
+    
+    // Adicionar tokens adicionais se fornecidos (até 25)
+    if (options?.additionalTokens && options.additionalTokens.length > 0) {
+      request.tokens = options.additionalTokens.slice(0, 25);
+      console.log(`Adicionando ${options.additionalTokens.length} tokens extras à solicitação`);
+      if (options.additionalTokens.length > 0) {
+        console.log(`Exemplo do primeiro token adicional: ${options.additionalTokens[0].substring(0, 4)}****`);
+      }
+    }
+    
+    // Adicionar ao histórico de login, se especificado (importante para relatórios)
+    if (options?.addToLoginHistory === 1) {
+      request.add_to_login_history = 1;
+    }
+    
+    console.log(`Enviando solicitação de autorização com ID: ${requestId}`);
+    
+    try {
+      // Usar a função send para enviar a requisição
+      const authResponse = await this.send(request);
+      
+      // Verificar a resposta
+      if (authResponse && authResponse.authorize) {
+        console.log(`Autorização bem-sucedida para conta: ${authResponse.authorize.loginid}`);
+        console.log(`Tipo de conta: ${authResponse.authorize.is_virtual ? 'Virtual' : 'Real'}`);
+        console.log(`Saldo: ${authResponse.authorize.balance} ${authResponse.authorize.currency}`);
+        
+        // Converter e armazenar lista de contas recebida no formato do exemplo
+        if (authResponse.authorize.account_list && authResponse.authorize.account_list.length > 0) {
+          try {
+            // Mapear para o formato esperado pelo sistema
+            const savedAccounts = authResponse.authorize.account_list.map((acct: any) => ({
+              account: acct.loginid,
+              token: token, // Usamos o mesmo token para todas as contas na lista
+              currency: acct.currency || 'USD'
+            }));
+            
+            console.log(`Armazenando ${savedAccounts.length} contas do usuário`);
+            
+            // Salvar no localStorage para uso futuro
+            localStorage.setItem('derivSavedAccounts', JSON.stringify(savedAccounts));
+            
+            // Atualizar o loginid ativo
+            localStorage.setItem('deriv_active_account', authResponse.authorize.loginid);
+          } catch (e) {
+            console.error("Erro ao processar lista de contas:", e);
+          }
+        }
+        
+        // Se a conta for diferente da anterior, notificar sobre a mudança
+        const previousAccount = localStorage.getItem('deriv_active_account');
+        if (previousAccount && previousAccount !== authResponse.authorize.loginid) {
+          console.log(`Mudança de conta detectada: ${previousAccount} → ${authResponse.authorize.loginid}`);
+        }
+      } else {
+        console.error(`Resposta de autorização incompleta ou inválida:`, authResponse);
+      }
+      
+      return authResponse;
+    } catch (error) {
+      console.error(`Erro durante autorização:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Envia uma requisição para a API
+   */
+  /**
+   * Verifica se o número de requisições já atingiu o limite
+   * e aplica throttling se necessário
+   */
+  private shouldThrottleRequest(): boolean {
+    const now = Date.now();
+    
+    // Remove timestamps antigos (mais de 60 segundos)
+    this.requestTimestamps = this.requestTimestamps.filter(
+      timestamp => now - timestamp < 60000
+    );
+    
+    // Aumentar o limite de requisições por minuto para maior throughput
+    const adjustedLimit = this.maxRequestsPerMinute * 1.5; // 50% a mais
+    
+    // Verifica se já atingiu o limite de requisições por minuto
+    return this.requestTimestamps.length >= adjustedLimit;
+  }
+  
+  /**
+   * Registra uma nova requisição para controle de throttling
+   */
+  private registerRequest(): void {
+    this.requestTimestamps.push(Date.now());
+  }
+  
+  /**
+   * Envia uma requisição para a API com suporte a throttling e cache
+   */
+  public async send(request: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // Função para executar o envio efetivo da mensagem
+      const executeRequest = () => {
+        if (!this.isConnected || !this.socket) {
+          console.warn('WebSocket não conectado. Enfileirando mensagem...');
+          this.messageQueue.push(request);
+          this.connect(this._token!)
+            .then(() => {
+              // A mensagem será processada quando a conexão for estabelecida
+            })
+            .catch(reject);
+          return;
+        }
+
+        // Verifica se precisa aplicar throttling
+        if (this.shouldThrottleRequest()) {
+          // NOVO: Sistema de prioridade crítica sem throttling para pings
+          
+          // NÃO aplicar throttling para mensagens de ping - essencial para estabilidade
+          if (request.ping === 1) {
+            // Ignorar completamente throttling para pings
+            // Registrar request e prosseguir imediatamente
+            this.registerRequest();
+            const reqId = Date.now();
+            const message = { ...request, req_id: reqId };
+            const callbackKey = reqId.toString();
+            
+            this.callbacks.set(callbackKey, (response: any) => {
+              if (response.error) {
+                reject(response.error);
+              } else {
+                resolve(response);
+              }
+            });
+            
+            // Enviar sem delay
+            if (this.socket) this.socket.send(JSON.stringify(message));
+            return;
+          }
+          
+          // Aplicar throttling adaptativo APENAS para outras mensagens
+          let delay = 500 + Math.floor(Math.random() * 300); // Valor base reduzido
+          
+          // Sistema de prioridade para outros tipos
+          if (request.subscribe === 1 && request.ticks) {
+            // Assinaturas de ticks têm prioridade alta
+            delay = Math.min(delay, 100);
+          } else if (request.forget || request.forget_all) {
+            // Cancelamento de assinaturas também é importante
+            delay = Math.min(delay, 100);
+          } else if (request.buy) {
+            // Requests de compra são importantes para o usuário
+            delay = Math.min(delay, 50); // prioridade máxima para compras
+          } else if (request.proposal) {
+            // Requisições de proposta também são importantes 
+            delay = Math.min(delay, 200);
+          } else if (request.ticks_history) {
+            // Histórico de ticks são menos críticos
+            delay = Math.min(delay, 300);
+          }
+          
+          console.warn(`Aplicando throttling para evitar rate limit. Atraso de ${delay}ms aplicado.`);
+          
+          // Agenda a execução com atraso
+          setTimeout(() => executeRequest(), delay);
+          return;
+        }
+        
+        // Registra a requisição para controle de throttling
+        this.registerRequest();
+
+        // Adiciona um ID de requisição único (DEVE ser número inteiro, não string)
+        const reqId = request.req_id || Date.now();  // Usar req_id existente ou gerar um novo
+        
+        // Validar e garantir que req_id seja sempre um número inteiro
+        const finalReqId = typeof reqId === 'string' ? Date.now() : reqId;
+        
+        // Construir a mensagem com req_id garantidamente como número
+        const message = { ...request, req_id: finalReqId };
+
+        // Log para debug
+        if (request.ping === 1) {
+          // Removido log de debug para melhorar performance
+        }
+
+        // Converter o ID para string quando usado como chave no Map
+        const callbackKey = finalReqId.toString();
+        
+        // Registra o callback para esta requisição usando o ID como string (chave do Map)
+        this.callbacks.set(callbackKey, (response: any) => {
+          if (response.error) {
+            // Se receber erro de rate limit, refaz a requisição com atraso maior
+            if (response.error.code === 'RateLimit') {
+              console.warn('Rate limit atingido. Reagendando requisição com atraso maior...');
+              setTimeout(() => executeRequest(), 5000); // 5 segundos
+              return;
+            }
+            reject(response.error);
+          } else {
+            // Cache de resultados para histórico de ticks
+            if (response.history && request.ticks_history) {
+              this.ticksHistoryCache.set(request.ticks_history, {
+                data: response,
+                timestamp: Date.now()
+              });
+            }
+            
+            resolve(response);
+          }
+        });
+
+        // Envia a mensagem
+        this.socket.send(JSON.stringify(message));
+      };
+      
+      // Para ticks_history, primeiro verifica se há dados em cache
+      if (request.ticks_history && !request.subscribe) {
+        const cachedData = this.ticksHistoryCache.get(request.ticks_history);
+        
+        // Se tiver cache válido (menos de 10 segundos), usa o cache
+        if (cachedData && (Date.now() - cachedData.timestamp < 10000)) {
+          console.log(`Usando dados em cache para ${request.ticks_history}`);
+          resolve(cachedData.data);
+          return;
+        }
+      }
+      
+      // Verifica se já temos dados de símbolo em cache
+      if (request.active_symbols) {
+        const cacheKey = 'active_symbols';
+        const cachedData = this.symbolDetailsCache.get(cacheKey);
+        
+        // Se tiver cache válido (menos de 30 segundos), usa o cache
+        if (cachedData && (Date.now() - cachedData.timestamp < 30000)) {
+          console.log('Usando dados de símbolos em cache');
+          resolve(cachedData.data);
+          return;
+        }
+      }
+      
+      // Executa a requisição
+      executeRequest();
+    });
+  }
+
+  /**
+   * Solicita cotação/proposta para um contrato específico
+   */
+  public async requestProposal(params: any): Promise<any> {
+    return this.send({
+      proposal: 1,
+      ...params
+    });
+  }
+
+  /**
+   * Compra um contrato com base na proposta recebida
+   */
+  public async buyContract(proposalId: string, price: number): Promise<any> {
+    return this.send({
+      buy: proposalId,
+      price: price
+    });
+  }
+
+  /**
+   * Solicita informações sobre um contrato aberto
+   */
+  public async getOpenContract(contractId: string): Promise<any> {
+    return this.send({
+      proposal_open_contract: 1,
+      contract_id: contractId
+    });
+  }
+  
+  /**
+   * Inscreve-se para receber atualizações de um contrato específico
+   * @param contractId ID do contrato a ser monitorado
+   */
+  public async subscribeToContract(contractId: string): Promise<any> {
+    return this.send({
+      proposal_open_contract: 1,
+      contract_id: contractId,
+      subscribe: 1
+    });
+  }
+  
+  /**
+   * Cancela um contrato ativo
+   * @param contractId ID do contrato a ser cancelado
+   */
+  public async cancelContract(contractId: number): Promise<any> {
+    return this.send({
+      cancel: contractId
+    });
+  }
+  
+  /**
+   * Vende todos os contratos expirados
+   */
+  public async sellExpiredContracts(): Promise<any> {
+    return this.send({
+      sell_expired: 1
+    });
+  }
+  
+  /**
+   * Atualiza as configurações de um contrato aberto (stop loss, take profit)
+   * @param contractId ID do contrato a ser atualizado
+   * @param stopLoss Novo valor para stop loss (ou null para remover)
+   * @param takeProfit Novo valor para take profit (ou null para remover)
+   */
+  public async updateContract(
+    contractId: string | number, 
+    stopLoss?: number | null, 
+    takeProfit?: number | null
+  ): Promise<any> {
+    const limitOrder: {stop_loss?: number | null, take_profit?: number | null} = {};
+    
+    if (stopLoss !== undefined) {
+      limitOrder.stop_loss = stopLoss;
+    }
+    
+    if (takeProfit !== undefined) {
+      limitOrder.take_profit = takeProfit;
+    }
+    
+    return this.send({
+      contract_update: 1,
+      contract_id: typeof contractId === 'string' ? parseInt(contractId) : contractId,
+      limit_order: limitOrder
+    });
+  }
+  
+  /**
+   * Obtém o histórico de atualizações de um contrato específico
+   * @param contractId ID do contrato
+   */
+  public async getContractUpdateHistory(contractId: string | number): Promise<any> {
+    return this.send({
+      contract_update_history: 1,
+      contract_id: typeof contractId === 'string' ? parseInt(contractId) : contractId
+    });
+  }
+
+  /**
+   * Obtém o histórico de ticks para um símbolo e opcionalmente assina atualizações
+   * Implementação baseada no schema oficial da API Deriv
+   * 
+   * @param symbol O símbolo para obter histórico (ex: R_100)
+   * @param options Opções adicionais de configuração
+   * @returns Promise que resolve para o histórico de ticks
+   */
+  public async getTicksHistory(
+    symbol: string, 
+    options: {
+      count?: number;
+      end?: string | number;
+      start?: number;
+      subscribe?: boolean;
+      style?: 'ticks' | 'candles';
+      granularity?: number;
+    } = {}
+  ): Promise<any> {
+    if (!this.getConnectionStatus()) {
+      throw new Error("A conexão WebSocket não está estabelecida");
+    }
+    
+    try {
+      // Primeiro, limpar assinaturas anteriores para este símbolo se necessário
+      if (options.subscribe) {
+        await this.cleanupTicksSubscription(symbol);
+      }
+      
+      // Configurar a requisição de acordo com o schema oficial
+      const request: any = {
+        ticks_history: symbol,
+        end: options.end || 'latest',
+        req_id: Math.floor(Date.now() / 1000) // Timestamp como inteiro
+      };
+      
+      // Adicionar parâmetros opcionais se fornecidos
+      if (options.count) request.count = options.count;
+      if (options.start) request.start = options.start;
+      if (options.subscribe) request.subscribe = 1;
+      if (options.style) request.style = options.style;
+      if (options.style === 'candles' && options.granularity) {
+        request.granularity = options.granularity;
+      }
+      
+      console.log(`Obtendo histórico de ticks para ${symbol} com ${options.count || 'padrão'} ticks`);
+      
+      // Enviar a requisição
+      const response = await this.send(request);
+      
+      // Se for uma assinatura, salvar o ID para referência
+      if (options.subscribe && response.subscription && response.subscription.id) {
+        const subscriptionId = response.subscription.id;
+        this.activeSubscriptions.set(symbol, subscriptionId);
+        console.log(`Nova assinatura de histórico registrada para ${symbol}: ${subscriptionId}`);
+        
+        // Salvar assinatura na sessão para recuperação
+        try {
+          const existingSubscriptions = JSON.parse(sessionStorage.getItem('activeSubscriptions') || '{}');
+          existingSubscriptions[symbol] = subscriptionId;
+          sessionStorage.setItem('activeSubscriptions', JSON.stringify(existingSubscriptions));
+          console.log(`[DerivAPI] Assinatura de ${symbol} salva na sessão para persistência`);
+        } catch (e) {
+          console.warn('[DerivAPI] Não foi possível salvar assinatura na sessão:', e);
+        }
+        
+        // Configurar handler para processamento de atualizações de ticks
+        this.setupTicksHistoryHandler(symbol, subscriptionId, options.style || 'ticks');
+      }
+      
+      return response;
+    } catch (err) {
+      console.error(`Erro ao obter histórico de ticks para ${symbol}:`, err);
+      throw err;
+    }
+  }
+  
+  /**
+   * Limpa as assinaturas de ticks para um símbolo específico
+   */
+  private async cleanupTicksSubscription(symbol: string): Promise<void> {
+    try {
+      // Verificar se existe uma assinatura ativa para este símbolo
+      if (this.activeSubscriptions.has(symbol)) {
+        const subscriptionId = this.activeSubscriptions.get(symbol);
+        if (subscriptionId) {
+          try {
+            await this.send({ forget: subscriptionId });
+            console.log(`Assinatura de ticks cancelada para ${symbol}: ${subscriptionId}`);
+          } catch (err) {
+            console.warn(`Erro ao cancelar assinatura específica para ${symbol}:`, err);
+          }
+          this.activeSubscriptions.delete(symbol);
+        }
+      }
+      
+      // Adicional: tentar limpar todas as assinaturas de ticks para garantir
+      try {
+        await this.send({ forget_all: "ticks" });
+        console.log(`Todas as assinaturas de ticks foram canceladas`);
+      } catch (err) {
+        console.warn(`Erro ao cancelar todas as assinaturas de ticks:`, err);
+      }
+      
+      // Breve pausa para garantir processamento pelo servidor
+      await new Promise(resolve => setTimeout(resolve, 300));
+    } catch (err) {
+      console.error(`Erro ao limpar assinaturas para ${symbol}:`, err);
+    }
+  }
+  
+  /**
+   * Configura o handler para processar atualizações de histórico de ticks
+   */
+  private setupTicksHistoryHandler(symbol: string, subscriptionId: string, style: 'ticks' | 'candles'): void {
+    // Rastreador para evitar duplicação de ticks
+    const processedEpochs = new Set<number>();
+    
+    this.callbacks.set(subscriptionId, (data) => {
+      // Dependendo do estilo, a resposta será diferente
+      if (style === 'ticks' && data.tick) {
+        const tick = data.tick;
+        const epoch = tick.epoch;
+        
+        // Verificar se já processamos este epoch
+        if (processedEpochs.has(epoch)) {
+          return; // Ignorar tick duplicado
+        }
+        
+        // Registrar este epoch como processado
+        processedEpochs.add(epoch);
+        
+        // Limitar o tamanho do conjunto para evitar vazamento de memória
+        if (processedEpochs.size > 1000) {
+          // Manter apenas os 500 epochs mais recentes
+          const oldestEpochs = Array.from(processedEpochs).slice(0, 500);
+          processedEpochs.clear();
+          oldestEpochs.forEach(e => processedEpochs.add(e));
+        }
+        
+        // Disparar evento com o tick
+        const eventId = `tick_${symbol}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        document.dispatchEvent(new CustomEvent('deriv:tick', { 
+          detail: { 
+            tick: tick,
+            _eventId: eventId 
+          } 
+        }));
+      } 
+      else if (style === 'candles' && data.ohlc) {
+        // Processar candles (não implementado agora)
+        console.log(`Recebido OHLC update para ${symbol}`);
+      }
+    });
+  }
+  
+  /**
+   * Inscreve-se para receber atualizações de preços para um símbolo específico
+   * Esta função também dispara um evento 'deriv:tick' quando novos ticks são recebidos
+   * @param symbol O símbolo para o qual se inscrever (ex: "R_100")
+   * @param forceReconnect Se true, cancela qualquer inscrição existente antes de criar uma nova
+   */
+  public async subscribeTicks(symbol: string, forceReconnect: boolean = false): Promise<any> {
+    // Usar o método mais confiável de histórico de ticks com assinatura
+    if (forceReconnect) {
+      // Cancelar assinaturas existentes primeiro
+      await this.cleanupTicksSubscription(symbol);
+    }
+    
+    return this.getTicksHistory(symbol, {
+      count: 200,
+      subscribe: true
+    });
+    
+    // Método antigo mantido abaixo apenas como referência
+    if (!this.getConnectionStatus()) {
+      throw new Error("A conexão WebSocket não está estabelecida");
+    }
+    try {
+      // Verificar se já tem uma assinatura ativa para este símbolo
+      if (this.activeSubscriptions.has(symbol) && !forceReconnect) {
+        console.log(`Já existe uma assinatura ativa para ${symbol}, reutilizando.`);
+        
+        try {
+          // Solicitar um tick para verificar se a assinatura ainda está ativa
+          await this.send({
+            ticks: symbol
+          });
+          return { 
+            success: true, 
+            message: "Usando inscrição existente"
+          };
+        } catch (tickErr) {
+          console.warn(`Assinatura existente para ${symbol} parece estar inválida, criando nova assinatura`);
+          // Continuamos com uma nova assinatura
+        }
+      }
+      
+      // Se precisamos criar nova assinatura ou forceReconnect=true, limpar primeiro
+      try {
+        await this.send({ forget_all: "ticks" });
+        console.log(`[DerivAPI] Limpando assinaturas de ticks anteriores para ${symbol}`);
+        // Limpar mapa de assinaturas ativas apenas para este símbolo
+        this.activeSubscriptions.delete(symbol);
+      } catch (forgetErr) {
+        console.warn("[DerivAPI] Erro ao cancelar assinaturas existentes:", forgetErr);
+      }
+      
+      // Breve pausa para o servidor processar o cancelamento
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Continuamos com a nova assinatura
+      console.log(`[DerivAPI] Criando nova assinatura para ${symbol}...`);
+      
+      // Limpar todas as assinaturas para este símbolo para evitar erros
+      try {
+        // Primeiro tentamos esquecer uma assinatura específica se existir
+        if (this.activeSubscriptions.has(symbol)) {
+          const subscriptionId = this.activeSubscriptions.get(symbol);
+          if (subscriptionId) {
+            try {
+              await this.send({
+                forget: subscriptionId
+              });
+              console.log(`Cancelamento de assinatura específica para ${symbol} bem-sucedido: ${subscriptionId}`);
+            } catch (forgetErr) {
+              console.warn(`Erro ao cancelar assinatura específica ${subscriptionId}:`, forgetErr);
+            }
+            
+            // Remover da lista mesmo que falhe (pois pode estar inválida)
+            this.activeSubscriptions.delete(symbol);
+            
+            // Aguardar para garantir processamento
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+        
+        // Em seguida, tentar cancelar todas as assinaturas de ticks
+        try {
+          await this.send({
+            forget_all: "ticks"
+          });
+          console.log(`Cancelamento de todas as assinaturas de ticks realizado`);
+        } catch (forgetAllErr) {
+          console.warn(`Erro ao cancelar todas as assinaturas de ticks:`, forgetAllErr);
+        }
+        
+        // Aguardar para garantir processamento
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        console.warn("Erro ao limpar assinaturas anteriores:", err);
+        // Continua mesmo com erro, pois queremos tentar fazer uma nova assinatura
+      }
+
+      // Agora inscreve para o símbolo com manipulação de erro "AlreadySubscribed"
+      try {
+        const response = await this.send({
+          ticks: symbol,
+          subscribe: 1,
+          req_id: Math.floor(Date.now() / 1000) // Adicionando req_id como inteiro
+        });
+
+        // Se a resposta inclui um tick imediato, dispara o evento
+        if (response && response.tick) {
+          // Gerado ID único para o evento
+          const eventId = `tick_${symbol}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+          
+          const event = new CustomEvent('deriv:tick', { 
+            detail: { 
+              tick: response.tick,
+              _eventId: eventId
+            } 
+          });
+          document.dispatchEvent(event);
+          
+          // Extrair o último dígito para facilitar a depuração
+          const price = response.tick.quote;
+          const lastDigit = Math.floor(price * 100) % 10;
+          // Removido log para melhorar performance
+        }
+
+        // Registra um handler específico para este símbolo
+        const subscriptionId = response?.subscription?.id;
+        
+        // Salva o ID da assinatura para referência futura
+        if (subscriptionId) {
+          this.activeSubscriptions.set(symbol, subscriptionId);
+          console.log(`Nova assinatura registrada para ${symbol}: ${subscriptionId}`);
+          
+          // Salvar a assinatura no sessionStorage para recuperar durante navegação
+          try {
+            const existingSubscriptions = JSON.parse(sessionStorage.getItem('activeSubscriptions') || '{}');
+            existingSubscriptions[symbol] = subscriptionId;
+            sessionStorage.setItem('activeSubscriptions', JSON.stringify(existingSubscriptions));
+            console.log(`[DerivAPI] Assinatura de ${symbol} salva na sessão para persistência`);
+          } catch (e) {
+            console.warn('[DerivAPI] Não foi possível salvar assinatura na sessão:', e);
+          }
+          
+          // Adiciona um callback para processar atualizações de tick
+          // Melhor controle de duplicação com cache mais robusto
+          let processedTicks = new Set<number>(); // Conjunto para rastrear epochs já processados
+          let lastTickValue: number | null = null; // Último valor de tick para evitar duplicatas
+
+          this.callbacks.set(subscriptionId, (data) => {
+            if (data?.tick) {
+              // Obter informações do tick
+              const currentEpoch = data.tick.epoch || 0;
+              const price = data.tick.quote;
+              
+              // Verificar duplicação usando epoch e valor do tick
+              const isDuplicate = (
+                (currentEpoch > 0 && processedTicks.has(currentEpoch)) || 
+                (price === lastTickValue)
+              );
+              
+              if (isDuplicate) {
+                console.log(`Ignorando tick duplicado para ${symbol} (epoch: ${currentEpoch}, valor: ${price})`);
+                return;
+              }
+              
+              // Registrar este tick como processado
+              if (currentEpoch > 0) {
+                processedTicks.add(currentEpoch);
+                // Limitar o tamanho do conjunto para evitar vazamento de memória
+                if (processedTicks.size > 100) {
+                  // Manter apenas os 50 epochs mais recentes
+                  // Usando Array.from para compatibilidade com ES5
+                  const ticksArray = Array.from(processedTicks);
+                  processedTicks = new Set(ticksArray.slice(-50));
+                }
+              }
+              
+              // Atualizar último valor de tick
+              lastTickValue = price;
+              
+              // Gerar ID único para o evento
+              const eventId = `tick_${symbol}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+              
+              // Disparar evento com ID único
+              const event = new CustomEvent('deriv:tick', { 
+                detail: { 
+                  tick: data.tick,
+                  _eventId: eventId 
+                } 
+              });
+              document.dispatchEvent(event);
+              
+              // Extrair o último dígito para depuração
+              const lastDigit = Math.floor(price * 100) % 10;
+              // Removido log excessivo de ticks para melhorar performance
+            }
+          });
+        }
+        
+        return response;
+      } catch (subscribeErr: any) {
+        // Tratar erro específico de "AlreadySubscribed"
+        if (subscribeErr && subscribeErr.code === "AlreadySubscribed") {
+          console.warn(`Já está inscrito para ${symbol}. Tentando recuperar assinatura existente.`);
+          
+          // Tentar obter a assinatura existente através de uma solicitação não-inscrita
+          try {
+            const tickResponse = await this.send({
+              ticks: symbol
+            });
+            
+            if (tickResponse && tickResponse.tick) {
+              // Removido log para reduzir sobrecarga
+              
+              // Disparar evento com o tick recebido
+              const eventId = `tick_${symbol}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+              document.dispatchEvent(new CustomEvent('deriv:tick', { 
+                detail: { 
+                  tick: tickResponse.tick,
+                  _eventId: eventId 
+                } 
+              }));
+              
+              // Como não temos ID de assinatura, reportamos sucesso mas não podemos rastrear
+              return {
+                success: true,
+                message: "Usando assinatura existente (não rastreável)",
+                tick: tickResponse.tick
+              };
+            }
+          } catch (fallbackErr) {
+            console.error(`Falha ao recuperar assinatura existente para ${symbol}:`, fallbackErr);
+          }
+        }
+        
+        // Propagar o erro original se não for possível recuperar
+        throw subscribeErr;
+      }
+    } catch (err) {
+      console.error(`Erro ao inscrever para ticks do símbolo ${symbol}:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Obtém a lista de contratos abertos do usuário e se inscreve para atualizações em tempo real
+   * @param contractId ID opcional de um contrato específico para obter detalhes
+   * @returns Promise com os detalhes dos contratos abertos
+   */
+  public async getOpenContractsList(contractId?: number): Promise<any> {
+    try {
+      // Verificar se já estamos conectados
+      if (!this.getConnectionStatus()) {
+        throw new Error("A conexão WebSocket não está estabelecida");
+      }
+
+      // Configurar parâmetros da solicitação
+      let request: any = {
+        proposal_open_contract: 1,
+        subscribe: 1  // Usar 1 para receber atualizações em tempo real
+      };
+
+      // Se um ID de contrato específico foi fornecido, adicioná-lo à solicitação
+      if (contractId) {
+        request.contract_id = contractId;
+      }
+
+      // Enviar solicitação para a API
+      const response = await this.send(request);
+
+      // Verificar se recebemos uma resposta com contrato ou erro
+      if (response && response.proposal_open_contract) {
+        const eventId = `contract_${Date.now()}`;
+        
+        // Disparar evento com o contrato
+        const event = new CustomEvent('deriv:contract_update', { 
+          detail: { 
+            proposal_open_contract: response.proposal_open_contract,
+            _eventId: eventId 
+          } 
+        });
+        document.dispatchEvent(event);
+        
+        // Registrar o ID da assinatura para poder cancelar mais tarde
+        if (response.subscription && response.subscription.id) {
+          const subId = response.subscription.id;
+          const contractKey = contractId ? `contract_${contractId}` : 'all_contracts';
+          this.activeSubscriptions.set(contractKey, subId);
+          
+          console.log(`Inscrito para atualizações de contratos (ID: ${subId})`);
+          
+          // Configurar listener para os contratos atualizados
+          this.callbacks.set(subId, (data) => {
+            if (data && data.proposal_open_contract) {
+              const contractEventId = `contract_update_${Date.now()}`;
+              
+              // Disparar evento para notificar componentes sobre a atualização
+              const contractEvent = new CustomEvent('deriv:contract_update', { 
+                detail: { 
+                  proposal_open_contract: data.proposal_open_contract,
+                  _eventId: contractEventId
+                } 
+              });
+              document.dispatchEvent(contractEvent);
+            }
+          });
+        }
+      }
+      
+      return response;
+    } catch (err) {
+      console.error("Erro ao obter contratos abertos:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Cancela a inscrição de atualizações de contratos abertos
+   * @param contractId ID opcional de um contrato específico para cancelar a inscrição
+   */
+  public async unsubscribeOpenContracts(contractId?: number): Promise<any> {
+    try {
+      const contractKey = contractId ? `contract_${contractId}` : 'all_contracts';
+      
+      // Verificar se temos uma assinatura ativa para contratos
+      if (this.activeSubscriptions.has(contractKey)) {
+        const subscriptionId = this.activeSubscriptions.get(contractKey);
+        if (subscriptionId) {
+          console.log(`Cancelando assinatura de contratos (ID: ${subscriptionId})`);
+          
+          // Enviar comando para esquecer esta assinatura específica
+          const result = await this.send({
+            forget: subscriptionId
+          });
+          
+          // Remover da lista de assinaturas ativas
+          this.activeSubscriptions.delete(contractKey);
+          return result;
+        }
+      }
+      
+      console.log(`Nenhuma assinatura ativa encontrada para contratos`);
+      return { success: true, no_subscription: true };
+    } catch (err) {
+      console.error("Erro ao cancelar assinatura de contratos:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Cancela a inscrição de atualizações de preços para um símbolo específico
+   * @param symbol O símbolo para o qual cancelar a inscrição
+   */
+  public async unsubscribeTicks(symbol: string): Promise<any> {
+    try {
+      // Verificar se temos uma assinatura ativa para este símbolo
+      if (this.activeSubscriptions.has(symbol)) {
+        const subscriptionId = this.activeSubscriptions.get(symbol);
+        if (subscriptionId) {
+          console.log(`Cancelando assinatura de ticks para ${symbol} (ID: ${subscriptionId})`);
+          
+          // Enviar comando para esquecer esta assinatura específica
+          const result = await this.send({
+            forget: subscriptionId
+          });
+          
+          // Remover da lista de assinaturas ativas
+          this.activeSubscriptions.delete(symbol);
+          return result;
+        }
+      }
+      
+      console.log(`Nenhuma assinatura ativa encontrada para ${symbol}`);
+      return { success: true, message: "No active subscription found" };
+    } catch (error) {
+      console.error(`Erro ao cancelar assinatura para ${symbol}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Processa a resposta de autorização da API e atualiza os dados da conta
+   * Baseado no schema da resposta 'authorize'
+   * 
+   * @param response Resposta completa da API com dados de autorização
+   */
+  /**
+   * Processa a resposta de autorização da API e atualiza os dados da conta
+   * Esta função implementa o processamento baseado no schema exato da resposta 'authorize'
+   * 
+   * @param response Resposta completa da API com dados de autorização
+   */
+  private processAuthorizeResponse(response: any): void {
+    // Verifica se temos dados de autorização válidos
+    if (!response || !response.authorize) {
+      console.error('Resposta de autorização inválida:', response);
+      return;
+    }
+    
+    const auth = response.authorize;
+    
+    try {
+      // LOG DE DEPURAÇÃO DETALHADO
+      console.log("================ PROCESSAMENTO DE AUTORIZAÇÃO ================");
+      console.log(`Conta autorizada: ${auth.loginid} (${auth.is_virtual === 1 ? 'Virtual' : 'Real'})`);
+      console.log(`Saldo: ${auth.balance} ${auth.currency}`);
+      console.log(`Token usado (primeiros 6 caracteres): ${this._token?.substring(0, 6)}...`);
+      console.log(`Lista de contas disponíveis (${auth.account_list?.length || 0}): ${auth.account_list?.map((a: any) => a.loginid).join(', ') || 'nenhuma'}`);
+      
+      // ATUALIZAR INFORMAÇÕES PRINCIPAIS DA CONTA
+      this.accountInfo.loginid = auth.loginid || '';
+      this.accountInfo.balance = auth.balance || 0;
+      this.accountInfo.currency = auth.currency || 'USD';
+      this.accountInfo.isVirtual = auth.is_virtual === 1;
+      
+      // Campos adicionais conforme o schema Deriv
+      this.accountInfo.fullname = auth.fullname;
+      this.accountInfo.email = auth.email;
+      this.accountInfo.country = auth.country;
+      this.accountInfo.landingCompany = auth.landing_company_name;
+      this.accountInfo.landingCompanyFullname = auth.landing_company_fullname;
+      this.accountInfo.preferredLanguage = auth.preferred_language;
+      this.accountInfo.userId = auth.user_id;
+      
+      // Armazenar escopos e landing_companies
+      this.accountInfo.scopes = auth.scopes;
+      this.accountInfo.upgradableLandingCompanies = auth.upgradeable_landing_companies;
+      
+      // CONVERTER PARA O FORMATO ESPERADO PELA APLICAÇÃO
+      // Adaptar a lista de contas para o formato:
+      // [{ account: "CR799393", token: "a1-token...", currency: "usd", isVirtual: boolean, accountType: string, balance?: number }, ...]
+      if (auth.account_list && Array.isArray(auth.account_list) && auth.account_list.length > 0) {
+        try {
+          // Verificar se já temos contas salvas para preservar informações extras como saldo
+          let existingAccounts: any[] = [];
+          try {
+            const savedData = localStorage.getItem('derivSavedAccounts');
+            if (savedData) {
+              existingAccounts = JSON.parse(savedData);
+            }
+          } catch (e) {
+            console.warn("Erro ao recuperar contas existentes:", e);
+          }
+          
+          // Obter token atual 
+          const currentToken = this._token || '';
+          
+          // Mapear para o formato esperado pelo sistema com informações melhoradas
+          const savedAccounts = auth.account_list.map((acct: any) => {
+            // Determinar se é conta virtual baseado no ID (começa com 'VRTC')
+            const isVirtual = acct.loginid.startsWith('VRTC');
+            
+            // Determinar o tipo de conta
+            let accountType = 'Real';
+            if (isVirtual) accountType = 'Demo';
+            else if (acct.loginid.startsWith('CR')) accountType = 'Crypto';
+            else if (acct.loginid.includes('MLT')) accountType = 'Malta';
+            
+            // Buscar informações existentes da conta, se houver
+            const existingAccount = existingAccounts.find((ea: any) => ea.account === acct.loginid);
+            
+            // Combinar informações novas com existentes
+            return {
+              account: acct.loginid,
+              token: currentToken, // Usamos o mesmo token para todas as contas na lista
+              currency: (acct.currency || auth.currency || 'USD'),
+              isVirtual,
+              accountType,
+              // Se a conta atual é a mesma que estamos processando, usar o saldo atual
+              balance: acct.loginid === auth.loginid ? auth.balance : (existingAccount?.balance || undefined),
+              landingCompany: acct.landing_company_name,
+              disabled: acct.is_disabled === 1
+            };
+          });
+          
+          console.log(`Formatado ${savedAccounts.length} contas para armazenamento local`);
+          
+          // Manter também no formato original para uso interno
+          this.accountInfo.accountList = auth.account_list.map((account: any) => ({
+            loginid: account.loginid,
+            currency: account.currency,
+            isVirtual: account.is_virtual === 1,
+            accountType: account.account_type,
+            accountCategory: account.account_category,
+            landingCompanyName: account.landing_company_name,
+            isDisabled: account.is_disabled === 1,
+            created_at: account.created_at
+          }));
+          
+          // ARMAZENAR CONTAS NO FORMATO ESPERADO PELA APLICAÇÃO
+          localStorage.setItem('derivSavedAccounts', JSON.stringify(savedAccounts));
+          console.log("Contas salvas no formato [{ account, token, currency }]");
+        } catch (accountErr) {
+          console.error("Erro ao processar lista de contas:", accountErr);
+        }
+      } else {
+        console.warn("Nenhuma lista de contas recebida na resposta de autorização");
+      }
+      
+      // SALVAR DETALHES FUNDAMENTAIS
+      if (typeof window !== 'undefined') {
+        // Salvar o ID da conta atual para referência
+        localStorage.setItem('deriv_active_account', auth.loginid);
+        
+        // Marcar autorização como bem-sucedida
+        localStorage.setItem('deriv_auth_success', 'true');
+        localStorage.setItem('deriv_auth_timestamp', new Date().toISOString());
+      }
+      
+      // Formatar moedas locais conforme schema
+      if (auth.local_currencies) {
+        this.accountInfo.localCurrencies = {};
+        Object.entries(auth.local_currencies).forEach(([code, data]: [string, any]) => {
+          this.accountInfo.localCurrencies![code] = {
+            fractionalDigits: data.fractional_digits
+          };
+        });
+      }
+      
+      // PROCESSAR LINKED_TO - campos da resposta que indicam contas vinculadas
+      if (auth.linked_to && Array.isArray(auth.linked_to)) {
+        // Esta parte é segura para versões futuras da API que podem incluir linked_to
+        const linkedAccounts = auth.linked_to.map((link: any) => ({
+          loginid: link.loginid,
+          platform: link.platform
+        }));
+        
+        // Adicionar ao objeto accountInfo usando uma abordagem segura
+        // Não adicionar diretamente ao tipo, mas armazenar para uso futuro
+        // @ts-ignore - Estamos cientes de que esta propriedade é dinâmica
+        this._linkedAccountsData = linkedAccounts;
+        
+        // Podemos logar para diagnóstico
+        console.log(`[DerivAPI] ${linkedAccounts.length} contas vinculadas encontradas`);
+      }
+      
+      // NOTIFICAR INTERFACE DO USUÁRIO
+      // Emitir evento informando que a autorização foi bem-sucedida
+      document.dispatchEvent(new CustomEvent('deriv:auth', { 
+        detail: { 
+          authorized: true,
+          accountInfo: this.accountInfo,
+          originalResponse: auth // Incluir resposta original para debugging
+        } 
+      }));
+      
+      console.log("Processamento de autorização concluído com sucesso");
+    } catch (error) {
+      console.error('Erro ao processar resposta de autorização:', error);
+      
+      // Mesmo com erro, tenta salvar o básico
+      if (auth && auth.loginid) {
+        localStorage.setItem('deriv_active_account', auth.loginid);
+      }
+    }
+  }
+
+  /**
+   * Obtém saldo da conta
+   */
+  public async getAccountBalance(subscribe: boolean = false): Promise<any> {
+    try {
+      const response = await this.send({
+        balance: 1,
+        subscribe: subscribe ? 1 : 0
+      });
+      
+      // Log silencioso, apenas para depuração interna
+      if (subscribe === false) {
+        // Não exibir log para consultas frequentes automáticas
+      } else {
+        console.log("Saldo obtido:", response?.balance?.balance, response?.balance?.currency);
+      }
+      
+      // Verificar se a resposta tem o formato esperado
+      if (response && response.balance && 
+          typeof response.balance.balance !== 'undefined' && 
+          response.balance.currency) {
+        
+        // Atualizar a informação da conta na instância
+        if (this.accountInfo) {
+          this.accountInfo.balance = response.balance.balance;
+          this.accountInfo.currency = response.balance.currency;
+          this.accountInfo.loginid = response.balance.loginid || this.accountInfo.loginid;
+        }
+        
+        // Disparar evento com informações atualizadas da conta
+        document.dispatchEvent(new CustomEvent('deriv:account_info', { 
+          detail: { 
+            account: {
+              ...this.accountInfo,
+              loginid: response.balance.loginid || this.accountInfo.loginid,
+              balance: response.balance.balance,
+              currency: response.balance.currency,
+              isVirtual: this.accountInfo.isVirtual || (response.balance.loginid && response.balance.loginid.startsWith('VRT'))
+            } 
+          }
+        }));
+        
+        // Se inscrito para atualizações, criar um evento personalizado para notificar sobre mudanças no saldo
+        if (subscribe && response.balance) {
+          document.dispatchEvent(new CustomEvent('deriv:balance', { 
+            detail: response
+          }));
+        }
+        
+        return response;
+      }
+      
+      // Em caso de falha, tenta obter através da autorização
+      const authResponse = await this.send({
+        authorize: this._token
+      });
+      
+      if (authResponse && authResponse.authorize) {
+        const result = {
+          balance: {
+            balance: authResponse.authorize.balance || 0,
+            currency: authResponse.authorize.currency || 'USD',
+            loginid: authResponse.authorize.loginid || ''
+          }
+        };
+        
+        return result;
+      }
+      
+      return { balance: { balance: 0, currency: 'USD', loginid: '' } };
+    } catch (error) {
+      console.error("Erro ao obter saldo da conta:", error);
+      return { balance: { balance: 0, currency: 'USD', loginid: '' } };
+    }
+  }
+  
+  /**
+   * Inscreve-se para receber atualizações de saldo em tempo real
+   * @returns Promise com a resposta do servidor
+   */
+  // Variável para armazenar o intervalo de polling de saldo
+  private _balancePollingInterval: any = null;
+  
+  public async subscribeToBalanceUpdates(): Promise<any> {
+    try {
+      console.log("Inscrevendo-se para atualizações de saldo...");
+      
+      // Cancelar qualquer polling existente
+      if (this._balancePollingInterval) {
+        clearInterval(this._balancePollingInterval);
+        this._balancePollingInterval = null;
+      }
+      
+      // Tentar inscrever-se para atualizações via WebSocket
+      const response = await this.send({
+        balance: 1,
+        subscribe: 1
+      });
+      
+      console.log("Inscrição para saldo ativada:", response);
+      
+      // Se a resposta já contém um dado de saldo, gera evento imediatamente
+      if (response && response.balance) {
+        // Atualizar o accountInfo na instância
+        this.accountInfo.balance = response.balance.balance;
+        this.accountInfo.currency = response.balance.currency;
+        
+        // Disparar um evento personalizado
+        document.dispatchEvent(new CustomEvent('deriv:balance_update', { 
+          detail: {
+            balance: response.balance
+          }
+        }));
+      }
+      
+      // Configurar polling de backup para atualização de saldo
+      this._setupBalancePolling();
+      
+      return response;
+    } catch (error) {
+      console.error("Erro ao inscrever para atualizações de saldo:", error);
+      
+      // Configurar polling como fallback em caso de erro
+      this._setupBalancePolling();
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Configura polling de backup para saldo caso o WebSocket falhe
+   * @private
+   */
+  private _setupBalancePolling(): void {
+    // Limpar qualquer polling existente
+    if (this._balancePollingInterval) {
+      clearInterval(this._balancePollingInterval);
+    }
+    
+    // Configurar novo polling a cada 2 segundos
+    this._balancePollingInterval = setInterval(async () => {
+      try {
+        // Verificar se estamos conectados antes de tentar
+        if (!this.isConnected) return;
+        
+        const balanceResponse = await this.send({
+          balance: 1,
+          subscribe: 0 // Sem assinatura, apenas consulta pontual
+        });
+        
+        if (balanceResponse && balanceResponse.balance) {
+          // Atualizar o accountInfo na instância
+          this.accountInfo.balance = balanceResponse.balance.balance;
+          this.accountInfo.currency = balanceResponse.balance.currency;
+          
+          // Disparar evento silencioso (para não logar cada atualização)
+          const balanceEvent = new CustomEvent('deriv:balance_update', {
+            detail: {
+              balance: balanceResponse.balance,
+              silent: true
+            }
+          });
+          document.dispatchEvent(balanceEvent);
+          
+          // Também atualizar o evento deriv:account_info para garantir sincronização
+          document.dispatchEvent(new CustomEvent('deriv:account_info', { 
+            detail: {
+              account: { 
+                ...this.accountInfo,
+                balance: balanceResponse.balance.balance,
+                currency: balanceResponse.balance.currency,
+                loginid: this.accountInfo.loginid || balanceResponse.balance.loginid
+              }
+            }
+          }));
+        }
+      } catch (error) {
+        // Silenciar erros de polling para não poluir o console
+      }
+    }, 2000);
+  }
+  
+  /**
+   * Obtém informações da conta atual do usuário
+   * @returns Objeto com informações da conta atual
+   */
+  public getAccountInfo(): any {
+    // Retorna a cópia do objeto accountInfo atual (dados já carregados)
+    // Isso evita uma chamada assíncrona e usa os dados já mantidos em memória
+    return { ...this.accountInfo };
+  }
+  
+  /**
+   * Método dedicado para conexão nova e direta com um token específico
+   * Este método força uma nova conexão, ignorando quaisquer conexões existentes
+   * É útil para resolver problemas persistentes de troca de conta
+   * 
+   * @param token Token de autenticação para a conta desejada
+   * @returns Promise que resolve para a resposta de autorização
+   */
+  public async connectNew(
+    token: string, 
+    params?: { 
+      addToLoginHistory?: 0 | 1,
+      additionalTokens?: string[],
+      targetAccount?: string // Nova opção para especificar a conta alvo
+    }
+  ): Promise<any> {
+    console.log("=== INICIANDO NOVA CONEXÃO DIRETA ===");
+    
+    // Verificar tokens adicionais
+    if (params?.additionalTokens && params.additionalTokens.length > 0) {
+      console.log(`Usando recurso multitokens da API: ${params.additionalTokens.length} tokens adicionais`);
+    }
+    
+    // Se temos uma conta alvo, verificar primeiro o token
+    if (params?.targetAccount) {
+      console.log(`Verificando se o token fornecido pertence à conta ${params.targetAccount}`);
+      
+      // Criar um WebSocket temporário apenas para verificação
+      return new Promise((resolve, reject) => {
+        try {
+          const verificationWs = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=71403');
+          
+          // Definir timeout para não ficar esperando indefinidamente
+          const timeoutId = setTimeout(() => {
+            if (verificationWs.readyState === WebSocket.OPEN) {
+              verificationWs.close();
+            }
+            reject(new Error("Timeout na verificação do token"));
+          }, 10000);
+          
+          verificationWs.onopen = () => {
+            console.log("Conexão de verificação estabelecida");
+            // Ao abrir a conexão, enviar solicitação de autorização
+            verificationWs.send(JSON.stringify({
+              authorize: token,
+              req_id: Date.now()
+            }));
+          };
+          
+          verificationWs.onmessage = (event) => {
+            try {
+              const response = JSON.parse(event.data);
+              console.log("Resposta da verificação:", response);
+              
+              if (response.error) {
+                clearTimeout(timeoutId);
+                verificationWs.close();
+                reject(new Error(`Erro na verificação: ${response.error.message}`));
+                return;
+              }
+              
+              if (response.authorize) {
+                clearTimeout(timeoutId);
+                const loginId = response.authorize.loginid;
+                
+                // Verificar se o token pertence à conta alvo
+                if (loginId !== params.targetAccount) {
+                  verificationWs.close();
+                  reject(new Error(`Token está vinculado à conta ${loginId}, não à ${params.targetAccount}`));
+                  return;
+                }
+                
+                // Se chegou aqui, o token é válido para a conta alvo
+                console.log(`✅ Token verificado para conta ${params.targetAccount}`);
+                verificationWs.close();
+                
+                // Continuar com a conexão real
+                this.continueNewConnection(token, params, resolve, reject);
+              }
+            } catch (e) {
+              clearTimeout(timeoutId);
+              console.error("Erro ao processar mensagem de verificação:", e);
+              verificationWs.close();
+              reject(e);
+            }
+          };
+          
+          verificationWs.onerror = (error) => {
+            clearTimeout(timeoutId);
+            console.error("Erro na conexão WebSocket de verificação:", error);
+            reject(new Error("Erro na conexão WebSocket de verificação"));
+          };
+          
+          verificationWs.onclose = () => {
+            clearTimeout(timeoutId);
+            console.log("Conexão de verificação fechada");
+          };
+        } catch (error) {
+          console.error("Erro ao criar WebSocket para verificação:", error);
+          reject(error);
+        }
+      });
+    } else {
+      // Se não temos conta alvo, prosseguir normalmente
+      return new Promise((resolve, reject) => {
+        this.continueNewConnection(token, params, resolve, reject);
+      });
+    }
+  }
+  
+  // Método auxiliar para continuar a conexão após verificação
+  private continueNewConnection(
+    token: string,
+    params?: {
+      addToLoginHistory?: 0 | 1,
+      additionalTokens?: string[],
+      targetAccount?: string
+    },
+    resolve?: (value: any) => void,
+    reject?: (reason?: any) => void
+  ): void {
+    // Verificar se ainda temos uma conexão WebSocket ativa
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      console.log("Fechando conexão WebSocket existente");
+      this.socket.close();
+    }
+    
+    // Resetar todas as flags de conexão
+    this.isConnected = false;
+    this.isReconnecting = false;
+    this._token = token;
+    
+    // Limpar callbacks pendentes
+    this.callbacks.clear();
+    
+    // Limpar quaisquer intervalos existentes
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    
+    // Salvar o token nos storages
+    localStorage.setItem('deriv_api_token', token);
+    sessionStorage.setItem('derivApiToken', token);
+    
+    // Registrar tentativa
+    const loginTimestamp = new Date().toISOString();
+    localStorage.setItem('deriv_last_login', loginTimestamp);
+    console.log('Novo token salvo:', token.substring(0, 6) + '****');
+    console.log('Login registrado em:', loginTimestamp);
+    
+    // Usar a URL WebSocket oficial da Deriv
+    const APP_ID = 71403;
+    const wsUrl = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+    console.log("Conectando via nova instância WebSocket no endereço:", wsUrl);
+    
+    try {
+      // Criar nova instância de WebSocket
+      this.socket = new WebSocket(wsUrl);
+      
+      this.socket.onopen = () => {
+        console.log('Nova conexão WebSocket estabelecida com sucesso');
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        
+        // Configurar ping periódico para estabilidade
+        this.pingInterval = window.setInterval(() => {
+          this.sendPing();
+        }, 20000);
+        
+        // Autorizar imediatamente
+        this.authorize(token)
+          .then((authResponse) => {
+            if (authResponse && authResponse.authorize) {
+              // Verificar se a conta autorizada é a esperada (quando temos targetAccount)
+              if (params?.targetAccount && authResponse.authorize.loginid !== params.targetAccount) {
+                const errorMsg = `Erro: Token autorizado para conta ${authResponse.authorize.loginid}, mas esperava ${params.targetAccount}`;
+                console.error(errorMsg);
+                if (reject) reject(new Error(errorMsg));
+                return;
+              }
+              
+              this.processAuthorizeResponse(authResponse);
+              console.log(`Autorização bem-sucedida para: ${authResponse.authorize.loginid}`);
+              
+              // Restaurar assinaturas
+              this.restoreSubscriptionsFromSession();
+              if (resolve) resolve(authResponse);
+            } else {
+              if (reject) reject(new Error("Resposta de autorização inválida"));
+            }
+          })
+          .catch(error => {
+            console.error('Erro na nova autorização:', error);
+            if (reject) reject(error);
+          }
+        };
+        
+        this.socket.onclose = (event) => {
+          console.log(`Nova conexão WebSocket fechada: ${event.code} - ${event.reason}`);
+          this.isConnected = false;
+        };
+        
+        this.socket.onerror = (error) => {
+          console.error('Erro na nova conexão WebSocket:', error);
+          reject(error);
+        };
+        
+        // Configurar onmessage para receber a resposta de autorização
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          // Verificar se há um ID de requisição e callback correspondente
+          if (data.req_id && this.callbacks.has(data.req_id.toString())) {
+            const callback = this.callbacks.get(data.req_id.toString());
+            if (callback) {
+              callback(data);
+              // Remove o callback após o uso
+              this.callbacks.delete(data.req_id.toString());
+            }
+          }
+          
+          // Verificar se é uma atualização de assinatura por ID
+          if (data.subscription && data.subscription.id) {
+            const subId = data.subscription.id;
+            if (this.callbacks.has(subId)) {
+              const callback = this.callbacks.get(subId);
+              if (callback) {
+                callback(data);
+              }
+            }
+          }
+          
+          // Emitir eventos baseados no tipo de mensagem
+          if (data.msg_type === 'authorize') {
+            this.processAuthorizeResponse(data);
+          }
+        };
+      } catch (error) {
+        console.error('Erro ao criar nova conexão com a API da Deriv:', error);
+        reject(error);
+      }
+    });
+  }
+  
+  /**
+   * Obtém informações detalhadas da conta do usuário diretamente da API
+   * Versão assíncrona que faz uma chamada à API
+   */
+  public async getDetailedAccountInfo(): Promise<any> {
+    try {
+      // Solicita informações de status da conta
+      const response = await this.send({
+        get_account_status: 1
+      });
+      
+      // Obter informações adicionais do saldo
+      const balanceResponse = await this.getAccountBalance();
+      
+      if (response && response.get_account_status) {
+        return {
+          ...response.get_account_status,
+          balance: balanceResponse?.balance?.balance || 0,
+          currency: balanceResponse?.balance?.currency || 'USD'
+        };
+      }
+      
+      // Tenta obter informações através da autorização direta
+      // caso get_account_status não retorne dados
+      const authResponse = await this.send({
+        authorize: this._token
+      });
+      
+      if (authResponse && authResponse.authorize) {
+        return {
+          ...authResponse.authorize,
+          balance: authResponse.authorize.balance || 0,
+          currency: authResponse.authorize.currency || 'USD'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Erro ao obter informações detalhadas da conta:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Inscreve-se para receber notificações de erros da API
+   */
+  public subscribeToErrors(callback: (error: { code: string, message: string }) => void): () => void {
+    this.errorListeners.add(callback);
+    return () => {
+      this.errorListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Notifica ouvintes de erros quando ocorre um erro na API
+   */
+  private notifyErrorListeners(error: { code: string, message: string }): void {
+    this.errorListeners.forEach(listener => {
+      try {
+        listener(error);
+      } catch (e) {
+        console.error('Erro ao notificar ouvinte:', e);
+      }
+    });
+  }
+
+  /**
+   * Verifica a tabela de lucros (profit table)
+   * @param params Parâmetros opcionais para filtrar os resultados
+   * @param params.limit Número máximo de registros a serem retornados
+   * @param params.offset Número de registros a serem pulados (para paginação)
+   * @param params.date_from Timestamp Unix de início para filtrar resultados
+   * @param params.date_to Timestamp Unix de fim para filtrar resultados
+   */
+  public async getProfitTable(params?: {limit?: number, offset?: number, date_from?: string, date_to?: string}): Promise<any> {
+    return this.send({
+      profit_table: 1,
+      description: 1,
+      ...params
+    });
+  }
+  
+  /**
+   * Obtém o extrato da conta (statement)
+   * @param params Parâmetros opcionais para filtrar os resultados
+   * @param params.limit Número máximo de registros a serem retornados
+   * @param params.offset Número de registros a serem pulados (para paginação)
+   * @param params.date_from Timestamp Unix de início para filtrar resultados
+   * @param params.date_to Timestamp Unix de fim para filtrar resultados
+   * @param params.action_type Tipo de ação para filtrar (deposit, withdrawal, buy, sell, etc)
+   */
+  public async getStatement(params?: {
+    limit?: number, 
+    offset?: number, 
+    date_from?: string, 
+    date_to?: string,
+    action_type?: string
+  }): Promise<any> {
+    return this.send({
+      statement: 1,
+      description: 1,
+      ...params
+    });
+  }
+
+  /**
+   * Reality check - verificação de realidade 
+   * Recupera o resumo das operações do cliente para a funcionalidade Reality Check
+   */
+  public async getRealityCheck(): Promise<any> {
+    return this.send({
+      reality_check: 1
+    });
+  }
+  
+  /**
+   * Subscreve para receber atualizações em tempo real das transações
+   * Isso inclui compras, vendas, depósitos, saques e outros movimentos na conta
+   */
+  public async subscribeToTransactions(): Promise<any> {
+    return this.send({
+      transaction: 1,
+      subscribe: 1
+    });
+  }
+  
+  /**
+   * Cancela a inscrição ao fluxo de transações
+   * @param id ID da inscrição recebido no retorno de subscribeToTransactions
+   */
+  public async unsubscribeFromTransactions(id: string): Promise<any> {
+    return this.send({
+      forget: id
+    });
+  }
+  
+  /**
+   * Obtém taxas de câmbio de uma moeda base para outras moedas suportadas
+   * @param baseCurrency Moeda base para a conversão
+   * @param targetCurrency Moeda alvo opcional para conversão específica
+   * @param includeSpread Se deve incluir taxas de compra/venda além da taxa média
+   * @param subscribe Se deve assinar atualizações em tempo real
+   */
+  public async getExchangeRates(baseCurrency: string, targetCurrency?: string, includeSpread?: boolean, subscribe?: boolean): Promise<any> {
+    const request: any = {
+      exchange_rates: 1,
+      base_currency: baseCurrency
+    };
+    
+    if (targetCurrency) {
+      request.target_currency = targetCurrency;
+    }
+    
+    if (includeSpread) {
+      request.include_spread = 1;
+    }
+    
+    if (subscribe) {
+      request.subscribe = 1;
+    }
+    
+    return this.send(request);
+  }
+  
+  /**
+   * Inscreve-se para receber atualizações de cotações (ticks) para um ou mais símbolos
+   * @param symbols Um símbolo único ou array de símbolos
+   */
+  public async subscribeToTicks(symbols: string | string[]): Promise<any> {
+    return this.send({
+      ticks: symbols,
+      subscribe: 1
+    });
+  }
+  
+  /**
+   * Cancela todas as inscrições de cotações ativas
+   */
+  public async unsubscribeAllTicks(): Promise<any> {
+    return this.send({
+      forget_all: "ticks"
+    });
+  }
+  
+  /**
+   * Restaura todas as assinaturas ativas
+   * Método público para ser chamado após uma troca de conta
+   */
+  public async restoreAllSubscriptions(): Promise<void> {
+    try {
+      console.log("=== RESTAURANDO ASSINATURAS APÓS TROCA DE CONTA ===");
+      
+      // Obter assinaturas salvas
+      const savedSubscriptionsJson = sessionStorage.getItem('activeSubscriptions');
+      if (!savedSubscriptionsJson) {
+        console.log("Nenhuma assinatura para restaurar");
+        return;
+      }
+      
+      // Primeiro, vamos verificar se temos o símbolo R_100 que é o mais importante para a aplicação
+      const subscriptions = JSON.parse(savedSubscriptionsJson);
+      const symbols = Object.keys(subscriptions);
+      
+      if (symbols.includes('R_100')) {
+        console.log("Restaurando assinatura para R_100 (essencial para estatísticas de dígitos)");
+        
+        // Cancelar assinatura existente (se houver)
+        if (this.activeSubscriptions.has('R_100')) {
+          const subId = this.activeSubscriptions.get('R_100');
+          if (subId) {
+            try {
+              await this.send({ forget: subId });
+              console.log("Assinatura antiga de R_100 cancelada");
+            } catch (e) {
+              console.warn("Erro ao cancelar assinatura antiga de R_100:", e);
+            }
+          }
+        }
+        
+        // Criar nova assinatura
+        try {
+          await this.getTicksHistory('R_100', {
+            count: 200,
+            subscribe: true
+          });
+          console.log("Assinatura para R_100 restaurada com sucesso");
+        } catch (e) {
+          console.error("Erro ao restaurar assinatura para R_100:", e);
+        }
+      }
+      
+      // Restaurar outras assinaturas, se necessário
+      for (const symbol of symbols) {
+        if (symbol !== 'R_100') {
+          console.log(`Restaurando assinatura para ${symbol}`);
+          try {
+            await this.getTicksHistory(symbol, {
+              count: 200,
+              subscribe: true
+            });
+            console.log(`Assinatura para ${symbol} restaurada com sucesso`);
+          } catch (e) {
+            console.error(`Erro ao restaurar assinatura para ${symbol}:`, e);
+          }
+        }
+      }
+      
+      console.log("Restauração de assinaturas concluída");
+    } catch (e) {
+      console.error("Erro geral ao restaurar assinaturas:", e);
+    }
+  }
+  
+  /**
+   * Busca detalhes de um contrato específico sem iniciar uma nova assinatura
+   * Use esta função quando já estiver inscrito via getOpenContractsList
+   * @param contractId ID do contrato a ser consultado
+   * @returns Promise com a resposta da API
+   */
+  public async getOpenContractDetails(contractId: string): Promise<any> {
+    return this.send({
+      proposal_open_contract: 1,
+      contract_id: contractId
+    });
+  }
+  
+  /**
+   * (DEPRECATED) Método mantido apenas para compatibilidade
+   * Favor usar a versão mais robusta acima com opções completas
+   * @deprecated
+   */
+  private async getTicksHistoryLegacy(symbol: string, count: number = 100, style: 'ticks' | 'candles' = 'ticks'): Promise<any> {
+    return this.getTicksHistory(symbol, {
+      count,
+      end: 'latest',
+      style
+    });
+  }
+  
+  /**
+   * Obtém a lista de símbolos ativos disponíveis para trading
+   * Resposta contém um array com os símbolos e seus detalhes, como:
+   * - symbol: Código do símbolo (ex: "R_100")
+   * - display_name: Nome de exibição (ex: "Volatility 100 Index")
+   * - market: Categoria de mercado (ex: "synthetic_index")
+   * - market_display_name: Nome traduzido do mercado
+   * - submarket: Nome do submercado
+   * - submarket_display_name: Nome traduzido do submercado
+   * - symbol_type: Tipo do símbolo (forex, commodities, etc)
+   * - pip: Tamanho do pip (flutuação mínima)
+   * - exchange_is_open: 1 se o mercado está aberto, 0 se fechado
+   * 
+   * @param detailType "brief" para informações básicas ou "full" para detalhes completos
+   * @param marketType Tipo de mercado opcional para filtrar (forex, indices, synthetic_index, etc)
+   * @param symbolCode Código do símbolo específico para filtrar (ex: "R_100")
+   */
+  public async getActiveSymbols(detailType: "brief" | "full" = "brief", marketType?: string, symbolCode?: string): Promise<any[]> {
+    try {
+      const response = await this.send({
+        active_symbols: detailType,
+        product_type: "basic"
+      });
+      
+      if (response && response.active_symbols) {
+        let symbols = response.active_symbols;
+        
+        // Filtrar por tipo de mercado, se especificado
+        if (marketType) {
+          symbols = symbols.filter((symbol: any) => 
+            symbol.market.toLowerCase() === marketType.toLowerCase()
+          );
+        }
+        
+        // Filtrar por código de símbolo, se especificado
+        if (symbolCode) {
+          symbols = symbols.filter((symbol: any) => 
+            symbol.symbol.toLowerCase() === symbolCode.toLowerCase()
+          );
+        }
+        
+        return symbols;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error("Erro ao obter símbolos ativos:", error);
+      return [];
+    }
+  }
+  
+  /**
+   * Obtém informações detalhadas sobre um símbolo específico
+   * @param symbolCode Código do símbolo (ex: "R_100")
+   */
+  public async getSymbolDetails(symbolCode: string): Promise<any | null> {
+    try {
+      console.log(`Obtendo detalhes para símbolo ${symbolCode}...`);
+      
+      // Para R_100 e outros índices sintéticos, enviamos uma requisição específica
+      if (symbolCode.startsWith('R_')) {
+        // Primeiro tenta obter via active_symbols
+        const symbols = await this.getActiveSymbols("full", "synthetic_index");
+        
+        // Filtra o símbolo específico
+        const symbolInfo = symbols.find((sym: any) => sym.symbol === symbolCode);
+        
+        if (symbolInfo) {
+          console.log(`Detalhes do símbolo ${symbolCode} encontrados:`, symbolInfo);
+          
+          // Busca preço atual via ticks
+          try {
+            // De acordo com o schema da API, não use subscribe para requisições únicas
+            const tickResponse = await this.send({
+              ticks: symbolCode
+            });
+            
+            if (tickResponse && tickResponse.tick) {
+              symbolInfo.spot = tickResponse.tick.quote;
+              symbolInfo.spot_time = tickResponse.tick.epoch;
+              symbolInfo.exchange_is_open = 1; // Índices sintéticos estão sempre abertos
+            }
+          } catch (tickError) {
+            console.error("Erro ao obter tick para complementar dados:", tickError);
+          }
+          
+          return symbolInfo;
+        }
+      }
+      
+      // Método padrão como fallback
+      const symbols = await this.getActiveSymbols("full", undefined, symbolCode);
+      const symbolData = symbols.length > 0 ? symbols[0] : null;
+      
+      console.log(`Detalhes do símbolo ${symbolCode} (método padrão):`, symbolData);
+      return symbolData;
+    } catch (error) {
+      console.error(`Erro ao obter detalhes do símbolo ${symbolCode}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtém informações sobre horários de negociação para uma data específica
+   * 
+   * @param date Data para receber horários de negociação, no formato yyyy-mm-dd ou "today"
+   * @returns Promise com a resposta contendo a estrutura hierárquica de mercados e horários
+   */
+  public async getTradingTimes(date: string = "today"): Promise<any> {
+    try {
+      // Verificar cache para reduzir requisições
+      const cacheKey = `tradingTimes_${date}`;
+      const cachedData = this.symbolDetailsCache.get(cacheKey);
+      
+      if (cachedData && Date.now() - cachedData.timestamp < 3600000) { // Cache por 1 hora
+        console.log('Usando dados em cache para horários de negociação');
+        return cachedData.data;
+      }
+      
+      const response = await this.send({
+        trading_times: date
+      });
+      
+      // Armazenar dados em cache
+      if (response && response.trading_times) {
+        this.symbolDetailsCache.set(cacheKey, { data: response.trading_times, timestamp: Date.now() });
+        return response.trading_times;
+      }
+      
+      throw new Error("Resposta inválida ao obter horários de negociação");
+    } catch (error) {
+      console.error('Erro ao obter horários de negociação:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtém informações sobre o horário do servidor Deriv
+   * 
+   * @returns Promise com a época (timestamp) do servidor
+   */
+  public async getServerTime(): Promise<number> {
+    try {
+      const response = await this.send({
+        time: 1
+      });
+      
+      if (response && response.time) {
+        return response.time;
+      }
+      
+      throw new Error("Resposta inválida ao obter horário do servidor");
+    } catch (error) {
+      console.error('Erro ao obter horário do servidor:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtém o status do servidor e configurações gerais
+   * Inclui limites de chamadas, informações sobre moedas, idiomas suportados, etc.
+   * 
+   * @param subscribe Se deve inscrever-se para atualizações em tempo real
+   * @returns Promise com a resposta contendo o status do servidor
+   */
+  public async getServerStatus(subscribe: boolean = false): Promise<any> {
+    try {
+      const response = await this.send({
+        website_status: 1,
+        subscribe: subscribe ? 1 : 0
+      });
+      
+      if (response && response.website_status) {
+        return response.website_status;
+      }
+      
+      throw new Error("Resposta inválida ao obter status do servidor");
+    } catch (error) {
+      console.error('Erro ao obter status do servidor:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtém a lista de servidores para uma plataforma de negociação
+   * Esta função é aplicável para plataformas MT5 e DXTrade
+   * 
+   * @param platform Plataforma de negociação (mt5 ou dxtrade)
+   * @param accountType Tipo de conta (demo ou real)
+   * @param marketType Tipo de mercado (all, financial, synthetic)
+   * @returns Promise com a resposta contendo a lista de servidores
+   */
+  public async getTradingServers(
+    platform: "mt5" | "dxtrade" = "mt5",
+    accountType?: "demo" | "real",
+    marketType: "all" | "financial" | "synthetic" = "all"
+  ): Promise<any> {
+    try {
+      if (!this._token) {
+        throw new Error("Autenticação necessária para obter lista de servidores");
+      }
+      
+      const request: any = {
+        trading_servers: 1,
+        platform: platform
+      };
+      
+      if (accountType) {
+        request.account_type = accountType;
+      }
+      
+      if (marketType && marketType !== "all") {
+        request.market_type = marketType;
+      }
+      
+      const response = await this.send(request);
+      
+      if (response && response.trading_servers) {
+        return response.trading_servers;
+      }
+      
+      throw new Error("Resposta inválida ao obter servidores de negociação");
+    } catch (error) {
+      console.error('Erro ao obter servidores de negociação:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica se a conexão está ativa
+   * @returns true se conectado, false caso contrário
+   */
+  public getConnectionStatus(): boolean {
+    return this.isConnected;
+  }
+  
+  /**
+   * Verifica se o usuário está autenticado
+   * @returns true se autenticado, false caso contrário
+   */
+  public isAuthorized(): boolean {
+    return this.isConnected && !!this.accountInfo && !!this.accountInfo.loginid;
+  }
+
+  /**
+   * Envia um ping para manter a conexão WebSocket ativa
+   * A API da Deriv fecha conexões inativas após 2 minutos
+   */
+  private sendPing(): void {
+    if (this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN) {
+      // Verificação de tempo entre pings - evitar sobrecarga
+      const now = Date.now();
+      if (now - this.lastPingTime < 30000) { // Mínimo 30 segundos entre pings
+        return;
+      }
+      this.lastPingTime = now;
+      
+      // Sem logs para evitar sobrecarga
+      const pingId = Date.now();
+      const pingMessage = JSON.stringify({ ping: 1, req_id: pingId });
+      
+      // Configurar um timeout para detectar se o ping não recebeu resposta
+      const pingTimeout = setTimeout(() => {
+        console.warn("[WebSocket] Tempo limite para resposta de ping excedido (5s)");
+        
+        // Armazenar o tempo da falha para tomada de decisão
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('deriv_last_ping_failure', String(Date.now()));
+        }
+        
+        // Verificar se devemos tentar reconectar baseado no histórico recente de falhas
+        const now = Date.now();
+        const lastReconnectAttempt = parseInt(window.localStorage.getItem('deriv_last_reconnect') || '0', 10);
+        
+        // Se a última tentativa de reconexão foi há mais de 30 segundos, tente novamente
+        if (now - lastReconnectAttempt > 30000) {
+          console.warn("[WebSocket] Múltiplas falhas de ping detectadas. Tentando reconectar...");
+          window.localStorage.setItem('deriv_last_reconnect', String(now));
+          
+          // Tentar reconectar mantendo o mesmo token
+          if (this._token) {
+            this.connect(this._token);
+          } else {
+            console.error("Sem token disponível para reconexão");
+          }
+        }
+      }, 5000); // 5 segundos é um tempo razoável para esperar pela resposta
+      
+      // Armazenar o timeout para cancelamento quando a resposta chegar
+      if (typeof window !== 'undefined') {
+        const pendingPings = JSON.parse(window.localStorage.getItem('deriv_pending_pings') || '{}');
+        pendingPings[pingId] = Date.now();
+        window.localStorage.setItem('deriv_pending_pings', JSON.stringify(pendingPings));
+        
+        // Limpar pings antigos (mais de 10 segundos)
+        Object.keys(pendingPings).forEach(id => {
+          if (Date.now() - pendingPings[id] > 10000) {
+            delete pendingPings[id];
+          }
+        });
+        window.localStorage.setItem('deriv_pending_pings', JSON.stringify(pendingPings));
+      }
+      
+      try {
+        // Enviar diretamente pelo socket (alta prioridade, bypass do throttling)
+        this.socket.send(pingMessage);
+        
+        // Registrar timestamp para monitoramento
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('deriv_last_ping', String(Date.now()));
+        }
+      } catch (e) {
+        console.error("[WebSocket] Erro ao enviar ping:", e);
+        
+        // Se falhar no envio direto, tentar via método send() com prioridade alta
+        // Usamos o mesmo formato com req_id inteiro
+        this.send({ ping: 1, req_id: Date.now() })
+          .then(response => {
+            console.log("[WebSocket] Resposta ao ping recebida:", response);
+            
+            // Limpar o timeout de ping para este ID específico
+            if (typeof window !== 'undefined') {
+              try {
+                const pendingPings = JSON.parse(window.localStorage.getItem('deriv_pending_pings') || '{}');
+                if (pendingPings[pingId]) {
+                  delete pendingPings[pingId];
+                  window.localStorage.setItem('deriv_pending_pings', JSON.stringify(pendingPings));
+                }
+              } catch (e) {
+                console.error("Erro ao processar pendingPings:", e);
+              }
+            }
+            
+            // Atualizar última resposta para o sistema de keep-alive
+            if (typeof document !== 'undefined') {
+              document.dispatchEvent(new CustomEvent('deriv:ping_response', { 
+                detail: { timestamp: Date.now() } 
+              }));
+            }
+          })
+          .catch(error => {
+            console.error("[WebSocket] Erro ao enviar ping via método send:", error);
+          });
+      }
+    } else {
+      console.log("[WebSocket] Ping não enviado: WebSocket não está conectado");
+    }
+  }
+
+  /**
+   * Fecha a conexão com a API
+   */
+  /**
+   * Fecha a conexão com a API
+   * @param forceLogout Se true, também limpa o token salvo (logout completo)
+   */
+  public disconnect(forceLogout: boolean = false, preserveTokens: boolean = true): void {
+    console.log(`Desconectando da API da Deriv... (preserveTokens: ${preserveTokens})`);
+    
+    // Salvar token atual antes de desconectar (para possível reconexão)
+    const currentToken = this._token;
+    const savedToken = localStorage.getItem('deriv_api_token') || 
+                      sessionStorage.getItem('derivApiToken');
+    
+    // Limpar timeout de reconexão
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    // Limpar o intervalo de ping
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    
+    // Limpar todos os dados de assinatura
+    this.activeSubscriptions.clear();
+    
+    // Fechar conexão WebSocket
+    if (this.socket) {
+      try {
+        // Tentar enviar logout se solicitado e estiver aberta a conexão
+        // Não enviamos logout quando preserveTokens=true
+        if (forceLogout && !preserveTokens && this.socket.readyState === WebSocket.OPEN) {
+          try {
+            // Obter o loginId da conta atual, se disponível
+            const currentLoginId = this.accountInfo?.loginid || 
+              localStorage.getItem('deriv_active_account') || 
+              null;
+            
+            // Montar a requisição de logout com ID de login específico se disponível
+            const logoutRequest: any = { logout: 1, req_id: Date.now() };
+            
+            // Adicionar loginid se disponível para garantir logout específico da conta
+            if (currentLoginId) {
+              logoutRequest.loginid = currentLoginId;
+              console.log(`Enviando logout específico para conta: ${currentLoginId}`);
+            }
+            
+            // Enviar requisição de logout
+            this.socket.send(JSON.stringify(logoutRequest));
+            console.log('Mensagem de logout enviada ao servidor:', logoutRequest);
+            
+            // Esperar um momento para o logout ser processado antes de fechar a conexão
+            setTimeout(() => {
+              console.log('Verificando se o logout foi concluído...');
+            }, 500);
+          } catch (e) {
+            console.error('Erro ao enviar mensagem de logout:', e);
+          }
+        }
+        
+        // Fechar a conexão (código 1000 = fechamento normal)
+        this.socket.close(1000, "Desconexão solicitada pelo usuário");
+        console.log('Conexão WebSocket fechada com código 1000');
+        this.socket = null;
+      } catch (error) {
+        console.error('Erro ao fechar conexão WebSocket:', error);
+      }
+    }
+    
+    // Limpar coleções de callbacks e listeners
+    this.isConnected = false;
+    this.callbacks.clear();
+    this.errorListeners.clear();
+    this.reconnectAttempts = 0;
+    
+    // Se for logout forçado e não estamos preservando tokens, limpar TODOS os tokens
+    if (forceLogout && !preserveTokens) {
+      this._token = null;
+      
+      // Limpar tokens em todos os lugares possíveis
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('deriv_api_token');
+        localStorage.removeItem('deriv_active_account');
+        sessionStorage.removeItem('derivApiToken');
+        
+        console.log('Tokens removidos de localStorage e sessionStorage');
+        
+        // Remover completamente todas as contas salvas para garantir login limpo
+        try {
+          const shouldResetAccounts = true; // Definir como false para manter contas salvas
+          if (shouldResetAccounts) {
+            localStorage.removeItem('derivSavedAccounts');
+            console.log('Lista de contas salvas removida');
+          }
+        } catch (e) {
+          console.error('Erro ao limpar contas salvas:', e);
+        }
+      }
+      
+      // Limpar informações da conta
+      this.accountInfo = {
+        loginid: "",
+        balance: 0,
+        currency: "USD",
+        isVirtual: false
+      };
+    } else if (preserveTokens) {
+      // Preservar token para reconexão
+      console.log('Preservando tokens para reconexão...');
+      
+      // Manter o token atual em memória
+      if (currentToken) {
+        this._token = currentToken;
+      } else if (savedToken) {
+        this._token = savedToken;
+      }
+      
+      // Garantir que o token também está armazenado para reconexão
+      if (this._token && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('deriv_api_token', this._token);
+          
+          // Log para depuração (apenas primeiros caracteres para segurança)
+          if (this._token.length > 6) {
+            console.log(`Token preservado: ${this._token.substring(0, 5)}...`);
+          }
+        } catch (e) {
+          console.error('Erro ao preservar token:', e);
+        }
+      }
+    }
+      
+    
+    // Notificar outros componentes sobre a desconexão
+    if (typeof document !== 'undefined') {
+      document.dispatchEvent(new CustomEvent('deriv:disconnected', { 
+        detail: { 
+          forceLogout,
+          timestamp: Date.now()
+        }
+      }));
+    }
+    
+    console.log('Desconectado da API da Deriv');
+  }
+
+  /**
+   * Método para buscar e gerenciar tokens de API para contas
+   * Este método retorna uma lista de tokens para a conta atual
+   * 
+   * @returns Promessa que resolve para uma lista de tokens
+   */
+  public async getAPITokens(): Promise<any> {
+    try {
+      // Verificar se estamos conectados e autenticados
+      if (!this.isConnected || !this._token) {
+        throw new Error("Não conectado ou não autenticado");
+      }
+      
+      // Fazer requisição para obter tokens
+      const response = await this.send({
+        api_token: 1
+      });
+      
+      if (response && response.api_token && response.api_token.tokens) {
+        console.log(`Recuperados ${response.api_token.tokens.length} tokens para a conta atual`);
+        return response.api_token.tokens;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error("Erro ao buscar tokens de API:", error);
+      return [];
+    }
+  }
+  
+  /**
+   * Método específico para troca de contas na mesma sessão WebSocket
+   * Este método troca para outra conta Deriv usando o token fornecido
+   * 
+   * @param newToken Token da nova conta para autorizar
+   * @param targetAccountId ID da conta para a qual estamos trocando
+   * @returns Promessa que resolve para a resposta de autorização
+   */
+  public async switchAccount(newToken: string, targetAccountId?: string): Promise<any> {
+    console.log("=== INICIANDO TROCA DE CONTA ===");
+    
+    if (!newToken) {
+      console.error("Token não fornecido para troca de conta");
+      throw new Error("Token não fornecido para troca de conta");
+    }
+    
+    try {
+      // Verificar se estamos conectados
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        console.warn("WebSocket não está conectado. Tentando reconectar primeiro...");
+        await this.connect();
+      }
+      
+      // Primeiro, verificar se este token já está mapeado para alguma conta
+      let tokenToAccountMap: Record<string, string> = {};
+      try {
+        // Inverter o mapa de accounts->tokens para tokens->accounts
+        const savedMap = localStorage.getItem('derivLinkedTokens');
+        if (savedMap) {
+          const accountToTokenMap = JSON.parse(savedMap);
+          // Inverter o mapa para verificar se o token fornecido já está associado a alguma conta
+          Object.entries(accountToTokenMap).forEach(([account, token]) => {
+            if (typeof token === 'string') {
+              tokenToAccountMap[token] = account;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Erro ao processar mapa de tokens:", e);
+      }
+      
+      // Verificar se o token já está mapeado para uma conta
+      const mappedAccount = tokenToAccountMap[newToken];
+      if (mappedAccount) {
+        console.log(`Token já mapeado para a conta: ${mappedAccount}`);
+        
+        // Se temos um ID de conta alvo e é diferente do mapeado, temos um conflito
+        if (targetAccountId && mappedAccount !== targetAccountId) {
+          console.warn(`ALERTA: Token mapeado para conta ${mappedAccount}, mas tentando usar para ${targetAccountId}`);
+          // Aqui não rejeitamos ainda, vamos tentar autorizar e ver o que acontece
+        }
+      }
+      
+      // IMPORTANTE: Desconectar qualquer assinatura atual antes de trocar
+      // Usando abordagem compatível com ES5 para iterar sobre Map
+      const symbols = Array.from(this.activeSubscriptions.keys());
+      for (let i = 0; i < symbols.length; i++) {
+        const symbol = symbols[i];
+        const subId = this.activeSubscriptions.get(symbol);
+        console.log(`Cancelando assinatura de ticks para ${symbol} (ID: ${subId})`);
+        await this.unsubscribeTicks(symbol).catch(err => {
+          console.warn(`Erro ao cancelar assinatura para ${symbol}:`, err);
+        });
+      }
+      
+      // Salvar o token antigo caso precise reverter
+      const oldToken = this._token;
+      
+      // Definir o novo token como token atual
+      this._token = newToken;
+      
+      // Criar um ID de requisição único para esta autorização
+      const reqId = Date.now();
+      
+      // Criar uma promessa para aguardar a resposta de autorização
+      return new Promise((resolve, reject) => {
+        try {
+          // Registrar um callback para tratar a resposta de autorização
+          this.callbacks.set(reqId.toString(), (response) => {
+            try {
+              if (response.error) {
+                console.error("Erro na autorização durante troca de conta:", response.error);
+                
+                // Reverter para o token anterior em caso de erro
+                this._token = oldToken;
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('deriv_api_token', oldToken || "");
+                  sessionStorage.setItem('derivApiToken', oldToken || "");
+                }
+                
+                reject(response.error);
+              } else if (response.authorize) {
+                // Obter a conta real recebida na autorização
+                const receivedLoginId = response.authorize.loginid;
+                
+                // Se temos um ID de conta alvo, verificar se chegamos na conta certa
+                if (targetAccountId && receivedLoginId !== targetAccountId) {
+                  const errMsg = `Token autorizado para conta incorreta. Esperado: ${targetAccountId}, recebido: ${receivedLoginId}`;
+                  console.error(errMsg);
+                  
+                  // Reverter para o token anterior
+                  this._token = oldToken;
+                  
+                  // Tentar reconectar com o token original
+                  if (oldToken) {
+                    this.authorize(oldToken)
+                      .then(() => console.log("Revertido para conta original"))
+                      .catch(e => console.error("Erro ao reverter para conta original:", e));
+                  }
+                  
+                  reject(new Error(errMsg));
+                  return;
+                }
+                
+                // Processar a resposta de autorização somente se chegamos na conta correta
+                this.processAuthorizeResponse(response);
+                
+                // Vamos atualizar o mapa de tokens por conta com a informação correta
+                let accountToTokenMap: Record<string, string> = {};
+                try {
+                  const savedMap = localStorage.getItem('derivLinkedTokens');
+                  if (savedMap) {
+                    accountToTokenMap = JSON.parse(savedMap);
+                  }
+                } catch (e) {
+                  console.error("Erro ao carregar mapa de tokens:", e);
+                }
+                
+                // Associar este token à conta recebida (não ao targetAccountId)
+                accountToTokenMap[receivedLoginId] = newToken;
+                localStorage.setItem('derivLinkedTokens', JSON.stringify(accountToTokenMap));
+                
+                // Atualizar token e conta ativa no localStorage
+                localStorage.setItem('deriv_api_token', newToken);
+                sessionStorage.setItem('derivApiToken', newToken);
+                localStorage.setItem('deriv_active_account', receivedLoginId);
+                
+                console.log(`Troca de conta bem-sucedida para: ${receivedLoginId}`);
+                
+                // Atualizar as contas salvas no localStorage para refletir o token correto
+                try {
+                  const savedAccountsJson = localStorage.getItem('derivSavedAccounts');
+                  if (savedAccountsJson) {
+                    const savedAccounts = JSON.parse(savedAccountsJson);
+                    
+                    // Atualizar o token apenas para a conta que acabamos de autorizar
+                    const updatedAccounts = savedAccounts.map((acc: any) => {
+                      if (acc.account === receivedLoginId) {
+                        return { ...acc, token: newToken };
+                      }
+                      return acc;
+                    });
+                    
+                    localStorage.setItem('derivSavedAccounts', JSON.stringify(updatedAccounts));
+                    console.log(`Atualizado token para conta ${receivedLoginId} no localStorage`);
+                  }
+                } catch (e) {
+                  console.error("Erro ao atualizar contas salvas:", e);
+                }
+                
+                // Restaurar assinaturas após a troca de conta
+                setTimeout(() => {
+                  this.restoreSubscriptionsFromSession();
+                }, 500); // Pequeno delay para garantir que a autorização foi completamente processada
+                
+                // Emitir um evento de troca de conta
+                document.dispatchEvent(new CustomEvent('deriv:account_switched', { 
+                  detail: { 
+                    account: receivedLoginId,
+                    timestamp: Date.now()
+                  } 
+                }));
+                
+                resolve(response);
+              } else {
+                reject(new Error("Resposta de autorização inválida"));
+              }
+            } catch (callbackError) {
+              console.error("Erro no callback de autorização:", callbackError);
+              reject(callbackError);
+            }
+          });
+          
+          // Enviar a requisição de autorização
+          const authorizeRequest = {
+            authorize: newToken,
+            req_id: reqId
+          };
+          
+          // Se temos um ID de conta alvo, adicionar à requisição
+          if (targetAccountId) {
+            console.log(`Tentando autorizar para conta alvo: ${targetAccountId}`);
+          }
+          
+          console.log(`Autorizando com token: ${newToken.substring(0, 4)}... (req_id: ${reqId})`);
+          
+          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(authorizeRequest));
+          } else {
+            console.error("WebSocket não está pronto para enviar mensagem de autorização");
+            reject(new Error("WebSocket não está conectado"));
+          }
+        } catch (promiseError) {
+          console.error("Erro durante a troca de conta:", promiseError);
+          reject(promiseError);
+        }
+      });
+    } catch (error) {
+      console.error("Erro na troca de conta:", error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Configurações de trader para copy trading
+   * @param allowCopying Indica se permite que outros copiem suas operações
+   */
+  public async setTraderSettings(allowCopying: boolean): Promise<any> {
+    return this.send({
+      trading_platform_trader_settings: 1,
+      account_id: "current",
+      allow_copiers: allowCopying ? 1 : 0
+    });
+  }
+
+  /**
+   * Obter estatísticas de copy trading
+   */
+  public async getCopyTradingStatistics(): Promise<any> {
+    return this.send({
+      copytrading_statistics: 1,
+      account_id: "current"
+    });
+  }
+
+  /**
+   * Iniciar cópia de um trader
+   * @param traderToken Token do trader a ser copiado
+   */
+  public async startCopyTrading(traderToken: string): Promise<any> {
+    return this.send({
+      copy_start: 1,
+      trader_token: traderToken,
+      max_risk: 5, // Valor padrão, pode ser parametrizado
+    });
+  }
+
+  /**
+   * Parar de copiar um trader
+   * @param copyId ID da relação de cópia
+   */
+  public async stopCopyTrading(copyId: string): Promise<any> {
+    return this.send({
+      copy_stop: 1,
+      copy_id: copyId
+    });
+  }
+
+  /**
+   * Listar relações de cópia ativas
+   */
+  public async listCopyRelationships(): Promise<any> {
+    return this.send({
+      copy_list: 1,
+      account_id: "current"
+    });
+  }
+
+  /**
+   * Obtém informações detalhadas sobre uma aplicação OAuth
+   * @param appId ID da aplicação OAuth
+   * @param loginId ID de login opcional para contas múltiplas
+   */
+  public async getApplicationDetails(appId: number, loginId?: string): Promise<any> {
+    const request: any = {
+      app_get: appId
+    };
+    
+    if (loginId) {
+      request.loginid = loginId;
+    }
+    
+    return this.send(request);
+  }
+
+  /**
+   * Lista todas as aplicações OAuth associadas à conta
+   * Retorna um array de objetos com detalhes das aplicações como:
+   * - app_id: ID da aplicação
+   * - name: Nome da aplicação 
+   * - redirect_uri: URL de redirecionamento
+   * - app_markup_percentage: Porcentagem de markup
+   * - scopes: Array de escopos permitidos
+   * - active: Status de ativação (1 = ativo)
+   * 
+   * @param loginId ID de login opcional para contas múltiplas
+   * @returns Promise com resposta contendo array app_list com aplicações
+   */
+  public async listApplications(loginId?: string): Promise<any> {
+    const request: any = {
+      app_list: 1
+    };
+    
+    if (loginId) {
+      request.loginid = loginId;
+    }
+    
+    return this.send(request);
+  }
+  
+  /**
+   * Obtém o objeto WebSocket atual para monitoramento/operações avançadas
+   * @returns WebSocket ativo da conexão ou null se desconectado
+   */
+  public getWebSocket(): WebSocket | null {
+    return this.socket;
+  }
+  
+  /**
+   * Lista todas as aplicações OAuth de terceiros utilizadas pelo usuário
+   * Retorna um array de objetos com detalhes das aplicações:
+   * - app_id: ID da aplicação
+   * - name: Nome da aplicação
+   * - app_markup_percentage: Porcentagem de markup
+   * - last_used: Data da última utilização
+   * - official: Se é uma aplicação oficial (1) ou não (0)
+   * - scopes: Array de escopos permitidos
+   * 
+   * @param loginId ID de login opcional para contas múltiplas
+   * @returns Promise com resposta contendo array oauth_apps com aplicações
+   */
+  public async listOAuthApps(loginId?: string): Promise<any> {
+    try {
+      const request: any = {
+        oauth_apps: 1
+      };
+      
+      if (loginId) {
+        request.loginid = loginId;
+      }
+      
+      const response = await this.send(request);
+      
+      if (response && response.oauth_apps) {
+        // Filtrar os apps para destacar o nosso (713161)
+        const ourAppId = 713161;
+        const ourApp = response.oauth_apps.find((app: any) => app.app_id === ourAppId);
+        
+        console.log("Aplicativo OAuth do Genius Tech encontrado:", ourApp);
+        
+        // Atualizar informações de conexão se o nosso app estiver presente
+        if (ourApp) {
+          // Podemos usar essas informações para mostrar quando foi a última vez que o usuário
+          // usou nosso aplicativo, os escopos permitidos, etc.
+          this.accountInfo.oauthDetails = {
+            appId: ourApp.app_id,
+            appName: ourApp.name,
+            lastUsed: ourApp.last_used,
+            scopes: ourApp.scopes
+          };
+          
+          // Disparar evento personalizado
+          document.dispatchEvent(new CustomEvent('deriv:oauth_app_info', {
+            detail: {
+              app: ourApp
+            }
+          }));
+        }
+        
+        return response.oauth_apps;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error("Erro ao listar aplicativos OAuth:", error);
+      return [];
+    }
+  }
+  
+  /**
+   * Atualiza uma aplicação OAuth existente
+   * 
+   * A resposta contém um objeto app_update com os detalhes da aplicação atualizada:
+   * - app_id: ID da aplicação 
+   * - name: Nome da aplicação
+   * - scopes: Array de escopos permitidos
+   * - redirect_uri: URL de redirecionamento após login
+   * - active: Status de ativação (1 = ativo)
+   * - app_markup_percentage: Markup para preços de contratos
+   * - appstore, github, googleplay, homepage, verification_uri: URLs opcionais
+   * 
+   * @param appId ID da aplicação a ser atualizada
+   * @param params Parâmetros de atualização da aplicação
+   * @param params.name Nome da aplicação (obrigatório)
+   * @param params.scopes Array de escopos permitidos (obrigatório)
+   * @param params.redirect_uri URL de redirecionamento após login bem-sucedido (opcional)
+   * @param params.app_markup_percentage Markup para preços de contratos (máx 3%, opcional)
+   * @param params.appstore URL da App Store (opcional)
+   * @param params.github URL do GitHub (opcional)
+   * @param params.googleplay URL do Google Play (opcional)
+   * @param params.homepage URL da página inicial (opcional)
+   * @param params.verification_uri URL para verificação de email (opcional)
+   * @param loginId ID de login opcional para contas múltiplas
+   * @returns Promise com resultado da atualização
+   */
+  public async updateApplication(
+    appId: number, 
+    params: {
+      name: string,
+      scopes: Array<"read" | "trade" | "trading_information" | "payments" | "admin">,
+      redirect_uri?: string,
+      app_markup_percentage?: number,
+      appstore?: string,
+      github?: string,
+      googleplay?: string,
+      homepage?: string,
+      verification_uri?: string
+    },
+    loginId?: string
+  ): Promise<any> {
+    const request: any = {
+      app_update: appId,
+      ...params
+    };
+    
+    if (loginId) {
+      request.loginid = loginId;
+    }
+    
+    return this.send(request);
+  }
+}
+
+export const derivAPI = DerivAPI.getInstance();
+export default derivAPI;
