@@ -6,15 +6,13 @@ import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
 import { BotController } from "@/components/BotController";
 import derivApiService from "@/services/derivApiService";
-import { simpleBotDirectService } from "@/services/simpleBotDirectService";
+import { oauthDirectService } from "@/services/oauthDirectService";
 
-// Log para indicar uso da versão modificada
-console.log('[BOT_PAGE] Usando BotController com versão direta do bot que usa o WebSocket frontend');
+// Log para indicar uso da nova versão com OAuth dedicado
+console.log('[BOT_PAGE] Usando BotController com serviço OAuth dedicado que estabelece sua própria conexão');
 
 export function BotPage() {
   const { toast } = useToast();
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectAttemptsRef = useRef<number>(0);
   
   // Estado para autenticação e dados da conta
   const [accountInfo, setAccountInfo] = useState<any>(null);
@@ -90,8 +88,10 @@ export function BotPage() {
     previousBalance: 0
   });
 
-  // Verificar autenticação e carregar dados iniciais
+  // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
+    console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
+    
     // Verificar se há informações de conta no localStorage
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
     const storedAuthToken = localStorage.getItem('deriv_oauth_token');
@@ -105,25 +105,172 @@ export function BotPage() {
         if (storedAuthToken) {
           console.log('[BOT] Token OAuth encontrado no localStorage');
           setAuthToken(storedAuthToken);
+          
+          // Configurar valores iniciais
+          setOperation(prev => ({
+            ...prev,
+            buyPrice: parseFloat(entryValue) || 0
+          }));
+          
+          // Configurar handlers para eventos do serviço OAuth Direct
+          const handleEvents = (event: any) => {
+            // Tick recebido
+            if (event.type === 'tick') {
+              const price = event.price;
+              const lastDigit = event.lastDigit;
+              
+              // Atualizar últimos dígitos
+              setLastDigits(prev => {
+                const updated = [lastDigit, ...prev];
+                return updated.slice(0, 20);
+              });
+              
+              // Atualizar estatísticas de dígitos
+              updateDigitStats(lastDigit);
+              
+              console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+            }
+            
+            // Evento de autorização bem-sucedida
+            if (event.type === 'authorized') {
+              console.log('[OAUTH_DIRECT] Autorização realizada com sucesso na conta:', event.account?.loginid);
+              
+              // Atualizar informações da conta se necessário
+              if (event.account) {
+                const updatedAccount = {
+                  ...accountInfo,
+                  loginid: event.account.loginid,
+                  balance: event.account.balance?.toString() || accountInfo.balance,
+                  currency: event.account.currency || accountInfo.currency
+                };
+                
+                setAccountInfo(updatedAccount);
+                console.log('[OAUTH_DIRECT] Informações da conta atualizadas');
+              }
+            }
+            
+            // Atualização de saldo
+            if (event.type === 'balance_update' && event.balance) {
+              if (accountInfo) {
+                const newBalance = parseFloat(event.balance.balance);
+                const currentBalance = parseFloat(accountInfo.balance);
+                
+                // Atualizar informações da conta apenas se o saldo mudou
+                if (newBalance !== currentBalance) {
+                  setAccountInfo({
+                    ...accountInfo,
+                    balance: newBalance.toFixed(2)
+                  });
+                  
+                  // Atualizar saldo em tempo real
+                  setRealTimeBalance({
+                    balance: newBalance,
+                    previousBalance: currentBalance
+                  });
+                  
+                  console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance}`);
+                }
+              }
+            }
+            
+            // Compra de contrato
+            if (event.type === 'contract_purchased') {
+              console.log('[OAUTH_DIRECT] Contrato comprado:', event.contract_id);
+              
+              // Atualizar estado de operação
+              setOperation(prev => ({
+                ...prev,
+                status: 'comprado'
+              }));
+              
+              toast({
+                title: "Contrato comprado",
+                description: `ID: ${event.contract_id}, Valor: $${event.buy_price}`,
+              });
+            }
+            
+            // Atualização de contrato
+            if (event.type === 'contract_update') {
+              // Log para acompanhamento do contrato
+              console.log('[OAUTH_DIRECT] Atualização do contrato:', event.contract?.contract_id);
+            }
+            
+            // Encerramento de contrato
+            if (event.type === 'contract_finished') {
+              console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
+              
+              // Atualizar estatísticas
+              if (event.is_win) {
+                setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+              } else {
+                setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+              }
+              
+              // Atualizar estado da operação
+              setOperation({
+                entry: operation.entry,
+                buyPrice: operation.buyPrice,
+                profit: event.profit,
+                status: 'vendendo'
+              });
+              
+              // Exibir notificação de resultado
+              toast({
+                title: event.is_win ? "Operação Vencedora!" : "Operação Perdedora",
+                description: `Resultado: $${event.profit.toFixed(2)}`,
+                variant: event.is_win ? "default" : "destructive",
+              });
+              
+              // Resetar estado após conclusão
+              setTimeout(() => {
+                setOperation({
+                  entry: operation.entry,
+                  buyPrice: operation.buyPrice,
+                  profit: 0,
+                  status: null
+                });
+              }, 3000);
+            }
+            
+            // Erros
+            if (event.type === 'error') {
+              console.error('[OAUTH_DIRECT] Erro:', event.message);
+              toast({
+                title: "Erro na operação",
+                description: event.message,
+                variant: "destructive"
+              });
+            }
+          };
+          
+          // Registrar handler no serviço OAuth
+          oauthDirectService.addEventListener(handleEvents);
+          
+          return () => {
+            // Limpar recursos ao desmontar
+            oauthDirectService.removeEventListener(handleEvents);
+            
+            // Parar serviço se estiver rodando
+            if (botStatus === 'running') {
+              oauthDirectService.stop();
+            }
+          };
         } else {
           console.log('[BOT] Token OAuth não encontrado, operações de trading não estarão disponíveis');
+          toast({
+            title: "Token não encontrado",
+            description: "É necessário fazer login novamente para obter acesso às operações",
+            variant: "destructive"
+          });
+          
+          // Redirecionar para página inicial para fazer login novamente
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 3000);
+          return;
         }
-        
-        // Configurar valores iniciais
-        setOperation(prev => ({
-          ...prev,
-          buyPrice: parseFloat(entryValue) || 0
-        }));
-        
-        // Iniciar conexão WebSocket para R_100
-        setupWebSocket();
-        
-        return () => {
-          // Limpar WebSocket ao desmontar
-          cleanup();
-        };
       } catch (error) {
-        console.error('Erro ao carregar dados da conta:', error);
+        console.error('[BOT] Erro ao carregar dados da conta:', error);
       }
     } else {
       // Redirecionar para a página de login se não autenticado
@@ -536,7 +683,7 @@ export function BotPage() {
     console.log("[BOT] Solicitando atualização de saldo");
   };
   
-  // Iniciar o bot
+  // Iniciar o bot usando o serviço OAuth Direct
   const handleStartBot = () => {
     try {
       // Verificar primeiro se o token OAuth está disponível
@@ -569,7 +716,7 @@ export function BotPage() {
                         (selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER') : 
                         selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
       
-      console.log("[BOT] Iniciando operação do robô com estratégia:", selectedStrategy);
+      console.log("[BOT] Iniciando operação do robô com OAuth Direct e estratégia:", selectedStrategy);
       
       // Atualizar a interface PRIMEIRO para feedback visual imediato
       setBotStatus('running');
@@ -580,8 +727,8 @@ export function BotPage() {
         status: null
       });
       
-      // Configurar simpleBotDirectService (novo serviço que usa a conexão WebSocket existente)
-      simpleBotDirectService.setSettings({
+      // Configurar oauthDirectService (novo serviço com conexão WebSocket dedicada)
+      oauthDirectService.setSettings({
         entryValue: entryNum,
         profitTarget: profitNum,
         lossLimit: lossNum,
@@ -591,31 +738,43 @@ export function BotPage() {
       });
       
       // Definir estratégia
-      simpleBotDirectService.setActiveStrategy(selectedStrategy);
+      oauthDirectService.setActiveStrategy(selectedStrategy);
       
-      // Iniciar o simpleBotDirectService em segundo plano (sem await)
-      simpleBotDirectService.start().then(success => {
+      // Iniciar o serviço OAuth Direct
+      oauthDirectService.start().then(success => {
         if (!success) {
-          console.error("[BOT] simpleBotDirectService.start() retornou false, mas a interface já foi atualizada");
+          console.error("[BOT] oauthDirectService.start() retornou false, mas a interface já foi atualizada");
+          
+          // Reverter status se não conseguiu iniciar
+          setBotStatus('idle');
+          toast({
+            title: "Erro ao iniciar",
+            description: "Não foi possível conectar ao servidor da Deriv. Tente novamente.",
+            variant: "destructive"
+          });
         }
       }).catch(error => {
-        console.error("[BOT] Erro ao executar simpleBotDirectService.start():", error);
+        console.error("[BOT] Erro ao executar oauthDirectService.start():", error);
+        
+        // Reverter status
+        setBotStatus('idle');
+        toast({
+          title: "Erro ao iniciar",
+          description: "Ocorreu um erro ao conectar com o servidor.",
+          variant: "destructive"
+        });
       });
-      
-      // Solicitar saldo
-      if (accountInfo) {
-        requestBalance();
-      }
       
       const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
       
       toast({
-        title: "Bot iniciado",
-        description: `Robô ${strategyInfo?.name} está operando agora.`,
+        title: "Iniciando robô",
+        description: `Conectando ${strategyInfo?.name} ao servidor Deriv...`,
       });
       
     } catch (error) {
       console.error("[BOT] Erro ao iniciar bot:", error);
+      setBotStatus('idle');
       toast({
         title: "Erro ao iniciar",
         description: "Ocorreu um erro ao iniciar o robô.",
@@ -627,20 +786,20 @@ export function BotPage() {
   // Pausar o bot
   const handlePauseBot = async () => {
     try {
-      console.log("[BOT] Chamando simpleBotDirectService.stop() diretamente na interface");
+      console.log("[BOT] Chamando oauthDirectService.stop() na interface");
       
       // Definir o estado localmente primeiro para feedback imediato
       setBotStatus('paused');
       
       // Depois chama o serviço
-      simpleBotDirectService.stop();
+      oauthDirectService.stop();
       
       toast({
         title: "Bot pausado",
         description: "As operações foram pausadas.",
       });
     } catch (error) {
-      console.error("[BOT] Erro ao pausar simpleBotDirectService:", error);
+      console.error("[BOT] Erro ao pausar o serviço OAuth:", error);
       toast({
         title: "Erro ao pausar",
         description: "Não foi possível pausar o robô corretamente.",
