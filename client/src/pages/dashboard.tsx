@@ -570,7 +570,7 @@ export default function Dashboard() {
             <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
             <div className="relative w-full rounded border border-[#192339] overflow-hidden" style={{ height: "312px" }}>
               <iframe 
-                src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=24h&chart_type=line&theme=dark&toolbar=0&grid=0&show_formula=0" 
+                src="https://charts.deriv.com/deriv/?market=synthetic_index&symbol=R_25&interval=24h&chart_type=line&theme=dark&toolbar=0&grid=0&show_formula=0&candles=0&studies=0&show_trade_button=0" 
                 className="absolute inset-0 w-full h-full"
                 style={{ border: "none", background: "#0f1b31" }}
                 title="Volatility 25 Index Chart"
