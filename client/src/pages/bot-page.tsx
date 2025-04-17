@@ -196,8 +196,14 @@ export function BotPage() {
               // Verificar se há operação em andamento
               console.log(`[BOT] Status da operação: ${operation.status || 'nenhuma'}`);
               
-              // Chamar a função para operar
-              simulateOperation();
+              // Forçar execução da operação (remover aleatoriedade)
+              if (!operation.status) {
+                console.log('[BOT] Tentando executar nova operação agora...');
+                // Chamar diretamente sem verificação de probabilidade
+                simulateOperation();
+              } else {
+                console.log('[BOT] Já existe uma operação em andamento, aguardando conclusão...');
+              }
             }
           }
           
@@ -296,9 +302,8 @@ export function BotPage() {
       return;
     }
     
-    // Realizar operação de trading com maior frequência
-    // Reduzir a barreira para executar operações (chance de 40% a cada tick)
-    if (Math.random() > 0.6) {
+    // Sempre executar a operação quando chamado (sem verificação aleatória)
+    {
       console.log("[BOT] Executando operação real de trading com estratégia:", selectedStrategy);
       
       const entryNum = parseFloat(entryValue || "0.35");
