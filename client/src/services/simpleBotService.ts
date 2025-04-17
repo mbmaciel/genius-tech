@@ -1,9 +1,11 @@
 /**
  * Serviço para trading automatizado com API Deriv
- * Versão 2023.3 - EXCLUSIVAMENTE para operações reais (sem simulação)
+ * Versão 2023.4 - EXCLUSIVAMENTE para operações reais (sem simulação)
+ * Utiliza uma conexão WebSocket dedicada e separada para operações com token OAuth
+ * Completamente independente da conexão WebSocket do frontend
  */
 
-import { derivAPI } from '../lib/websocketManager';
+import { tradingWebSocket } from '../lib/tradingWebSocketManager';
 
 export type BotStatus = 'idle' | 'running' | 'paused' | 'error';
 export type ContractType = 'DIGITOVER' | 'DIGITUNDER' | 'CALL' | 'PUT';
@@ -67,27 +69,126 @@ class SimpleBotService {
   };
   
   constructor() {
-    console.log('[SIMPLEBOT] Inicializando serviço de bot de trading real');
+    console.log('[SIMPLEBOT] Inicializando serviço de bot de trading EXCLUSIVAMENTE real');
+    
+    // Configurar eventos da conexão WebSocket dedicada para trading
+    tradingWebSocket.setEvents({
+      onStatusChange: (status) => {
+        console.log(`[SIMPLEBOT] Status da conexão de trading atualizado: ${status}`);
+      },
+      onError: (error) => {
+        console.error('[SIMPLEBOT] Erro na conexão de trading:', error);
+        this.emitEvent({
+          type: 'error',
+          message: 'Erro na conexão com a API de trading'
+        });
+      },
+      onContractUpdate: (contract) => {
+        console.log('[SIMPLEBOT] Atualização de contrato recebida:', contract);
+        // Se o contrato estiver finalizado, processar o resultado
+        if (contract.status !== 'open' && contract.contract_id) {
+          this.processContractCompletion(contract);
+        }
+      },
+      onBalanceUpdate: (balance) => {
+        console.log('[SIMPLEBOT] Atualização de saldo recebida:', balance);
+        this.emitEvent({
+          type: 'balance_updated',
+          balance: balance
+        });
+      }
+    });
     
     // Verificar se temos um token OAuth armazenado
     const token = localStorage.getItem('deriv_oauth_token');
     if (token) {
-      console.log('[SIMPLEBOT] Token OAuth encontrado, inicializando conexão...');
-      // Importar WebSocketManager de forma assíncrona para evitar dependência cíclica
-      import('../lib/websocketManager').then(({ derivAPI }) => {
-        // Conectar e autorizar com o token
-        derivAPI.connect().then(() => {
-          derivAPI.authorize(token).then(response => {
-            console.log('[SIMPLEBOT] Autorização bem-sucedida com API Deriv:', response.authorize?.loginid);
-          }).catch(err => {
-            console.error('[SIMPLEBOT] Falha na autorização com API Deriv:', err);
-          });
-        }).catch(err => {
-          console.error('[SIMPLEBOT] Falha na conexão com API Deriv:', err);
+      console.log('[SIMPLEBOT] Token OAuth encontrado para trading, verificando validade...');
+      
+      // Testar o token antes de tentar usá-lo
+      tradingWebSocket.testToken(token)
+        .then(result => {
+          if (result.isValid) {
+            console.log(`[SIMPLEBOT] Token OAuth é válido para a conta ${result.loginid}`);
+            // Pré-conectar o WebSocket dedicado para trading
+            tradingWebSocket.connect()
+              .then(() => {
+                console.log('[SIMPLEBOT] Conexão de trading estabelecida, autorizando...');
+                return tradingWebSocket.authorize(token);
+              })
+              .then(response => {
+                console.log('[SIMPLEBOT] Conexão de trading autorizada com sucesso:', 
+                  response.authorize?.loginid);
+              })
+              .catch(err => {
+                console.error('[SIMPLEBOT] Erro ao conectar WebSocket de trading:', err);
+              });
+          } else {
+            console.error('[SIMPLEBOT] Token OAuth inválido:', result.error);
+          }
+        })
+        .catch(err => {
+          console.error('[SIMPLEBOT] Erro ao testar token OAuth:', err);
         });
-      });
     } else {
       console.warn('[SIMPLEBOT] Token OAuth não encontrado, operações reais estarão indisponíveis');
+    }
+  }
+  
+  /**
+   * Processa a conclusão de um contrato
+   */
+  private processContractCompletion(contract: any): void {
+    // Verificar se é um contrato válido
+    if (!contract || !contract.contract_id) return;
+    
+    // Determinar resultado
+    const isWin = contract.status === 'won';
+    const profit = parseFloat(contract.profit || '0');
+    
+    console.log(`[SIMPLEBOT] Contrato ${contract.contract_id} finalizado: ${isWin ? 'GANHO' : 'PERDA'} de ${profit.toFixed(2)}`);
+    
+    // Atualizar estatísticas
+    if (isWin) {
+      this.stats.wins++;
+      this.stats.consecutiveWins++;
+      this.stats.consecutiveLosses = 0;
+    } else {
+      this.stats.losses++;
+      this.stats.consecutiveLosses++;
+      this.stats.consecutiveWins = 0;
+    }
+    
+    this.stats.totalProfit += profit;
+    
+    // Notificar resultado
+    this.emitEvent({
+      type: 'operation_finished',
+      result: isWin ? 'win' : 'loss',
+      profit,
+      contract: {
+        contract_id: contract.contract_id,
+        contract_type: contract.contract_type,
+        buy_price: parseFloat(contract.buy_price),
+        symbol: contract.underlying,
+        status: contract.status,
+        profit: profit,
+        entry_spot: contract.entry_spot,
+        exit_spot: contract.exit_spot,
+        barrier: contract.barrier,
+        purchase_time: contract.purchase_time,
+        date_expiry: contract.date_expiry
+      }
+    });
+    
+    // Atualizar estatísticas
+    this.emitEvent({ 
+      type: 'stats_updated', 
+      stats: { ...this.stats } 
+    });
+    
+    // Agendar próxima operação se o bot estiver rodando
+    if (this.status === 'running') {
+      this.scheduleNextOperation();
     }
   }
   
@@ -288,9 +389,6 @@ class SimpleBotService {
       }
       
       try {
-        // Obter a instância da API
-        const { derivAPI } = await import('../lib/websocketManager');
-        
         // Obter o token OAuth armazenado
         const token = localStorage.getItem('deriv_oauth_token');
         if (!token) {
@@ -299,50 +397,53 @@ class SimpleBotService {
             type: 'error', 
             message: 'Token OAuth não encontrado. Faça login com sua conta Deriv.'
           });
-          // Sem fallback para simulação
           return reject(new Error('Token OAuth não encontrado'));
         }
         
-        // Verificar se o websocket está conectado e autorizado
-        if (!derivAPI.getSocketInstance() || derivAPI.getSocketInstance()?.readyState !== WebSocket.OPEN) {
-          console.log('[SIMPLEBOT] WebSocket não está conectado, tentando reconectar...');
+        // Verificar se o WebSocket dedicado para trading está conectado e autorizado
+        if (!tradingWebSocket.isConnected()) {
+          console.log('[SIMPLEBOT] WebSocket de trading não está conectado, tentando reconectar...');
           try {
-            await derivAPI.connect();
-            console.log('[SIMPLEBOT] Conexão WebSocket estabelecida, autorizando...');
-            const authResponse = await derivAPI.authorize(token);
+            await tradingWebSocket.connect();
+            console.log('[SIMPLEBOT] Conexão WebSocket de trading estabelecida, autorizando...');
+            const authResponse = await tradingWebSocket.authorize(token);
             
             if (authResponse.error) {
-              console.error('[SIMPLEBOT] Erro na autorização:', authResponse.error);
+              console.error('[SIMPLEBOT] Erro na autorização com WebSocket de trading:', authResponse.error);
               this.emitEvent({
                 type: 'error',
                 message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
               });
-              // Sem fallback para simulação
               return reject(new Error(`Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`));
             }
             
-            console.log('[SIMPLEBOT] Autorização bem-sucedida:', authResponse.authorize?.loginid);
+            console.log('[SIMPLEBOT] Autorização de trading bem-sucedida:', authResponse.authorize?.loginid);
           } catch (connError) {
-            console.error('[SIMPLEBOT] Erro ao reconectar/autorizar:', connError);
+            console.error('[SIMPLEBOT] Erro ao reconectar/autorizar WebSocket de trading:', connError);
             this.emitEvent({
               type: 'error',
-              message: 'Falha na conexão com a API Deriv'
+              message: 'Falha na conexão com a API Deriv para trading'
             });
-            // Sem fallback para simulação
-            return reject(new Error('Falha na conexão com a API Deriv'));
+            return reject(new Error('Falha na conexão com a API Deriv para trading'));
           }
-        } else {
-          console.log('[SIMPLEBOT] WebSocket já está conectado, verificando autorização...');
+        } else if (!tradingWebSocket.isAuthorized()) {
+          console.log('[SIMPLEBOT] WebSocket de trading está conectado mas não autorizado, autorizando...');
           try {
-            // Verificar se a conexão está autorizada
-            if (!derivAPI.getAuthorization()) {
-              console.log('[SIMPLEBOT] Conexão não está autorizada, autorizando...');
-              await derivAPI.authorize(token);
+            const authResponse = await tradingWebSocket.authorize(token);
+            
+            if (authResponse.error) {
+              console.error('[SIMPLEBOT] Erro na autorização de WebSocket já conectado:', authResponse.error);
+              this.emitEvent({
+                type: 'error',
+                message: `Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`
+              });
+              return reject(new Error(`Erro na autorização: ${authResponse.error.message || 'Erro desconhecido'}`));
             }
+            
+            console.log('[SIMPLEBOT] WebSocket de trading autorizado com sucesso:', authResponse.authorize?.loginid);
           } catch (authError) {
-            console.error('[SIMPLEBOT] Erro ao autorizar conexão existente:', authError);
-            // Sem fallback para simulação
-            return reject(new Error('Erro ao autorizar conexão existente'));
+            console.error('[SIMPLEBOT] Erro ao autorizar conexão de trading existente:', authError);
+            return reject(new Error('Erro ao autorizar conexão de trading existente'));
           }
         }
         
@@ -359,7 +460,6 @@ class SimpleBotService {
         
         // Formatar a solicitação de proposta conforme documentação da API
         const proposalRequest = {
-          req_id: operationId,
           proposal: 1,
           amount,
           basis: "stake",
@@ -371,11 +471,11 @@ class SimpleBotService {
           barrier: prediction.toString()
         };
         
-        console.log('[SIMPLEBOT] Enviando solicitação de proposta:', proposalRequest);
+        console.log('[SIMPLEBOT] Enviando solicitação de proposta pelo WebSocket de trading:', proposalRequest);
         
         // Executar solicitação de proposta
         try {
-          const response = await derivAPI.sendRequest(proposalRequest);
+          const response = await tradingWebSocket.sendRequest(proposalRequest);
           
           if (response.error) {
             console.error('[SIMPLEBOT] Erro ao solicitar proposta:', response.error);
