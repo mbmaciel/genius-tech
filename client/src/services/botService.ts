@@ -3,7 +3,8 @@
  * Implementa a lógica de execução dos bots definidos nos arquivos XML
  */
 
-import derivApiService, { Contract, ContractType, ContractPrediction } from './derivApiService';
+import { Contract, ContractType, ContractPrediction } from './derivApiService';
+import { derivAPI } from '../lib/websocketManager';
 
 export interface StrategyConfig {
   id: string;
@@ -89,32 +90,97 @@ class BotService {
   };
   
   constructor() {
-    // Inicializar ouvintes para eventos da API
-    derivApiService.onContractUpdate(this.handleContractUpdate.bind(this));
-    derivApiService.onBalanceUpdate(this.handleBalanceUpdate.bind(this));
+    // Usar a conexão OAuth existente para obter ticks e demais informações
+    if (!derivAPI) {
+      console.error('[BOT_SERVICE] API Deriv não inicializada. Operações não estarão disponíveis');
+      return;
+    }
     
-    // Registrar ouvinte para ticks para capturar o último dígito
-    derivApiService.onTick(this.handleTickUpdate.bind(this));
+    // Registrar handlers para a conexão OAuth
+    derivAPI.onBalanceChange(this.handleBalanceUpdate.bind(this));
     
-    // IMPORTANTE: Verificar se temos token OAuth e inicializar a conexão com ele
+    // Estabelecer conexão WebSocket com a Deriv usando websocketManager
     const oauthToken = localStorage.getItem('deriv_oauth_token');
     if (oauthToken) {
       console.log('[BOT_SERVICE] Inicializando conexão com token OAuth:', oauthToken.substring(0, 10) + '...');
-      derivApiService.connect(oauthToken).then(success => {
-        if (success) {
-          console.log('[BOT_SERVICE] Conexão OAuth inicializada com sucesso');
-          this.emitEvent({ type: 'status_change', status: 'idle' });
-          
-          // Solicitar saldo após conexão bem-sucedida
-          derivApiService.getBalance();
-        } else {
-          console.error('[BOT_SERVICE] Falha ao inicializar conexão OAuth');
-          this.emitEvent({ type: 'error', message: 'Falha ao inicializar conexão OAuth' });
-        }
+      
+      // Primeiro conectar
+      derivAPI.connect().then(() => {
+        // Depois autorizar com o token
+        derivAPI.authorize(oauthToken).then((response) => {
+          if (response && !response.error) {
+            console.log('[BOT_SERVICE] Autorização OAuth com sucesso:', response.authorize?.loginid);
+            this.emitEvent({ type: 'status_change', status: 'idle' });
+            
+            // Inscrever-se para receber ticks de R_100 após autorização
+            derivAPI.sendRequest({
+              ticks: 'R_100',
+              subscribe: 1
+            }).then((response) => {
+              console.log('[BOT_SERVICE] Inscrito em ticks R_100:', response);
+              
+              // Configurar um listener para os ticks
+              window.addEventListener('deriv_api_response', (e: any) => {
+                const data = e.detail;
+                
+                // Se temos um tick do R_100, processar
+                if (data && data.tick && data.tick.symbol === 'R_100') {
+                  this.handleTickUpdate(data);
+                }
+                
+                // Se temos um status de contrato, processar
+                if (data && data.proposal_open_contract) {
+                  // Converter para o formato de contrato esperado
+                  const contractUpdate = this.formatContractUpdateFromProposal(data.proposal_open_contract);
+                  if (contractUpdate) {
+                    this.handleContractUpdate(contractUpdate);
+                  }
+                }
+              });
+            }).catch(error => {
+              console.error('[BOT_SERVICE] Erro ao se inscrever em ticks R_100:', error);
+            });
+            
+          } else {
+            console.error('[BOT_SERVICE] Falha na autorização OAuth:', response?.error?.message);
+            this.emitEvent({ 
+              type: 'error', 
+              message: `Falha na autorização OAuth: ${response?.error?.message || 'Erro desconhecido'}` 
+            });
+          }
+        }).catch(error => {
+          console.error('[BOT_SERVICE] Erro ao autorizar com token OAuth:', error);
+          this.emitEvent({ type: 'error', message: 'Erro ao autorizar com token OAuth' });
+        });
+      }).catch(error => {
+        console.error('[BOT_SERVICE] Erro ao conectar à API Deriv:', error);
+        this.emitEvent({ type: 'error', message: 'Erro ao conectar à API Deriv' });
       });
     } else {
       console.warn('[BOT_SERVICE] Token OAuth não encontrado, operações não estarão disponíveis');
+      this.emitEvent({ type: 'error', message: 'Token OAuth não encontrado. Conecte sua conta na página Dashboard' });
     }
+  }
+  
+  /**
+   * Converte dados de proposta aberta para o formato de contrato
+   */
+  private formatContractUpdateFromProposal(proposal: any): Contract | null {
+    if (!proposal || !proposal.contract_id) return null;
+    
+    return {
+      contract_id: proposal.contract_id,
+      contract_type: proposal.contract_type,
+      buy_price: proposal.buy_price,
+      symbol: proposal.underlying,
+      status: proposal.status,
+      entry_spot: proposal.entry_spot,
+      exit_spot: proposal.exit_spot,
+      profit: proposal.profit,
+      payout: proposal.payout,
+      purchase_time: proposal.date_start,
+      date_expiry: proposal.date_expiry
+    };
   }
   
   /**
@@ -240,14 +306,24 @@ class BotService {
         return false;
       }
       
-      // Verificar conexão com a API, usando explicitamente o token OAuth
-      if (!isApiAuthorized()) {
-        console.log('[BOT_SERVICE] Conectando com token OAuth para operações de trading');
-        const connected = await derivApiService.connect(oauthToken);
-        if (!connected) {
-          this.emitEvent({ type: 'error', message: 'Falha ao conectar à API Deriv com token OAuth' });
+      // Verificar conexão com a API, usando a instância do derivAPI
+      try {
+        console.log('[BOT_SERVICE] Verificando a conexão da API para operações de trading');
+        await derivAPI.connect();
+        
+        // Verificar se o token ainda é válido
+        const authResponse = await derivAPI.authorize(oauthToken);
+        if (authResponse.error) {
+          this.emitEvent({ 
+            type: 'error', 
+            message: `Erro na autorização: ${authResponse.error.message}` 
+          });
           return false;
         }
+      } catch (err) {
+        console.error('[BOT_SERVICE] Erro na conexão:', err);
+        this.emitEvent({ type: 'error', message: 'Falha ao conectar à API Deriv' });
+        return false;
       }
       
       this.setStatus('running');
