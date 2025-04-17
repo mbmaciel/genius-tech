@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
+import { botService } from "@/services/botService";
+import derivApiService from "@/services/derivApiService";
 
 export function BotPage() {
   const { toast } = useToast();
@@ -523,7 +525,7 @@ export function BotPage() {
   };
   
   // Iniciar o bot
-  const handleStartBot = () => {
+  const handleStartBot = async () => {
     if (!selectedBotType || !selectedStrategy) {
       toast({
         title: "Seleção necessária",
@@ -533,44 +535,100 @@ export function BotPage() {
       return;
     }
     
-    // Atualizar estado do bot
-    setBotStatus('running');
-    setOperation({
-      entry: 1584.42,
-      buyPrice: parseFloat(entryValue),
-      profit: 0,
-      status: null // Começar sem operação para poder iniciar uma nova
-    });
+    // Configurar botService com os parâmetros apropriados
+    const entryNum = parseFloat(entryValue || "0.35");
+    const profitNum = parseFloat(profitTarget || "1000");
+    const lossNum = parseFloat(lossLimit || "500");
     
-    // Solicitar saldo atual em tempo real
-    if (accountInfo) {
-      // Solicitar saldo atualizado da API
-      requestBalance();
+    // Determinar o tipo de contrato com base na estratégia
+    const contractType = selectedBotType === "lite" ? 
+                        (selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER') : 
+                        selectedStrategy.includes('under') ? 'DIGITUNDER' : 'DIGITOVER';
+    
+    try {
+      // Configurar botService
+      botService.setSettings({
+        entryValue: entryNum,
+        profitTarget: profitNum,
+        lossLimit: lossNum,
+        martingaleFactor: 1.5, // Valor padrão
+        contractType: contractType as any,
+        prediction: 5 // Valor padrão para previsão
+      });
       
-      // Mostrar informação de início de operação
-      console.log("[BOT] Bot de trading iniciado com as seguintes configurações:");
-      console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
-      console.log(`[BOT] - Valor de entrada: ${entryValue || "0.35"}`);
-      console.log(`[BOT] - Meta de lucro: ${profitTarget || "N/A"}`);
-      console.log(`[BOT] - Limite de perdas: ${lossLimit || "N/A"}`);
+      // Configurar estratégia ativa no botService
+      botService.setActiveStrategy(selectedStrategy);
+      
+      // Iniciar o botService
+      const success = await botService.start();
+      
+      if (success) {
+        // Atualizar estado do bot na interface
+        setBotStatus('running');
+        setOperation({
+          entry: 1584.42,
+          buyPrice: entryNum,
+          profit: 0,
+          status: null // Começar sem operação para poder iniciar uma nova
+        });
+        
+        // Solicitar saldo atual em tempo real
+        if (accountInfo) {
+          // Solicitar saldo atualizado da API
+          requestBalance();
+          
+          // Mostrar informação de início de operação
+          console.log("[BOT] Bot de trading iniciado com as seguintes configurações:");
+          console.log(`[BOT] - Estratégia: ${selectedStrategy}`);
+          console.log(`[BOT] - Valor de entrada: ${entryNum}`);
+          console.log(`[BOT] - Meta de lucro: ${profitNum}`);
+          console.log(`[BOT] - Limite de perdas: ${lossNum}`);
+        }
+        
+        const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
+        
+        toast({
+          title: "Bot iniciado",
+          description: `Robô ${strategyInfo?.name} está operando agora.`,
+        });
+      } else {
+        toast({
+          title: "Erro ao iniciar",
+          description: "Não foi possível iniciar o robô. Verifique sua conexão e tente novamente.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("[BOT] Erro ao iniciar botService:", error);
+      toast({
+        title: "Erro ao iniciar",
+        description: `Não foi possível iniciar o robô: ${error}`,
+        variant: "destructive"
+      });
     }
-    
-    const strategyInfo = strategies[selectedBotType].find(s => s.id === selectedStrategy);
-    
-    toast({
-      title: "Bot iniciado",
-      description: `Robô ${strategyInfo?.name} está operando agora.`,
-    });
   };
   
   // Pausar o bot
-  const handlePauseBot = () => {
-    setBotStatus('paused');
-    
-    toast({
-      title: "Bot pausado",
-      description: "As operações foram pausadas.",
-    });
+  const handlePauseBot = async () => {
+    try {
+      // Pausar o botService
+      await botService.stop();
+      
+      // Atualizar estado da interface
+      setBotStatus('paused');
+      
+      toast({
+        title: "Bot pausado",
+        description: "As operações foram pausadas.",
+      });
+    } catch (error) {
+      console.error("[BOT] Erro ao pausar botService:", error);
+      toast({
+        title: "Erro ao pausar",
+        description: "Não foi possível pausar o robô corretamente.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Limpar histórico
