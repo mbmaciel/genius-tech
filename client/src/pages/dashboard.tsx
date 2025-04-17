@@ -529,8 +529,8 @@ export default function Dashboard() {
                     
                     {/* Barra do gráfico */}
                     <div 
-                      className={`w-full ${getBarColor(stat.percentage)}`} 
-                      style={{ height: `${Math.max(5, stat.percentage)}%` }}
+                      className={`w-10 ${getBarColor(stat.percentage)}`} 
+                      style={{ height: `${Math.max(5, stat.percentage)}%`, minHeight: '5px' }}
                     ></div>
                     
                     {/* Número do dígito abaixo da barra */}
