@@ -174,9 +174,8 @@ export default function Dashboard() {
   const getBarColor = (percentage: number) => {
     if (percentage >= 30) return 'bg-red-600';
     if (percentage >= 20) return 'bg-red-500';
-    if (percentage >= 15) return 'bg-red-400';
-    if (percentage > 0) return 'bg-red-300';
-    return 'bg-gray-300';
+    if (percentage >= 10) return 'bg-red-500';
+    return 'bg-gray-500';
   };
 
   return (
@@ -503,22 +502,42 @@ export default function Dashboard() {
               </select>
             </div>
             
-            <div className="flex items-end h-64 space-x-3">
-              {digitStats.map((stat) => (
-                <div key={stat.digit} className="flex-1 flex flex-col items-center justify-end">
-                  {/* Barra do gráfico */}
-                  <div 
-                    className={`w-full ${getBarColor(stat.percentage)}`} 
-                    style={{ height: `${Math.max(5, stat.percentage)}%` }}
-                  ></div>
-                  
-                  {/* Legenda (dígito) */}
-                  <div className="mt-2 text-sm text-white">{stat.digit}</div>
-                  
-                  {/* Percentual */}
-                  <div className="text-xs text-gray-400">{stat.percentage}%</div>
-                </div>
-              ))}
+            <div className="relative flex flex-col h-64">
+              {/* Eixo Y (percentuais) */}
+              <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-400 pr-2">
+                <div>50</div>
+                <div>45</div>
+                <div>40</div>
+                <div>35</div>
+                <div>30</div>
+                <div>25</div>
+                <div>20</div>
+                <div>15</div>
+                <div>10</div>
+                <div>5</div>
+                <div>0</div>
+              </div>
+              
+              {/* Gráfico de barras */}
+              <div className="flex items-end h-full space-x-2 pl-8">
+                {digitStats.map((stat) => (
+                  <div key={stat.digit} className="flex-1 flex flex-col items-center">
+                    {/* Valor percentual acima da barra */}
+                    <div className="mb-1 text-sm font-medium text-white">
+                      {stat.percentage > 0 ? `${stat.percentage}%` : ''}
+                    </div>
+                    
+                    {/* Barra do gráfico */}
+                    <div 
+                      className={`w-full ${getBarColor(stat.percentage)}`} 
+                      style={{ height: `${Math.max(5, stat.percentage)}%` }}
+                    ></div>
+                    
+                    {/* Número do dígito abaixo da barra */}
+                    <div className="mt-2 text-sm text-white">{stat.digit}</div>
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Últimos dígitos */}
