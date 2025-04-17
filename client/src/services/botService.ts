@@ -91,6 +91,23 @@ class BotService {
     // Inicializar ouvintes para eventos da API
     derivApiService.onContractUpdate(this.handleContractUpdate.bind(this));
     derivApiService.onBalanceUpdate(this.handleBalanceUpdate.bind(this));
+    
+    // IMPORTANTE: Verificar se temos token OAuth e inicializar a conexão com ele
+    const oauthToken = localStorage.getItem('deriv_oauth_token');
+    if (oauthToken) {
+      console.log('[BOT_SERVICE] Inicializando conexão com token OAuth:', oauthToken.substring(0, 10) + '...');
+      derivApiService.connect(oauthToken).then(success => {
+        if (success) {
+          console.log('[BOT_SERVICE] Conexão OAuth inicializada com sucesso');
+          this.emitEvent({ type: 'status_change', status: 'idle' });
+        } else {
+          console.error('[BOT_SERVICE] Falha ao inicializar conexão OAuth');
+          this.emitEvent({ type: 'error', message: 'Falha ao inicializar conexão OAuth' });
+        }
+      });
+    } else {
+      console.warn('[BOT_SERVICE] Token OAuth não encontrado, operações não estarão disponíveis');
+    }
   }
   
   /**
@@ -189,11 +206,19 @@ class BotService {
     }
     
     try {
-      // Verificar conexão com a API
+      // IMPORTANTE: Verificar se temos token OAuth atualizado e usar ele para conectar
+      const oauthToken = localStorage.getItem('deriv_oauth_token');
+      if (!oauthToken) {
+        this.emitEvent({ type: 'error', message: 'Token OAuth não disponível. Conecte sua conta na página Dashboard' });
+        return false;
+      }
+      
+      // Verificar conexão com a API, usando explicitamente o token OAuth
       if (!isApiAuthorized()) {
-        const connected = await derivApiService.connect();
+        console.log('[BOT_SERVICE] Conectando com token OAuth para operações de trading');
+        const connected = await derivApiService.connect(oauthToken);
         if (!connected) {
-          this.emitEvent({ type: 'error', message: 'Falha ao conectar à API Deriv' });
+          this.emitEvent({ type: 'error', message: 'Falha ao conectar à API Deriv com token OAuth' });
           return false;
         }
       }
