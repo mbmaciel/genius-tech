@@ -774,7 +774,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const amount = parseFloat(this.settings.entryValue.toString());
       const prediction = this.settings.prediction || 5;
       
-      // Criar solicitação de compra
+      // Criar solicitação de compra corrigida para incluir o basis
       const buyRequest = {
         buy: 1,
         price: amount,
@@ -784,11 +784,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           duration: 5,
           duration_unit: "t",
           symbol: "R_100",
-          barrier: prediction.toString()
+          barrier: prediction.toString(),
+          basis: "stake", // Especificar basis como stake para resolver o erro
+          amount: amount  // Incluir o valor do stake
         }
       };
       
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${this.tokens.find(t => t.token === this.activeToken)?.loginid || 'desconhecido'}:`, buyRequest);
+      // Obter o loginId da conta ativa
+      const activeAccount = this.tokens.find(t => t.token === this.activeToken);
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeAccount?.loginid || 'desconhecido'}:`, buyRequest);
       
       // Enviar solicitação se o WebSocket estiver disponível
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
@@ -802,7 +806,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         type: 'operation_started',
         contract_type: contractType,
         amount: amount,
-        prediction: prediction
+        prediction: prediction,
+        loginid: activeAccount?.loginid
       });
     } catch (error: any) {
       console.error('[OAUTH_DIRECT] Erro ao executar operação:', error);
