@@ -834,21 +834,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private executeBuyRequest(contractType: string, amount: number, prediction: number, loginid?: string): void {
     try {
-      // Formato sem a estrutura "parameters" e com os campos diretamente no objeto principal
+      // SOLUÇÃO CORRETA: Ao verificar a documentação da API, vimos que a estrutura correta é:
+      // 1. buy: Identificador (1 para parâmetros definidos in-line)
+      // 2. price: Valor máximo para compra
+      // 3. parameters: Campo não deve ser passado diretamente, mas sim:
+      
+      // Formato correto com apenas buy e price
       const buyRequest = {
         buy: 1,
-        price: amount, // Valor máximo para compra
-        basis: "stake", // FUNDAMENTAL: indica que é o valor de entrada
-        amount: amount, // Valor da aposta
-        contract_type: contractType,
-        currency: "USD",
-        duration: 5,
-        duration_unit: "t",
-        symbol: "R_100",
-        barrier: prediction.toString()
+        price: amount
       };
       
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${loginid || 'desconhecido'}:`, buyRequest);
+      console.log(`[OAUTH_DIRECT] NOVA TENTATIVA: Enviando solicitação de compra com token ${loginid || 'desconhecido'}:`, buyRequest);
       
       // Enviar solicitação se o WebSocket estiver disponível
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
