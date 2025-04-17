@@ -126,7 +126,8 @@ export default function Dashboard() {
   // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
     // Iniciar a conexão WebSocket para dados R_100
-    startKeepAlive();
+    // Desativado temporariamente para depuração
+    // startKeepAlive();
     
     // Adicionar listener para eventos de tick
     const handleTick = (event: CustomEvent) => {
