@@ -834,25 +834,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private executeBuyRequest(contractType: string, amount: number, prediction: number, loginid?: string): void {
     try {
-      // Formato correto da requisição usando o formato documentado na API:
-      // - buy: ID do contrato (1 se passarmos parâmetros diretos)
-      // - price: valor máximo para compra
-      // - parameters: objeto com detalhes do contrato
-      //   - basis: "stake" (valor de entrada) ou "payout" (pagamento pretendido)
-      //   - amount: valor correspondente ao basis
+      // Formato sem a estrutura "parameters" e com os campos diretamente no objeto principal
       const buyRequest = {
         buy: 1,
         price: amount, // Valor máximo para compra
-        parameters: {
-          basis: "stake", // Usamos "stake" para indicar que o amount é o valor de entrada
-          amount: amount, // Valor da aposta
-          contract_type: contractType,
-          currency: "USD",
-          duration: 5,
-          duration_unit: "t",
-          symbol: "R_100",
-          barrier: prediction.toString()
-        }
+        basis: "stake", // FUNDAMENTAL: indica que é o valor de entrada
+        amount: amount, // Valor da aposta
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t",
+        symbol: "R_100",
+        barrier: prediction.toString()
       };
       
       console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${loginid || 'desconhecido'}:`, buyRequest);
