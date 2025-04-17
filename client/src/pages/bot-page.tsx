@@ -569,6 +569,23 @@ export function BotPage() {
     );
   };
 
+  // Handler para seleção de conta
+  const handleAccountSelected = (account: DerivAccount) => {
+    console.log('[BOT_PAGE] Conta selecionada:', account.loginid);
+    setSelectedAccount(account);
+    
+    // Atualizar token de autorização
+    setAuthToken(account.token);
+    
+    // Notificar o oauthDirectService sobre a mudança de conta
+    oauthDirectService.setActiveAccount(account.loginid, account.token);
+    
+    toast({
+      title: "Conta selecionada",
+      description: `Operando na conta ${account.loginid} (${account.isVirtual ? 'Demo' : 'Real'})`,
+    });
+  };
+
   return (
     <div className="flex min-h-screen bg-[#0a1324]">
       {/* Barra Lateral */}
@@ -679,6 +696,9 @@ export function BotPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna da esquerda - Controles e Configurações */}
           <div className="lg:col-span-1 space-y-5">
+            {/* Seletor de Contas */}
+            <BotAccountSelector onAccountSelected={handleAccountSelected} />
+            
             {/* Painel de Controle Principal */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <h2 className="text-lg font-semibold text-white mb-4">Painel de Controle</h2>
