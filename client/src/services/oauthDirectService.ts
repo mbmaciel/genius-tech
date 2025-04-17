@@ -805,9 +805,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // COMPLETAMENTE NOVO FORMATO DA REQUISIÇÃO
-      // Criando uma nova requisição de compra no formato correto
-      this.executeBuyRequest(contractType, amount, prediction, activeTokenInfo?.loginid);
+      // USAR FORMATO MÍNIMO CORRETO DA API DERIV
+      // Com base na documentação, apenas buy e price são necessários
+      const buyRequest = {
+        buy: 1,
+        price: amount
+      };
+      
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequest);
+      
+      // Enviar solicitação diretamente
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        this.webSocket.send(JSON.stringify(buyRequest));
+      } else {
+        throw new Error('WebSocket não está disponível ou conectado');
+      }
       
       // Notificar sobre o início da operação
       this.notifyListeners({
