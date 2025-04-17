@@ -12,6 +12,7 @@ export function BotPage() {
   
   // Estado para autenticação e dados da conta
   const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null); // Token para autorização de operações
   
   // Estado para controle do robô
   const [botStatus, setBotStatus] = useState<'idle' | 'running' | 'paused'>('idle');
@@ -127,9 +128,18 @@ export function BotPage() {
         
         // Autorizar com token (usando o token dedicado para R_100)
         if (wsRef.current) {
-          wsRef.current.send(JSON.stringify({
-            authorize: 'jybcQm0FbKr7evp' // Token fixo para R_100
-          }));
+          // Verificar primeiro se temos um token OAuth da conta do usuário
+          if (authToken) {
+            console.log('[BOT] Autorizando com token OAuth do usuário...');
+            wsRef.current.send(JSON.stringify({
+              authorize: authToken
+            }));
+          } else {
+            console.log('[BOT] Autorizando com token fixo para ticks (sem permissão para operar)...');
+            wsRef.current.send(JSON.stringify({
+              authorize: 'jybcQm0FbKr7evp' // Token fixo para R_100 (somente dados)
+            }));
+          }
         }
         
         // Resetar contagem de tentativas
@@ -201,6 +211,9 @@ export function BotPage() {
                 console.log('[BOT] Tentando executar nova operação agora...');
                 // Chamar diretamente sem verificação de probabilidade
                 simulateOperation();
+                
+                // Debugging adicional para acompanhar execução
+                console.log('[BOT-DEBUG] Após chamar simulateOperation(), status =', operation.status);
               } else {
                 console.log('[BOT] Já existe uma operação em andamento, aguardando conclusão...');
               }
