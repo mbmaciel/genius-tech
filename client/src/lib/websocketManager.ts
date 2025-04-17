@@ -246,13 +246,26 @@ class WebSocketManager {
 
   /**
    * Envia um ping para manter a conexão ativa
+   * Formato do ping conforme especificação da API Deriv:
+   * { "ping": 1, "req_id": timestamp }
    */
   private sendPing(): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.sendRequest({ ping: 1 }).catch(err => {
+      this.sendRequest({ 
+        ping: 1,
+        req_id: Date.now()
+      }).catch(err => {
         console.warn("Erro ao enviar ping:", err);
       });
     }
+  }
+  
+  /**
+   * Acesso ao WebSocket para o serviço de keep-alive
+   * Método interno para integração com o serviço de keep-alive
+   */
+  public getSocketInstance(): WebSocket | null {
+    return this.socket;
   }
   
   /**

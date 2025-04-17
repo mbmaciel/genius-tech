@@ -17,6 +17,8 @@ export interface BotSettings {
   martingaleFactor: number;
   prediction?: ContractPrediction;
   contractType?: ContractType;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
 }
 
 export interface OperationStats {
@@ -307,6 +309,7 @@ class SimpleBotService {
             console.log('[SIMPLEBOT] Proposta recebida, comprando contrato...', proposal);
             
             // Formatar solicitação de compra com o ID da proposta
+            // Baseado na documentação da API fornecida no arquivo "Contrato de Compra (solicitação.txt)"
             const buyRequest = {
               req_id: `buy_${operationId}`,
               buy: proposal.id,

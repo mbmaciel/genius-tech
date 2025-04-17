@@ -243,3 +243,17 @@ export class WebSocketKeepAlive {
 // Exportar instância singleton para uso global
 export const keepAliveService = new WebSocketKeepAlive();
 export default keepAliveService;
+
+// Função para iniciar o serviço de keep-alive (exportação simples para importação)
+export function startKeepAlive(
+  socket: WebSocket,
+  onConnectionLost?: () => void,
+  onConnectionRestored?: () => void
+): void {
+  keepAliveService.start(socket, onConnectionLost, onConnectionRestored);
+}
+
+// Função para parar o serviço de keep-alive
+export function stopKeepAlive(): void {
+  keepAliveService.stop();
+}
