@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { startKeepAlive, stopKeepAlive } from "@/lib/websocketKeepAlive";
 import { useToast } from "@/hooks/use-toast";
+import { DerivConnectButton } from "@/components/DerivConnectButton";
 
 interface DigitData {
   digit: number;
@@ -12,8 +13,26 @@ export default function Dashboard() {
   const [digitStats, setDigitStats] = useState<DigitData[]>([]);
   const [lastDigits, setLastDigits] = useState<number[]>([]);
   const [ticks, setTicks] = useState<number>(10);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [accountInfo, setAccountInfo] = useState<any>(null);
   const { toast } = useToast();
   
+  // Efeito para verificar se já existe uma sessão autenticada
+  useEffect(() => {
+    const storedToken = localStorage.getItem('deriv_token');
+    const storedAccountInfo = localStorage.getItem('deriv_account_info');
+    
+    if (storedToken && storedAccountInfo) {
+      try {
+        const parsedAccountInfo = JSON.parse(storedAccountInfo);
+        setIsAuthenticated(true);
+        setAccountInfo(parsedAccountInfo);
+      } catch (error) {
+        console.error('Erro ao processar dados de conta armazenados:', error);
+      }
+    }
+  }, []);
+
   // Iniciar a conexão WebSocket quando o componente for montado
   useEffect(() => {
     // Iniciar a conexão WebSocket para dados R_100
@@ -134,18 +153,44 @@ export default function Dashboard() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl text-white font-semibold">Dashboard</h1>
           
-          <div className="flex items-center">
-            <button 
-              onClick={() => {
-                toast({
-                  title: "Logout concluído",
-                  description: "Você foi desconectado com sucesso.",
-                });
-              }}
-              className="text-white text-sm hover:underline"
-            >
-              Logout DERIV
-            </button>
+          <div className="flex items-center space-x-4">
+            {!isAuthenticated ? (
+              <DerivConnectButton 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-2 px-4 rounded-md transition-all duration-200"
+                onSuccess={(token, accountInfo) => {
+                  setIsAuthenticated(true);
+                  setAccountInfo(accountInfo);
+                  toast({
+                    title: "Conexão bem-sucedida",
+                    description: `Conectado como ${accountInfo.email || accountInfo.loginid}`,
+                  });
+                }}
+              />
+            ) : (
+              <div className="flex items-center space-x-4">
+                <div className="bg-[#1d2a45] px-3 py-1 rounded-md text-white text-sm">
+                  {accountInfo?.email || accountInfo?.loginid || 'Conectado'}
+                </div>
+                
+                <button 
+                  onClick={() => {
+                    // Limpar dados de autenticação
+                    localStorage.removeItem('deriv_token');
+                    localStorage.removeItem('deriv_account_info');
+                    setIsAuthenticated(false);
+                    setAccountInfo(null);
+                    
+                    toast({
+                      title: "Logout concluído",
+                      description: "Você foi desconectado com sucesso.",
+                    });
+                  }}
+                  className="text-white text-sm hover:underline"
+                >
+                  Logout DERIV
+                </button>
+              </div>
+            )}
           </div>
         </div>
         
