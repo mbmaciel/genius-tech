@@ -4,7 +4,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { extractAccountsFromUrl, saveAccounts } from '@/lib/accountManager';
+import { 
+  extractAccountsFromUrl, 
+  saveAccounts, 
+  authorizeAccount, 
+  authorizeMultipleAccounts,
+  updateAccountInfo
+} from '@/lib/accountManager';
 import { Loader2 } from 'lucide-react';
 
 // App ID da Deriv para OAuth
@@ -38,8 +44,44 @@ export default function LoginPage() {
             // Salvar contas no localStorage
             saveAccounts(accounts);
             
-            // Obter informações detalhadas da primeira conta
-            await authorizeFirstAccount(accounts[0].token);
+            // Autorizar todas as contas de uma vez
+            try {
+              // Se tiver múltiplas contas, usa a autorização múltipla
+              if (accounts.length > 1) {
+                await authorizeMultipleAccounts(accounts);
+              } else {
+                // Para apenas uma conta, usa a autorização simples
+                const accountInfo = await authorizeAccount(accounts[0].token);
+                
+                // Salvar informações detalhadas da conta
+                localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
+                
+                // Atualiza as informações da conta
+                updateAccountInfo(accounts[0].loginid, {
+                  fullAccountInfo: accountInfo,
+                  email: accountInfo.email,
+                  name: accountInfo.fullname,
+                  balance: accountInfo.balance
+                });
+              }
+              
+              // Exibe mensagem de sucesso
+              const activeAccount = accounts[0];
+              toast({
+                title: 'Autenticação Bem-sucedida',
+                description: `${accounts.length} conta(s) autorizada(s) com sucesso!`,
+              });
+              
+              // Redirecionar para o dashboard após um pequeno delay
+              setTimeout(() => {
+                setProcessingOAuth(false);
+                setLocation('/dashboard');
+              }, 1000);
+              
+            } catch (authError: any) {
+              const errorMessage = authError && authError.message ? authError.message : 'Erro desconhecido';
+              throw new Error(`Falha na autorização: ${errorMessage}`);
+            }
           } else {
             throw new Error('Nenhuma conta encontrada nos parâmetros da URL.');
           }
@@ -57,81 +99,6 @@ export default function LoginPage() {
     
     processRedirectUrl();
   }, [toast]);
-  
-  // Função para autorizar a primeira conta após redirecionamento OAuth
-  const authorizeFirstAccount = async (token: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        // Estabelecer conexão WebSocket
-        const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=' + APP_ID);
-        
-        // Timeout para não ficar esperando indefinidamente
-        const timeout = setTimeout(() => {
-          ws.close();
-          reject(new Error('Timeout ao autorizar conta.'));
-        }, 15000);
-        
-        ws.onopen = () => {
-          console.log('Conexão WebSocket aberta para autorização');
-          const authRequest = {
-            authorize: token
-          };
-          ws.send(JSON.stringify(authRequest));
-        };
-        
-        ws.onmessage = (msg) => {
-          try {
-            const response = JSON.parse(msg.data);
-            console.log('Resposta de autorização:', response);
-            
-            if (response.error) {
-              clearTimeout(timeout);
-              ws.close();
-              reject(new Error(response.error.message));
-              return;
-            }
-            
-            if (response.authorize) {
-              clearTimeout(timeout);
-              
-              // Salvar informações detalhadas da conta
-              const accountInfo = response.authorize;
-              localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
-              
-              toast({
-                title: 'Autenticação Bem-sucedida',
-                description: `Bem-vindo, ${accountInfo.email || accountInfo.loginid}!`,
-              });
-              
-              // Redirecionar para o dashboard
-              setTimeout(() => {
-                setProcessingOAuth(false);
-                setLocation('/dashboard');
-              }, 1000);
-              
-              ws.close();
-              resolve();
-            }
-          } catch (e) {
-            console.error('Erro ao processar mensagem WebSocket:', e);
-          }
-        };
-        
-        ws.onerror = (error) => {
-          console.error('Erro na conexão WebSocket:', error);
-          clearTimeout(timeout);
-          ws.close();
-          reject(new Error('Falha na comunicação com a API da Deriv.'));
-        };
-        
-        ws.onclose = () => {
-          console.log('Conexão WebSocket fechada');
-        };
-      } catch (error) {
-        reject(error);
-      }
-    });
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();

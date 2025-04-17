@@ -6,7 +6,11 @@ interface DerivAccount {
   balance?: number;
   email?: string;
   name?: string;
+  fullAccountInfo?: any; // Informações completas recebidas da API
 }
+
+// App ID da Deriv para conexões WebSocket
+const APP_ID = 71403;
 
 // Função para extrair tokens e informações de contas da URL de redirecionamento
 export function extractAccountsFromUrl(url: string): DerivAccount[] {
@@ -120,4 +124,154 @@ export function updateAccountInfo(loginid: string, newInfo: Partial<DerivAccount
   }
   
   return true;
+}
+
+// Autoriza múltiplos tokens em uma única conexão WebSocket
+export async function authorizeMultipleAccounts(accounts: DerivAccount[]): Promise<boolean> {
+  if (!accounts || accounts.length === 0) {
+    console.error('Nenhuma conta para autorizar');
+    return false;
+  }
+  
+  return new Promise((resolve, reject) => {
+    try {
+      // Estabelece uma única conexão WebSocket para autorizar todos os tokens
+      const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=' + APP_ID);
+      
+      // Timeout para não ficar esperando indefinidamente
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('Timeout ao autorizar contas.'));
+      }, 20000);
+      
+      ws.onopen = () => {
+        console.log('Conexão WebSocket aberta para autorização múltipla');
+        
+        // Obtem o primeiro token para o token principal
+        const primaryToken = accounts[0].token;
+        
+        // Coleta todos os outros tokens para o campo 'tokens'
+        const additionalTokens = accounts.slice(1).map(acc => acc.token);
+        
+        // Cria a solicitação MULTI com tokens adicionais
+        const authRequest = {
+          authorize: primaryToken,
+          tokens: additionalTokens
+        };
+        
+        // Envia a solicitação
+        ws.send(JSON.stringify(authRequest));
+      };
+      
+      ws.onmessage = (msg) => {
+        try {
+          const response = JSON.parse(msg.data);
+          console.log('Resposta de autorização múltipla:', response);
+          
+          if (response.error) {
+            clearTimeout(timeout);
+            ws.close();
+            reject(new Error(response.error.message));
+            return;
+          }
+          
+          if (response.authorize) {
+            clearTimeout(timeout);
+            
+            // Salva informações detalhadas da conta principal
+            const accountInfo = response.authorize;
+            localStorage.setItem('deriv_account_info', JSON.stringify(accountInfo));
+            
+            // Atualiza as informações da primeira conta com detalhes completos
+            updateAccountInfo(accounts[0].loginid, {
+              fullAccountInfo: accountInfo,
+              email: accountInfo.email,
+              name: accountInfo.fullname,
+              balance: accountInfo.balance
+            });
+            
+            // Fecha a conexão e resolve a promessa
+            ws.close();
+            resolve(true);
+          }
+        } catch (e) {
+          console.error('Erro ao processar mensagem WebSocket:', e);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('Erro na conexão WebSocket de autorização múltipla:', error);
+        clearTimeout(timeout);
+        ws.close();
+        reject(new Error('Falha na comunicação com a API da Deriv.'));
+      };
+      
+      ws.onclose = () => {
+        console.log('Conexão WebSocket de autorização múltipla fechada');
+      };
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Autoriza uma conta específica para obter seus detalhes
+export async function authorizeAccount(token: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Estabelecer conexão WebSocket
+      const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=' + APP_ID);
+      
+      // Timeout para não ficar esperando indefinidamente
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('Timeout ao autorizar conta.'));
+      }, 15000);
+      
+      ws.onopen = () => {
+        console.log('Conexão WebSocket aberta para autorização de conta');
+        const authRequest = {
+          authorize: token
+        };
+        ws.send(JSON.stringify(authRequest));
+      };
+      
+      ws.onmessage = (msg) => {
+        try {
+          const response = JSON.parse(msg.data);
+          console.log('Resposta de autorização de conta:', response);
+          
+          if (response.error) {
+            clearTimeout(timeout);
+            ws.close();
+            reject(new Error(response.error.message));
+            return;
+          }
+          
+          if (response.authorize) {
+            clearTimeout(timeout);
+            
+            // Fecha a conexão e resolve a promessa com as informações da conta
+            ws.close();
+            resolve(response.authorize);
+          }
+        } catch (e) {
+          console.error('Erro ao processar mensagem WebSocket:', e);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('Erro na conexão WebSocket:', error);
+        clearTimeout(timeout);
+        ws.close();
+        reject(new Error('Falha na comunicação com a API da Deriv.'));
+      };
+      
+      ws.onclose = () => {
+        console.log('Conexão WebSocket fechada');
+      };
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
