@@ -393,6 +393,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private authorizeAllTokens(): Promise<void> {
     return new Promise(async (resolve, reject) => {
+      // Definir variáveis de controle
+      let authorizedPrimaryToken = false;
+      let authorizedAnyToken = false;
+
       console.log(`[OAUTH_DIRECT] Buscando token da conta selecionada na dashboard`);
       
       if (this.tokens.length === 0) {
@@ -447,23 +451,6 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       } else {
         reject(new Error('Falha ao configurar token da dashboard'));
-      }
-      
-      // Se o token primário foi autorizado com sucesso, inscrever para ticks
-      if (primaryTokenAuthorized) {
-        // Já inscreveu para ticks acima
-      }
-      // Caso contrário, usar qualquer token autorizado e inscrever para ticks
-      else if (authorizedAtLeastOne) {
-        this.subscribeToTicks();
-      }
-      
-      // Se pelo menos um token foi autorizado, consideramos bem-sucedido
-      if (authorizedAtLeastOne) {
-        console.log('[OAUTH_DIRECT] Autorização concluída com sucesso para pelo menos um token');
-        resolve();
-      } else {
-        reject(new Error('Nenhum token pôde ser autorizado. Verifique suas credenciais.'));
       }
     });
   }
@@ -847,26 +834,32 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private executeBuyRequest(contractType: string, amount: number, prediction: number, loginid?: string): void {
     try {
-      // Formato correto da requisição para a API Deriv - sem subestrutura "parameters"
+      // Formato correto da requisição usando o formato documentado na API:
+      // - buy: ID do contrato (1 se passarmos parâmetros diretos)
+      // - price: valor máximo para compra
+      // - parameters: objeto com detalhes do contrato
+      //   - basis: "stake" (valor de entrada) ou "payout" (pagamento pretendido)
+      //   - amount: valor correspondente ao basis
       const buyRequest = {
         buy: 1,
-        basis: "stake", 
-        amount: amount,
-        symbol: "R_100",
-        barrier: prediction.toString(),
-        contract_type: contractType,
-        currency: "USD",
-        duration: 5,
-        duration_unit: "t"
+        price: amount, // Valor máximo para compra
+        parameters: {
+          basis: "stake", // Usamos "stake" para indicar que o amount é o valor de entrada
+          amount: amount, // Valor da aposta
+          contract_type: contractType,
+          currency: "USD",
+          duration: 5,
+          duration_unit: "t",
+          symbol: "R_100",
+          barrier: prediction.toString()
+        }
       };
       
-      console.log(`[OAUTH_DIRECT] Nova solicitação de compra formatada com token ${loginid || 'desconhecido'}:`, buyRequest);
+      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${loginid || 'desconhecido'}:`, buyRequest);
       
       // Enviar solicitação se o WebSocket estiver disponível
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        const requestString = JSON.stringify(buyRequest);
-        console.log(`[OAUTH_DIRECT] Enviando string de requisição: ${requestString}`);
-        this.webSocket.send(requestString);
+        this.webSocket.send(JSON.stringify(buyRequest));
       } else {
         throw new Error('WebSocket não está disponível ou conectado');
       }
