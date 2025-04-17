@@ -152,6 +152,10 @@ export function BotPage() {
               // Especificar que queremos adicionar à história de login
               add_to_login_history: 1
             }));
+            
+            // Registrar este WebSocket no serviço do bot para permitir operações
+            simpleBotDirectService.registerWebSocket(wsRef.current);
+            console.log('[BOT] WebSocket registrado no serviço de trading para operações.');
           } else {
             console.log('[BOT] Autorizando com token fixo para ticks (sem permissão para operar)...');
             wsRef.current.send(JSON.stringify({
@@ -572,8 +576,8 @@ export function BotPage() {
         status: null
       });
       
-      // Configurar simpleBotService
-      simpleBotService.setSettings({
+      // Configurar simpleBotDirectService (novo serviço que usa a conexão WebSocket existente)
+      simpleBotDirectService.setSettings({
         entryValue: entryNum,
         profitTarget: profitNum,
         lossLimit: lossNum,
@@ -583,15 +587,15 @@ export function BotPage() {
       });
       
       // Definir estratégia
-      simpleBotService.setActiveStrategy(selectedStrategy);
+      simpleBotDirectService.setActiveStrategy(selectedStrategy);
       
-      // Iniciar o simpleBotService em segundo plano (sem await)
-      simpleBotService.start().then(success => {
+      // Iniciar o simpleBotDirectService em segundo plano (sem await)
+      simpleBotDirectService.start().then(success => {
         if (!success) {
-          console.error("[BOT] simpleBotService.start() retornou false, mas a interface já foi atualizada");
+          console.error("[BOT] simpleBotDirectService.start() retornou false, mas a interface já foi atualizada");
         }
       }).catch(error => {
-        console.error("[BOT] Erro ao executar simpleBotService.start():", error);
+        console.error("[BOT] Erro ao executar simpleBotDirectService.start():", error);
       });
       
       // Solicitar saldo
@@ -619,20 +623,20 @@ export function BotPage() {
   // Pausar o bot
   const handlePauseBot = async () => {
     try {
-      console.log("[BOT] Chamando simpleBotService.stop() diretamente na interface");
+      console.log("[BOT] Chamando simpleBotDirectService.stop() diretamente na interface");
       
       // Definir o estado localmente primeiro para feedback imediato
       setBotStatus('paused');
       
       // Depois chama o serviço
-      simpleBotService.stop();
+      simpleBotDirectService.stop();
       
       toast({
         title: "Bot pausado",
         description: "As operações foram pausadas.",
       });
     } catch (error) {
-      console.error("[BOT] Erro ao pausar simpleBotService:", error);
+      console.error("[BOT] Erro ao pausar simpleBotDirectService:", error);
       toast({
         title: "Erro ao pausar",
         description: "Não foi possível pausar o robô corretamente.",
@@ -692,11 +696,11 @@ export function BotPage() {
     };
     
     // Registrar ouvinte de eventos
-    simpleBotService.addEventListener(handleOperation);
+    simpleBotDirectService.addEventListener(handleOperation);
     
     // Limpar ouvinte ao desmontar
     return () => {
-      simpleBotService.removeEventListener(handleOperation);
+      simpleBotDirectService.removeEventListener(handleOperation);
     };
   }, []);
 
