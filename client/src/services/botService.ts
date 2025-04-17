@@ -78,6 +78,7 @@ class BotService {
   private currentContract: Contract | null = null;
   private eventListeners: Array<(event: BotEvent) => void> = [];
   private operationTimer: NodeJS.Timeout | null = null;
+  private lastDigit: number = 0; // Propriedade para armazenar o último dígito recebido
   
   private stats: OperationStats = {
     wins: 0,
@@ -92,6 +93,9 @@ class BotService {
     derivApiService.onContractUpdate(this.handleContractUpdate.bind(this));
     derivApiService.onBalanceUpdate(this.handleBalanceUpdate.bind(this));
     
+    // Registrar ouvinte para ticks para capturar o último dígito
+    derivApiService.onTick(this.handleTickUpdate.bind(this));
+    
     // IMPORTANTE: Verificar se temos token OAuth e inicializar a conexão com ele
     const oauthToken = localStorage.getItem('deriv_oauth_token');
     if (oauthToken) {
@@ -100,6 +104,9 @@ class BotService {
         if (success) {
           console.log('[BOT_SERVICE] Conexão OAuth inicializada com sucesso');
           this.emitEvent({ type: 'status_change', status: 'idle' });
+          
+          // Solicitar saldo após conexão bem-sucedida
+          derivApiService.getBalance();
         } else {
           console.error('[BOT_SERVICE] Falha ao inicializar conexão OAuth');
           this.emitEvent({ type: 'error', message: 'Falha ao inicializar conexão OAuth' });
@@ -107,6 +114,26 @@ class BotService {
       });
     } else {
       console.warn('[BOT_SERVICE] Token OAuth não encontrado, operações não estarão disponíveis');
+    }
+  }
+  
+  /**
+   * Manipula atualizações de tick e armazena o último dígito
+   */
+  private handleTickUpdate(tick: any): void {
+    if (tick && tick.tick && tick.tick.quote) {
+      const price = tick.tick.quote;
+      // Extrair o último dígito do preço
+      const priceStr = price.toString();
+      const lastChar = priceStr.charAt(priceStr.length - 1);
+      this.lastDigit = parseInt(lastChar, 10);
+      
+      console.log(`[BOT_SERVICE] Tick recebido: ${price}, último dígito: ${this.lastDigit}`);
+      
+      // Se o bot estiver em execução e sem contrato ativo, avaliar se deve operar
+      if (this.status === 'running' && !this.currentContract && !this.operationTimer) {
+        this.startTrading();
+      }
     }
   }
   

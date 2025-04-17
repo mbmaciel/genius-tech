@@ -306,7 +306,8 @@ class DerivApiService {
     }
     
     // Criar nova conexão WebSocket dedicada para compra
-    const buySocket = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+    // Usamos o App ID real do projeto (71403) para operações
+    const buySocket = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=71403');
     
     // Usando Promise para aguardar resposta da conexão
     return new Promise((resolve) => {
@@ -413,47 +414,91 @@ class DerivApiService {
    * @param contractId ID do contrato a ser vendido
    */
   public async sellContract(contractId: number): Promise<boolean> {
-    // IMPORTANTE: Verificar se temos o token OAuth mais recente antes de operar
+    console.log('[DERIV_API] Iniciando venda de contrato com conexão dedicada');
     const oauthToken = localStorage.getItem('deriv_oauth_token');
-    if (oauthToken && oauthToken !== this.token) {
-      console.log('[DERIV_API] Token OAuth mudou, reconectando para vender contrato...');
-      // Reconectar com o novo token OAuth
-      await this.connect(oauthToken);
+    
+    if (!oauthToken) {
+      console.error('[DERIV_API] Token OAuth não disponível para venda de contrato');
+      return false;
     }
     
-    if (!this.authorized) {
-      console.error('[DERIV_API] Não autorizado para vender contrato. Verificando OAuth...');
-      // Nova tentativa usando token OAuth explicitamente
-      const oauthToken = localStorage.getItem('deriv_oauth_token');
-      if (oauthToken) {
-        console.log('[DERIV_API] Tentando autorizar com token OAuth para vender contrato');
-        const authorized = await this.authorize(oauthToken);
-        if (!authorized) {
-          console.error('[DERIV_API] Falha na autorização com token OAuth');
-          return false;
-        }
-      } else {
-        console.error('[DERIV_API] Token OAuth não disponível');
-        return false;
-      }
-    }
+    // Criar nova conexão WebSocket dedicada para venda
+    // Usamos o App ID real do projeto (71403) para operações
+    const sellSocket = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=71403');
     
+    // Usando Promise para aguardar resposta da conexão
     return new Promise((resolve) => {
-      this.sendRequest({
-        sell: contractId,
-        price: 0 // Vender pelo preço de mercado
-      }, (response) => {
-        if (response.error) {
-          console.error('Erro ao vender contrato:', response.error.message);
-          resolve(false);
-        } else if (response.sell) {
-          console.log('Contrato vendido com sucesso:', contractId);
-          resolve(true);
-        } else {
-          console.error('Resposta inesperada ao vender contrato:', response);
-          resolve(false);
+      // Timeout para evitar bloqueio em caso de problemas
+      const timeoutId = setTimeout(() => {
+        console.error('[DERIV_API] Timeout na venda de contrato');
+        sellSocket.close();
+        resolve(false);
+      }, 30000);
+      
+      // Quando a conexão for estabelecida
+      sellSocket.onopen = () => {
+        console.log('[DERIV_API] Conexão dedicada para venda estabelecida');
+        
+        // Autorizar com token OAuth
+        sellSocket.send(JSON.stringify({
+          authorize: oauthToken
+        }));
+      };
+      
+      // Lidar com mensagens da API
+      sellSocket.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          console.log('[DERIV_API] Resposta da conexão de venda:', data);
+          
+          // Verificar autorização
+          if (data.authorize) {
+            console.log('[DERIV_API] Autorizado para venda com conta:', data.authorize.loginid);
+            
+            // Após autorização bem-sucedida, enviar solicitação de venda
+            const sellRequest = {
+              sell: contractId,
+              price: 0 // Vender pelo preço de mercado
+            };
+            
+            console.log('[DERIV_API] Enviando solicitação de venda:', sellRequest);
+            sellSocket.send(JSON.stringify(sellRequest));
+          } 
+          // Verificar resposta de venda
+          else if (data.sell) {
+            console.log('[DERIV_API] Contrato vendido com sucesso:', data.sell);
+            clearTimeout(timeoutId);
+            
+            // Fechar a conexão dedicada
+            sellSocket.close();
+            
+            // Resolver a promise
+            resolve(true);
+          }
+          // Verificar erro
+          else if (data.error) {
+            console.error('[DERIV_API] Erro na venda:', data.error.message);
+            clearTimeout(timeoutId);
+            sellSocket.close();
+            resolve(false);
+          }
+        } catch (error) {
+          console.error('[DERIV_API] Erro ao processar mensagem de venda:', error);
         }
-      });
+      };
+      
+      // Lidar com erros de conexão
+      sellSocket.onerror = (error) => {
+        console.error('[DERIV_API] Erro na conexão de venda:', error);
+        clearTimeout(timeoutId);
+        resolve(false);
+      };
+      
+      // Lidar com fechamento de conexão
+      sellSocket.onclose = () => {
+        console.log('[DERIV_API] Conexão de venda fechada');
+        clearTimeout(timeoutId);
+      };
     });
   }
   
