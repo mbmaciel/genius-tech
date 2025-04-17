@@ -52,8 +52,8 @@ export const connectWebSocket = async (): Promise<boolean> => {
     // Limpa recursos anteriores
     cleanupResources();
 
-    // Constrói URL com app_id como parâmetro de consulta
-    const url = `${BASE_URL}?app_id=${APP_ID}`;
+    // Usa a URL base sem parâmetros de consulta para evitar problemas
+    const url = BASE_URL;
     console.log(`[R100] Conectando a ${url}`);
 
     // Cria nova conexão
@@ -148,7 +148,8 @@ function authenticate() {
   
   try {
     const request = {
-      authorize: TOKEN
+      authorize: TOKEN,
+      app_id: APP_ID
     };
     
     socket!.send(JSON.stringify(request));
@@ -195,13 +196,16 @@ export function subscribeToSymbol(symbol: string): Promise<boolean> {
   }
   
   try {
+    // Solicita ticks em tempo real para o símbolo
     const request = {
       ticks: symbol,
-      subscribe: 1
+      subscribe: 1,
+      style: "ticks",
+      app_id: APP_ID
     };
     
     socket!.send(JSON.stringify(request));
-    console.log(`[R100] Inscrito em ${symbol}`);
+    console.log(`[R100] Inscrito em ${symbol} em modo tempo real`);
     return Promise.resolve(true);
   } catch (error) {
     console.error(`[R100] Erro ao inscrever em ${symbol}:`, error);
@@ -227,7 +231,8 @@ export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
   
   try {
     const request = {
-      forget_all: ["ticks"]
+      forget_all: ["ticks"],
+      app_id: APP_ID
     };
     
     socket!.send(JSON.stringify(request));
@@ -238,7 +243,9 @@ export function unsubscribeFromSymbol(symbol: string): Promise<boolean> {
       if (s !== symbol) {
         const tickRequest = {
           ticks: s,
-          subscribe: 1
+          subscribe: 1,
+          style: "ticks",
+          app_id: APP_ID
         };
         socket!.send(JSON.stringify(tickRequest));
       }
