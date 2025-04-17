@@ -25,6 +25,18 @@ export default function LoginPage() {
   const [processingOAuth, setProcessingOAuth] = useState(false);
   const [oauthAccounts, setOauthAccounts] = useState<any[]>([]);
 
+  // Verificar se já está logado e redirecionar automaticamente
+  useEffect(() => {
+    // Se o usuário já estiver logado, redireciona para a dashboard
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const storedAccountInfo = localStorage.getItem('deriv_account_info');
+    
+    if (isLoggedIn || storedAccountInfo) {
+      console.log('Usuário já está logado, redirecionando para dashboard');
+      window.location.href = '/dashboard';
+    }
+  }, []);
+  
   // Efeito para verificar se há tokens na URL
   useEffect(() => {
     const processRedirectUrl = async () => {
@@ -85,11 +97,13 @@ export default function LoginPage() {
               console.log('[AUTH] Autenticação concluída com sucesso para todas as contas');
               
               // Exibe mensagem de sucesso
-              const activeAccount = accounts[0];
               toast({
                 title: 'Autenticação Bem-sucedida',
                 description: `${accounts.length} conta(s) autorizada(s) com sucesso!`,
               });
+              
+              // Também define o login normal como feito
+              localStorage.setItem('isLoggedIn', 'true');
               
               // Forçar o redirecionamento direto para o dashboard
               console.log('[AUTH] Redirecionando para dashboard...');
