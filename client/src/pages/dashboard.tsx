@@ -245,22 +245,6 @@ export default function Dashboard() {
               />
             ) : (
               <div className="flex items-center space-x-4">
-                <AccountSelector 
-                  onAccountChanged={(newAccountInfo) => {
-                    setAccountInfo(newAccountInfo);
-                    
-                    // Inicia nova assinatura de saldo para a conta selecionada
-                    if (newAccountInfo && newAccountInfo.loginid) {
-                      startBalanceSubscription(newAccountInfo.loginid);
-                    }
-                    
-                    toast({
-                      title: "Conta alternada",
-                      description: `Agora usando a conta ${newAccountInfo.loginid}`,
-                    });
-                  }}
-                />
-                
                 <button 
                   onClick={() => {
                     // Limpar dados de autenticação
@@ -275,7 +259,7 @@ export default function Dashboard() {
                       description: "Você foi desconectado com sucesso.",
                     });
                   }}
-                  className="text-white text-sm hover:underline"
+                  className="text-white text-sm py-2 px-4 rounded-md bg-[#1d2a45] hover:bg-[#2a3756] transition-colors"
                 >
                   Logout DERIV
                 </button>
@@ -284,9 +268,47 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Info da conta se estiver autenticado */}
+        {/* Seletor de contas e informação da conta se estiver autenticado */}
         {isAuthenticated && accountInfo && (
           <div className="mb-6">
+            <div className="bg-[#13203a] rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-lg text-white font-medium">Seletor de contas</h2>
+                  <p className="text-xs text-gray-400">Selecione uma conta para operar</p>
+                </div>
+                <AccountSelector 
+                  onAccountChanged={(newAccountInfo) => {
+                    setAccountInfo(newAccountInfo);
+                    
+                    // Inicia nova assinatura de saldo para a conta selecionada
+                    if (newAccountInfo && newAccountInfo.loginid) {
+                      startBalanceSubscription(newAccountInfo.loginid);
+                    }
+                    
+                    toast({
+                      title: "Conta alternada",
+                      description: `Agora usando a conta ${newAccountInfo.loginid}`,
+                    });
+                  }}
+                  className="w-80"
+                />
+              </div>
+              
+              {accountInfo && accountInfo.balance && (
+                <div className="flex items-center mt-2 p-2 bg-[#1d2a45] rounded-md">
+                  <div className="px-3 py-1 bg-indigo-600 text-xs font-medium rounded mr-3">
+                    SALDO ATUAL
+                  </div>
+                  <div className="text-lg font-bold text-white">
+                    {accountInfo.balance} {accountInfo.currency}
+                  </div>
+                  <div className="ml-auto text-xs py-1 px-2 rounded bg-green-700 text-white">
+                    Atualizado em tempo real
+                  </div>
+                </div>
+              )}
+            </div>
             <AccountInfo accountInfo={accountInfo} />
           </div>
         )}
