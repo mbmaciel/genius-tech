@@ -4,8 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { initStrategyLoader } from "@/utils/strategyLoader";
-import { botService } from "@/services/botService";
+import { BotController } from "@/components/BotController";
 import derivApiService from "@/services/derivApiService";
+
+// Log para indicar uso da versão modificada
+console.log('[BOT_PAGE] Usando BotController com versão simplificada do bot');
 
 export function BotPage() {
   const { toast } = useToast();

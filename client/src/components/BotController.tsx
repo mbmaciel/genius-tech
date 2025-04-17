@@ -1,224 +1,158 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { PlayIcon, PauseIcon, SquareIcon as StopIcon, RefreshCwIcon } from "lucide-react";
-import { 
-  automationService, 
-  BinaryBotStrategy, 
-  BotConfig,
-  OperationStats,
-  OperationStatus
-} from "../lib/automationService";
+import { useToast } from "@/hooks/use-toast";
+import { simpleBotService } from "../services/simpleBotService";
 
 interface BotControllerProps {
-  selectedStrategy?: BinaryBotStrategy | null;
-  config?: BotConfig | null;
-  onStatusChange?: (status: OperationStatus) => void;
+  entryValue: number;
+  profitTarget: number;
+  lossLimit: number;
+  selectedStrategy: string;
+  onStatusChange: (status: 'idle' | 'running' | 'paused') => void;
+  onStatsChange: (stats: { wins: number; losses: number; totalProfit: number }) => void;
 }
 
-export function BotController({ selectedStrategy, config, onStatusChange }: BotControllerProps) {
-  const [status, setStatus] = useState<OperationStatus>('idle');
-  const [progress, setProgress] = useState(0);
-  const [currentProfit, setCurrentProfit] = useState(0);
-  const [stats, setStats] = useState<OperationStats | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  
-  // Registra um listener para mensagens de log
+export function BotController({
+  entryValue,
+  profitTarget,
+  lossLimit,
+  selectedStrategy,
+  onStatusChange,
+  onStatsChange
+}: BotControllerProps) {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<'idle' | 'running' | 'paused'>('idle');
+
+  // Configurar listeners para mudanças de estado do bot
   useEffect(() => {
-    const removeLogListener = automationService.onLog((message) => {
-      setLogs(prev => [...prev.slice(-99), message]);
-    });
-    
-    // Registra um listener para atualizações de estatísticas
-    const removeStatsListener = automationService.onStatsUpdate((updatedStats) => {
-      setStats(updatedStats);
-      
-      // Atualiza o progresso com base no lucro vs. meta
-      if (config && config.targetProfit > 0) {
-        const profitProgress = (updatedStats.netResult / config.targetProfit) * 100;
-        setProgress(Math.min(100, Math.max(0, profitProgress)));
-      }
-      
-      setCurrentProfit(updatedStats.netResult);
-    });
-    
-    // Limpa os listeners ao desmontar
-    return () => {
-      removeLogListener();
-      removeStatsListener();
-    };
-  }, [config]);
-  
-  // Monitora as mudanças de status
-  useEffect(() => {
-    const checkStatus = () => {
-      const currentStatus = automationService.getOperationStatus();
-      setStatus(currentStatus);
-      if (onStatusChange) {
-        onStatusChange(currentStatus);
+    const handleStatusChange = (event: any) => {
+      if (event.type === 'status_change') {
+        console.log('[BOT_CONTROLLER] Status alterado para:', event.status);
+        setStatus(event.status);
+        onStatusChange(event.status);
       }
     };
-    
-    // Verifica o status inicialmente
-    checkStatus();
-    
-    // Configura um intervalo para verificar regularmente
-    const interval = setInterval(checkStatus, 1000);
-    
-    return () => {
-      clearInterval(interval);
+
+    const handleStatsUpdate = (event: any) => {
+      if (event.type === 'stats_updated') {
+        console.log('[BOT_CONTROLLER] Estatísticas atualizadas:', event.stats);
+        onStatsChange({
+          wins: event.stats.wins,
+          losses: event.stats.losses,
+          totalProfit: event.stats.totalProfit
+        });
+      }
     };
-  }, [onStatusChange]);
-  
-  // Handlers para os botões de controle
-  const handleStart = () => {
-    if (!selectedStrategy || !config) return;
-    
-    automationService.startBot(selectedStrategy, config);
-    setStatus('running');
+
+    // Registrar listeners
+    simpleBotService.addEventListener(handleStatusChange);
+    simpleBotService.addEventListener(handleStatsUpdate);
+
+    // Limpar listeners ao desmontar
+    return () => {
+      simpleBotService.removeEventListener(handleStatusChange);
+      simpleBotService.removeEventListener(handleStatsUpdate);
+    };
+  }, [onStatusChange, onStatsChange]);
+
+  // Iniciar o bot
+  const startBot = async () => {
+    try {
+      console.log('[BOT_CONTROLLER] Iniciando bot...');
+      
+      // Verificar se a estratégia foi selecionada
+      if (!selectedStrategy) {
+        toast({
+          title: "Estratégia não selecionada",
+          description: "Por favor, selecione uma estratégia antes de iniciar o robô.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Atualizar status para feedback visual imediato
+      setStatus('running');
+      onStatusChange('running');
+      
+      // Configurar bot com os parâmetros atuais
+      simpleBotService.setSettings({
+        entryValue,
+        profitTarget,
+        lossLimit,
+        martingaleFactor: 1.5
+      });
+      
+      // Definir estratégia ativa
+      simpleBotService.setActiveStrategy(selectedStrategy);
+      
+      // Iniciar o bot
+      const success = await simpleBotService.start();
+      
+      if (success) {
+        toast({
+          title: "Bot iniciado",
+          description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
+        });
+      } else {
+        setStatus('idle');
+        onStatusChange('idle');
+        toast({
+          title: "Falha ao iniciar bot",
+          description: "Verifique se sua sessão está ativa e tente novamente.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('[BOT_CONTROLLER] Erro ao iniciar bot:', error);
+      setStatus('idle');
+      onStatusChange('idle');
+      toast({
+        title: "Erro ao iniciar bot",
+        description: "Ocorreu um erro ao iniciar o bot. Tente novamente.",
+        variant: "destructive"
+      });
+    }
   };
-  
-  const handlePause = () => {
-    automationService.pauseBot();
-    setStatus('paused');
+
+  // Parar o bot
+  const stopBot = () => {
+    try {
+      console.log('[BOT_CONTROLLER] Parando bot...');
+      simpleBotService.stop();
+      setStatus('idle');
+      onStatusChange('idle');
+      toast({
+        title: "Bot parado",
+        description: "O bot foi parado com sucesso.",
+      });
+    } catch (error) {
+      console.error('[BOT_CONTROLLER] Erro ao parar bot:', error);
+      toast({
+        title: "Erro ao parar bot",
+        description: "Ocorreu um erro ao parar o bot. Tente novamente.",
+        variant: "destructive"
+      });
+    }
   };
-  
-  const handleResume = () => {
-    automationService.resumeBot();
-    setStatus('running');
-  };
-  
-  const handleStop = () => {
-    automationService.stopBot();
-    setStatus('stopped');
-  };
-  
-  const handleReset = () => {
-    automationService.stopBot();
-    setStatus('idle');
-    setProgress(0);
-    setCurrentProfit(0);
-    setLogs([]);
-  };
-  
+
+  // Renderizar botão de início/pausa
   return (
-    <Card className="bg-[#1a2234] border-[#2a3756] shadow">
-      <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          <span>Controle do Robô</span>
-          
-          <div className="text-sm font-normal">
-            {status === 'idle' && <span className="text-gray-400">Pronto</span>}
-            {status === 'running' && <span className="text-green-500">Em Execução</span>}
-            {status === 'paused' && <span className="text-yellow-500">Pausado</span>}
-            {status === 'stopped' && <span className="text-orange-500">Parado</span>}
-            {status === 'completed' && <span className="text-blue-500">Concluído</span>}
-            {status === 'error' && <span className="text-red-500">Erro</span>}
-          </div>
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent className="space-y-4">
-        {/* Estratégia selecionada */}
-        {selectedStrategy && (
-          <div className="text-sm">
-            <span className="text-gray-400 mr-2">Estratégia:</span>
-            <span className="font-medium text-white">{selectedStrategy.name}</span>
-          </div>
-        )}
-        
-        {/* Barra de progresso */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Progresso</span>
-            <span className={currentProfit >= 0 ? "text-green-500" : "text-red-500"}>
-              {currentProfit >= 0 ? '+' : ''}{currentProfit.toFixed(2)} USD
-            </span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-        
-        {/* Logs (últimas 3 entradas) */}
-        <div className="mt-2 space-y-1 bg-[#141b2d] rounded p-2 h-24 overflow-y-auto">
-          {logs.slice(-3).map((log, index) => (
-            <div key={index} className="text-xs text-gray-300">{log}</div>
-          ))}
-          {logs.length === 0 && (
-            <div className="text-xs text-gray-500 italic">Nenhuma atividade registrada</div>
-          )}
-        </div>
-      </CardContent>
-      
-      <CardFooter className="flex justify-between">
+    <div className="flex space-x-2">
+      {status === 'running' ? (
         <Button
-          variant="outline"
-          size="sm"
-          onClick={handleReset}
-          disabled={status === 'idle'}
+          onClick={stopBot}
+          className="flex-1 bg-red-500 hover:bg-red-600 text-white"
         >
-          <RefreshCwIcon className="h-4 w-4 mr-1" />
-          Resetar
+          Pausar BOT
         </Button>
-        
-        <div className="space-x-2">
-          {status === 'idle' && (
-            <Button
-              size="sm"
-              className="bg-green-600 hover:bg-green-700"
-              onClick={handleStart}
-              disabled={!selectedStrategy || !config}
-            >
-              <PlayIcon className="h-4 w-4 mr-1" />
-              Iniciar
-            </Button>
-          )}
-          
-          {status === 'running' && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handlePause}
-              >
-                <PauseIcon className="h-4 w-4 mr-1" />
-                Pausar
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleStop}
-              >
-                <StopIcon className="h-4 w-4 mr-1" />
-                Parar
-              </Button>
-            </>
-          )}
-          
-          {status === 'paused' && (
-            <>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={handleResume}
-              >
-                <PlayIcon className="h-4 w-4 mr-1" />
-                Continuar
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleStop}
-              >
-                <StopIcon className="h-4 w-4 mr-1" />
-                Parar
-              </Button>
-            </>
-          )}
-        </div>
-      </CardFooter>
-    </Card>
+      ) : (
+        <Button
+          onClick={startBot}
+          className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+        >
+          Executar BOT
+        </Button>
+      )}
+    </div>
   );
 }
