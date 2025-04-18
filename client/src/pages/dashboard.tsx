@@ -533,31 +533,12 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Grade com os dois gráficos lado a lado */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            {/* Coluna da esquerda: Gráfico de barras */}
-            <div className="w-full">
-              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
-                  <select 
-                    className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
-                    defaultValue="10"
-                  >
-                    <option value="10">10 Ticks</option>
-                    <option value="25">25 Ticks</option>
-                    <option value="50">50 Ticks</option>
-                    <option value="100">100 Ticks</option>
-                  </select>
-                </div>
-                <DashboardR100Display />
-              </div>
-            </div>
-            
-            {/* Coluna da direita: Gráfico Deriv */}
+          {/* Grade com os dois gráficos - um acima do outro para maximizar o espaço */}
+          <div className="flex flex-col gap-6 mt-4">
+            {/* Gráfico Deriv no topo com tamanho maior */}
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
-              <div className="aspect-video bg-[#0c1525] rounded-md">
+              <div className="bg-[#0c1525] rounded-md" style={{ height: "600px" }}>
                 <iframe
                   src="https://charts.deriv.com/deriv"
                   className="w-full h-full rounded-md"
@@ -565,6 +546,11 @@ export default function Dashboard() {
                   title="Gráfico Deriv"
                 ></iframe>
               </div>
+            </div>
+            
+            {/* Gráfico de barras abaixo */}
+            <div className="w-full">
+              <DashboardR100Display />
             </div>
           </div>
           
