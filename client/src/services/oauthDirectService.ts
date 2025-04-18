@@ -45,6 +45,95 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // Inicializar com os tokens disponíveis
     this.loadAllTokens();
+    
+    // Configurar listener para eventos de troca de conta
+    this.setupAccountSwitchListener();
+  }
+  
+  /**
+   * Configura listener para eventos de troca de conta
+   * Isso permite que o serviço receba notificações quando o usuário 
+   * troca de conta na dashboard
+   */
+  private setupAccountSwitchListener(): void {
+    // Handler para evento de troca de conta via OAuth
+    const handleAccountSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        const { accountId, token } = customEvent.detail;
+        
+        if (accountId && token) {
+          console.log(`[OAUTH_DIRECT] Evento de troca de conta recebido: ${accountId}`);
+          
+          // Definir a conta como ativa
+          this.setActiveAccount(accountId, token);
+          
+          // Forçar reconexão para validar o token
+          if (this.isRunning) {
+            console.log(`[OAUTH_DIRECT] Reconectando para validar token da conta ${accountId}...`);
+            this.reconnect()
+              .then(success => {
+                if (success) {
+                  console.log(`[OAUTH_DIRECT] Token da conta ${accountId} validado com sucesso`);
+                  
+                  // Notificar componentes da UI
+                  this.notifyListeners({
+                    type: 'account_changed',
+                    message: `Conta alterada para ${accountId}`,
+                    loginid: accountId
+                  });
+                } else {
+                  console.error(`[OAUTH_DIRECT] Falha ao validar token da conta ${accountId}`);
+                }
+              })
+              .catch(error => {
+                console.error('[OAUTH_DIRECT] Erro ao reconectar após troca de conta:', error);
+              });
+          }
+        }
+      }
+    };
+    
+    // Também verificar periodicamente se houve alteração no localStorage
+    const checkLocalStorageForAccountChange = () => {
+      try {
+        const oauthAccountData = localStorage.getItem('deriv_oauth_selected_account');
+        
+        if (oauthAccountData) {
+          const accountData = JSON.parse(oauthAccountData);
+          
+          // Se temos dados recentes (nos últimos 5 segundos)
+          if (accountData.timestamp && 
+              (Date.now() - accountData.timestamp < 5000) && 
+              accountData.accountId && 
+              accountData.token) {
+            
+            // Verificar se é diferente da conta atual
+            const currentToken = this.tokens.find(t => t.primary)?.token;
+            
+            if (accountData.token !== currentToken) {
+              console.log(`[OAUTH_DIRECT] Alteração de conta detectada via localStorage: ${accountData.accountId}`);
+              
+              // Atualizar a conta ativa
+              this.setActiveAccount(accountData.accountId, accountData.token);
+              
+              // Reconectar se o serviço estiver em execução
+              if (this.isRunning) {
+                this.reconnect().catch(console.error);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Ignorar erros no parsing
+      }
+    };
+    
+    // Configurar verificação periódica de alterações no localStorage
+    setInterval(checkLocalStorageForAccountChange, 2000);
+    
+    // Registrar handler para o evento customizado
+    document.addEventListener('deriv:oauth_account_switch', handleAccountSwitch as EventListener);
   }
   
   /**
