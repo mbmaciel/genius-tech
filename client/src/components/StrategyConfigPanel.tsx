@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { BinaryBotStrategy } from '@/lib/automationService';
+import { getStrategyById, usesDigitPrediction } from '@/lib/strategiesConfig';
 
 // Interface para configurações de estratégia individuais
 export interface StrategyConfiguration {

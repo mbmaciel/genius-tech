@@ -444,19 +444,26 @@ export function BotController({
         description: "Estabelecendo conexão dedicada com Deriv...",
       });
       
-      // Configurar bot com os parâmetros atuais
-      console.log('[BOT_CONTROLLER] Configurando parâmetros do bot', {
-        entryValue,
-        profitTarget,
-        lossLimit,
-        martingaleFactor: 1.5
+      // Configurar bot com os parâmetros da estratégia específica
+      console.log('[BOT_CONTROLLER] Configurando parâmetros do bot a partir da estratégia', {
+        valorInicial: strategyConfig.valorInicial,
+        metaGanho: strategyConfig.metaGanho,
+        limitePerda: strategyConfig.limitePerda,
+        martingale: strategyConfig.martingale,
+        previsao: strategyConfig.previsao
       });
       
+      // Definir o tipo de contrato com base na estratégia
+      const contractType = getContractTypeForStrategy(selectedStrategy);
+      
+      // Configurar serviço com os parâmetros da configuração atual da estratégia
       oauthDirectService.setSettings({
-        entryValue,
-        profitTarget,
-        lossLimit,
-        martingaleFactor: 1.5
+        entryValue: strategyConfig.valorInicial,
+        profitTarget: strategyConfig.metaGanho,
+        lossLimit: strategyConfig.limitePerda,
+        martingaleFactor: parseFloat(strategyConfig.martingale.toString()),
+        contractType,
+        prediction: strategyConfig.previsao ? parseInt(strategyConfig.previsao.toString()) : undefined
       });
       
       // Definir estratégia ativa
@@ -475,10 +482,9 @@ export function BotController({
         // Forçar a primeira operação após iniciar o serviço
         console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
         
-        // Executar a primeira operação com base na estratégia e no valor de entrada
-        // Passamos o valor sem conversão já que o método executeFirstOperation
-        // aceita tanto number quanto string e faz a conversão internamente
-        const operationStarted = await oauthDirectService.executeFirstOperation(entryValue);
+        // Executar a primeira operação com base na estratégia e no valor de entrada configurado
+        const entryAmount = strategyConfig.valorInicial;
+        const operationStarted = await oauthDirectService.executeFirstOperation(entryAmount);
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
@@ -492,7 +498,7 @@ export function BotController({
         // Atualização de status também ocorre via evento bot_started
         toast({
           title: "Bot iniciado",
-          description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
+          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${entryAmount}`,
         });
       } else {
         console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
