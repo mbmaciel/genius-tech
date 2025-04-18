@@ -1349,15 +1349,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   /**
    * Notifica todos os listeners sobre um evento
+   * VERSÃO MELHORADA: Garante que as notificações ocorram mesmo em caso de componentes não responsivos
    */
   private notifyListeners(event: TradingEvent): void {
-    this.eventListeners.forEach(listener => {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error('[OAUTH_DIRECT] Erro ao notificar listener:', error);
-      }
-    });
+    console.log(`[OAUTH_DIRECT] Notificando ${this.eventListeners.length} listeners sobre: ${event.type}`);
+    
+    // Fazer uma cópia da lista de listeners para evitar problemas se um listener se remover durante a notificação
+    const listeners = [...this.eventListeners];
+    
+    // Garantir que a notificação ocorra no próximo ciclo do event loop
+    setTimeout(() => {
+      listeners.forEach((listener, index) => {
+        try {
+          console.log(`[OAUTH_DIRECT] Enviando evento ${event.type} para listener #${index+1}`);
+          listener({...event, timestamp: Date.now()}); // Garantir que cada listener recebe um objeto novo com timestamp único
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] Erro ao notificar listener #${index+1}:`, error);
+        }
+      });
+    }, 0);
   }
 }
 

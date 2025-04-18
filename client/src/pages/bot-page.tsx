@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
+import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
+import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -1039,14 +1041,24 @@ export function BotPage() {
               
               {/* Sequência de Dígitos com múltiplas abordagens de atualização */}
               <div>
-                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos (Atualização Forçada)</h3>
-                {/* Usando o componente com força de atualização independente */}
-                <ForceUpdateDigitDisplay />
+                <h3 className="text-white text-md font-medium mb-2">Dígitos em Tempo Real</h3>
                 
-                {/* Segunda visualização como backup */}
+                {/* Visualização com manipulação direta via refs */}
+                <DirectDigitDisplay />
+                
+                <div className="mt-4">
+                  <h3 className="text-white text-md font-medium mb-2">Visualização com Força de Atualização</h3>
+                  <ForceUpdateDigitDisplay />
+                </div>
+                
                 <div className="mt-4">
                   <h3 className="text-white text-md font-medium mb-2">Visualização Alternativa</h3>
                   <SimpleDigitDisplay digits={lastDigits} />
+                </div>
+                
+                <div className="mt-4">
+                  <h3 className="text-white text-md font-medium mb-2">Diagnóstico WebSocket</h3>
+                  <WebSocketDiagnostic />
                 </div>
               </div>
             </div>
