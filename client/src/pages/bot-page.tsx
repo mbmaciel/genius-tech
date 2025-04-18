@@ -941,43 +941,50 @@ export function BotPage() {
       <div className="flex-1 p-6">
         {/* Header - Informações da conta */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Robô de Automações</h1>
+          <div className="flex items-center">
+            <h1 className="text-2xl font-bold text-white mr-4">Robô de Automações</h1>
+            
+            {/* Informações da conta (ID e saldo) */}
+            <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
+              <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium text-white mr-2">
+                {selectedAccount?.loginid || accountInfo?.loginid || "CR1330028"}
+              </span>
+              <span className="text-sm font-bold text-white">
+                {typeof realTimeBalance?.balance === 'number' 
+                  ? realTimeBalance.balance.toFixed(2) 
+                  : '0.10'} {selectedAccount?.currency || accountInfo?.currency || "USD"}
+              </span>
+            </div>
+          </div>
           
           <div className="flex items-center">
-            {accountInfo && (
-              <div className="flex items-center mr-4 bg-[#13203a] rounded-md px-3 py-2 border border-[#2a3756]">
-                <div className="flex items-center">
-                  <div className={`w-2 h-2 rounded-full mr-2 ${accountInfo.isVirtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                  <div className="text-sm text-white mr-3">
-                    {accountInfo.loginid}
-                  </div>
-                </div>
-                <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
-                <div className="flex items-center">
-                  <div className="text-xs text-gray-400 mr-1">Tipo:</div>
-                  <div className="text-sm text-white mr-3">
-                    {accountInfo.isVirtual ? 'Demo' : 'Real'}
-                  </div>
-                </div>
-                <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
-                <div className="flex items-center">
-                  <div className="text-xs text-gray-400 mr-1">Status:</div>
-                  <div className="text-sm flex items-center">
-                    <span className={`flex items-center ${
-                      botStatus === 'running' ? 'text-green-500' : 
-                      botStatus === 'paused' ? 'text-yellow-500' : 'text-gray-400'
-                    }`}>
-                      <span className={`w-2 h-2 rounded-full mr-1.5 ${
-                        botStatus === 'running' ? 'bg-green-500 animate-pulse' : 
-                        botStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
-                      }`}></span>
-                      {botStatus === 'running' ? 'Em execução' : 
-                       botStatus === 'paused' ? 'Pausado' : 'Inativo'}
-                    </span>
-                  </div>
+            {/* Status do bot */}
+            <div className="flex items-center mr-4 bg-[#13203a] rounded-md px-3 py-2 border border-[#2a3756]">
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-2 ${accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                <div className="text-sm text-white mr-3">
+                  {accountInfo?.is_virtual ? 'Demo' : 'Real'}
                 </div>
               </div>
-            )}
+              <div className="mx-2 h-4 border-r border-[#3a4b6b]"></div>
+              <div className="flex items-center">
+                <div className="text-xs text-gray-400 mr-1">Status:</div>
+                <div className="text-sm flex items-center">
+                  <span className={`flex items-center ${
+                    botStatus === 'running' ? 'text-green-500' : 
+                    botStatus === 'paused' ? 'text-yellow-500' : 'text-gray-400'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full mr-1.5 ${
+                      botStatus === 'running' ? 'bg-green-500 animate-pulse' : 
+                      botStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
+                    }`}></span>
+                    {botStatus === 'running' ? 'Em execução' : 
+                     botStatus === 'paused' ? 'Pausado' : 'Inativo'}
+                  </span>
+                </div>
+              </div>
+            </div>
             
             <img
               src="https://randomuser.me/api/portraits/men/44.jpg"
@@ -1017,19 +1024,6 @@ export function BotPage() {
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-white">Painel de Controle</h2>
-                
-                {/* Informações da conta na barra superior do painel */}
-                <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
-                  <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                  <span className="text-sm font-medium text-white mr-2">
-                    {selectedAccount?.loginid || accountInfo?.loginid || "Conectando..."}
-                  </span>
-                  <span className="text-sm font-bold text-white">
-                    {typeof realTimeBalance?.balance === 'number' 
-                      ? realTimeBalance.balance.toFixed(2) 
-                      : '0.00'} {selectedAccount?.currency || accountInfo?.currency || "USD"}
-                  </span>
-                </div>
               </div>
               
               {/* Status da Operação */}
