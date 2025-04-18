@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, AlertCircle } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -8,6 +8,14 @@ import {
 import { Button } from '@/components/ui/button';
 import derivAPI from '@/lib/derivApi';
 import { toast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Account {
   loginid: string;
@@ -19,6 +27,8 @@ export function AccountSwitcher() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeAccount, setActiveAccount] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [accountToSwitch, setAccountToSwitch] = useState<Account | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   useEffect(() => {
     // Load account info on component mount
@@ -404,48 +414,115 @@ export function AccountSwitcher() {
     }
   };
 
+  // Função para abrir o modal de confirmação ao clicar em uma conta
+  const handleAccountClick = (account: Account) => {
+    setAccountToSwitch(account);
+    setConfirmDialogOpen(true);
+  };
+  
+  // Função que confirma a troca de conta após a confirmação do usuário
+  const confirmAccountSwitch = () => {
+    if (accountToSwitch) {
+      // Fechar o modal de confirmação
+      setConfirmDialogOpen(false);
+      
+      // Executar a troca de conta
+      switchAccount(accountToSwitch);
+    }
+  };
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button 
-          variant="outline" 
-          className="bg-[#0e1a33] text-white rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-opacity-70 w-full"
-          disabled={isLoading}
-        >
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${activeAccount?.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'}`}></div>
-            <span className="text-sm font-medium truncate max-w-[120px]">
-              {activeAccount?.loginid || 'Sem conta'}
-            </span>
+    <>
+      {/* Modal de confirmação */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="bg-[#162746] border-[#1c3654] text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <AlertCircle className="h-6 w-6 text-yellow-500 mr-2" />
+              Confirmar troca de conta
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Você está prestes a trocar para a conta{' '}
+              <span className="font-bold text-[#00e5b3]">{accountToSwitch?.loginid}</span>.
+              <br /><br />
+              Esta operação irá:
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>Desconectar todas as conexões atuais</li>
+                <li>Validar o token da nova conta</li>
+                <li>Recarregar completamente a página</li>
+                <li>Definir a nova conta como principal para todo o sistema</li>
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between mt-4">
+            <Button 
+              variant="outline"
+              onClick={() => setConfirmDialogOpen(false)}
+              className="border-gray-600 text-white hover:bg-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmAccountSwitch}
+              className="bg-[#00e5b3] text-[#0e1a33] hover:bg-[#00c99f] hover:text-[#0e1a33]"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="mr-2">Processando</span>
+                  <span className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
+                </>
+              ) : (
+                <>Confirmar troca</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Interface do seletor de contas */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button 
+            variant="outline" 
+            className="bg-[#0e1a33] text-white rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-opacity-70 w-full"
+            disabled={isLoading}
+          >
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${activeAccount?.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'}`}></div>
+              <span className="text-sm font-medium truncate max-w-[120px]">
+                {activeAccount?.loginid || 'Sem conta'}
+              </span>
+            </div>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-0 bg-[#162746] border-[#1c3654] text-white">
+          <div className="flex flex-col">
+            {accounts.length > 0 ? (
+              accounts.map((account) => (
+                <Button
+                  key={account.loginid}
+                  variant="ghost"
+                  className={`flex items-center justify-start px-4 py-2 text-left hover:bg-[#1f3158] ${activeAccount?.loginid === account.loginid ? 'bg-[#1f3158]' : ''}`}
+                  onClick={() => activeAccount?.loginid !== account.loginid && handleAccountClick(account)}
+                  disabled={isLoading || activeAccount?.loginid === account.loginid}
+                >
+                  <div className={`w-2 h-2 rounded-full ${account.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'} mr-2`}></div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm">{account.loginid}</span>
+                    <span className="text-xs text-gray-400">
+                      {account.isVirtual ? 'Demo' : 'Real'} {account.currency ? `(${account.currency})` : ''}
+                    </span>
+                  </div>
+                </Button>
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-400 text-sm">Nenhuma conta disponível</div>
+            )}
           </div>
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-0 bg-[#162746] border-[#1c3654] text-white">
-        <div className="flex flex-col">
-          {accounts.length > 0 ? (
-            accounts.map((account) => (
-              <Button
-                key={account.loginid}
-                variant="ghost"
-                className={`flex items-center justify-start px-4 py-2 text-left hover:bg-[#1f3158] ${activeAccount?.loginid === account.loginid ? 'bg-[#1f3158]' : ''}`}
-                onClick={() => activeAccount?.loginid !== account.loginid && switchAccount(account)}
-                disabled={isLoading || activeAccount?.loginid === account.loginid}
-              >
-                <div className={`w-2 h-2 rounded-full ${account.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'} mr-2`}></div>
-                <div className="flex flex-col items-start">
-                  <span className="text-sm">{account.loginid}</span>
-                  <span className="text-xs text-gray-400">
-                    {account.isVirtual ? 'Demo' : 'Real'} {account.currency ? `(${account.currency})` : ''}
-                  </span>
-                </div>
-              </Button>
-            ))
-          ) : (
-            <div className="p-4 text-center text-gray-400 text-sm">Nenhuma conta disponível</div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }
