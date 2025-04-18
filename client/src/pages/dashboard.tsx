@@ -5,8 +5,16 @@ import { DerivConnectButton } from "@/components/DerivConnectButton";
 import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DigitData {
   digit: number;
@@ -191,6 +199,123 @@ export default function Dashboard() {
     if (percentage >= 20) return 'bg-red-500';
     if (percentage >= 10) return 'bg-red-500';
     return 'bg-gray-500';
+  };
+  
+  // Prepara uma conta para troca
+  const prepareAccountSwitch = (acc: any) => {
+    if (accountInfo && acc.loginid === accountInfo.loginid) {
+      setShowAccountOptions(false);
+      return;
+    }
+    
+    setAccountToSwitch(acc);
+    setConfirmAccountSwitch(true);
+  };
+  
+  // Função que realiza a troca de conta após confirmação
+  const switchAccount = async (account: any) => {
+    try {
+      setConfirmAccountSwitch(false);
+      toast({
+        title: "Trocando de conta",
+        description: `Preparando troca para ${account.loginid}...`,
+      });
+      
+      // Obter token para a conta selecionada
+      let token: string | null = null;
+      
+      // Buscar token nas contas armazenadas
+      const accountsStr = localStorage.getItem('deriv_accounts');
+      if (accountsStr) {
+        try {
+          const accounts = JSON.parse(accountsStr);
+          const matchingAccount = accounts.find((acc: any) => acc.loginid === account.loginid);
+          
+          if (matchingAccount && matchingAccount.token) {
+            token = matchingAccount.token;
+          }
+        } catch (error) {
+          console.error('Erro ao processar contas:', error);
+        }
+      }
+      
+      if (!token) {
+        toast({
+          title: "Erro ao trocar de conta",
+          description: `Token não encontrado para ${account.loginid}. Faça login novamente.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Salvar informações da nova conta no localStorage
+      localStorage.setItem('deriv_active_loginid', account.loginid);
+      localStorage.setItem('deriv_api_token', token);
+      localStorage.setItem('deriv_oauth_token', token);
+      localStorage.setItem('account_switch_timestamp', Date.now().toString());
+      localStorage.setItem('force_reconnect', 'true');
+      
+      // Criar objeto com informações da conta ativa
+      const activeAccountData = {
+        loginid: account.loginid,
+        token: token,
+        is_virtual: account.isVirtual,
+        currency: account.currency,
+        timestamp: Date.now(),
+        active: true
+      };
+      
+      // Salvar como conta ativa
+      localStorage.setItem('deriv_active_account', JSON.stringify(activeAccountData));
+      
+      // Mostrar tela de carregamento ao trocar conta
+      const loadingElement = document.createElement('div');
+      loadingElement.style.position = 'fixed';
+      loadingElement.style.top = '0';
+      loadingElement.style.left = '0';
+      loadingElement.style.width = '100%';
+      loadingElement.style.height = '100%';
+      loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+      loadingElement.style.zIndex = '9999';
+      loadingElement.style.display = 'flex';
+      loadingElement.style.alignItems = 'center';
+      loadingElement.style.justifyContent = 'center';
+      loadingElement.style.flexDirection = 'column';
+      loadingElement.style.color = 'white';
+      loadingElement.style.fontSize = '18px';
+      loadingElement.innerHTML = `
+        <div style="margin-bottom: 20px;">TROCANDO PARA CONTA ${account.loginid}</div>
+        <div style="margin-bottom: 30px;">A página será recarregada em instantes...</div>
+        <div style="width: 50px; height: 50px; border: 4px solid #1E3A8A; border-top: 4px solid #00E5B3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      `;
+      
+      // Adicionar estilo de animação
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+      document.body.appendChild(loadingElement);
+      
+      // Redirecionar com recarregamento forçado depois de um pequeno delay
+      setTimeout(() => {
+        // Usar replace para garantir que caches e histórico sejam limpos
+        window.location.replace(`/dashboard?account=${account.loginid}&t=${Date.now()}`);
+        
+        // Backup: se o replace não funcionar, usar reload
+        setTimeout(() => window.location.reload(), 200);
+      }, 500);
+    } catch (error) {
+      console.error('Erro ao trocar de conta:', error);
+      toast({
+        title: "Erro ao trocar de conta",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
