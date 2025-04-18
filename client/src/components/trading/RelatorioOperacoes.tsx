@@ -43,10 +43,15 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
   const getStrategyCommand = (strategyId: string | undefined) => {
     if (!strategyId) return "Entrada";
     
+    // Obter a estratégia completa para acessar configurações específicas
+    const strategy = getStrategyById(strategyId);
+    
     // Mapeamento dos comandos específicos para cada estratégia
     switch (strategyId.toLowerCase()) {
       case 'advance':
-        return "PORCENTAGEM PARA ENTRAR";
+        // Adicionar o valor da porcentagem específica para a estratégia Advance
+        const entryPercentage = strategy?.config?.entryPercentage || 8;
+        return `PORCENTAGEM PARA ENTRAR: ${entryPercentage}%`;
       case 'profitpro':
         return "ENTRADA PROFIT PRO";
       case 'manualunder':

@@ -8,6 +8,7 @@ export interface BotConfig {
   targetProfit: number;
   stopLoss: number;
   prediction?: number;
+  entryPercentage?: number; // Porcentagem para entrar em estratégias específicas como Advance
 }
 
 // Tipos de estratégias suportadas
