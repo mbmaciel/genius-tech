@@ -18,9 +18,6 @@ export interface StrategyConfiguration {
   
   // Campos específicos de algumas estratégias
   valorAposVencer?: number | string;
-  previsao?: number | string;
-  contadorLossVirtual?: number | string;
-  lossVirtual?: number | string;
   parcelasMartingale?: number | string;
   porcentagemParaEntrar?: number | string;
   usarMartingaleAposXLoss?: number | string;
@@ -44,6 +41,9 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
   // Efeito para atualizar configuração quando estratégia muda
   useEffect(() => {
     if (strategy) {
+      console.log("[STRATEGY_CONFIG] Atualizando config para estratégia:", strategy.id);
+      
+      // Configuração base para todas as estratégias
       const baseConfig: StrategyConfiguration = {
         valorInicial: strategy.config?.initialStake || 0.35,
         metaGanho: strategy.config?.targetProfit || 20,
@@ -51,40 +51,37 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
         martingale: strategy.config?.martingaleFactor || 1.5,
       };
 
-      // Verificar tipo de estratégia e adicionar campos específicos
-      switch (strategy.id) {
-        case 'profitpro':
-          baseConfig.valorAposVencer = 0.35;
-          baseConfig.previsao = 5;
-          baseConfig.contadorLossVirtual = 1;
-          baseConfig.lossVirtual = 1;
-          baseConfig.parcelasMartingale = 3;
-          break;
-        case 'manual_over':
-        case 'manual_under':
-          baseConfig.valorAposVencer = 0.35;
-          baseConfig.previsao = strategy.id.includes('over') ? 5 : 4;
-          baseConfig.parcelasMartingale = 3;
-          break;
-        case 'iron_over':
-        case 'iron_under':
-          baseConfig.previsao = strategy.id.includes('over') ? 5 : 4;
-          baseConfig.martingale = 0.5;
-          baseConfig.usarMartingaleAposXLoss = 2;
-          break;
-        case 'bot_low':
-        case 'maxpro':
-          baseConfig.valorAposVencer = 0.35;
-          break;
-        case 'advance':
-          baseConfig.porcentagemParaEntrar = 70;
-          baseConfig.previsao = 5;
-          break;
-        case 'wise_pro_tendencia':
-          baseConfig.valorAposVencer = 0.35;
-          break;
+      // Adicionar campos específicos por estratégia
+      if (strategy.id === 'profitpro') {
+        // ProfitPro
+        baseConfig.valorAposVencer = 0.35;
+        baseConfig.parcelasMartingale = 3;
+      } 
+      else if (strategy.id === 'manual_over' || strategy.id === 'manual_under') {
+        // Manual Over/Under
+        baseConfig.valorAposVencer = 0.35;
+        baseConfig.parcelasMartingale = 3;
+      } 
+      else if (strategy.id === 'iron_over' || strategy.id === 'iron_under') {
+        // IRON Over/Under
+        baseConfig.martingale = 0.5;
+        baseConfig.usarMartingaleAposXLoss = 2;
+      } 
+      else if (strategy.id === 'bot_low' || strategy.id === 'maxpro') {
+        // BOT LOW / MAXPRO
+        baseConfig.valorAposVencer = 0.35;
+      } 
+      else if (strategy.id === 'advance') {
+        // Advance
+        baseConfig.porcentagemParaEntrar = 70;
+      } 
+      else if (strategy.id === 'wise_pro_tendencia') {
+        // WISE PRO TENDENCIA
+        baseConfig.valorAposVencer = 0.35;
       }
 
+      console.log("[STRATEGY_CONFIG] Config gerada:", baseConfig);
+      
       // Atualizar estado local sem notificar o componente pai
       setConfig(baseConfig);
     }
@@ -205,49 +202,8 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
             </div>
           )}
 
-          {/* Campo para Previsão - presente em várias estratégias */}
-          {(config.previsao !== undefined) && (
-            <div className="space-y-2">
-              <Label htmlFor="previsao">Previsão (Dígito)</Label>
-              <Input
-                id="previsao"
-                type="number"
-                min="0"
-                max="9"
-                value={config.previsao.toString()}
-                onChange={(e) => handleChange('previsao', e.target.value)}
-                className="bg-[#0d1525] border-gray-700"
-              />
-            </div>
-          )}
-
-          {/* Campos específicos da estratégia Profitpro */}
-          {(config.contadorLossVirtual !== undefined && config.lossVirtual !== undefined) && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="contadorLossVirtual">Contador de Loss Virtual</Label>
-                <Input
-                  id="contadorLossVirtual"
-                  type="number"
-                  min="0"
-                  value={config.contadorLossVirtual.toString()}
-                  onChange={(e) => handleChange('contadorLossVirtual', e.target.value)}
-                  className="bg-[#0d1525] border-gray-700"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lossVirtual">Loss Virtual</Label>
-                <Input
-                  id="lossVirtual"
-                  type="number"
-                  min="0"
-                  value={config.lossVirtual.toString()}
-                  onChange={(e) => handleChange('lossVirtual', e.target.value)}
-                  className="bg-[#0d1525] border-gray-700"
-                />
-              </div>
-            </>
-          )}
+          {/* Os campos de Previsão, contadorLossVirtual e lossVirtual foram removidos 
+              conforme solicitado, pois são determinados no código */}
 
           {/* Campo específico para parcelas de Martingale */}
           {(config.parcelasMartingale !== undefined) && (
