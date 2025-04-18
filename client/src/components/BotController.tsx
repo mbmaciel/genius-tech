@@ -386,32 +386,6 @@ export function BotController({
           )}
         </div>
       </div>
-      
-      {/* Estatísticas de operações - NOVO! */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756]">
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Vitórias</span>
-          <span className="text-lg font-bold text-green-400">{stats.wins}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Derrotas</span>
-          <span className="text-lg font-bold text-red-400">{stats.losses}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Taxa de Acerto</span>
-          <span className="text-lg font-bold text-yellow-400">
-            {stats.wins + stats.losses > 0 
-              ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
-              : '0%'}
-          </span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Lucro Total</span>
-          <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {stats.totalProfit.toFixed(2)}
-          </span>
-        </div>
-      </div>
 
       {/* Estratégia e botões de controle melhorados */}
       <div className="space-y-3">
@@ -464,6 +438,32 @@ export function BotController({
             Robô executando operações automaticamente...
           </div>
         )}
+      </div>
+      
+      {/* Estatísticas de operações - Reposicionado conforme solicitado */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756] mt-4">
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Vitórias</span>
+          <span className="text-lg font-bold text-green-400">{stats.wins}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Derrotas</span>
+          <span className="text-lg font-bold text-red-400">{stats.losses}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Taxa de Acerto</span>
+          <span className="text-lg font-bold text-yellow-400">
+            {stats.wins + stats.losses > 0 
+              ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
+              : '0%'}
+          </span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Lucro Total</span>
+          <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {stats.totalProfit.toFixed(2)}
+          </span>
+        </div>
       </div>
     </div>
   );
