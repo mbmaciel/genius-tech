@@ -375,6 +375,32 @@ export function BotController({
   // Renderizar botão de início/pausa e informações da conta
   return (
     <div className="space-y-4">
+      {/* Estatísticas de operações - Reposicionado no TOPO do painel conforme solicitado */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756] mb-4">
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Vitórias</span>
+          <span className="text-lg font-bold text-green-400">{stats.wins}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Derrotas</span>
+          <span className="text-lg font-bold text-red-400">{stats.losses}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Taxa de Acerto</span>
+          <span className="text-lg font-bold text-yellow-400">
+            {stats.wins + stats.losses > 0 
+              ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
+              : '0%'}
+          </span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Lucro Total</span>
+          <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {stats.totalProfit.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
       {/* Barra superior - Modal de status totalmente removido conforme solicitado */}
       <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] shadow-lg">
         <div className="flex items-center justify-between">
@@ -440,31 +466,7 @@ export function BotController({
         )}
       </div>
       
-      {/* Estatísticas de operações - Reposicionado conforme solicitado */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756] mt-4">
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Vitórias</span>
-          <span className="text-lg font-bold text-green-400">{stats.wins}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Derrotas</span>
-          <span className="text-lg font-bold text-red-400">{stats.losses}</span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Taxa de Acerto</span>
-          <span className="text-lg font-bold text-yellow-400">
-            {stats.wins + stats.losses > 0 
-              ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
-              : '0%'}
-          </span>
-        </div>
-        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
-          <span className="text-xs text-gray-400">Lucro Total</span>
-          <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {stats.totalProfit.toFixed(2)}
-          </span>
-        </div>
-      </div>
+{/* Estatísticas duplicadas removidas */}
     </div>
   );
 }
