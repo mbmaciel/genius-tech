@@ -991,68 +991,7 @@ export function BotPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna da esquerda - Controles e Configurações */}
           <div className="lg:col-span-1 space-y-5">
-            {/* Informações da Conta */}
-            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <h2 className="text-lg font-semibold text-white mb-4">Conta para Operação</h2>
-              <div className="space-y-3">
-                <div className="flex items-center mb-3">
-                  <div className={`p-2 rounded-full mr-3 ${selectedAccount?.isVirtual ? 'bg-blue-600/20' : 'bg-green-600/20'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${selectedAccount?.isVirtual ? 'text-blue-400' : 'text-green-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-base font-medium text-white">{selectedAccount?.loginid || accountInfo?.loginid}</div>
-                    <div className="text-sm text-gray-400">{selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'Conta de Demonstração' : 'Conta Real'}</div>
-                  </div>
-                </div>
-                
-                <div className="bg-[#1d2a45] rounded-md p-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-sm text-gray-400 mb-1">Saldo Disponível</div>
-                      <div className="text-xl font-bold text-white">
-                        {typeof realTimeBalance?.balance === 'number' 
-                          ? realTimeBalance.balance.toFixed(2) 
-                          : ''} {selectedAccount?.currency || accountInfo?.currency}
-                      </div>
-                    </div>
-                    
-                    {/* Mostrar mudança se houver */}
-                    {realTimeBalance.previousBalance !== undefined && realTimeBalance.previousBalance !== realTimeBalance.balance && (
-                      <div className={`bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium
-                        ${realTimeBalance.balance > realTimeBalance.previousBalance ? 'bg-green-500 text-green-400' : 'bg-red-500 text-red-400'}`}
-                      >
-                        {realTimeBalance.balance > realTimeBalance.previousBalance ? '+' : ''}
-                        {(realTimeBalance.balance - realTimeBalance.previousBalance).toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="bg-[#1d2a45] rounded-md p-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Moeda</div>
-                      <div className="text-sm font-medium text-white">{selectedAccount?.currency || accountInfo?.currency}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Tipo</div>
-                      <div className="text-sm font-medium text-white">
-                        {selectedAccount?.isVirtual || accountInfo?.is_virtual ? 
-                          <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-1.5"></span>Virtual</span> :
-                          <span className="flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span>Real</span>
-                        }
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="text-xs mt-2 text-gray-400">
-                  <p>Para trocar de conta, volte ao Dashboard e selecione outra conta.</p>
-                </div>
-              </div>
-            </div>
+
             
             {/* Alerta de permissões do token */}
             <TokenPermissionAlert 
@@ -1076,7 +1015,24 @@ export function BotPage() {
             
             {/* Painel de Controle Principal */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <h2 className="text-lg font-semibold text-white mb-4">Painel de Controle</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white">Painel de Controle</h2>
+                
+                {/* Informações da conta na barra superior do painel */}
+                {(accountInfo?.loginid || selectedAccount?.loginid) && (
+                  <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
+                    <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                    <span className="text-sm font-medium text-white mr-2">
+                      {selectedAccount?.loginid || accountInfo?.loginid}
+                    </span>
+                    <span className="text-sm font-bold text-white">
+                      {typeof realTimeBalance?.balance === 'number' 
+                        ? realTimeBalance.balance.toFixed(2) 
+                        : '0.00'} {selectedAccount?.currency || accountInfo?.currency}
+                    </span>
+                  </div>
+                )}
+              </div>
               
               {/* Status da Operação */}
               <OperationStatus 
@@ -1084,10 +1040,10 @@ export function BotPage() {
                 operation={operation}
                 stats={stats}
                 balanceInfo={{
-                  balance: accountInfo?.balance || 0,
-                  currency: accountInfo?.currency || 'USD',
+                  balance: realTimeBalance?.balance || 0,
+                  currency: selectedAccount?.currency || accountInfo?.currency || '',
                   previousBalance: realTimeBalance.previousBalance,
-                  change: (accountInfo?.balance || 0) - realTimeBalance.previousBalance
+                  change: (realTimeBalance?.balance || 0) - (realTimeBalance.previousBalance || 0)
                 }}
               />
               
