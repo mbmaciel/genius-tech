@@ -60,7 +60,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     const handleAccountSwitch = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail) {
-        const { accountId, token } = customEvent.detail;
+        // Compatibilidade com diferentes formatos de evento
+        const accountId = customEvent.detail.accountId || customEvent.detail.loginid;
+        const token = customEvent.detail.token;
         
         if (accountId && token) {
           console.log(`[OAUTH_DIRECT] Evento de troca de conta recebido: ${accountId}`);
@@ -91,6 +93,52 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               });
           }
         }
+      }
+    };
+    
+    // Handler para evento de força de atualização de token
+    const handleForceTokenUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.loginid && customEvent.detail.token) {
+        const { loginid, token } = customEvent.detail;
+        
+        console.log(`[OAUTH_DIRECT] ⚠️ Evento de FORÇA de atualização de token recebido: ${loginid}`);
+        
+        // Remover status de primário de todos os outros tokens
+        this.tokens.forEach(t => {
+          t.primary = false;
+        });
+        
+        // Definir novo token como principal e ativo
+        let tokenInfo = this.tokens.find(t => t.token === token || t.loginid === loginid);
+        
+        if (!tokenInfo) {
+          // Se não existe, adicionar
+          this.addToken(token, true, loginid);
+          console.log(`[OAUTH_DIRECT] Adicionado novo token forçado para ${loginid}`);
+        } else {
+          // Se existe, atualizar
+          tokenInfo.primary = true;
+          tokenInfo.loginid = loginid;
+          console.log(`[OAUTH_DIRECT] Token existente atualizado para ${loginid}`);
+        }
+        
+        // Definir como token ativo
+        this.activeToken = token;
+        
+        // Atualizar todos os locais de armazenamento
+        localStorage.setItem('deriv_oauth_token', token);
+        localStorage.setItem('deriv_api_token', token);
+        localStorage.setItem('deriv_active_loginid', loginid);
+        
+        // Forçar reconexão imediata
+        this.reconnect()
+          .then(() => {
+            console.log(`[OAUTH_DIRECT] Reconexão forçada para ${loginid} concluída`);
+          })
+          .catch(error => {
+            console.error(`[OAUTH_DIRECT] Erro na reconexão forçada: ${error}`);
+          });
       }
     };
     
@@ -132,8 +180,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Configurar verificação periódica de alterações no localStorage
     setInterval(checkLocalStorageForAccountChange, 2000);
     
-    // Registrar handler para o evento customizado
+    // Registrar handlers para os eventos customizados
     document.addEventListener('deriv:oauth_account_switch', handleAccountSwitch as EventListener);
+    document.addEventListener('deriv:account_switched', handleAccountSwitch as EventListener);
+    document.addEventListener('deriv:force_token_update', handleForceTokenUpdate as EventListener);
   }
   
   /**

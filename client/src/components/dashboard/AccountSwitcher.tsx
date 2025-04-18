@@ -187,6 +187,21 @@ export function AccountSwitcher() {
       
       console.log('[AccountSwitcher] 🔄 Recarregando página para aplicar nova conta ativa');
       
+      // Criar evento para forçar reconexão OAuth
+      try {
+        console.log('[AccountSwitcher] Disparando evento para serviço OAuth aplicar a mudança');
+        const forceTokenEvent = new CustomEvent('deriv:force_token_update', { 
+          detail: { 
+            loginid: account.loginid,
+            token: token,
+            timestamp: Date.now()
+          } 
+        });
+        document.dispatchEvent(forceTokenEvent);
+      } catch (e) {
+        console.error('[AccountSwitcher] Erro ao disparar evento force_token_update:', e);
+      }
+      
       // Forçar recarregamento da página após breve atraso
       // Isso garante que todos os serviços do sistema reconheçam a nova conta
       setTimeout(() => {
