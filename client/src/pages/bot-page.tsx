@@ -16,6 +16,7 @@ import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
+import { getStrategyById } from "@/lib/strategiesConfig";
 
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
@@ -995,29 +996,83 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           const contractType = contract.contract_type || '';
           let commandType = '';
           let commandMessage = '';
-
-          // Mapear os tipos de contrato para descrições em português
-          if (contractType.includes('DIGITOVER')) {
-            commandType = 'success';
-            commandMessage = 'Compra ACIMA de ' + (contract.barrier || '?');
-          } else if (contractType.includes('DIGITUNDER')) {
-            commandType = 'info';
-            commandMessage = 'Compra ABAIXO de ' + (contract.barrier || '?');
-          } else if (contractType.includes('DIGITODD')) {
-            commandType = 'warning';
-            commandMessage = 'Compra ÍMPAR';
-          } else if (contractType.includes('DIGITEVEN')) {
-            commandType = 'warning';
-            commandMessage = 'Compra PAR';
-          } else if (contractType.includes('DIGITDIFF')) {
-            commandType = 'warning';
-            commandMessage = 'Compra DIFERENTE de ' + (contract.barrier || '?');
-          } else if (contractType.includes('DIGITMATH')) {
-            commandType = 'warning';
-            commandMessage = 'Compra IGUAL a ' + (contract.barrier || '?');
+          
+          // Obter informações específicas da estratégia atual
+          const strategyInfo = selectedStrategy ? getStrategyById(selectedStrategy || '') : null;
+          
+          // Comandos específicos por estratégia
+          if (strategyInfo) {
+            if (strategyInfo.id === 'advance') {
+              // Para a estratégia Advance, mostrar a porcentagem de entrada específica
+              commandType = 'success';
+              // Valor padrão do XML para a porcentagem de entrada
+              const porcentagemParaEntrar = 8; // Valor fixo do XML
+              commandMessage = `Porcentagem para entrar: ${porcentagemParaEntrar}% (Dígitos 0 e 1)`;
+            } 
+            else if (strategyInfo.id === 'green') {
+              // Para a estratégia Green
+              commandType = 'success';
+              commandMessage = 'Compra DIGITOVER: Estratégia Green';
+            }
+            else if (strategyInfo.id === 'wise_pro_tendencia') {
+              // Para a estratégia Wise Pro Tendência
+              commandType = 'info';
+              commandMessage = 'Tendência identificada: Wise Pro';
+            }
+            else if (strategyInfo.id.includes('iron')) {
+              // Para estratégias IRON
+              commandType = 'warning';
+              commandMessage = `Estratégia IRON: ${contractType.includes('OVER') ? 'ACIMA' : 'ABAIXO'}`;
+            }
+            else {
+              // Para outras estratégias, usar o padrão baseado no tipo de contrato
+              if (contractType.includes('DIGITOVER')) {
+                commandType = 'success';
+                commandMessage = 'Compra ACIMA de ' + (contract.barrier || '?');
+              } else if (contractType.includes('DIGITUNDER')) {
+                commandType = 'info';
+                commandMessage = 'Compra ABAIXO de ' + (contract.barrier || '?');
+              } else if (contractType.includes('DIGITODD')) {
+                commandType = 'warning';
+                commandMessage = 'Compra ÍMPAR';
+              } else if (contractType.includes('DIGITEVEN')) {
+                commandType = 'warning';
+                commandMessage = 'Compra PAR';
+              } else if (contractType.includes('DIGITDIFF')) {
+                commandType = 'warning';
+                commandMessage = 'Compra DIFERENTE de ' + (contract.barrier || '?');
+              } else if (contractType.includes('DIGITMATH')) {
+                commandType = 'warning';
+                commandMessage = 'Compra IGUAL a ' + (contract.barrier || '?');
+              } else {
+                commandType = 'info';
+                commandMessage = 'Compra: ' + contractType;
+              }
+            }
           } else {
-            commandType = 'info';
-            commandMessage = 'Compra: ' + contractType;
+            // Fallback - se não tiver informação da estratégia
+            if (contractType.includes('DIGITOVER')) {
+              commandType = 'success';
+              commandMessage = 'Compra ACIMA de ' + (contract.barrier || '?');
+            } else if (contractType.includes('DIGITUNDER')) {
+              commandType = 'info';
+              commandMessage = 'Compra ABAIXO de ' + (contract.barrier || '?');
+            } else if (contractType.includes('DIGITODD')) {
+              commandType = 'warning';
+              commandMessage = 'Compra ÍMPAR';
+            } else if (contractType.includes('DIGITEVEN')) {
+              commandType = 'warning';
+              commandMessage = 'Compra PAR';
+            } else if (contractType.includes('DIGITDIFF')) {
+              commandType = 'warning';
+              commandMessage = 'Compra DIFERENTE de ' + (contract.barrier || '?');
+            } else if (contractType.includes('DIGITMATH')) {
+              commandType = 'warning';
+              commandMessage = 'Compra IGUAL a ' + (contract.barrier || '?');
+            } else {
+              commandType = 'info';
+              commandMessage = 'Compra: ' + contractType;
+            }
           }
 
           const newNotification = {
