@@ -968,13 +968,16 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   
   // Limpar histórico
   const handleClearHistory = () => {
-    setStats({ wins: 0, losses: 0 });
+    setStats({ wins: 0, losses: 0, totalProfit: 0 });
     setOperation({
       entry: 1584.42,
       buyPrice: parseFloat(entryValue),
       profit: 0,
       status: null
     });
+    
+    // Limpar o histórico de operações
+    setOperationHistory([]);
     
     toast({
       title: "Histórico limpo",
@@ -990,9 +993,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // Estado para histórico de operações
   const [operationHistory, setOperationHistory] = useState<{
     id: number;
-    type: string;
-    result: 'win' | 'loss';
-    amount: number;
+    entryValue: number;
+    finalValue: number;
     profit: number;
     time: Date;
   }[]>([]);
@@ -1001,18 +1003,21 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   useEffect(() => {
     const handleEvents = (event: any) => {
       // Processar eventos de operação finalizada
-      if (event.type === 'operation_finished') {
+      if (event.type === 'contract_finished') {
         // Adicionar operação ao histórico
-        const newOperation = {
-          id: typeof event.contract.contract_id === 'number' ? event.contract.contract_id : Math.random(),
-          type: event.contract.contract_type,
-          result: event.result,
-          amount: event.contract.buy_price,
-          profit: event.profit,
-          time: new Date()
-        };
-        
-        setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+        const contract = event.contract_details;
+        if (contract) {
+          const newOperation = {
+            id: typeof contract.contract_id === 'number' ? contract.contract_id : Math.random(),
+            entryValue: contract.buy_price || 0,
+            finalValue: (contract.buy_price || 0) + (event.profit || 0),
+            profit: event.profit || 0,
+            time: new Date()
+          };
+          
+          console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
+          setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+        }
       }
       
       // Processar eventos de atualização de saldo
@@ -1099,7 +1104,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           console.log('[BOT_PAGE] Estatísticas atualizadas:', newStats);
           setStats({
             wins: newStats.wins,
-            losses: newStats.losses
+            losses: newStats.losses,
+            totalProfit: newStats.totalProfit || 0
           });
         }}
       />
@@ -1454,18 +1460,16 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <table className="w-full text-sm text-white">
                   <thead>
                     <tr className="border-b border-[#2a3756] text-gray-400">
-                      <th className="text-left py-2 px-2">ID</th>
-                      <th className="text-left py-2 px-2">Tipo</th>
-                      <th className="text-left py-2 px-2">Resultado</th>
-                      <th className="text-right py-2 px-2">Valor</th>
-                      <th className="text-right py-2 px-2">Lucro/Perda</th>
+                      <th className="text-left py-2 px-2">Operação</th>
+                      <th className="text-right py-2 px-2">Entrada</th>
+                      <th className="text-right py-2 px-2">Fechamento</th>
                       <th className="text-right py-2 px-2">Horário</th>
                     </tr>
                   </thead>
                   <tbody>
                     {operationHistory.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-4 text-gray-500">
+                        <td colSpan={4} className="text-center py-4 text-gray-500">
                           Nenhuma operação realizada
                         </td>
                       </tr>
@@ -1473,19 +1477,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                       operationHistory.map((op) => (
                         <tr key={op.id} className="border-b border-[#1d2a45]">
                           <td className="py-2 px-2">{op.id.toString().substring(0, 8)}</td>
-                          <td className="py-2 px-2">{op.type}</td>
-                          <td className="py-2 px-2">
-                            <span className={`inline-block px-2 py-1 rounded-full text-xs ${
-                              op.result === 'win' ? 'bg-green-900 text-green-500' : 'bg-red-900 text-red-500'
-                            }`}>
-                              {op.result === 'win' ? 'Ganho' : 'Perda'}
-                            </span>
+                          <td className="py-2 px-2 text-right">
+                            ${op.entryValue.toFixed(2)}
                           </td>
-                          <td className="py-2 px-2 text-right">${op.amount.toFixed(2)}</td>
-                          <td className={`py-2 px-2 text-right ${
+                          <td className={`py-2 px-2 text-right font-medium ${
                             op.profit >= 0 ? 'text-green-500' : 'text-red-500'
                           }`}>
-                            {op.profit >= 0 ? '+' : ''}{op.profit.toFixed(2)}
+                            ${op.finalValue.toFixed(2)}
                           </td>
                           <td className="py-2 px-2 text-right text-gray-400">
                             {op.time.toLocaleTimeString()}
