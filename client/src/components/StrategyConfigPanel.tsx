@@ -41,7 +41,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
   // Efeito para atualizar configuração quando estratégia muda
   useEffect(() => {
     if (strategy) {
-      console.log("[STRATEGY_CONFIG] Atualizando config para estratégia:", strategy.id);
+      console.log("[STRATEGY_CONFIG] Atualizando config para estratégia:", strategy.id, strategy.name);
       
       // Configuração base para todas as estratégias
       const baseConfig: StrategyConfiguration = {
@@ -51,32 +51,47 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
         martingale: strategy.config?.martingaleFactor || 1.5,
       };
 
-      // Adicionar campos específicos por estratégia
-      if (strategy.id === 'profitpro') {
-        // ProfitPro
+      // Adicionar campos específicos por estratégia - usando tanto ID quanto nome para comparação
+      const strategyName = strategy.name.toLowerCase();
+      const strategyId = strategy.id.toLowerCase();
+      
+      // PROFITPRO
+      if (strategyId.includes('profitpro') || strategyName.includes('profitpro')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para ProfitPro");
         baseConfig.valorAposVencer = 0.35;
         baseConfig.parcelasMartingale = 3;
-      } 
-      else if (strategy.id === 'manual_over' || strategy.id === 'manual_under') {
-        // Manual Over/Under
+      }
+      
+      // MANUAL OVER/UNDER
+      else if (strategyId.includes('manual') || strategyName.includes('manual')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para Manual Over/Under");
         baseConfig.valorAposVencer = 0.35;
         baseConfig.parcelasMartingale = 3;
-      } 
-      else if (strategy.id === 'iron_over' || strategy.id === 'iron_under') {
-        // IRON Over/Under
+      }
+      
+      // IRON OVER/UNDER
+      else if (strategyId.includes('iron') || strategyName.includes('iron')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para Iron Over/Under");
         baseConfig.martingale = 0.5;
         baseConfig.usarMartingaleAposXLoss = 2;
-      } 
-      else if (strategy.id === 'bot_low' || strategy.id === 'maxpro') {
-        // BOT LOW / MAXPRO
+      }
+      
+      // BOT LOW / MAXPRO
+      else if (strategyId.includes('bot_low') || strategyId.includes('maxpro') || 
+              strategyName.includes('bot low') || strategyName.includes('maxpro')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para BOT LOW/MAXPRO");
         baseConfig.valorAposVencer = 0.35;
-      } 
-      else if (strategy.id === 'advance') {
-        // Advance
+      }
+      
+      // ADVANCE
+      else if (strategyId.includes('advance') || strategyName.includes('advance')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para Advance");
         baseConfig.porcentagemParaEntrar = 70;
-      } 
-      else if (strategy.id === 'wise_pro_tendencia') {
-        // WISE PRO TENDENCIA
+      }
+      
+      // WISE PRO TENDENCIA
+      else if (strategyId.includes('wise') || strategyName.includes('wise')) {
+        console.log("[STRATEGY_CONFIG] Aplicando configuração para WISE PRO TENDENCIA");
         baseConfig.valorAposVencer = 0.35;
       }
 

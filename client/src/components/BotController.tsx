@@ -5,7 +5,7 @@ import { oauthDirectService } from "@/services/oauthDirectService";
 import { Wallet, User } from "lucide-react";
 import { BinaryBotStrategy } from '@/lib/automationService';
 import { StrategyConfigPanel, StrategyConfiguration } from '@/components/StrategyConfigPanel';
-import { getStrategyById, getContractTypeForStrategy } from '@/lib/strategiesConfig';
+import { getStrategyById, getContractTypeForStrategy, usesDigitPrediction } from '@/lib/strategiesConfig';
 
 interface BotControllerProps {
   entryValue: number;
@@ -449,12 +449,20 @@ export function BotController({
         valorInicial: strategyConfig.valorInicial,
         metaGanho: strategyConfig.metaGanho,
         limitePerda: strategyConfig.limitePerda,
-        martingale: strategyConfig.martingale,
-        previsao: strategyConfig.previsao
+        martingale: strategyConfig.martingale
       });
       
       // Definir o tipo de contrato com base na estratégia
       const contractType = getContractTypeForStrategy(selectedStrategy);
+      
+      // Determinar a previsão de dígito com base na estratégia (se aplicável)
+      // A previsão agora é determinada no código e não nas configurações
+      const needsPrediction = usesDigitPrediction(selectedStrategy);
+      const prediction = needsPrediction ? Math.floor(Math.random() * 10) : undefined;
+      
+      if (prediction !== undefined) {
+        console.log(`[BOT_CONTROLLER] Usando previsão de dígito: ${prediction}`);
+      }
       
       // Configurar serviço com os parâmetros da configuração atual da estratégia
       oauthDirectService.setSettings({
@@ -463,7 +471,7 @@ export function BotController({
         lossLimit: strategyConfig.limitePerda,
         martingaleFactor: parseFloat(strategyConfig.martingale.toString()),
         contractType,
-        prediction: strategyConfig.previsao ? parseInt(strategyConfig.previsao.toString()) : undefined
+        prediction
       });
       
       // Definir estratégia ativa
