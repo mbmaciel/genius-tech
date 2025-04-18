@@ -818,14 +818,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Se atingiu a meta de lucro, parar
     const profitTargetNum = typeof profitTarget === 'string' ? parseFloat(profitTarget) : profitTarget;
     if (profitTargetNum && !isNaN(profitTargetNum) && this.sessionStats.netProfit >= profitTargetNum) {
+      const targetMessage = `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
       console.log(`[OAUTH_DIRECT] Meta de lucro atingida: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTargetNum}`);
       
-      // Notificar interface
+      // Notificar interface sobre o atingimento da meta
       this.notifyListeners({
         type: 'bot_target_reached',
-        message: `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`,
+        message: targetMessage,
         profit: this.sessionStats.netProfit
       });
+      
+      // Parar o bot com a razão correta
+      console.log('[OAUTH_DIRECT] Estratégia finalizada devido às condições de parada');
+      this.stop(targetMessage, 'target');
       
       return false; // Parar operações
     }
@@ -833,14 +838,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Se atingiu o limite de perda, parar
     const lossLimitNum = typeof lossLimit === 'string' ? parseFloat(lossLimit) : lossLimit;
     if (lossLimitNum && !isNaN(lossLimitNum) && this.sessionStats.totalLoss >= lossLimitNum) {
+      const limitMessage = `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
       console.log(`[OAUTH_DIRECT] Limite de perda atingido: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitNum}`);
       
-      // Notificar interface
+      // Notificar interface sobre o limite atingido
       this.notifyListeners({
         type: 'bot_limit_reached',
-        message: `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`,
+        message: limitMessage,
         loss: this.sessionStats.totalLoss
       });
+      
+      // Parar o bot com a razão correta
+      console.log('[OAUTH_DIRECT] Estratégia finalizada devido às condições de parada');
+      this.stop(limitMessage, 'limit');
       
       return false; // Parar operações
     }
@@ -1599,8 +1609,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   /**
    * Para o serviço de conexão dedicada e trading
+   * @param reason Motivo da parada (opcional)
+   * @param type Tipo de motivo (opcional: 'user', 'error', 'limit', 'target')
    */
-  stop(): void {
+  stop(reason?: string, type: 'user' | 'error' | 'limit' | 'target' = 'user'): void {
     if (!this.isRunning) {
       console.log('[OAUTH_DIRECT] Serviço já está parado');
       return;
@@ -1614,10 +1626,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Fechar conexão WebSocket
     this.closeConnection();
     
+    // Determinar mensagem e notificação baseada no tipo
+    let message = reason || 'Serviço parado manualmente';
+    let notificationType: 'error' | 'warning' | 'success' | 'info' = 'info';
+    
+    // Definir tipo de notificação com base no motivo da parada
+    if (type === 'error') {
+      notificationType = 'error';
+    } else if (type === 'limit') {
+      notificationType = 'warning';
+    } else if (type === 'target') {
+      notificationType = 'success';
+    }
+    
     // Notificar que o serviço foi parado
     this.notifyListeners({
       type: 'bot_stopped',
-      message: 'Serviço parado manualmente'
+      message: message,
+      reason: reason,
+      notificationType: notificationType,
+      stopType: type
     });
     
     console.log('[OAUTH_DIRECT] Serviço de trading direto parado com sucesso');

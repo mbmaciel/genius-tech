@@ -339,6 +339,29 @@ export function BotController({
       
       if (event.type === 'bot_stopped') {
         console.log('[BOT_CONTROLLER] ✅ Bot estado alterado para PARADO após evento:', event.type);
+        
+        // Exibir notificação se houver uma razão específica
+        if (event.reason || event.message) {
+          const reason = event.reason || event.message;
+          let toastVariant: "default" | "destructive" | null = null;
+          
+          // Determinar o tipo de notificação
+          if (event.notificationType === 'error') {
+            toastVariant = "destructive";
+          } else if (event.notificationType === 'success') {
+            // Manter default para sucesso
+          }
+          
+          // Mostrar toast com a razão da parada
+          toast({
+            title: "Bot parado",
+            description: reason,
+            variant: toastVariant || "default",
+            duration: 5000
+          });
+        }
+        
+        // Atualizar estado do bot
         setStatus('idle');
         onStatusChange('idle');
       }
