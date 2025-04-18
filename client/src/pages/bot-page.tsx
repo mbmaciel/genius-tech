@@ -1450,55 +1450,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           {/* Colunas do meio e direita - Visualização de dados e estatísticas */}
           <div className="lg:col-span-2 space-y-5">
-            {/* Painel de Visualização Principal */}
-            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-semibold text-white">Movimentação do Mercado</h2>
-                
-                <div className="flex space-x-2">
-                  <Select
-                    value={ticks}
-                    onValueChange={setTicks}
-                  >
-                    <SelectTrigger className="h-8 w-[100px] bg-[#0e1a2e] border-[#2c3e5d] text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
-                      <SelectItem value="10">10 ticks</SelectItem>
-                      <SelectItem value="20">20 ticks</SelectItem>
-                      <SelectItem value="50">50 ticks</SelectItem>
-                      <SelectItem value="100">100 ticks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              {/* Visualização Estatística de Dígitos */}
-              <div className="mb-4">
-                <div className="grid grid-cols-10 gap-1 mt-2">
-                  {digitStats.map(stat => (
-                    <div key={stat.digit} className="flex flex-col items-center">
-                      <div className="font-bold text-white mb-1">{stat.digit}</div>
-                      <div className="w-full bg-[#0e1a2e] rounded-sm h-24 relative">
-                        <div 
-                          className={`absolute bottom-0 left-0 right-0 ${getBarColor(stat.percentage)}`}
-                          style={{ height: `${stat.percentage}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">{stat.percentage}%</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Visualização simplificada de Dígitos - mantido apenas SimpleDigitDisplay */}
-              <div>
-                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos</h3>
-                <SimpleDigitDisplay digits={lastDigits} />
-              </div>
-            </div>
-            
-            {/* Histórico de Operações */}
+            {/* Histórico de Operações - MOVIDO PARA O TOPO */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <h2 className="text-lg font-semibold text-white mb-3">Histórico de Operações</h2>
               
@@ -1561,6 +1513,54 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+            
+            {/* Painel de Visualização Principal - Movido para baixo */}
+            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-semibold text-white">Movimentação do Mercado</h2>
+                
+                <div className="flex space-x-2">
+                  <Select
+                    value={ticks}
+                    onValueChange={setTicks}
+                  >
+                    <SelectTrigger className="h-8 w-[100px] bg-[#0e1a2e] border-[#2c3e5d] text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
+                      <SelectItem value="10">10 ticks</SelectItem>
+                      <SelectItem value="20">20 ticks</SelectItem>
+                      <SelectItem value="50">50 ticks</SelectItem>
+                      <SelectItem value="100">100 ticks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Visualização Estatística de Dígitos */}
+              <div className="mb-4">
+                <div className="grid grid-cols-10 gap-1 mt-2">
+                  {digitStats.map(stat => (
+                    <div key={stat.digit} className="flex flex-col items-center">
+                      <div className="font-bold text-white mb-1">{stat.digit}</div>
+                      <div className="w-full bg-[#0e1a2e] rounded-sm h-24 relative">
+                        <div 
+                          className={`absolute bottom-0 left-0 right-0 ${getBarColor(stat.percentage)}`}
+                          style={{ height: `${stat.percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">{stat.percentage}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Visualização simplificada de Dígitos - mantido apenas SimpleDigitDisplay */}
+              <div>
+                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos</h3>
+                <SimpleDigitDisplay digits={lastDigits} />
               </div>
             </div>
           </div>
