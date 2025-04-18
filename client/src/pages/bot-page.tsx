@@ -1010,7 +1010,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           const newOperation = {
             id: typeof contract.contract_id === 'number' ? contract.contract_id : Math.random(),
             entryValue: contract.buy_price || 0,
-            finalValue: (contract.buy_price || 0) + (event.profit || 0),
+            finalValue: event.exit_value || event.sell_price || contract.sell_price || 0,
             profit: event.profit || 0,
             time: new Date()
           };
@@ -1033,10 +1033,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★ Valor numérico REAL do saldo:', realBalance, 'tipo:', typeof realBalance);
 
         // Atualizar saldo em tempo real - GARANTIR QUE É NÚMERO
-        setRealTimeBalance({
+        setRealTimeBalance(prev => ({
           balance: realBalance,
-          previousBalance: realTimeBalance.balance || 0
-        });
+          previousBalance: prev.balance || 0
+        }));
         
         // Atualizar dados da conta no topo da tela
         setAccountInfo(prev => {
@@ -1086,7 +1086,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     return () => {
       oauthDirectService.removeEventListener(handleEvents);
     };
-  }, [realTimeBalance.balance]);
+  }, []);
 
   const renderActionButton = () => {
     // Usar o novo BotController para melhor feedback visual e controle
@@ -1460,9 +1460,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <table className="w-full text-sm text-white">
                   <thead>
                     <tr className="border-b border-[#2a3756] text-gray-400">
-                      <th className="text-left py-2 px-2">Operação</th>
-                      <th className="text-right py-2 px-2">Entrada</th>
-                      <th className="text-right py-2 px-2">Fechamento</th>
+                      <th className="text-left py-2 px-2">ID Contrato</th>
+                      <th className="text-right py-2 px-2">Valor de Compra ($)</th>
+                      <th className="text-right py-2 px-2">Valor de Venda ($)</th>
                       <th className="text-right py-2 px-2">Horário</th>
                     </tr>
                   </thead>

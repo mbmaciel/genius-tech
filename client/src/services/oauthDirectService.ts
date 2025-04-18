@@ -622,12 +622,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               
               console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}`);
               
+              // Incluir todos os detalhes relevantes do contrato para histórico
               this.notifyListeners({
                 type: 'contract_finished',
                 contract_id: contract.contract_id,
                 is_win: isWin,
                 profit: profit,
-                contract_details: contract
+                contract_details: contract,
+                entry_value: contract.buy_price || 0,
+                exit_value: contract.sell_price || 0
               });
               
               // Iniciar próxima operação após resultado
