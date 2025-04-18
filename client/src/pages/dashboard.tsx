@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { startKeepAlive, stopKeepAlive } from "@/lib/websocketKeepAlive";
 import { useToast } from "@/hooks/use-toast";
 import { DerivConnectButton } from "@/components/DerivConnectButton";
 import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
-import { simpleTicker } from "@/services/simpleTicker";
 import { RefreshCw, AlertCircle } from "lucide-react";
+// Importar o novo componente isolado para o dashboard
+import { DashboardR100Display } from "@/dashboard_exclusive/R100Display";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -216,41 +216,8 @@ export default function Dashboard() {
     };
   }, [startBalanceSubscription]); // Depende da função de assinatura
 
-  // Iniciar a conexão WebSocket quando o componente for montado
-  useEffect(() => {
-    // Iniciar a conexão WebSocket para dados R_100
-    // Desativado temporariamente para depuração
-    // startKeepAlive();
-    
-    // Iniciar o serviço de ticks independente sem afetar a conexão OAuth
-    simpleTicker.start(); // Usar o serviço dedicado exclusivamente ao dashboard
-    
-    // Adicionar listener para eventos de tick
-    const handleTick = (event: CustomEvent) => {
-      const tick = event.detail.tick;
-      if (tick && tick.symbol === 'R_100') {
-        // Extrair o último dígito do tick
-        const price = tick.quote;
-        const lastDigit = Math.floor(price * 10) % 10;
-        
-        // Atualizar os últimos dígitos
-        setLastDigits((prev: number[]) => {
-          const newDigits = [...prev, lastDigit];
-          // Manter apenas os N últimos dígitos com base no valor de ticks
-          return newDigits.slice(-parseInt(ticks.toString()));
-        });
-      }
-    };
-    
-    // Registrar o evento personalizado
-    document.addEventListener('deriv:tick', handleTick as EventListener);
-    
-    // Limpar ao desmontar
-    return () => {
-      document.removeEventListener('deriv:tick', handleTick as EventListener);
-      stopKeepAlive();
-    };
-  }, [ticks]);
+  // NÃO é mais necessário iniciar a conexão WebSocket aqui
+  // O R100Display possui sua própria conexão isolada
   
   // Calcular estatísticas dos dígitos quando lastDigits for atualizado
   useEffect(() => {
@@ -708,80 +675,8 @@ export default function Dashboard() {
         
         {/* Cards de estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Gráfico de barras */}
-          <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
-              <select 
-                className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
-                value={ticks}
-                onChange={handleTicksChange}
-              >
-                <option value="10">10 Ticks</option>
-                <option value="25">25 Ticks</option>
-                <option value="50">50 Ticks</option>
-                <option value="100">100 Ticks</option>
-              </select>
-            </div>
-            
-            <div className="relative w-full h-96 mt-4">
-              {/* Container responsivo para o gráfico */}
-              <div className="relative flex flex-col h-full">
-                {/* Eixo Y (percentuais) com posição fixa */}
-                <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2 z-10">
-                  <div>50</div>
-                  <div>40</div>
-                  <div>30</div>
-                  <div>20</div>
-                  <div>10</div>
-                  <div>0</div>
-                </div>
-                
-                {/* Linhas de grade horizontais */}
-                <div className="absolute left-8 right-2 top-0 bottom-6 flex flex-col justify-between z-0">
-                  {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
-                  ))}
-                </div>
-                
-                {/* Gráfico de barras responsivo */}
-                <div className="flex h-full pt-0 pb-6 pl-8 pr-2 overflow-x-auto">
-                  <div className="flex flex-1 min-w-0 h-full justify-between">
-                    {digitStats.map((stat) => (
-                      <div key={stat.digit} className="flex flex-col items-center justify-end px-1">
-                        {/* Valor percentual acima da barra somente para barras com valor */}
-                        {stat.percentage > 0 && (
-                          <div className="text-xs font-medium text-white whitespace-nowrap mb-1">
-                            {stat.percentage}%
-                          </div>
-                        )}
-                        
-                        {/* Barra do gráfico com altura proporcional e responsiva */}
-                        <div 
-                          className={`w-full min-w-[20px] max-w-[40px] ${getBarColor(stat.percentage)}`}
-                          style={{ 
-                            height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(3, stat.percentage))}%` 
-                          }}
-                        ></div>
-                        
-                        {/* Número do dígito abaixo da barra */}
-                        <div className="mt-1 text-xs sm:text-sm text-white">{stat.digit}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Últimos dígitos */}
-            <div className="mt-4 bg-[#1d2a45] p-2 rounded flex flex-wrap justify-center">
-              {lastDigits.slice().reverse().map((digit, index) => (
-                <span key={index} className="w-7 h-7 flex items-center justify-center text-white border border-[#3a4b6b] m-1 rounded-md">
-                  {digit}
-                </span>
-              ))}
-            </div>
-          </div>
+          {/* R_100 Display - Componente isolado exclusivo para o dashboard */}
+          <DashboardR100Display />
           
           {/* Gráfico Deriv - Volatility 25 Index */}
           <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
