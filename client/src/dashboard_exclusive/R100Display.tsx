@@ -114,22 +114,6 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   
   return (
     <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
-        <select 
-          className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
-          value={localTickCount}
-          onChange={handleTicksChange}
-        >
-          <option value="10">10 Ticks</option>
-          <option value="25">25 Ticks</option>
-          <option value="50">50 Ticks</option>
-          <option value="100">100 Ticks</option>
-          <option value="250">250 Ticks</option>
-          <option value="500">500 Ticks</option>
-          <option value="1000">1000 Ticks</option>
-        </select>
-      </div>
       
       <div className="relative w-full h-96 mt-4">
         {/* Container responsivo para o gráfico */}

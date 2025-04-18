@@ -500,32 +500,8 @@ export default function Dashboard() {
                   {/* Espaçador */}
                   <div className="w-2"></div>
                   
-                  {/* Botão de logout */}
-                  <button
-                    onClick={() => {
-                      // Remover tokens e dados da conta
-                      localStorage.removeItem('deriv_token');
-                      localStorage.removeItem('deriv_oauth_token');
-                      localStorage.removeItem('deriv_account_info');
-                      localStorage.removeItem('deriv_active_loginid');
-                      
-                      // Aviso de sucesso
-                      toast({
-                        title: "Desconectado com sucesso",
-                        description: "Você foi desconectado da Deriv",
-                      });
-                      
-                      // Atualizar estado
-                      setIsAuthenticated(false);
-                      setAccountInfo(null);
-                      
-                      // Recarregar a página após pequeno delay
-                      setTimeout(() => window.location.reload(), 500);
-                    }}
-                    className="bg-red-700 hover:bg-red-800 text-white px-3 py-1 rounded-md text-sm flex items-center"
-                  >
-                    Logout
-                  </button>
+                  {/* Espaço reservado onde estava o botão de logout (removido para evitar duplicação) */}
+                  <div></div>
                 </div>
               ) : (
                 <DerivConnectButton />
@@ -533,12 +509,17 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Grade com os dois gráficos - um acima do outro para maximizar o espaço */}
-          <div className="flex flex-col gap-6 mt-4">
-            {/* Gráfico Deriv no topo com tamanho maior */}
+          {/* Grade com os dois gráficos lado a lado como na imagem */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Coluna da esquerda: Gráfico de barras */}
+            <div className="w-full">
+              <DashboardR100Display />
+            </div>
+            
+            {/* Coluna da direita: Gráfico Deriv */}
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
-              <div className="bg-[#0c1525] rounded-md" style={{ height: "600px" }}>
+              <div className="aspect-video bg-[#0c1525] rounded-md">
                 <iframe
                   src="https://charts.deriv.com/deriv"
                   className="w-full h-full rounded-md"
@@ -546,11 +527,6 @@ export default function Dashboard() {
                   title="Gráfico Deriv"
                 ></iframe>
               </div>
-            </div>
-            
-            {/* Gráfico de barras abaixo */}
-            <div className="w-full">
-              <DashboardR100Display />
             </div>
           </div>
           
