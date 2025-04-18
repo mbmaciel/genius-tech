@@ -458,16 +458,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             const price = event.price;
             const lastDigit = event.lastDigit;
             
-            // Atualizar últimos dígitos - FORÇAR ATUALIZAÇÃO
-            setLastDigits(prev => {
-              console.log('[BOT_PAGE] Atualizando lastDigits com novo dígito:', lastDigit);
-              // Criando um novo array para garantir que o React reconheça a mudança
-              const updated = [lastDigit, ...prev].slice(0, 20);
-              console.log('[BOT_PAGE] Novo array de dígitos:', updated);
-              return updated;
-            });
-            
-            // Atualizar estatísticas de dígitos
+            // Vamos apenas chamar updateDigitStats que já faz as duas atualizações de forma otimizada
             updateDigitStats(lastDigit);
             
             console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
@@ -691,35 +682,35 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     }
   }, []);
   
-  // Atualizar estatísticas de dígitos - VERSÃO CORRIGIDA
+  // Atualizar estatísticas de dígitos - VERSÃO OTIMIZADA
   const updateDigitStats = (newDigit: number) => {
     console.log("[BOT_PAGE] Atualizando estatísticas com novo dígito:", newDigit);
     
-    setDigitStats(prev => {
-      // Contagem de dígitos nos últimos ticks
-      const counts: number[] = Array(10).fill(0);
-      const updatedLastDigits = [newDigit, ...lastDigits].slice(0, parseInt(ticks));
-      
-      // Contar ocorrências
-      updatedLastDigits.forEach(d => {
-        if (d >= 0 && d <= 9) counts[d]++;
-      });
-      
-      // Cálculo de percentuais
-      const total = updatedLastDigits.length;
-      
-      // Criar um novo array para garantir que o React reconheça a mudança
-      const newStats = Array(10).fill(0).map((_, i) => ({
-        digit: i,
-        count: counts[i],
-        percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
-      }));
-      
-      console.log("[BOT_PAGE] Novas estatísticas calculadas:", 
-        newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", "));
-      
-      return newStats;
+    // Calcular lastDigits fora do setState para evitar dependências cíclicas
+    const updatedLastDigits = [newDigit, ...lastDigits].slice(0, parseInt(ticks));
+    setLastDigits(updatedLastDigits);
+    
+    // Contagem de dígitos
+    const counts: number[] = Array(10).fill(0);
+    updatedLastDigits.forEach(d => {
+      if (d >= 0 && d <= 9) counts[d]++;
     });
+    
+    // Cálculo de percentuais
+    const total = updatedLastDigits.length;
+    
+    // Criar um novo array
+    const newStats = Array(10).fill(0).map((_, i) => ({
+      digit: i,
+      count: counts[i],
+      percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
+    }));
+    
+    console.log("[BOT_PAGE] Novas estatísticas calculadas:", 
+      newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", "));
+    
+    // Atualizar estado em uma única operação
+    setDigitStats(newStats);
   };
   
   // Iniciar o bot usando o serviço OAuth Direct

@@ -20,14 +20,11 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
   const [renderKey, setRenderKey] = useState<number>(Date.now());
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   
-  // Forçar renderização a cada segundo para garantir atualização visual
+  // Forçar renderização apenas quando os dados mudarem (evita atualizações constantes)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setRenderKey(Date.now());
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
+    // Atualizar a chave de renderização apenas quando os dígitos mudarem
+    setRenderKey(Date.now());
+  }, [internalDigits]);
   
   // Atualizar quando os dígitos externos mudarem
   useEffect(() => {
@@ -52,8 +49,7 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
         // Atualizar timestamp
         setLastUpdate(new Date());
         
-        // Forçar nova renderização
-        setRenderKey(Date.now());
+        // Não precisamos forçar renderização aqui, já temos um useEffect que observa internalDigits
       }
     };
     
