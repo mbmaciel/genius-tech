@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { OperationStatus } from "@/components/OperationStatus";
+// Componente OperationStatus removido conforme solicitado
 import { BotController } from "@/components/BotController";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
 import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
@@ -1260,19 +1260,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-white">Painel de Controle</h2>
               </div>
-              
-              {/* Status da Operação */}
-              <OperationStatus 
-                status={botStatus}
-                operation={operation}
-                stats={stats}
-                balanceInfo={{
-                  balance: realTimeBalance?.balance || 0,
-                  currency: selectedAccount?.currency || accountInfo?.currency || '',
-                  previousBalance: realTimeBalance.previousBalance,
-                  change: (realTimeBalance?.balance || 0) - (realTimeBalance.previousBalance || 0)
-                }}
-              />
               
               {/* Controles do Bot */}
               <div className="mt-5">
