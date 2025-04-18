@@ -344,13 +344,16 @@ export function BotController({
   };
 
   // Auxiliar para formatar valor monetário
-  const formatCurrency = (value: number, currency: string) => {
+  const formatCurrency = (value: number | string, currency: string) => {
+    // Garantir que valor é um número
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(value);
+    }).format(numValue);
   };
   
   // Renderizar botão de início/pausa e informações da conta

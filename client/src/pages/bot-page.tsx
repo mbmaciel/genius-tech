@@ -424,7 +424,7 @@ export function BotPage() {
               if (newBalance !== currentBalance) {
                 setAccountInfo({
                   ...accountInfo,
-                  balance: newBalance.toFixed(2)
+                  balance: newBalance // Mantém como número, sem converter para string
                 });
                 
                 // Atualizar saldo em tempo real
@@ -964,7 +964,9 @@ export function BotPage() {
                   <div className="text-xs text-gray-400 mr-1">Saldo:</div>
                   <div className="text-sm text-white">
                     <span className={`${realTimeBalance.balance > realTimeBalance.previousBalance ? 'text-green-500' : realTimeBalance.balance < realTimeBalance.previousBalance ? 'text-red-500' : 'text-white'}`}>
-                      {accountInfo.balance} {accountInfo.currency}
+                      {typeof accountInfo.balance === 'number' 
+                        ? accountInfo.balance.toFixed(2) 
+                        : parseFloat(String(accountInfo.balance)).toFixed(2)} {accountInfo.currency}
                     </span>
                   </div>
                 </div>
