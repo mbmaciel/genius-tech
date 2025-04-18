@@ -149,10 +149,68 @@ export const strategyCategories = {
 };
 
 /**
+ * Mapeamento de IDs da interface para IDs do sistema
+ */
+const idMapping: Record<string, string> = {
+  // Mapeamento dos IDs da interface para IDs do sistema
+  'profitpro': 'profitpro',
+  'manualover': 'manual_over',
+  'manualunder': 'manual_under',
+  'botlow': 'bot_low',
+  'ironover': 'iron_over',
+  'ironunder': 'iron_under',
+  'maxpro': 'maxpro',
+  'advance': 'advance',
+  'wisetendencia': 'wise_pro_tendencia',
+  'green': 'green',
+  
+  // Colocar também o mapeamento inverso para aceitar ambos formatos
+  'manual_over': 'manual_over',
+  'manual_under': 'manual_under',
+  'bot_low': 'bot_low',
+  'iron_over': 'iron_over',
+  'iron_under': 'iron_under',
+  'wise_pro_tendencia': 'wise_pro_tendencia'
+};
+
+/**
  * Obtém uma estratégia pelo ID
  */
 export function getStrategyById(id: string): BinaryBotStrategy | null {
-  return availableStrategies.find(strategy => strategy.id === id) || null;
+  console.log("[STRATEGY_CONFIG] ★ Buscando estratégia com ID:", id);
+  
+  // Passo 1: Tentar usar o ID diretamente
+  const directStrategy = availableStrategies.find(strategy => strategy.id === id);
+  if (directStrategy) {
+    console.log("[STRATEGY_CONFIG] ★ Estratégia encontrada diretamente:", directStrategy.name);
+    return directStrategy;
+  }
+  
+  // Passo 2: Tentar usar o mapeamento
+  const mappedId = idMapping[id];
+  if (mappedId) {
+    const mappedStrategy = availableStrategies.find(strategy => strategy.id === mappedId);
+    if (mappedStrategy) {
+      console.log("[STRATEGY_CONFIG] ★ Estratégia encontrada via mapeamento:", mappedStrategy.name);
+      return mappedStrategy;
+    }
+  }
+  
+  // Passo 3: Tentar busca flexível baseada em substring
+  const normalizedId = id.toLowerCase();
+  for (const strategy of availableStrategies) {
+    const strategyId = strategy.id.toLowerCase();
+    const strategyName = strategy.name.toLowerCase();
+    
+    if (strategyId.includes(normalizedId) || normalizedId.includes(strategyId) ||
+        strategyName.includes(normalizedId) || normalizedId.includes(strategyName)) {
+      console.log("[STRATEGY_CONFIG] ★ Estratégia encontrada via busca flexível:", strategy.name);
+      return strategy;
+    }
+  }
+  
+  console.warn("[STRATEGY_CONFIG] ⚠️ Nenhuma estratégia encontrada para o ID:", id);
+  return null;
 }
 
 /**
