@@ -173,21 +173,39 @@ export function isHighRiskStrategy(strategyId: string): boolean {
  * Verifica se uma estratégia usa previsão de dígito
  */
 export function usesDigitPrediction(strategyId: string): boolean {
-  return ['profitpro', 'manual_over', 'manual_under', 'iron_over', 'iron_under', 'advance'].includes(strategyId);
+  // Normalizar o ID para comparação
+  const id = (strategyId || '').toLowerCase();
+  
+  // Verificar todas as estratégias que usam dígitos
+  return ['profitpro', 'manual_over', 'manual_under', 'iron_over', 'iron_under', 'advance',
+          'wise_pro_tendencia', 'bot_low', 'maxpro', 'green'].some(s => 
+            id.includes(s.toLowerCase())
+          );
 }
 
 /**
  * Determina o tipo de contrato baseado na estratégia
  */
 export function getContractTypeForStrategy(strategyId: string): string {
-  if (['manual_over', 'iron_over'].includes(strategyId)) {
+  // Normalizar o ID para comparação
+  const id = (strategyId || '').toLowerCase();
+  
+  // Verificar estratégias CALL (ACIMA)
+  if (id.includes('over') || id.includes('acima')) {
     return 'CALL';
-  } else if (['manual_under', 'iron_under'].includes(strategyId)) {
+  } 
+  // Verificar estratégias PUT (ABAIXO)
+  else if (id.includes('under') || id.includes('abaixo')) {
     return 'PUT';
-  } else if (['bot_low', 'maxpro', 'wise_pro_tendencia'].includes(strategyId)) {
+  } 
+  // Verificar estratégias que usam DIGITDIFF
+  else if (id.includes('bot_low') || id.includes('bot low') || 
+           id.includes('maxpro') || id.includes('wise') ||
+           id.includes('tendencia')) {
     return 'DIGITDIFF';
-  } else {
-    // Profitpro e Advance usam DIGITOVER por padrão
+  } 
+  // Default é DIGITOVER
+  else {
     return 'DIGITOVER';
   }
 }

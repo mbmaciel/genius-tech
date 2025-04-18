@@ -27,19 +27,65 @@ interface StrategyConfigPanelProps {
 
 // Função auxiliar para detectar tipo de estratégia
 const detectStrategyType = (strategy: BinaryBotStrategy): string => {
-  const name = strategy.name.toLowerCase();
-  const id = strategy.id.toLowerCase();
+  // Garantir que temos valores de string para comparação segura
+  const name = (strategy.name || '').toLowerCase();
+  const id = (strategy.id || '').toLowerCase();
+  const description = (strategy.description || '').toLowerCase();
+  const xmlPath = (strategy.xmlPath || '').toLowerCase();
   
-  if (name.includes('profitpro') || id.includes('profitpro')) return 'profitpro';
-  if (name.includes('manual') || id.includes('manual')) return 'manual';
-  if (name.includes('iron') || id.includes('iron')) return 'iron';
-  if (name.includes('bot low') || name.includes('maxpro') || 
-      id.includes('bot_low') || id.includes('maxpro')) return 'botlow';
-  if (name.includes('advance') || id.includes('advance')) return 'advance';
-  if (name.includes('wise') || id.includes('wise')) return 'wise';
+  // Verificar usando TODAS as fontes disponíveis (nome, id, descrição e até o caminho XML)
   
-  // Se não conseguir identificar, assume como padrão
-  return 'default';
+  // Verificar Profitpro
+  if (name.includes('profitpro') || id.includes('profitpro') || xmlPath.includes('profitpro')) 
+    return 'profitpro';
+  
+  // Verificar Manual Over/Under (cuidado com a ordem: verificar 'manual under' antes de 'manual')
+  if (name.includes('manual under') || id.includes('manual_under') || xmlPath.includes('manual under')) 
+    return 'manual';
+  if (name.includes('manual over') || id.includes('manual_over') || xmlPath.includes('manual over')) 
+    return 'manual';  
+  if (name.includes('manual') || id.includes('manual')) 
+    return 'manual';
+  
+  // Verificar Iron Over/Under
+  if (name.includes('iron over') || id.includes('iron_over') || xmlPath.includes('iron over')) 
+    return 'iron';
+  if (name.includes('iron under') || id.includes('iron_under') || xmlPath.includes('iron under')) 
+    return 'iron';
+  if (name.includes('iron') || id.includes('iron')) 
+    return 'iron';
+  
+  // Verificar Bot Low / Maxpro
+  if (name.includes('bot low') || id.includes('bot_low') || xmlPath.includes('bot low')) 
+    return 'botlow';
+  if (name.includes('maxpro') || id.includes('maxpro') || xmlPath.includes('maxpro')) 
+    return 'botlow';
+  
+  // Verificar Green (usando a mesma configuração de Bot Low)
+  if (name.includes('green') || id.includes('green') || xmlPath.includes('green')) 
+    return 'botlow';
+  
+  // Verificar Advance
+  if (name.includes('advance') || id.includes('advance') || xmlPath.includes('advance')) 
+    return 'advance';
+  
+  // Verificar Wise Pro Tendencia
+  if (name.includes('wise') || id.includes('wise') || xmlPath.includes('wise')) 
+    return 'wise';
+  if (name.includes('tendencia') || id.includes('tendencia') || xmlPath.includes('tendencia')) 
+    return 'wise';
+  
+  // Verificação específica para IDs numerados ou nomes alternativos conhecidos
+  if (id === 'manual_over' || id === 'manual_under') return 'manual';
+  if (id === 'iron_over' || id === 'iron_under') return 'iron';
+  if (id === 'wise_pro_tendencia') return 'wise';
+  
+  // Registrar que não conseguimos identificar
+  console.warn("[STRATEGY_CONFIG] ⚠️ Tipo de estratégia não identificado:", name, id);
+  console.warn("[STRATEGY_CONFIG] ⚠️ Caminho XML:", xmlPath);
+  
+  // Se não conseguir identificar, assume como manual (que tem mais campos)
+  return 'manual';
 };
 
 // Função para criar configuração baseada no tipo de estratégia
@@ -111,7 +157,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     martingale: 1.5,
   });
 
-  // Configurar a estratégia quando ela mudar
+  // Configurar a estratégia quando ela mudar - usando uma referência para evitar loops
   useEffect(() => {
     if (!strategy) return;
     
@@ -124,10 +170,16 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     // Atualizar estado
     setConfig(newConfig);
     
-    // Notificar componente pai sobre a mudança
-    onChange(newConfig);
+    // Notificar componente pai sobre a mudança - APENAS NA PRIMEIRA VEZ
+    // Isso previne o loop infinito de atualizações
+    const timer = setTimeout(() => {
+      onChange(newConfig);
+    }, 0);
     
-  }, [strategy, onChange]);
+    return () => clearTimeout(timer);
+    
+  // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [strategy?.id]);
 
   // Handler para mudança de campo
   const handleChange = (field: keyof StrategyConfiguration, value: string | number) => {
