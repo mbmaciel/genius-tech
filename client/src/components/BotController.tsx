@@ -270,7 +270,14 @@ export function BotController({
   // Iniciar o bot com o serviço OAuth direto
   const startBot = async () => {
     try {
-      console.log('[BOT_CONTROLLER] Iniciando bot com serviço OAuth direto...');
+      console.log('[BOT_CONTROLLER] 🚀 INICIANDO BOT - FUNÇÃO STARTBOT CHAMADA');
+      console.log('[BOT_CONTROLLER] Parâmetros:', {
+        estrategia: selectedStrategy,
+        entrada: entryValue,
+        alvo: profitTarget,
+        perda: lossLimit,
+        status: status
+      });
       
       // Verificar se a estratégia foi selecionada
       if (!selectedStrategy) {
@@ -430,7 +437,15 @@ export function BotController({
             </Button>
           ) : (
             <Button
-              onClick={startBot}
+              onClick={() => {
+                console.log('[BOT_CONTROLLER] 🔴 BOTÃO DE INICIAR OPERAÇÕES CLICADO!', {
+                  estrategia: selectedStrategy,
+                  entrada: entryValue,
+                  alvo: profitTarget,
+                  perda: lossLimit
+                });
+                startBot();
+              }}
               className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
               disabled={!selectedStrategy}
             >

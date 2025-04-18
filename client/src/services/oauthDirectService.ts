@@ -1546,7 +1546,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @param amount Valor inicial da operação
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
-  async executeFirstOperation(amount: number): Promise<boolean> {
+  async executeFirstOperation(amount: number | string): Promise<boolean> {
+    // Garantir que o amount seja um número
+    const entryAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     try {
       console.log('[OAUTH_DIRECT] Iniciando primeira operação do bot com valor:', amount);
       
@@ -1561,11 +1563,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // Verificar se há um token autorizado com permissões de trading
-      // Verificamos diretamente no último objeto authorize
-      const hasTrading = this.authorizeResponse && 
-                         this.authorizeResponse.scopes && 
-                         this.authorizeResponse.scopes.some((scope: string) => 
-                            ['trade', 'trading', 'trading_information'].includes(scope));
+      // Verificamos se o token está na lista e tem a flag authorized
+      const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
+      const hasTrading = activeTokenInfo && activeTokenInfo.authorized;
                             
       if (!this.activeToken || !hasTrading) {
         console.error('[OAUTH_DIRECT] Token não tem permissões para trading');
