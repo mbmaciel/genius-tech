@@ -778,6 +778,85 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Força a reconexão do WebSocket e reautorização com token atual
+   * Útil quando o usuário troca de conta manualmente
+   */
+  async reconnect(): Promise<boolean> {
+    try {
+      console.log('[OAUTH_DIRECT] Forçando reconexão com a conta ativa...');
+      
+      // Limpar ciclo atual de keep-alive
+      if (this.pingInterval) {
+        clearInterval(this.pingInterval);
+        this.pingInterval = null;
+      }
+      
+      // Fechar a conexão atual sem parar o serviço
+      if (this.webSocket) {
+        if (this.webSocket.readyState === WebSocket.OPEN || 
+            this.webSocket.readyState === WebSocket.CONNECTING) {
+          this.webSocket.close();
+        }
+        this.webSocket = null;
+      }
+      
+      // Pequeno atraso para garantir que tudo seja fechado adequadamente
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reestabelecer a conexão usando o método setupWebSocket()
+      try {
+        await this.setupWebSocket();
+        
+        // Autorizar token atual
+        if (this.activeToken) {
+          await this.authorizeToken(this.activeToken);
+          
+          // Inscrever-se para ticks
+          this.subscribeToTicks();
+          
+          console.log('[OAUTH_DIRECT] Reconexão bem-sucedida');
+          
+          // Notificar ouvintes sobre a reconexão
+          this.notifyListeners({
+            type: 'reconnected',
+            message: 'Conexão reestabelecida com sucesso'
+          });
+          
+          return true;
+        } else {
+          // Se não temos um token ativo, tentar usar qualquer token autorizado
+          const authorizedToken = this.tokens.find(t => t.authorized);
+          if (authorizedToken) {
+            this.activeToken = authorizedToken.token;
+            await this.authorizeToken(this.activeToken);
+            this.subscribeToTicks();
+            
+            console.log('[OAUTH_DIRECT] Reconexão com token autorizado bem-sucedida');
+            
+            this.notifyListeners({
+              type: 'reconnected',
+              message: 'Conexão reestabelecida com sucesso'
+            });
+            
+            return true;
+          } else {
+            throw new Error('Nenhum token ativo ou autorizado disponível');
+          }
+        }
+      } catch (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao reconectar:', error);
+      this.notifyListeners({
+        type: 'error',
+        message: 'Falha ao reconectar. Tente novamente.'
+      });
+      return false;
+    }
+  }
+  
+  /**
    * Agenda a próxima operação
    */
   private scheduleNextOperation(delay: number = 5000): void {

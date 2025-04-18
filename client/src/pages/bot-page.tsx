@@ -455,6 +455,18 @@ export function BotPage() {
       // Garantir que a conta selecionada está ativa no serviço OAuth
       oauthDirectService.setActiveAccount(selectedAccount.loginid, selectedAccount.token);
       
+      // Forçar reconexão para garantir que estamos usando a conta correta
+      try {
+        // Se o método reconnect existir e for uma função, chamá-lo
+        if (typeof oauthDirectService.reconnect === 'function') {
+          oauthDirectService.reconnect().catch(error => {
+            console.error('[BOT] Erro ao reconectar:', error);
+          });
+        }
+      } catch (error) {
+        console.error('[BOT] Erro ao tentar reconectar:', error);
+      }
+      
       // Configurar oauthDirectService (novo serviço com conexão WebSocket dedicada)
       oauthDirectService.setSettings({
         entryValue: entryNum,
