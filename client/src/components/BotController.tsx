@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { oauthDirectService } from "@/services/oauthDirectService";
+import { Wallet, User } from "lucide-react";
 
 interface BotControllerProps {
   entryValue: number;
@@ -11,6 +12,13 @@ interface BotControllerProps {
   onStatusChange: (status: 'idle' | 'running' | 'paused') => void;
   onStatsChange: (stats: { wins: number; losses: number; totalProfit: number }) => void;
   onTickReceived?: (price: number, lastDigit: number) => void;
+}
+
+interface AccountInfo {
+  loginid?: string;
+  balance?: number;
+  currency?: string;
+  is_virtual?: boolean;
 }
 
 export function BotController({
@@ -25,6 +33,41 @@ export function BotController({
   const { toast } = useToast();
   const [status, setStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [stats, setStats] = useState({ wins: 0, losses: 0, totalProfit: 0 });
+  const [accountInfo, setAccountInfo] = useState<AccountInfo>({
+    loginid: '',
+    balance: 0,
+    currency: 'USD',
+    is_virtual: false
+  });
+
+  // Buscar informações da conta ao iniciar componente
+  useEffect(() => {
+    // Tentativa de carregar informações armazenadas na sessão
+    try {
+      const accountInfoStr = localStorage.getItem('deriv_account_info');
+      if (accountInfoStr) {
+        const storedAccountInfo = JSON.parse(accountInfoStr);
+        
+        // Verificar se os dados são válidos
+        if (storedAccountInfo && storedAccountInfo.loginid) {
+          console.log('[BOT_CONTROLLER] Informações da conta carregadas do localStorage:', storedAccountInfo.loginid);
+          
+          // Atualizar estado com as informações da conta
+          setAccountInfo({
+            loginid: storedAccountInfo.loginid,
+            balance: storedAccountInfo.balance?.balance || storedAccountInfo.balance || 0,
+            currency: storedAccountInfo.currency || 'USD',
+            is_virtual: storedAccountInfo.is_virtual || (storedAccountInfo.loginid?.startsWith('VRT') ?? false)
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[BOT_CONTROLLER] Erro ao carregar informações da conta:', error);
+    }
+    
+    // Iniciar processo de autorização para atualizar dados da conta
+    oauthDirectService.authorizeActiveToken();
+  }, []);
 
   // Configurar listeners para eventos do serviço OAuth
   useEffect(() => {
@@ -42,11 +85,36 @@ export function BotController({
       }
       
       if (event.type === 'authorized') {
+        // Atualizar informações da conta
+        if (event.account) {
+          const newAccountInfo: AccountInfo = {
+            loginid: event.account.loginid || '',
+            balance: event.account.balance ? 
+              (typeof event.account.balance === 'object' ? 
+                event.account.balance.balance : event.account.balance) : 0,
+            currency: event.account.currency || 'USD',
+            is_virtual: event.account.is_virtual || false
+          };
+          
+          console.log('[BOT_CONTROLLER] Conta autorizada:', newAccountInfo);
+          setAccountInfo(newAccountInfo);
+        }
+        
         // Mostrar notificação de autorização bem-sucedida
         toast({
           title: "Autorização concluída",
           description: `Conta: ${event.account?.loginid || 'Deriv'}`,
         });
+      }
+      
+      // Atualizar saldo quando receber atualização
+      if (event.type === 'balance_update' && event.balance) {
+        setAccountInfo(prev => ({
+          ...prev,
+          balance: parseFloat(event.balance.balance || 0),
+          currency: event.balance.currency || prev.currency
+        }));
+        console.log('[BOT_CONTROLLER] Saldo atualizado:', event.balance);
       }
       
       if (event.type === 'tick') {
@@ -209,24 +277,58 @@ export function BotController({
     }
   };
 
-  // Renderizar botão de início/pausa
+  // Auxiliar para formatar valor monetário
+  const formatCurrency = (value: number, currency: string) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+  
+  // Renderizar botão de início/pausa e informações da conta
   return (
-    <div className="flex space-x-2">
-      {status === 'running' ? (
-        <Button
-          onClick={stopBot}
-          className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-        >
-          Pausar BOT
-        </Button>
-      ) : (
-        <Button
-          onClick={startBot}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-        >
-          Executar BOT
-        </Button>
-      )}
+    <div className="space-y-4">
+      {/* Barra superior com informações da conta */}
+      <div className="bg-slate-800 p-3 rounded-md flex items-center justify-between">
+        <div className="flex items-center">
+          <User className="h-5 w-5 mr-2 text-blue-400" />
+          <span className="text-sm text-gray-300">ID: </span>
+          <span className="text-sm font-bold ml-1 text-white">{accountInfo.loginid || '-'}</span>
+          {accountInfo.is_virtual && (
+            <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded">Demo</span>
+          )}
+        </div>
+        <div className="flex items-center">
+          <Wallet className="h-5 w-5 mr-2 text-green-400" />
+          <span className="text-sm text-gray-300">Saldo: </span>
+          <span className="text-sm font-bold ml-1 text-white">
+            {accountInfo.balance !== undefined && accountInfo.currency 
+              ? formatCurrency(accountInfo.balance, accountInfo.currency)
+              : '-'}
+          </span>
+        </div>
+      </div>
+      
+      {/* Botões de controle */}
+      <div className="flex space-x-2">
+        {status === 'running' ? (
+          <Button
+            onClick={stopBot}
+            className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+          >
+            Pausar BOT
+          </Button>
+        ) : (
+          <Button
+            onClick={startBot}
+            className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+          >
+            Executar BOT
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
