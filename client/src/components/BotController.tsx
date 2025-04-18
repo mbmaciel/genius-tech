@@ -397,13 +397,7 @@ export function BotController({
               </svg>
             </div>
             <div>
-              <div className={`text-sm font-medium ${
-                status === 'running' ? 'text-green-400' : 
-                status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
-              }`}>
-                {status === 'running' ? 'Bot em Execução' : 
-                 status === 'paused' ? 'Bot Pausado' : 'Bot Inativo'}
-              </div>
+              {/* Modal de status - Texto removido conforme solicitado pelo usuário */}
               {/* Removido as informações de Entrada, Alvo e Stop conforme solicitado */}
             </div>
           </div>
