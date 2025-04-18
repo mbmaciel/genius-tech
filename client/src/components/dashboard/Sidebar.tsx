@@ -8,7 +8,8 @@ import {
   Wallet, 
   Users,
   Menu,
-  X
+  X,
+  Calculator as CalculatorIcon
 } from 'lucide-react';
 import { DirectHTMLSwitcher } from './DirectHTMLSwitcher';
 

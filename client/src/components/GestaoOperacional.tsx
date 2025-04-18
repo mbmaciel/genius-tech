@@ -52,21 +52,36 @@ type FormValues = z.infer<typeof formSchema>;
  * Componente principal de Gestão Operacional
  */
 export function GestaoOperacional() {
+  // Interface para os dados de cada dia na planilha
+  interface DiaPlanilha {
+    dia: number;
+    saldoInicial: number;
+    lucro: number;
+    saldoFinal: number;
+    limitePerca: number;
+  }
+
   // Estado para armazenar os resultados calculados
   const [resultados, setResultados] = useState<{
-    metaLucro: number;
-    stopLoss: number;
+    metaDiaria: number;
+    metaDiariaComSaldo: number;
+    limitePerca: number;
+    metaSemanal: number;
     valorAposta1x: number;
     valorAposta2x: number;
     valorAposta3x: number;
-    lucroProjetado: number;
+    saldoProjetado: number;
+    planilhaSemanal: DiaPlanilha[];
   }>({
-    metaLucro: 0,
-    stopLoss: 0,
+    metaDiaria: 0,
+    metaDiariaComSaldo: 0,
+    limitePerca: 0,
+    metaSemanal: 0,
     valorAposta1x: 0,
     valorAposta2x: 0,
     valorAposta3x: 0,
-    lucroProjetado: 0,
+    saldoProjetado: 0,
+    planilhaSemanal: [],
   });
 
   // Inicializar formulário com o hook useForm
@@ -81,21 +96,51 @@ export function GestaoOperacional() {
   const onSubmit = (data: FormValues) => {
     const saldoInicial = data.saldoInicial;
     
-    // Calcular métricas de operação
-    const metaLucro = saldoInicial * 0.15; // 15% do saldo inicial
-    const stopLoss = saldoInicial * 0.1; // 10% do saldo inicial
+    // Calcular métricas de operação conforme especificado
+    const metaDiaria = saldoInicial * 0.15; // 15% do saldo inicial
+    const metaDiariaComSaldo = saldoInicial + metaDiaria; // Meta do dia = 15% do saldo inicial + o saldo inicial
+    const limitePerca = saldoInicial * 0.07; // 7% do saldo inicial
+    
+    // Cálculo detalhado da planilha semanal com juros compostos (7 dias)
+    let saldoAtual = saldoInicial;
+    const planilhaSemanal: DiaPlanilha[] = [];
+    
+    for (let dia = 1; dia <= 7; dia++) {
+      const lucro = saldoAtual * 0.15; // 15% do saldo do dia
+      const saldoFinal = saldoAtual + lucro; // Saldo atual + lucro do dia
+      const limitePerdaDiario = saldoAtual * 0.07; // 7% do saldo do dia como limite de perda
+      
+      // Adicionar dia à planilha
+      planilhaSemanal.push({
+        dia,
+        saldoInicial: saldoAtual,
+        lucro,
+        saldoFinal,
+        limitePerca: limitePerdaDiario
+      });
+      
+      // Atualizar saldo para o próximo dia
+      saldoAtual = saldoFinal;
+    }
+    
+    const saldoProjetado = saldoAtual; // Saldo final após 7 dias
+    const metaSemanal = saldoProjetado - saldoInicial; // Lucro total projetado
+    
+    // Valores de apostas recomendados
     const valorAposta1x = saldoInicial * 0.01; // 1% do saldo inicial
     const valorAposta2x = valorAposta1x * 2; // Dobro do valor 1x
     const valorAposta3x = valorAposta1x * 3; // Triplo do valor 1x
-    const lucroProjetado = metaLucro * 0.85; // 85% da meta de lucro (assumindo 85% de acertos)
     
     setResultados({
-      metaLucro,
-      stopLoss,
+      metaDiaria,
+      metaDiariaComSaldo,
+      limitePerca,
+      metaSemanal,
       valorAposta1x,
       valorAposta2x,
       valorAposta3x,
-      lucroProjetado,
+      saldoProjetado,
+      planilhaSemanal
     });
   };
 
@@ -192,23 +237,74 @@ export function GestaoOperacional() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {/* METAS DIÁRIAS */}
+              <TableRow className="hover:bg-slate-900 border-slate-800 bg-slate-900">
+                <TableCell colSpan={2} className="text-sm font-semibold text-blue-400">
+                  Metas Diárias
+                </TableCell>
+              </TableRow>
+              
               <TableRow className="hover:bg-slate-900 border-slate-800">
                 <TableCell className="font-medium text-slate-300 flex items-center">
                   <TrendingUpIcon className="mr-2 h-4 w-4 text-green-500" />
-                  Meta de Lucro (15%)
+                  Meta de Lucro Diário (15%)
                 </TableCell>
                 <TableCell className="text-right text-green-400">
-                  {formatCurrency(resultados.metaLucro)}
+                  {formatCurrency(resultados.metaDiaria)}
+                </TableCell>
+              </TableRow>
+              
+              <TableRow className="hover:bg-slate-900 border-slate-800">
+                <TableCell className="font-medium text-slate-300 flex items-center">
+                  <TrendingUpIcon className="mr-2 h-4 w-4 text-green-500" />
+                  Meta Diária Total (Saldo + 15%)
+                </TableCell>
+                <TableCell className="text-right text-green-400">
+                  {formatCurrency(resultados.metaDiariaComSaldo)}
                 </TableCell>
               </TableRow>
               
               <TableRow className="hover:bg-slate-900 border-slate-800">
                 <TableCell className="font-medium text-slate-300 flex items-center">
                   <ArrowDownIcon className="mr-2 h-4 w-4 text-red-500" />
-                  Stop Loss (10%)
+                  Limite de Perda Diário (7%)
                 </TableCell>
                 <TableCell className="text-right text-red-400">
-                  {formatCurrency(resultados.stopLoss)}
+                  {formatCurrency(resultados.limitePerca)}
+                </TableCell>
+              </TableRow>
+              
+              {/* METAS SEMANAIS */}
+              <TableRow className="hover:bg-slate-900 border-slate-800 bg-slate-900">
+                <TableCell colSpan={2} className="text-sm font-semibold text-blue-400">
+                  Projeção Semanal (7 dias)
+                </TableCell>
+              </TableRow>
+              
+              <TableRow className="hover:bg-slate-900 border-slate-800">
+                <TableCell className="font-medium text-slate-300 flex items-center">
+                  <PercentIcon className="mr-2 h-4 w-4 text-yellow-500" />
+                  Lucro Projetado (Juros Compostos)
+                </TableCell>
+                <TableCell className="text-right text-yellow-400">
+                  {formatCurrency(resultados.metaSemanal)}
+                </TableCell>
+              </TableRow>
+              
+              <TableRow className="hover:bg-slate-900 border-slate-800">
+                <TableCell className="font-medium text-slate-300 flex items-center">
+                  <PercentIcon className="mr-2 h-4 w-4 text-yellow-500" />
+                  Saldo Projetado ao Final de 7 Dias
+                </TableCell>
+                <TableCell className="text-right text-yellow-400">
+                  {formatCurrency(resultados.saldoProjetado)}
+                </TableCell>
+              </TableRow>
+              
+              {/* VALORES DE APOSTA */}
+              <TableRow className="hover:bg-slate-900 border-slate-800 bg-slate-900">
+                <TableCell colSpan={2} className="text-sm font-semibold text-blue-400">
+                  Valores Recomendados para Apostas
                 </TableCell>
               </TableRow>
               
@@ -241,24 +337,51 @@ export function GestaoOperacional() {
                   {formatCurrency(resultados.valorAposta3x)}
                 </TableCell>
               </TableRow>
-              
-              <TableRow className="hover:bg-slate-900 border-slate-800">
-                <TableCell className="font-medium text-slate-300 flex items-center">
-                  <PercentIcon className="mr-2 h-4 w-4 text-yellow-500" />
-                  Lucro Projetado
-                </TableCell>
-                <TableCell className="text-right text-yellow-400">
-                  {formatCurrency(resultados.lucroProjetado)}
-                </TableCell>
-              </TableRow>
             </TableBody>
           </Table>
+        </div>
+        
+        {/* PLANILHA SEMANAL DETALHADA */}
+        <div className="mt-6">
+          <h3 className="text-xl font-bold text-white mb-3 flex items-center">
+            <CalculatorIcon className="mr-2 h-5 w-5 text-blue-400" />
+            Planilha Semanal Detalhada
+          </h3>
+          
+          <div className="rounded-md border border-slate-800 bg-slate-950 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-slate-900 border-slate-800">
+                  <TableHead className="text-slate-400">Dia</TableHead>
+                  <TableHead className="text-slate-400">Saldo Inicial</TableHead>
+                  <TableHead className="text-slate-400">Lucro Diário (15%)</TableHead>
+                  <TableHead className="text-slate-400">Saldo Final</TableHead>
+                  <TableHead className="text-slate-400">Limite de Perda (7%)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resultados.planilhaSemanal.map((dia) => (
+                  <TableRow key={dia.dia} className="hover:bg-slate-900 border-slate-800">
+                    <TableCell className="font-medium text-slate-300">Dia {dia.dia}</TableCell>
+                    <TableCell className="text-slate-300">{formatCurrency(dia.saldoInicial)}</TableCell>
+                    <TableCell className="text-green-400">{formatCurrency(dia.lucro)}</TableCell>
+                    <TableCell className="text-blue-400">{formatCurrency(dia.saldoFinal)}</TableCell>
+                    <TableCell className="text-red-400">{formatCurrency(dia.limitePerca)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
         
         <div className="mt-4 text-xs text-slate-500 italic">
           * Cálculos baseados em métodos conservadores de gerenciamento de risco.
           <br />
           * Recomenda-se não ultrapassar 1-3% do saldo em cada operação.
+          <br />
+          * A planilha acima demonstra o crescimento com juros compostos diários de 15%.
+          <br />
+          * O limite de perda é calculado como 7% do saldo de cada dia.
         </div>
       </CardContent>
     </Card>
