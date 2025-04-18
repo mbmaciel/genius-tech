@@ -415,10 +415,27 @@ export function BotPage() {
         };
         
         // Registrar handler no serviço OAuth
+        console.log('[BOT_PAGE] Registrando listener de eventos do oauthDirectService');
         oauthDirectService.addEventListener(handleEvents);
+        
+        // Forçar uma inscrição para ticks do R_100 - CORREÇÃO CRÍTICA
+        console.log('[BOT_PAGE] Forçando inscrição para ticks de R_100');
+        setTimeout(() => {
+          if (typeof oauthDirectService.subscribeToTicks === 'function') {
+            oauthDirectService.subscribeToTicks('R_100');
+            console.log('[BOT_PAGE] Função subscribeToTicks chamada');
+          } else {
+            console.error('[BOT_PAGE] Função subscribeToTicks não encontrada no serviço');
+            // Alternativa: forçar reconexão para iniciar a subscricão
+            oauthDirectService.reconnect().then(success => {
+              console.log('[BOT_PAGE] Reconexão forçada para resolver problema de ticks:', success);
+            });
+          }
+        }, 1000);
         
         return () => {
           // Limpar recursos ao desmontar
+          console.log('[BOT_PAGE] Removendo listener de eventos do oauthDirectService');
           oauthDirectService.removeEventListener(handleEvents);
           
           // Parar serviço se estiver rodando
