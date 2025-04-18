@@ -5,6 +5,7 @@ import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import { BotPage } from "@/pages/bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
+import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -138,6 +139,7 @@ function App() {
         <Route path="/dashboard" component={(props: any) => <ProtectedRoute component={Dashboard} {...props} />} />
         <Route path="/bot" component={(props: any) => <ProtectedRoute component={BotPage} {...props} />} />
         <Route path="/token-test" component={(props: any) => <ProtectedRoute component={TokenTestPage} {...props} />} />
+        <Route path="/gestao-operacional" component={(props: any) => <ProtectedRoute component={GestaoOperacionalPage} {...props} />} />
       </Switch>
     </div>
   );

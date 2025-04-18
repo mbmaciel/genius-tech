@@ -43,6 +43,11 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
       icon: <Bot className="h-5 w-5" /> 
     },
     { 
+      path: '/gestao-operacional', 
+      label: 'Gestão Operacional', 
+      icon: <CalculatorIcon className="h-5 w-5" /> 
+    },
+    { 
       path: '/statistics', 
       label: 'Estatísticas', 
       icon: <BarChart className="h-5 w-5" /> 
