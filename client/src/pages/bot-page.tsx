@@ -1357,7 +1357,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   />
                 </div>
                 
-                {/* Painel de informações da conta e controle do bot */}
+                {/* Painel de controle do bot - Único ponto de controle */}
                 <div className="mb-4">
                   <BotController 
                     entryValue={parseFloat(entryValue) || 0.35}
@@ -1377,40 +1377,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                       updateDigitStats(lastDigit);
                     }}
                   />
-                </div>
-                
-                {/* Botões de Ação (backup) */}
-                <div className="space-y-3">
-                  <button
-                    onClick={handleStartBot}
-                    disabled={botStatus === 'running'}
-                    className={`w-full py-2 px-4 rounded-md text-white font-medium transition-all 
-                      ${botStatus === 'running' 
-                        ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-green-600 hover:bg-green-700 active:scale-95'}
-                    `}
-                  >
-                    {botStatus === 'running' ? 'Executando...' : 'Iniciar Bot'}
-                  </button>
-                  
-                  <button
-                    onClick={handlePauseBot}
-                    disabled={botStatus !== 'running'}
-                    className={`w-full py-2 px-4 rounded-md text-white font-medium transition-all 
-                      ${botStatus !== 'running' 
-                        ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-yellow-600 hover:bg-yellow-700 active:scale-95'}
-                    `}
-                  >
-                    Pausar Bot
-                  </button>
-                  
-                  <button
-                    onClick={handleClearHistory}
-                    className="w-full py-2 px-4 rounded-md text-white font-medium bg-gray-600 hover:bg-gray-700 transition-all active:scale-95"
-                  >
-                    Limpar Histórico
-                  </button>
                 </div>
               </div>
             </div>
