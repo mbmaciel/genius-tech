@@ -1195,6 +1195,126 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Autoriza o token ativo para obter informações da conta mais recentes
+   * Este método será chamado pelo BotController para atualizar os dados da conta
+   * 
+   * @returns Promise<boolean> Indica se a autorização foi bem-sucedida
+   */
+  async authorizeActiveToken(): Promise<boolean> {
+    try {
+      // Verificar se temos um token ativo
+      if (!this.activeToken) {
+        this.loadAllTokens();
+        
+        if (!this.activeToken) {
+          console.error('[OAUTH_DIRECT] Nenhum token ativo disponível para autorização');
+          return false;
+        }
+      }
+      
+      // Verificar se temos WebSocket disponível
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        console.log('[OAUTH_DIRECT] WebSocket não está disponível, inicializando conexão');
+        try {
+          await this.setupWebSocket();
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao configurar WebSocket para autorização:', error);
+          return false;
+        }
+      }
+      
+      // Enviar solicitação de autorização
+      const reqId = Date.now();
+      const authRequest = {
+        authorize: this.activeToken,
+        req_id: reqId
+      };
+      
+      return new Promise<boolean>((resolve) => {
+        // Handler para receber resposta de autorização
+        const messageHandler = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Verificar se é a resposta da nossa solicitação
+            if (data.req_id === reqId) {
+              // Remover o handler após receber a resposta
+              if (this.webSocket) {
+                this.webSocket.removeEventListener('message', messageHandler);
+              }
+              
+              if (data.error) {
+                console.error('[OAUTH_DIRECT] Erro na autorização do token ativo:', data.error.message);
+                resolve(false);
+                return;
+              }
+              
+              if (data.authorize) {
+                console.log('[OAUTH_DIRECT] Token ativo autorizado com sucesso:', data.authorize.loginid);
+                
+                // Salvar informações da conta para uso futuro
+                localStorage.setItem('deriv_account_info', JSON.stringify({
+                  ...data.authorize,
+                  timestamp: Date.now()
+                }));
+                
+                // Atualizar loginid do token ativo
+                const tokenIndex = this.tokens.findIndex(t => t.token === this.activeToken);
+                if (tokenIndex >= 0) {
+                  this.tokens[tokenIndex].loginid = data.authorize.loginid;
+                  this.tokens[tokenIndex].authorized = true;
+                }
+                
+                // Notificar sobre a autorização
+                this.notifyListeners({
+                  type: 'authorized',
+                  account: data.authorize
+                });
+                
+                // Assinar para atualizações de saldo
+                this.subscribeToBalance();
+                
+                resolve(true);
+                return;
+              }
+              
+              // Se chegou aqui, não recebemos uma resposta válida
+              console.error('[OAUTH_DIRECT] Resposta de autorização inválida:', data);
+              resolve(false);
+            }
+          } catch (error) {
+            console.error('[OAUTH_DIRECT] Erro ao processar resposta de autorização:', error);
+            resolve(false);
+          }
+        };
+        
+        // Adicionar handler temporário para esta solicitação
+        if (this.webSocket) {
+          this.webSocket.addEventListener('message', messageHandler);
+          
+          // Enviar solicitação de autorização
+          this.webSocket.send(JSON.stringify(authRequest));
+          
+          // Definir timeout para caso não receba resposta
+          setTimeout(() => {
+            if (this.webSocket) {
+              this.webSocket.removeEventListener('message', messageHandler);
+            }
+            console.error('[OAUTH_DIRECT] Timeout na autorização do token ativo');
+            resolve(false);
+          }, 10000);
+        } else {
+          console.error('[OAUTH_DIRECT] WebSocket não disponível para autorização');
+          resolve(false);
+        }
+      });
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao autorizar token ativo:', error);
+      return false;
+    }
+  }
+  
+  /**
    * Define as configurações de trading
    */
   setSettings(settings: Partial<TradingSettings>): void {
