@@ -331,6 +331,11 @@ export function BotController({
       const success = await oauthDirectService.start();
       
       if (success) {
+        // ATUALIZAR IMEDIATAMENTE O STATUS PARA GARANTIR QUE A INTERFACE MUDE
+        console.log('[BOT_CONTROLLER] ✅ Serviço iniciado, atualizando status para ATIVO...');
+        setStatus('running');
+        onStatusChange('running');
+
         // Forçar a primeira operação após iniciar o serviço
         console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
         
@@ -341,11 +346,14 @@ export function BotController({
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
+          // Garantir que o status esteja atualizado novamente
+          setStatus('running');
+          onStatusChange('running');
         } else {
           console.warn('[BOT_CONTROLLER] Não foi possível iniciar a primeira operação!');
         }
         
-        // Atualização de status ocorre via evento bot_started
+        // Atualização de status também ocorre via evento bot_started
         toast({
           title: "Bot iniciado",
           description: `Executando estratégia "${selectedStrategy}" com entrada de ${entryValue}`,
@@ -377,11 +385,18 @@ export function BotController({
   const stopBot = () => {
     try {
       console.log('[BOT_CONTROLLER] Parando bot...');
+      
+      // Atualizar status IMEDIATAMENTE para garantir mudança na interface
+      setStatus('idle');
+      onStatusChange('idle');
+      
+      // Parar o serviço
       oauthDirectService.stop();
-      // Atualização de status ocorre via evento bot_stopped
+      
+      // Atualização de status também ocorre via evento bot_stopped
       toast({
         title: "Parando robô",
-        description: "Aguardando conclusão de operações em andamento...",
+        description: "Operações interrompidas com sucesso.",
       });
     } catch (error) {
       console.error('[BOT_CONTROLLER] Erro ao parar bot:', error);

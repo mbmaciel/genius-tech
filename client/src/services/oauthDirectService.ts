@@ -1547,6 +1547,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Executa a primeira operação após o bot ser iniciado
    * Esta função inicia o ciclo de operações do bot
+   * IMPORTANTE: Esta função DEVE emitir o evento bot_started para a interface atualizar
    * 
    * @param amount Valor inicial da operação
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
