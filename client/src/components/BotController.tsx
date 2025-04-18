@@ -309,6 +309,34 @@ export function BotController({
         onStatusChange('running');
       }
       
+      if (event.type === 'bot_target_reached') {
+        console.log('[BOT_CONTROLLER] 🎯 Meta de lucro atingida:', event.message);
+        toast({
+          title: "Meta de lucro atingida!",
+          description: event.message,
+          variant: "default",
+          duration: 10000, // 10 segundos para visibilidade
+        });
+        
+        // Atualizar estado para parado
+        setStatus('idle');
+        onStatusChange('idle');
+      }
+      
+      if (event.type === 'bot_limit_reached') {
+        console.log('[BOT_CONTROLLER] 🛑 Limite de perda atingido:', event.message);
+        toast({
+          title: "Limite de perda atingido!",
+          description: event.message,
+          variant: "destructive",
+          duration: 10000, // 10 segundos para visibilidade
+        });
+        
+        // Atualizar estado para parado
+        setStatus('idle');
+        onStatusChange('idle');
+      }
+      
       if (event.type === 'bot_stopped') {
         console.log('[BOT_CONTROLLER] ✅ Bot estado alterado para PARADO após evento:', event.type);
         setStatus('idle');

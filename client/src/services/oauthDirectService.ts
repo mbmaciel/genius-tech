@@ -47,7 +47,32 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     netProfit: 0,         // Lucro líquido da sessão
     startTime: new Date() // Horário de início da sessão
   };
-  private activeStrategy: string = '';
+  
+  // Definição de tipo para estratégia
+  private strategyConfig: {
+    name?: string;
+    config?: {
+      prediction?: string | number;
+      contractType?: string;
+      symbol?: string;
+      duration?: string | number;
+      durationUnit?: string;
+    }
+  } | string = '';
+  
+  private get activeStrategy(): string | {
+    name?: string;
+    config?: {
+      prediction?: string | number;
+      contractType?: string;
+      symbol?: string;
+      duration?: string | number;
+      durationUnit?: string;
+    }
+  } {
+    return this.strategyConfig;
+  }
+  
   private operationTimeout: any = null;
   private pingInterval: any = null;
   private reconnectTimeout: any = null;
@@ -1986,7 +2011,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Define a estratégia ativa
    */
   setActiveStrategy(strategy: string): void {
-    this.activeStrategy = strategy;
+    this.strategyConfig = strategy;
     console.log(`[OAUTH_DIRECT] Estratégia definida: ${strategy}`);
   }
   
