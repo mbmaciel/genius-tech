@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
 import { BinaryBotStrategy } from '@/lib/automationService';
-import { getStrategyById, usesDigitPrediction } from '@/lib/strategiesConfig';
 
 // Interface para configurações de estratégia individuais
 export interface StrategyConfiguration {
@@ -29,6 +25,83 @@ interface StrategyConfigPanelProps {
   className?: string;
 }
 
+// Função auxiliar para detectar tipo de estratégia
+const detectStrategyType = (strategy: BinaryBotStrategy): string => {
+  const name = strategy.name.toLowerCase();
+  const id = strategy.id.toLowerCase();
+  
+  if (name.includes('profitpro') || id.includes('profitpro')) return 'profitpro';
+  if (name.includes('manual') || id.includes('manual')) return 'manual';
+  if (name.includes('iron') || id.includes('iron')) return 'iron';
+  if (name.includes('bot low') || name.includes('maxpro') || 
+      id.includes('bot_low') || id.includes('maxpro')) return 'botlow';
+  if (name.includes('advance') || id.includes('advance')) return 'advance';
+  if (name.includes('wise') || id.includes('wise')) return 'wise';
+  
+  // Se não conseguir identificar, assume como padrão
+  return 'default';
+};
+
+// Função para criar configuração baseada no tipo de estratégia
+const createConfigForStrategy = (strategy: BinaryBotStrategy): StrategyConfiguration => {
+  // Base comum para todas as estratégias
+  const baseConfig: StrategyConfiguration = {
+    valorInicial: strategy.config?.initialStake || 0.35,
+    metaGanho: strategy.config?.targetProfit || 20,
+    limitePerda: strategy.config?.stopLoss || 10,
+    martingale: strategy.config?.martingaleFactor || 1.5,
+  };
+  
+  // Detectar tipo de estratégia
+  const type = detectStrategyType(strategy);
+  console.log("[STRATEGY_CONFIG] Tipo de estratégia detectado:", type, "para:", strategy.name);
+  
+  // Aplicar configurações específicas por tipo
+  switch(type) {
+    case 'profitpro':
+      return {
+        ...baseConfig,
+        valorAposVencer: 0.35,
+        parcelasMartingale: 3
+      };
+      
+    case 'manual':
+      return {
+        ...baseConfig,
+        valorAposVencer: 0.35,
+        parcelasMartingale: 3
+      };
+      
+    case 'iron':
+      return {
+        ...baseConfig,
+        martingale: 0.5,
+        usarMartingaleAposXLoss: 2
+      };
+      
+    case 'botlow':
+      return {
+        ...baseConfig,
+        valorAposVencer: 0.35
+      };
+      
+    case 'advance':
+      return {
+        ...baseConfig,
+        porcentagemParaEntrar: 70
+      };
+      
+    case 'wise':
+      return {
+        ...baseConfig,
+        valorAposVencer: 0.35
+      };
+      
+    default:
+      return baseConfig;
+  }
+};
+
 export function StrategyConfigPanel({ strategy, onChange, className = '' }: StrategyConfigPanelProps) {
   // Estado para configuração atual
   const [config, setConfig] = useState<StrategyConfiguration>({
@@ -38,80 +111,23 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     martingale: 1.5,
   });
 
-  // Efeito para atualizar configuração quando estratégia muda
+  // Configurar a estratégia quando ela mudar
   useEffect(() => {
-    if (strategy) {
-      console.log("[STRATEGY_CONFIG] Atualizando config para estratégia:", strategy.id, strategy.name);
-      
-      // Configuração base para todas as estratégias
-      const baseConfig: StrategyConfiguration = {
-        valorInicial: strategy.config?.initialStake || 0.35,
-        metaGanho: strategy.config?.targetProfit || 20,
-        limitePerda: strategy.config?.stopLoss || 10,
-        martingale: strategy.config?.martingaleFactor || 1.5,
-      };
-
-      // Adicionar campos específicos por estratégia - usando tanto ID quanto nome para comparação
-      const strategyName = strategy.name.toLowerCase();
-      const strategyId = strategy.id.toLowerCase();
-      
-      // PROFITPRO
-      if (strategyId.includes('profitpro') || strategyName.includes('profitpro')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para ProfitPro");
-        baseConfig.valorAposVencer = 0.35;
-        baseConfig.parcelasMartingale = 3;
-      }
-      
-      // MANUAL OVER/UNDER
-      else if (strategyId.includes('manual') || strategyName.includes('manual')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para Manual Over/Under");
-        baseConfig.valorAposVencer = 0.35;
-        baseConfig.parcelasMartingale = 3;
-      }
-      
-      // IRON OVER/UNDER
-      else if (strategyId.includes('iron') || strategyName.includes('iron')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para Iron Over/Under");
-        baseConfig.martingale = 0.5;
-        baseConfig.usarMartingaleAposXLoss = 2;
-      }
-      
-      // BOT LOW / MAXPRO
-      else if (strategyId.includes('bot_low') || strategyId.includes('maxpro') || 
-              strategyName.includes('bot low') || strategyName.includes('maxpro')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para BOT LOW/MAXPRO");
-        baseConfig.valorAposVencer = 0.35;
-      }
-      
-      // ADVANCE
-      else if (strategyId.includes('advance') || strategyName.includes('advance')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para Advance");
-        baseConfig.porcentagemParaEntrar = 70;
-      }
-      
-      // WISE PRO TENDENCIA
-      else if (strategyId.includes('wise') || strategyName.includes('wise')) {
-        console.log("[STRATEGY_CONFIG] Aplicando configuração para WISE PRO TENDENCIA");
-        baseConfig.valorAposVencer = 0.35;
-      }
-
-      console.log("[STRATEGY_CONFIG] Config gerada:", baseConfig);
-      
-      // Atualizar estado local sem notificar o componente pai
-      setConfig(baseConfig);
-    }
-  }, [strategy]); // Removemos onChange da lista de dependências
-  
-  // Efeito separado para notificar o componente pai quando o config é atualizado
-  // Isso previne loops infinitos, pois só executará quando o config mudar por causa da estratégia
-  useEffect(() => {
-    // Certifica-se de que existe uma estratégia selecionada
-    if (strategy) {
-      // Notifica o componente pai apenas uma vez quando o config for atualizado
-      onChange(config);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategy?.id]); // Apenas quando a ID da estratégia mudar
+    if (!strategy) return;
+    
+    console.log("[STRATEGY_CONFIG] Configurando estratégia:", strategy.name);
+    
+    // Criar configuração apropriada para esta estratégia
+    const newConfig = createConfigForStrategy(strategy);
+    console.log("[STRATEGY_CONFIG] Nova configuração gerada:", newConfig);
+    
+    // Atualizar estado
+    setConfig(newConfig);
+    
+    // Notificar componente pai sobre a mudança
+    onChange(newConfig);
+    
+  }, [strategy, onChange]);
 
   // Handler para mudança de campo
   const handleChange = (field: keyof StrategyConfiguration, value: string | number) => {
@@ -133,6 +149,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     onChange(updatedConfig);
   };
 
+  // Renderizar apenas um card de seleção se não houver estratégia
   if (!strategy) {
     return (
       <Card className={`${className} bg-[#1a2234] border-gray-700`}>
@@ -146,6 +163,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     );
   }
 
+  // Renderizar configuração completa se houver estratégia
   return (
     <Card className={`${className} bg-[#1a2234] border-gray-700`}>
       <CardHeader className="pb-3">
@@ -203,7 +221,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           </div>
 
           {/* Campo para Valor Após Vencer - presente em várias estratégias */}
-          {(config.valorAposVencer !== undefined) && (
+          {config.valorAposVencer !== undefined && (
             <div className="space-y-2">
               <Label htmlFor="valorAposVencer">Valor Após Vencer (USD)</Label>
               <Input
@@ -217,11 +235,8 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
             </div>
           )}
 
-          {/* Os campos de Previsão, contadorLossVirtual e lossVirtual foram removidos 
-              conforme solicitado, pois são determinados no código */}
-
           {/* Campo específico para parcelas de Martingale */}
-          {(config.parcelasMartingale !== undefined) && (
+          {config.parcelasMartingale !== undefined && (
             <div className="space-y-2">
               <Label htmlFor="parcelasMartingale">Parcelas Martingale</Label>
               <Input
@@ -236,7 +251,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           )}
 
           {/* Campo específico para Advance */}
-          {(config.porcentagemParaEntrar !== undefined) && (
+          {config.porcentagemParaEntrar !== undefined && (
             <div className="space-y-2">
               <Label htmlFor="porcentagemParaEntrar">Porcentagem para Entrar (%)</Label>
               <Input
@@ -252,7 +267,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           )}
 
           {/* Campo específico para IRON OVER/UNDER */}
-          {(config.usarMartingaleAposXLoss !== undefined) && (
+          {config.usarMartingaleAposXLoss !== undefined && (
             <div className="space-y-2">
               <Label htmlFor="usarMartingaleAposXLoss">Usar Martingale Após X Loss</Label>
               <Input
