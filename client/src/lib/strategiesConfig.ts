@@ -170,7 +170,16 @@ const idMapping: Record<string, string> = {
   'bot_low': 'bot_low',
   'iron_over': 'iron_over',
   'iron_under': 'iron_under',
-  'wise_pro_tendencia': 'wise_pro_tendencia'
+  'wise_pro_tendencia': 'wise_pro_tendencia',
+  
+  // Mais variações comuns nos nomes de estratégias para garantir compatibilidade
+  'manual over': 'manual_over',
+  'manual under': 'manual_under',
+  'bot low': 'bot_low',
+  'iron over': 'iron_over',
+  'iron under': 'iron_under',
+  'wise pro tendencia': 'wise_pro_tendencia',
+  'wise pro tendência': 'wise_pro_tendencia'
 };
 
 /**

@@ -25,23 +25,80 @@ interface StrategyConfigPanelProps {
   className?: string;
 }
 
-// Cria uma configuração completa com TODOS os campos possíveis
-// Esta abordagem simples mostrará todos os campos relevantes para todas as estratégias
+// Cria uma configuração específica para cada estratégia
 const createCompleteConfig = (strategy: BinaryBotStrategy): StrategyConfiguration => {
-  // Ajustar valores padrão com base no ID da estratégia
-  const martingaleValue = strategy.id.includes('iron') ? 0.5 : 1.5;
+  console.log("[STRATEGY_CONFIG] Estratégia selecionada:", strategy.id, strategy.name);
   
-  // Configuração completa com todos os campos possíveis
-  return {
+  // Configuração básica que todas as estratégias têm
+  const baseConfig: StrategyConfiguration = {
     valorInicial: strategy.config?.initialStake || 0.35,
     metaGanho: strategy.config?.targetProfit || 20,
     limitePerda: strategy.config?.stopLoss || 10,
-    martingale: martingaleValue,
-    valorAposVencer: 0.35,
-    parcelasMartingale: 3,
-    porcentagemParaEntrar: 70,
-    usarMartingaleAposXLoss: 2
+    martingale: strategy.config?.martingaleFactor || 1.5
   };
+  
+  // Configurações específicas para cada estratégia
+  const strategyId = strategy.id.toLowerCase();
+  
+  // ProfitPro: Valor Inicial, Valor Após Vencer, Contador de Loss Virtual, Loss Virtual, 
+  // Martingale, Parcelas Martingale, Meta de Ganho, Limite de Perda
+  if (strategyId === 'profitpro') {
+    return {
+      ...baseConfig,
+      valorAposVencer: 0.35,
+      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3
+    };
+  }
+  
+  // Manual Over/Under: Valor Inicial, Valor Após Vencer, Martingale, 
+  // Parcelas Martingale, Meta de Ganho, Limite de Perda
+  if (strategyId.includes('manual_over') || strategyId.includes('manual_under') || 
+      strategyId.includes('manualover') || strategyId.includes('manualunder')) {
+    return {
+      ...baseConfig,
+      valorAposVencer: 0.35,
+      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3
+    };
+  }
+  
+  // IRON OVER/UNDER: Valor Inicial, Martingale (0.5), Usar Martingale Após X Loss, Meta, Limite de Perda
+  if (strategyId.includes('iron_over') || strategyId.includes('iron_under') ||
+      strategyId.includes('ironover') || strategyId.includes('ironunder')) {
+    return {
+      ...baseConfig,
+      martingale: 0.5,
+      usarMartingaleAposXLoss: 2
+    };
+  }
+  
+  // BOT LOW/MAXPRO: Valor Inicial, Valor Após Vencer, Martingale, Meta de Lucro, Limite de Perda
+  if (strategyId.includes('bot_low') || strategyId.includes('botlow') || 
+      strategyId.includes('maxpro')) {
+    return {
+      ...baseConfig,
+      valorAposVencer: 0.35
+    };
+  }
+  
+  // Advance: Porcentagem para Entrar, Valor Inicial, Martingale, Meta, Limite de Perda
+  if (strategyId.includes('advance')) {
+    return {
+      ...baseConfig,
+      porcentagemParaEntrar: 70
+    };
+  }
+  
+  // WISE PRO TENDENCIA: Valor Inicial, Valor Após Vencer, Martingale, Meta de Lucro, Limite de Perda
+  if (strategyId.includes('wise') || strategyId.includes('tendencia')) {
+    return {
+      ...baseConfig,
+      valorAposVencer: 0.35
+    };
+  }
+  
+  // Caso não seja nenhuma das estratégias acima, retorna configuração básica
+  console.log("[STRATEGY_CONFIG] Usando configuração padrão para estratégia desconhecida:", strategy.id);
+  return baseConfig;
 };
 
 export function StrategyConfigPanel({ strategy, onChange, className = '' }: StrategyConfigPanelProps) {
@@ -114,7 +171,25 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     );
   }
 
-  // Renderizar configuração completa se houver estratégia
+  // Verificar quais campos devem ser exibidos com base na estratégia selecionada
+  const strategyId = strategy.id.toLowerCase();
+  
+  // Determinar quais campos específicos mostrar
+  const showValorAposVencer = strategyId === 'profitpro' || 
+                            strategyId.includes('manual') || 
+                            strategyId.includes('bot') || 
+                            strategyId.includes('maxpro') ||
+                            strategyId.includes('wise') ||
+                            strategyId.includes('tendencia');
+  
+  const showParcelasMartingale = strategyId === 'profitpro' || 
+                               strategyId.includes('manual');
+  
+  const showPorcentagemParaEntrar = strategyId.includes('advance');
+  
+  const showUsarMartingaleAposXLoss = strategyId.includes('iron');
+
+  // Renderizar configuração específica para a estratégia
   return (
     <Card className={`${className} bg-[#1a2234] border-gray-700`}>
       <CardHeader className="pb-3">
@@ -171,58 +246,66 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
             />
           </div>
 
-          {/* Campo Valor Após Vencer sempre visível */}
-          <div className="space-y-2">
-            <Label htmlFor="valorAposVencer">Valor Após Vencer (USD)</Label>
-            <Input
-              id="valorAposVencer"
-              type="number"
-              step="0.01"
-              value={config.valorAposVencer?.toString() || "0.35"}
-              onChange={(e) => handleChange('valorAposVencer', e.target.value)}
-              className="bg-[#0d1525] border-gray-700"
-            />
-          </div>
+          {/* Campo Valor Após Vencer - apenas para estratégias que o usam */}
+          {showValorAposVencer && (
+            <div className="space-y-2">
+              <Label htmlFor="valorAposVencer">Valor Após Vencer (USD)</Label>
+              <Input
+                id="valorAposVencer"
+                type="number"
+                step="0.01"
+                value={config.valorAposVencer?.toString() || "0.35"}
+                onChange={(e) => handleChange('valorAposVencer', e.target.value)}
+                className="bg-[#0d1525] border-gray-700"
+              />
+            </div>
+          )}
 
-          {/* Campo Parcelas Martingale sempre visível */}
-          <div className="space-y-2">
-            <Label htmlFor="parcelasMartingale">Parcelas Martingale</Label>
-            <Input
-              id="parcelasMartingale"
-              type="number"
-              min="1"
-              value={config.parcelasMartingale?.toString() || "3"}
-              onChange={(e) => handleChange('parcelasMartingale', e.target.value)}
-              className="bg-[#0d1525] border-gray-700"
-            />
-          </div>
+          {/* Campo Parcelas Martingale - apenas para estratégias que o usam */}
+          {showParcelasMartingale && (
+            <div className="space-y-2">
+              <Label htmlFor="parcelasMartingale">Parcelas Martingale</Label>
+              <Input
+                id="parcelasMartingale"
+                type="number"
+                min="1"
+                value={config.parcelasMartingale?.toString() || "3"}
+                onChange={(e) => handleChange('parcelasMartingale', e.target.value)}
+                className="bg-[#0d1525] border-gray-700"
+              />
+            </div>
+          )}
 
-          {/* Campo Porcentagem para Entrar sempre visível */}
-          <div className="space-y-2">
-            <Label htmlFor="porcentagemParaEntrar">Porcentagem para Entrar (%)</Label>
-            <Input
-              id="porcentagemParaEntrar"
-              type="number"
-              min="0"
-              max="100"
-              value={config.porcentagemParaEntrar?.toString() || "70"}
-              onChange={(e) => handleChange('porcentagemParaEntrar', e.target.value)}
-              className="bg-[#0d1525] border-gray-700"
-            />
-          </div>
+          {/* Campo Porcentagem para Entrar - apenas para estratégia ADVANCE */}
+          {showPorcentagemParaEntrar && (
+            <div className="space-y-2">
+              <Label htmlFor="porcentagemParaEntrar">Porcentagem para Entrar (%)</Label>
+              <Input
+                id="porcentagemParaEntrar"
+                type="number"
+                min="0"
+                max="100"
+                value={config.porcentagemParaEntrar?.toString() || "70"}
+                onChange={(e) => handleChange('porcentagemParaEntrar', e.target.value)}
+                className="bg-[#0d1525] border-gray-700"
+              />
+            </div>
+          )}
 
-          {/* Campo Usar Martingale Após X Loss sempre visível */}
-          <div className="space-y-2">
-            <Label htmlFor="usarMartingaleAposXLoss">Usar Martingale Após X Loss</Label>
-            <Input
-              id="usarMartingaleAposXLoss"
-              type="number"
-              min="1"
-              value={config.usarMartingaleAposXLoss?.toString() || "2"}
-              onChange={(e) => handleChange('usarMartingaleAposXLoss', e.target.value)}
-              className="bg-[#0d1525] border-gray-700"
-            />
-          </div>
+          {/* Campo Usar Martingale Após X Loss - apenas para estratégias IRON */}
+          {showUsarMartingaleAposXLoss && (
+            <div className="space-y-2">
+              <Label htmlFor="usarMartingaleAposXLoss">Usar Martingale Após X Loss</Label>
+              <Input
+                id="usarMartingaleAposXLoss"
+                type="number"
+                min="1"
+                value={config.usarMartingaleAposXLoss?.toString() || "2"}
+                onChange={(e) => handleChange('usarMartingaleAposXLoss', e.target.value)}
+                className="bg-[#0d1525] border-gray-700"
+              />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
