@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { Wallet, User } from "lucide-react";
+import { BinaryBotStrategy } from '@/lib/automationService';
+import { StrategyConfigPanel, StrategyConfiguration } from '@/components/StrategyConfigPanel';
+import { getStrategyById, getContractTypeForStrategy } from '@/lib/strategiesConfig';
 
 interface BotControllerProps {
   entryValue: number;
@@ -95,6 +98,18 @@ export function BotController({
     currency: 'USD',
     is_virtual: false
   });
+  const [strategyConfig, setStrategyConfig] = useState<StrategyConfiguration | null>(null);
+  const [currentBotStrategy, setCurrentBotStrategy] = useState<BinaryBotStrategy | null>(null);
+  
+  // Efeito para carregar a estratégia quando o ID mudar
+  useEffect(() => {
+    if (selectedStrategy) {
+      const strategy = getStrategyById(selectedStrategy);
+      setCurrentBotStrategy(strategy);
+    } else {
+      setCurrentBotStrategy(null);
+    }
+  }, [selectedStrategy]);
 
   // Buscar informações da conta ao iniciar componente
   useEffect(() => {
@@ -377,22 +392,36 @@ export function BotController({
   }, [toast, onStatusChange, onStatsChange, stats, onTickReceived]);
 
   // Iniciar o bot com o serviço OAuth direto
+  // Handler para quando a configuração da estratégia mudar
+  const handleStrategyConfigChange = (config: StrategyConfiguration) => {
+    console.log('[BOT_CONTROLLER] Configuração de estratégia atualizada:', config);
+    setStrategyConfig(config);
+  };
+  
   const startBot = async () => {
     try {
       console.log('[BOT_CONTROLLER] 🚀 INICIANDO BOT - FUNÇÃO STARTBOT CHAMADA');
       console.log('[BOT_CONTROLLER] Parâmetros:', {
         estrategia: selectedStrategy,
-        entrada: entryValue,
-        alvo: profitTarget,
-        perda: lossLimit,
+        config: strategyConfig,
         status: status
       });
       
       // Verificar se a estratégia foi selecionada
-      if (!selectedStrategy) {
+      if (!selectedStrategy || !currentBotStrategy) {
         toast({
           title: "Estratégia não selecionada",
           description: "Por favor, selecione uma estratégia antes de iniciar o robô.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Verificar se temos a configuração da estratégia
+      if (!strategyConfig) {
+        toast({
+          title: "Configuração incompleta",
+          description: "Por favor, configure os parâmetros da estratégia antes de iniciar.",
           variant: "destructive"
         });
         return;
@@ -520,8 +549,6 @@ export function BotController({
   // Renderizar botão de início/pausa e informações da conta
   return (
     <div className="space-y-4">
-{/* Estatísticas removidas daqui e movidas para o topo do painel */}
-
       {/* Barra superior - Modal de status totalmente removido conforme solicitado */}
       <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] shadow-lg">
         <div className="flex items-center justify-between">
@@ -543,14 +570,20 @@ export function BotController({
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
               </svg>
               <span className="text-sm text-white font-medium">Estratégia Ativa:</span>
-              <span className="ml-2 text-sm text-blue-400 font-bold">{selectedStrategy || "Nenhuma"}</span>
+              <span className="ml-2 text-sm text-blue-400 font-bold">{currentBotStrategy?.name || "Nenhuma"}</span>
             </div>
           </div>
         </div>
 
+        {/* Painel de configuração adaptável para estratégia */}
+        <StrategyConfigPanel 
+          strategy={currentBotStrategy} 
+          onChange={handleStrategyConfigChange}
+          className="mt-4" 
+        />
+
         {/* Botões de controle com design aprimorado */}
-        <div className="flex space-x-2">
-          {/* NOVA ABORDAGEM: Usando useState local para controlar o botão */}
+        <div className="flex space-x-2 mt-4">
           <BotButton 
             status={status} 
             selectedStrategy={selectedStrategy}
@@ -565,7 +598,7 @@ export function BotController({
           />
         </div>
         
-        {/* Dicas para o usuário - NOVO! */}
+        {/* Dicas para o usuário */}
         {!selectedStrategy && (
           <div className="mt-2 text-xs text-center text-yellow-500">
             Selecione uma estratégia antes de iniciar as operações
@@ -577,8 +610,6 @@ export function BotController({
           </div>
         )}
       </div>
-      
-{/* Estatísticas duplicadas removidas */}
     </div>
   );
 }
