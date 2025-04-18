@@ -14,7 +14,8 @@ export type TradingEventType =
   | 'bot_started'        // Bot iniciado
   | 'bot_stopped'        // Bot parado
   | 'operation_started'  // Operação iniciada
-  | 'account_changed';   // Conta trocada
+  | 'account_changed'    // Conta trocada
+  | 'token_validated';   // Token validado com sucesso
 
 export interface TradingEvent {
   type: TradingEventType | string;

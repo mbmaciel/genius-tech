@@ -1281,7 +1281,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
-   * Define a conta ativa para operação
+   * Define a conta ativa para operação e valida o token
    * @param loginid ID da conta
    * @param token Token de autorização 
    */
@@ -1318,6 +1318,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           token: token,
           loginid: loginid
         }));
+        
+        // Atualizar token OAuth global para uso na dashboard
+        localStorage.setItem('deriv_oauth_token', token);
+        
         console.log(`[OAUTH_DIRECT] Conta ${loginid} salva no localStorage como primária`);
       } catch (e) {
         console.error('[OAUTH_DIRECT] Erro ao salvar conta no localStorage:', e);
@@ -1329,13 +1333,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         loginid: loginid
       });
       
-      // Forçar reinicialização da conexão
+      // Se já estamos em execução, realizar validação do token
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        console.log(`[OAUTH_DIRECT] Fechando conexão atual para reiniciar com nova conta`);
-        this.closeConnection();
-        this.setupWebSocket().catch(error => {
-          console.error('[OAUTH_DIRECT] Erro ao reconectar após mudança de conta:', error);
-        });
+        console.log(`[OAUTH_DIRECT] Validando token da conta ${loginid}...`);
+        
+        // Tentar autorizar com o novo token sem reconexão completa
+        this.authorizeToken(token)
+          .then(() => {
+            console.log(`[OAUTH_DIRECT] Token da conta ${loginid} validado com sucesso!`);
+            
+            // Garantir que estamos inscritos para ticks após validação
+            this.subscribeToTicks();
+            
+            // Notificar sobre validação bem-sucedida
+            this.notifyListeners({
+              type: 'token_validated',
+              message: `Token da conta ${loginid} validado com sucesso`,
+              loginid: loginid
+            });
+          })
+          .catch(error => {
+            console.error(`[OAUTH_DIRECT] Erro ao validar token da conta ${loginid}:`, error);
+            
+            // Em caso de erro na validação, forçar uma reconexão completa
+            console.log(`[OAUTH_DIRECT] Forçando reconexão completa após erro de validação...`);
+            this.closeConnection();
+            this.setupWebSocket().catch(reconnectError => {
+              console.error('[OAUTH_DIRECT] Falha na reconexão após erro de validação:', reconnectError);
+            });
+          });
       }
     } else {
       // Se o token não existe, vamos adicioná-lo e marcar como primário
@@ -1349,6 +1375,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           token: token,
           loginid: loginid
         }));
+        
+        // Atualizar token OAuth global para uso na dashboard
+        localStorage.setItem('deriv_oauth_token', token);
+        
         console.log(`[OAUTH_DIRECT] Nova conta ${loginid} salva no localStorage como primária`);
       } catch (e) {
         console.error('[OAUTH_DIRECT] Erro ao salvar nova conta no localStorage:', e);
