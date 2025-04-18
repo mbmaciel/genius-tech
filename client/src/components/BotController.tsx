@@ -333,8 +333,9 @@ export function BotController({
         console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
         
         // Executar a primeira operação com base na estratégia e no valor de entrada
-        const entryAmount = parseFloat(entryValue);
-        const operationStarted = await oauthDirectService.executeFirstOperation(entryAmount);
+        // Passamos o valor sem conversão já que o método executeFirstOperation
+        // aceita tanto number quanto string e faz a conversão internamente
+        const operationStarted = await oauthDirectService.executeFirstOperation(entryValue);
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
@@ -438,13 +439,25 @@ export function BotController({
           ) : (
             <Button
               onClick={() => {
-                console.log('[BOT_CONTROLLER] 🔴 BOTÃO DE INICIAR OPERAÇÕES CLICADO!', {
-                  estrategia: selectedStrategy,
-                  entrada: entryValue,
-                  alvo: profitTarget,
-                  perda: lossLimit
-                });
-                startBot();
+                try {
+                  console.log('[BOT_CONTROLLER] 🔴 BOTÃO DE INICIAR OPERAÇÕES CLICADO!', {
+                    estrategia: selectedStrategy, 
+                    entrada: entryValue, 
+                    alvo: profitTarget, 
+                    perda: lossLimit
+                  });
+                  
+                  // Verificar se temos todos os valores necessários
+                  if (!selectedStrategy) {
+                    console.error('Estratégia não selecionada!');
+                    return;
+                  }
+                  
+                  // Chamar função para iniciar o bot
+                  startBot();
+                } catch (error) {
+                  console.error('[BOT_CONTROLLER] Erro ao iniciar operações:', error);
+                }
               }}
               className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
               disabled={!selectedStrategy}
