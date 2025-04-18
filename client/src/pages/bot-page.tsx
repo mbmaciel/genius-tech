@@ -13,6 +13,7 @@ import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
+import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -1517,85 +1518,23 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           {/* Colunas do meio e direita - Visualização de dados e estatísticas */}
           <div className="lg:col-span-2 space-y-5">
-            {/* Histórico de Operações - MOVIDO PARA O TOPO */}
-            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-semibold text-white">Histórico de Operações</h2>
-                
-                {/* Botão para limpar histórico */}
+            {/* Histórico de Operações - Usando o novo componente RelatorioOperacoes */}
+            <div className="rounded-lg border border-[#2a3756]">
+              <div className="flex justify-between items-center px-4 pt-2">
                 {operationHistory.length > 0 && (
                   <button 
                     onClick={() => setOperationHistory([])}
-                    className="px-2 py-1 text-xs text-white bg-[#1d2a45] hover:bg-[#2a3756] rounded transition"
+                    className="px-2 py-1 text-xs text-white bg-[#1d2a45] hover:bg-[#2a3756] rounded transition ml-auto"
                   >
-                    Limpar
+                    Limpar histórico
                   </button>
                 )}
               </div>
               
-              {/* Container com altura fixa e rolagem vertical */}
-              <div className="overflow-y-auto max-h-[400px] pr-1 scrollbar-container">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-white">
-                    <thead className="sticky top-0 bg-[#13203a] z-10">
-                      <tr className="border-b border-[#2a3756] text-gray-400">
-                        <th className="text-left py-2 px-2">ID Contrato</th>
-                        <th className="text-right py-2 px-2">Valor de Compra ($)</th>
-                        <th className="text-right py-2 px-2">Valor de Venda ($)</th>
-                        <th className="text-right py-2 px-2">Horário</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {operationHistory.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="text-center py-4 text-gray-500">
-                            Nenhuma operação realizada
-                          </td>
-                        </tr>
-                      ) : (
-                        operationHistory.map((op) => (
-                          <React.Fragment key={op.id}>
-                            <tr className="border-b border-[#1d2a45]">
-                              <td className="py-2 px-2">{op.id.toString().substring(0, 8)}</td>
-                              <td className="py-2 px-2 text-right">
-                                ${op.entryValue.toFixed(2)}
-                              </td>
-                              <td className={`py-2 px-2 text-right font-medium ${
-                                op.profit >= 0 ? 'text-green-500' : 'text-red-500'
-                              }`}>
-                                ${op.finalValue.toFixed(2)}
-                              </td>
-                              <td className="py-2 px-2 text-right text-gray-400">
-                                {op.time.toLocaleTimeString()}
-                              </td>
-                            </tr>
-                            {op.notification && (
-                              <tr className="border-b border-[#1d2a45] bg-opacity-20" style={{ backgroundColor: op.notification.type === 'error' ? '#5a1f1f' : op.notification.type === 'warning' ? '#5a4e1f' : op.notification.type === 'success' ? '#1f5a2e' : '#1f3a5a' }}>
-                                <td colSpan={4} className="py-2 px-2 text-sm italic">
-                                  <div className="flex items-center">
-                                    <span className={`mr-2 ${
-                                      op.notification.type === 'error' ? 'text-red-400' : 
-                                      op.notification.type === 'warning' ? 'text-yellow-400' : 
-                                      op.notification.type === 'success' ? 'text-green-400' : 
-                                      'text-blue-400'
-                                    }`}>
-                                      {op.notification.type === 'error' ? '⚠️' : 
-                                       op.notification.type === 'warning' ? '⚠️' : 
-                                       op.notification.type === 'success' ? '✅' : 
-                                       'ℹ️'}
-                                    </span>
-                                    <span className="text-gray-300">{op.notification.message}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <RelatorioOperacoes 
+                operations={operationHistory} 
+                selectedStrategy={selectedStrategy} 
+              />
             </div>
             
             {/* Painel de Visualização Principal - Movido para baixo */}
