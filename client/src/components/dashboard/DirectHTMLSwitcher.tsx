@@ -100,8 +100,46 @@ export function DirectHTMLSwitcher() {
       // Salvar como conta ativa
       localStorage.setItem('deriv_active_account', JSON.stringify(activeAccountData));
       
-      // Redirecionar para o dashboard
-      window.location.href = `/dashboard?account=${account.loginid}&t=${Date.now()}`;
+      // Mostrar tela de carregamento ao trocar conta
+      const loadingElement = document.createElement('div');
+      loadingElement.style.position = 'fixed';
+      loadingElement.style.top = '0';
+      loadingElement.style.left = '0';
+      loadingElement.style.width = '100%';
+      loadingElement.style.height = '100%';
+      loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+      loadingElement.style.zIndex = '9999';
+      loadingElement.style.display = 'flex';
+      loadingElement.style.alignItems = 'center';
+      loadingElement.style.justifyContent = 'center';
+      loadingElement.style.flexDirection = 'column';
+      loadingElement.style.color = 'white';
+      loadingElement.style.fontSize = '18px';
+      loadingElement.innerHTML = `
+        <div style="margin-bottom: 20px;">TROCANDO PARA CONTA ${account.loginid}</div>
+        <div style="margin-bottom: 30px;">A página será recarregada em instantes...</div>
+        <div style="width: 50px; height: 50px; border: 4px solid #1E3A8A; border-top: 4px solid #00E5B3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      `;
+      
+      // Adicionar estilo de animação
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+      document.body.appendChild(loadingElement);
+      
+      // Redirecionar com recarregamento forçado depois de um pequeno delay
+      setTimeout(() => {
+        // Usar replace para garantir que caches e histórico sejam limpos
+        window.location.replace(`/dashboard?account=${account.loginid}&t=${Date.now()}`);
+        
+        // Backup: se o replace não funcionar, usar reload
+        setTimeout(() => window.location.reload(), 200);
+      }, 500);
       
     } catch (error) {
       console.error('Erro ao trocar de conta:', error);
