@@ -937,14 +937,26 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Atualizar estado em uma única operação
     setDigitStats(newStats);
     
-    // Também atualizar o serviço de histórico para persistência
-    // O serviço vai cuidar de salvar no banco de dados
+    // NÃO SALVAR dados para persistência
+    // O requisito crítico é sempre trabalhar com dados frescos da Deriv
+    
+    // Apenas para fins de depuração, é útil ver os dígitos no console, 
+    // mas não vamos persistir em localStorage ou banco de dados
+    console.log('[BOT_PAGE] DIGIT LOG ONLY - NÃO PERSISTINDO:', 
+      `Digit ${newDigit} - Stats: ${newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", ")}`);
+    
+    // Para não quebrar compatibilidade com o código existente,
+    // não removeremos completamente a chamada para o backend, 
+    // mas apenas a desativaremos
+    
+    /*
     try {
-      // Salvar no banco de dados diretamente
-      saveDigitToBackend('R_100', newDigit, updatedLastDigits, newStats);
+      // Função desativada - não salvar no banco
+      // saveDigitToBackend('R_100', newDigit, updatedLastDigits, newStats);
     } catch (error) {
       console.error('[BOT_PAGE] Erro ao atualizar histórico de dígitos:', error);
     }
+    */
   };
   
   // Iniciar o bot usando o serviço OAuth Direct

@@ -355,55 +355,21 @@ class DerivHistoryService {
   }
   
   /**
-   * Salva os dados atuais no banco de dados
+   * DESATIVADO - Não salva mais no banco de dados
+   * Método mantido por compatibilidade, mas não faz nada
    */
   private async saveToDB(symbol: string): Promise<void> {
-    try {
-      // Verificar se temos dados para salvar
-      if (!this.historyData[symbol] || this.historyData[symbol].lastDigits.length === 0) {
-        return;
-      }
-      
-      // Verificar se passamos do intervalo mínimo para salvar
-      const now = Date.now();
-      if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL) {
-        return; // Não salvar com muita frequência
-      }
-      
-      this.lastSaveTime = now;
-      
-      // Dados para salvar
-      const dataToSave = {
-        symbol,
-        lastDigits: this.historyData[symbol].lastDigits,
-        digitStats: this.historyData[symbol].digitStats,
-        totalCount: this.historyData[symbol].totalCount,
-        lastUpdated: new Date()
-      };
-      
-      // Requisição para salvar no backend
-      try {
-        const response = await fetch('/api/digit-history', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(dataToSave)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
-        }
-        
-        console.log(`[DerivHistoryService] Dados de ${symbol} salvos no banco de dados`);
-      } catch (dbError) {
-        console.error('[DerivHistoryService] Erro ao salvar no banco:', dbError);
-        // Em caso de falha, salvar no localStorage
-        this.saveToLocalStorage(symbol);
-      }
-    } catch (error) {
-      console.error('[DerivHistoryService] Erro ao tentar salvar no banco:', error);
-    }
+    // A persistência no banco de dados foi desativada
+    // Método mantido por compatibilidade com o código existente
+    // O REQUISITO CRÍTICO é NUNCA usar dados persistidos de sessões anteriores
+    
+    // Logs para debug em desenvolvimento, seguindo padrão das mensagens originais
+    // mas deixando claro que nada foi realmente salvo
+    console.log(`[DerivHistoryService] Método saveToDB desativado - nenhum dado salvo para ${symbol}`);
+    
+    // Simular comportamento anterior para evitar quebras de código
+    this.lastSaveTime = Date.now();
+    return;
   }
   
   /**
@@ -446,48 +412,15 @@ class DerivHistoryService {
   }
   
   /**
-   * Carrega dados do localStorage
+   * DESATIVADO - Não carrega mais do localStorage
+   * Método mantido por compatibilidade, mas não faz nada
    */
   private loadFromLocalStorage(symbol: string) {
-    try {
-      const storedData = localStorage.getItem(`digit_history_${symbol}`);
-      
-      if (storedData) {
-        const data = JSON.parse(storedData);
-        
-        // Restaurar dados
-        this.historyData[symbol].lastDigits = data.lastDigits || [];
-        this.tickHistories[symbol] = data.tickHistory || [];
-        this.historyData[symbol].lastUpdated = new Date(data.lastUpdated);
-        this.historyData[symbol].totalCount = data.totalCount || 0;
-        
-        // Recalcular estatísticas e garantir que todos os dígitos (0-9) estão presentes
-        this.recalculateStats(symbol);
-        
-        // Verificar se todos os dígitos (0-9) estão presentes
-        const stats = this.historyData[symbol].digitStats;
-        for (let i = 0; i <= 9; i++) {
-          if (!stats[i]) {
-            stats[i] = { count: 0, percentage: 0 };
-          }
-        }
-        
-        // Ordenar os dígitos numericamente (0-9)
-        const orderedStats: DigitStats = {};
-        for (let i = 0; i <= 9; i++) {
-          orderedStats[i] = stats[i];
-        }
-        this.historyData[symbol].digitStats = orderedStats;
-        
-        console.log(`[DerivHistoryService] Dados de ${symbol} carregados do localStorage`);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('[DerivHistoryService] Erro ao carregar do localStorage:', error);
-      return false;
-    }
+    // O carregamento de dados do localStorage foi desativado
+    // Método mantido por compatibilidade com o código existente
+    // O REQUISITO CRÍTICO é NUNCA usar dados persistidos de sessões anteriores
+    console.log(`[DerivHistoryService] Método loadFromLocalStorage chamado para ${symbol}, mas desativado por projeto`);
+    return false;
   }
   
   /**
