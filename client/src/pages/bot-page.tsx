@@ -1053,10 +1053,10 @@ export function BotPage() {
                 operation={operation}
                 stats={stats}
                 balanceInfo={{
-                  balance: realTimeBalance.balance || 0,
+                  balance: accountInfo?.balance || 0,
                   currency: accountInfo?.currency || 'USD',
                   previousBalance: realTimeBalance.previousBalance,
-                  change: realTimeBalance.balance - realTimeBalance.previousBalance
+                  change: (accountInfo?.balance || 0) - realTimeBalance.previousBalance
                 }}
               />
               
