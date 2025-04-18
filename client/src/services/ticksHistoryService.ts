@@ -1,13 +1,9 @@
-import { db } from '@/lib/db';
+import { db } from '../lib/db';
 import { 
-  digitHistory, 
-  digitStats,
-  digitStatsByPeriod,
   type InsertDigitStat,
   type InsertDigitHistory,
   type InsertDigitStatsByPeriod 
 } from '@shared/schema';
-import { eq, and } from 'drizzle-orm';
 
 // Interface para os dados de estatísticas de dígitos
 export interface DigitStatistics {

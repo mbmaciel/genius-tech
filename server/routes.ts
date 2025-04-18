@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { WebSocketServer } from 'ws';
 import { WebSocket } from 'ws';
+import { db } from "./db";
+import { digitStats, digitHistory, digitStatsByPeriod } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -143,6 +146,278 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Market stats error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // API endpoints para estatísticas de dígitos
+  
+  // GET - Obter estatísticas para um símbolo específico
+  app.get('/api/db/digit-stats', async (req, res) => {
+    try {
+      const { symbol } = req.query;
+      
+      if (!symbol || typeof symbol !== 'string') {
+        return res.status(400).json({ 
+          message: 'Symbol parameter is required' 
+        });
+      }
+      
+      // Buscar estatísticas do banco de dados
+      const stats = await db.select()
+        .from(digitStats)
+        .where(eq(digitStats.symbol, symbol));
+      
+      res.json({ 
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      console.error('Error retrieving digit statistics:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // PUT - Atualizar estatísticas para um símbolo específico
+  app.put('/api/db/digit-stats/:symbol', async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const { stats } = req.body;
+      
+      if (!stats || !Array.isArray(stats)) {
+        return res.status(400).json({ 
+          message: 'Invalid statistics data' 
+        });
+      }
+      
+      // Atualizar estatísticas no banco de dados
+      for (const stat of stats) {
+        const { digit, count, percentage } = stat;
+        
+        // Verificar se o registro já existe
+        const existingRecord = await db.select()
+          .from(digitStats)
+          .where(and(
+            eq(digitStats.symbol, symbol),
+            eq(digitStats.digit, digit)
+          ))
+          .limit(1);
+        
+        if (existingRecord.length > 0) {
+          // Atualizar registro existente
+          await db.update(digitStats)
+            .set({
+              count,
+              percentage,
+              updated_at: new Date()
+            })
+            .where(and(
+              eq(digitStats.symbol, symbol),
+              eq(digitStats.digit, digit)
+            ));
+        } else {
+          // Inserir novo registro
+          await db.insert(digitStats).values({
+            symbol,
+            digit,
+            count,
+            percentage
+          });
+        }
+      }
+      
+      res.json({ 
+        success: true,
+        message: 'Statistics updated successfully'
+      });
+    } catch (error) {
+      console.error('Error updating digit statistics:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // GET - Obter histórico de dígitos para um símbolo específico
+  app.get('/api/db/digit-history', async (req, res) => {
+    try {
+      const { symbol } = req.query;
+      
+      if (!symbol || typeof symbol !== 'string') {
+        return res.status(400).json({ 
+          message: 'Symbol parameter is required' 
+        });
+      }
+      
+      // Buscar histórico de dígitos do banco de dados
+      const history = await db.select()
+        .from(digitHistory)
+        .where(eq(digitHistory.symbol, symbol))
+        .limit(1);
+      
+      if (history.length === 0) {
+        return res.json({ 
+          success: true,
+          data: null
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        data: history[0]
+      });
+    } catch (error) {
+      console.error('Error retrieving digit history:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // PUT - Atualizar histórico de dígitos para um símbolo específico
+  app.put('/api/db/digit-history/:symbol', async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const { digits, total_count } = req.body;
+      
+      if (!digits || !Array.isArray(digits)) {
+        return res.status(400).json({ 
+          message: 'Invalid history data' 
+        });
+      }
+      
+      // Verificar se o registro já existe
+      const existingRecord = await db.select()
+        .from(digitHistory)
+        .where(eq(digitHistory.symbol, symbol))
+        .limit(1);
+      
+      if (existingRecord.length > 0) {
+        // Atualizar registro existente
+        await db.update(digitHistory)
+          .set({
+            digits,
+            total_count,
+            updated_at: new Date()
+          })
+          .where(eq(digitHistory.symbol, symbol));
+      } else {
+        // Inserir novo registro
+        await db.insert(digitHistory).values({
+          symbol,
+          digits,
+          total_count
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        message: 'History updated successfully'
+      });
+    } catch (error) {
+      console.error('Error updating digit history:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // GET - Obter estatísticas por período para um símbolo específico
+  app.get('/api/db/digit-stats-period', async (req, res) => {
+    try {
+      const { symbol, period } = req.query;
+      
+      if (!symbol || typeof symbol !== 'string' || !period || typeof period !== 'string') {
+        return res.status(400).json({ 
+          message: 'Symbol and period parameters are required' 
+        });
+      }
+      
+      // Buscar estatísticas do banco de dados
+      const stats = await db.select()
+        .from(digitStatsByPeriod)
+        .where(and(
+          eq(digitStatsByPeriod.symbol, symbol),
+          eq(digitStatsByPeriod.period, period)
+        ))
+        .limit(1);
+      
+      if (stats.length === 0) {
+        return res.json({ 
+          success: true,
+          data: null
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        data: stats[0]
+      });
+    } catch (error) {
+      console.error('Error retrieving period statistics:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // API endpoint para buscar histórico completo de ticks para inicialização
+  app.get('/api/market/ticks-history/:symbol', async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const count = parseInt(req.query.count as string) || 500;
+      
+      // Primeiro tentar buscar do banco de dados
+      try {
+        // Verificar histórico de dígitos
+        const history = await db.select()
+          .from(digitHistory)
+          .where(eq(digitHistory.symbol, symbol))
+          .limit(1);
+        
+        // Verificar estatísticas de dígitos
+        const stats = await db.select()
+          .from(digitStats)
+          .where(eq(digitStats.symbol, symbol));
+        
+        // Se temos dados no banco, retornar eles
+        if (history.length > 0 && stats.length > 0) {
+          // Formatar estatísticas no formato esperado
+          const digitStatsObj: Record<number, { count: number, percentage: number }> = {};
+          
+          for (const stat of stats) {
+            digitStatsObj[stat.digit] = {
+              count: stat.count,
+              percentage: stat.percentage
+            };
+          }
+          
+          return res.json({
+            success: true,
+            data: {
+              lastDigits: history[0].digits,
+              digitStats: digitStatsObj,
+              lastUpdated: history[0].updated_at,
+              totalTicks: history[0].total_count
+            }
+          });
+        }
+      } catch (dbError) {
+        console.error('Error retrieving from database:', dbError);
+        // Continuar para buscar da API Deriv
+      }
+      
+      // Se não encontrou no banco, iniciar com objeto vazio
+      const result = {
+        lastDigits: [] as number[],
+        digitStats: {} as Record<number, { count: number, percentage: number }>,
+        lastUpdated: new Date(),
+        totalTicks: 0
+      };
+      
+      // Inicializar estatísticas zeradas
+      for (let i = 0; i < 10; i++) {
+        result.digitStats[i] = { count: 0, percentage: 0 };
+      }
+      
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('Error retrieving ticks history:', error);
       res.status(500).json({ message: 'Server error' });
     }
   });
