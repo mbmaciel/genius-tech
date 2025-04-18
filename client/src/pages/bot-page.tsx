@@ -1261,6 +1261,32 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <h2 className="text-lg font-semibold text-white">Painel de Controle</h2>
               </div>
               
+              {/* Estatísticas de operações posicionadas no TOPO ABSOLUTO do painel */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756] mb-5">
+                <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+                  <span className="text-xs text-gray-400">Vitórias</span>
+                  <span className="text-lg font-bold text-green-400">{stats.wins}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+                  <span className="text-xs text-gray-400">Derrotas</span>
+                  <span className="text-lg font-bold text-red-400">{stats.losses}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+                  <span className="text-xs text-gray-400">Taxa de Acerto</span>
+                  <span className="text-lg font-bold text-yellow-400">
+                    {stats.wins + stats.losses > 0 
+                      ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
+                      : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+                  <span className="text-xs text-gray-400">Lucro Total</span>
+                  <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {stats.totalProfit.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+              
               {/* Controles do Bot */}
               <div className="mt-5">
                 <h3 className="text-white text-md font-medium mb-3">Configurações</h3>
