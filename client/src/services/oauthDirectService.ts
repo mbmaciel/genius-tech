@@ -396,6 +396,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Retorna uma descrição textual para o estado de ReadyState do WebSocket
    */
+  /**
+   * Inicializa a conexão WebSocket com o servidor Deriv
+   * Método público para iniciar conexão a partir da página do bot
+   */
+  public initializeConnection(): Promise<boolean> {
+    console.log('[OAUTH_DIRECT] Iniciando conexão manual...');
+    return this.setupWebSocket();
+  }
+  
   private getReadyStateText(state: number): string {
     switch (state) {
       case WebSocket.CONNECTING:
