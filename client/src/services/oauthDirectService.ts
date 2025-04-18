@@ -446,16 +446,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       if (!selectedToken) {
         const dashboardToken = localStorage.getItem('deriv_oauth_token');
         if (dashboardToken) {
+          console.log('[OAUTH_DIRECT] Verificando tokens de conta da dashboard');
+          
+          // Verificar se já existe na lista de tokens
           let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
           if (!tokenInfo) {
-            // Se não existe, adicionamos ele
-            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista');
+            // Se não existe, adicionamos ele de forma não-primária
+            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista como não-primário');
             this.addToken(dashboardToken, false); // Não é primário por padrão
             tokenInfo = this.tokens.find(t => t.token === dashboardToken);
           }
           
           if (tokenInfo) {
-            console.log(`[OAUTH_DIRECT] Usando token da dashboard: ${tokenInfo.loginid || 'desconhecido'}`);
+            console.log(`[OAUTH_DIRECT] Usando token da dashboard como fallback: ${tokenInfo.loginid || 'desconhecido'}`);
             selectedToken = tokenInfo;
           }
         }
@@ -990,28 +993,73 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @param token Token de autorização 
    */
   setActiveAccount(loginid: string, token: string): void {
+    console.log(`[OAUTH_DIRECT] SOLICITAÇÃO PARA DEFINIR CONTA ATIVA: ${loginid} com token ${token.substring(0, 8)}...`);
+    
+    // FORÇA: Remover qualquer outra conta como primária
+    this.tokens.forEach(t => {
+      if (t.primary) {
+        console.log(`[OAUTH_DIRECT] Removendo status primário da conta anterior: ${t.loginid || 'desconhecida'}`);
+        t.primary = false;
+      }
+    });
+    
     // Verificar se o token existe na lista
-    const tokenInfo = this.tokens.find(t => t.token === token && t.loginid === loginid);
+    let tokenInfo = this.tokens.find(t => t.token === token);
+    
+    // Se não encontrou pelo token, tenta pelo loginid
+    if (!tokenInfo) {
+      tokenInfo = this.tokens.find(t => t.loginid === loginid);
+    }
     
     if (tokenInfo) {
       console.log(`[OAUTH_DIRECT] Definindo conta ativa: ${loginid}`);
       this.activeToken = token;
+      tokenInfo.loginid = loginid; // Atualiza o loginid se necessário
       
-      // Marcar este token como primário
-      this.tokens.forEach(t => {
-        t.primary = (t.token === token && t.loginid === loginid);
-      });
+      // FORÇA: Marcar APENAS este token como primário
+      tokenInfo.primary = true;
+      
+      // Salvar explicitamente no localStorage
+      try {
+        localStorage.setItem('deriv_selected_account', JSON.stringify({
+          token: token,
+          loginid: loginid
+        }));
+        console.log(`[OAUTH_DIRECT] Conta ${loginid} salva no localStorage como primária`);
+      } catch (e) {
+        console.error('[OAUTH_DIRECT] Erro ao salvar conta no localStorage:', e);
+      }
       
       // Notificar mudança de conta
       this.notifyListeners({
         type: 'account_changed',
         loginid: loginid
       });
+      
+      // Forçar reinicialização da conexão
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        console.log(`[OAUTH_DIRECT] Fechando conexão atual para reiniciar com nova conta`);
+        this.closeConnection();
+        this.setupWebSocket().catch(error => {
+          console.error('[OAUTH_DIRECT] Erro ao reconectar após mudança de conta:', error);
+        });
+      }
     } else {
-      // Se o token não existe, vamos adicioná-lo e tentar autorizar
+      // Se o token não existe, vamos adicioná-lo e marcar como primário
       console.log(`[OAUTH_DIRECT] Adicionando nova conta ativa: ${loginid}`);
       this.addToken(token, true, loginid);
       this.activeToken = token;
+      
+      // Salvar explicitamente no localStorage
+      try {
+        localStorage.setItem('deriv_selected_account', JSON.stringify({
+          token: token,
+          loginid: loginid
+        }));
+        console.log(`[OAUTH_DIRECT] Nova conta ${loginid} salva no localStorage como primária`);
+      } catch (e) {
+        console.error('[OAUTH_DIRECT] Erro ao salvar nova conta no localStorage:', e);
+      }
       
       // Se já estamos conectados, autorizar este token
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
