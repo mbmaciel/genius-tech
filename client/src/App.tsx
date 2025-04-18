@@ -48,7 +48,7 @@ function App() {
   return (
     <div className="App">
       <Toaster />
-      <ConfirmAccountSwitch />
+      {/* <ConfirmAccountSwitch /> */}
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/" component={() => {
