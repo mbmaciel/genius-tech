@@ -35,6 +35,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     contractType: 'DIGITOVER',
     prediction: 5
   };
+  
+  // Estatísticas de performance
+  private sessionStats = {
+    totalProfit: 0,       // Lucro total da sessão
+    totalLoss: 0,         // Perda total da sessão
+    wins: 0,              // Número de vitórias
+    losses: 0,            // Número de perdas
+    initialBalance: 0,    // Saldo inicial quando iniciou o bot
+    currentBalance: 0,    // Saldo atual
+    netProfit: 0,         // Lucro líquido da sessão
+    startTime: new Date() // Horário de início da sessão
+  };
   private activeStrategy: string = '';
   private operationTimeout: any = null;
   private pingInterval: any = null;
@@ -762,8 +774,74 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Validar se a operação deve continuar com base nos limites configurados
    */
   private validateOperationContinuation(isWin: boolean, lastContract: any): boolean {
-    // Implementação de validação baseada no lucro/perda e limites
-    // A ser implementada posteriormente
+    // Implementação de validação baseada no lucro/perda e limites configurados
+    
+    // Verificar se temos configurações de limite de perda e meta de lucro
+    const profitTarget = this.settings.profitTarget;
+    const lossLimit = this.settings.lossLimit;
+    
+    if (!profitTarget && !lossLimit) {
+      // Se não houver limites, continuar operando
+      return true;
+    }
+    
+    // Atualizar estatísticas com o resultado
+    if (isWin) {
+      // Atualizar estatísticas para vitória
+      this.sessionStats.wins++;
+      
+      // Verificar o lucro obtido
+      if (lastContract && lastContract.profit) {
+        const profit = parseFloat(lastContract.profit);
+        if (!isNaN(profit)) {
+          this.sessionStats.totalProfit += profit;
+        }
+      }
+    } else {
+      // Atualizar estatísticas para derrota
+      this.sessionStats.losses++;
+      
+      // Verificar a perda
+      if (lastContract && lastContract.profit) {
+        const loss = parseFloat(lastContract.profit); // Será negativo em caso de perda
+        if (!isNaN(loss) && loss < 0) {
+          this.sessionStats.totalLoss += Math.abs(loss);
+        }
+      }
+    }
+    
+    // Calcular o lucro líquido
+    this.sessionStats.netProfit = this.sessionStats.totalProfit - this.sessionStats.totalLoss;
+    
+    // Se atingiu a meta de lucro, parar
+    if (profitTarget && this.sessionStats.netProfit >= profitTarget) {
+      console.log(`[OAUTH_DIRECT] Meta de lucro atingida: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTarget}`);
+      
+      // Notificar interface
+      this.notifyListeners({
+        type: 'bot_target_reached',
+        message: `Meta de lucro de ${profitTarget} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`,
+        profit: this.sessionStats.netProfit
+      });
+      
+      return false; // Parar operações
+    }
+    
+    // Se atingiu o limite de perda, parar
+    if (lossLimit && this.sessionStats.totalLoss >= lossLimit) {
+      console.log(`[OAUTH_DIRECT] Limite de perda atingido: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimit}`);
+      
+      // Notificar interface
+      this.notifyListeners({
+        type: 'bot_limit_reached',
+        message: `Limite de perda de ${lossLimit} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`,
+        loss: this.sessionStats.totalLoss
+      });
+      
+      return false; // Parar operações
+    }
+    
+    // Se ainda não atingiu nenhum limite, continuar operando
     return true;
   }
   
