@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
+import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
+import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -1035,25 +1037,16 @@ export function BotPage() {
                 </div>
               </div>
               
-              {/* Sequência de Dígitos */}
+              {/* Sequência de Dígitos com múltiplas abordagens de atualização */}
               <div>
-                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos ({lastDigits.length})</h3>
-                <div className="flex flex-wrap gap-1">
-                  {lastDigits.length > 0 ? (
-                    // Forçar renderização com key baseada no conteúdo
-                    lastDigits.slice(0, 20).map((digit, index) => (
-                      <div
-                        key={`digit-${index}-${digit}-${Date.now()}`}
-                        className={`w-8 h-8 flex items-center justify-center rounded ${
-                          digit > 4 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
-                        }`}
-                      >
-                        {digit}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-gray-500">Aguardando ticks...</div>
-                  )}
+                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos (Atualização Forçada)</h3>
+                {/* Usando o componente com força de atualização independente */}
+                <ForceUpdateDigitDisplay />
+                
+                {/* Segunda visualização como backup */}
+                <div className="mt-4">
+                  <h3 className="text-white text-md font-medium mb-2">Visualização Alternativa</h3>
+                  <SimpleDigitDisplay digits={lastDigits} />
                 </div>
               </div>
             </div>

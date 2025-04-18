@@ -460,24 +460,41 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // Resposta de tick
+      // Resposta de tick - VERSÃO CORRIGIDA
       if (data.msg_type === 'tick') {
-        // Processar tick recebido diretamente da conexão
-        const price = data.tick.quote;
-        const lastDigit = Math.floor(price * 100) % 10;
-        const symbol = data.tick.symbol;
-        const epoch = data.tick.epoch;
-        
-        console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
-        
-        // Notificar para atualização de interface
-        this.notifyListeners({
-          type: 'tick',
-          price,
-          lastDigit,
-          symbol,
-          epoch
-        });
+        try {
+          // Processar tick recebido diretamente da conexão
+          const price = parseFloat(data.tick.quote);
+          
+          // Forçar extração do último dígito de forma mais confiável
+          const priceStr = price.toString();
+          const lastDigit = parseInt(priceStr.charAt(priceStr.length - 1));
+          
+          const symbol = data.tick.symbol;
+          const epoch = data.tick.epoch;
+          
+          console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+          
+          // Evitar processamento se o último dígito não for um número válido
+          if (!isNaN(lastDigit)) {
+            // Adicionar timestamp para forçar a interface a reconhecer uma mudança
+            const timestamp = Date.now();
+            
+            // Notificar para atualização de interface com dados completos
+            this.notifyListeners({
+              type: 'tick',
+              price,
+              lastDigit,
+              symbol,
+              epoch,
+              timestamp  // Adicionar timestamp para forçar nova renderização
+            });
+          } else {
+            console.error('[OAUTH_DIRECT] Último dígito inválido no tick:', price);
+          }
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao processar tick:', error);
+        }
       }
       
       // Resposta de compra de contrato
