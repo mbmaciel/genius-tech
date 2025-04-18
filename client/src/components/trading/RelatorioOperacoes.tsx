@@ -49,9 +49,18 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     // Mapeamento dos comandos específicos para cada estratégia
     switch (strategyId.toLowerCase()) {
       case 'advance':
-        // Adicionar o valor da porcentagem específica para a estratégia Advance
+        // Obter o valor da porcentagem específica para a estratégia Advance
+        // Usar a configuração dinâmica do objeto de estratégia
         const entryPercentage = strategy?.config?.entryPercentage || 8;
-        return `PORCENTAGEM PARA ENTRAR: ${entryPercentage}%`;
+        
+        // Garantir que estamos exibindo um valor numérico, não uma string
+        const percentageValue = typeof entryPercentage === 'string' 
+          ? parseFloat(entryPercentage) 
+          : entryPercentage;
+        
+        console.log("[RELATORIO] Usando valor dinâmico para porcentagem de entrada:", percentageValue);
+        
+        return `PORCENTAGEM PARA ENTRAR: ${percentageValue}%`;
       case 'profitpro':
         return "ENTRADA PROFIT PRO";
       case 'manualunder':
