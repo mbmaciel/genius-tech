@@ -247,12 +247,14 @@ export function BotController({
         });
       }
       
-      if (event.type === 'bot_started') {
+      if (event.type === 'bot_started' || event.type === 'operation_started') {
+        console.log('[BOT_CONTROLLER] ✅ Bot estado alterado para ATIVO após evento:', event.type);
         setStatus('running');
         onStatusChange('running');
       }
       
       if (event.type === 'bot_stopped') {
+        console.log('[BOT_CONTROLLER] ✅ Bot estado alterado para PARADO após evento:', event.type);
         setStatus('idle');
         onStatusChange('idle');
       }
