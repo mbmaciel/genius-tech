@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
   const [showAccountOptions, setShowAccountOptions] = useState<boolean>(false);
+  const [accountToSwitch, setAccountToSwitch] = useState<any>(null);
+  const [confirmAccountSwitch, setConfirmAccountSwitch] = useState<boolean>(false);
   // Volatility 25 Index data
   const [vol25Data, setVol25Data] = useState<{time: number, price: number}[]>([]);
   const [vol25Connected, setVol25Connected] = useState<boolean>(false);
