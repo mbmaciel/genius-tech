@@ -326,30 +326,52 @@ export function AccountSwitcher() {
       // 4. Esperar um pouco para garantir que tudo seja processado
       console.log('[AccountSwitcher] 4/5: Aguardando processamento...');
       
-      // 5. Recarregar a página com método extremo
-      console.log('[AccountSwitcher] 5/5: Recarregando página...');
+      // SOLUÇÃO RADICAL: Usar um formulário para forçar um POST real e recarregamento
+      // com um redirecionamento completo do servidor
+      console.log('[AccountSwitcher] 5/5: Aplicando método ultra-radical de recarregamento');
+      
+      // Criar um formulário invisível que usará método POST
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = window.location.href.split('?')[0]; // URL sem parâmetros
+      
+      // Adicionar campos ocultos com informações da conta
+      const addHiddenField = (name: string, value: string) => {
+        const field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = name;
+        field.value = value;
+        form.appendChild(field);
+      };
+      
+      // Adicionar todos os dados relevantes
+      addHiddenField('accountId', account.loginid);
+      addHiddenField('forceReload', 'true');
+      addHiddenField('timestamp', Date.now().toString());
+      
+      // Adicionar o formulário ao corpo do documento
+      document.body.appendChild(form);
+      
+      // Mostrar mensagem final
+      console.log('[AccountSwitcher] ENVIANDO FORMULÁRIO DE RECARREGAMENTO COMPLETO');
+      
+      // Enviar o formulário após um pequeno atraso para garantir que o localStorage foi salvo
       setTimeout(() => {
         try {
-          // Usar método mais forte possível para forçar recarregamento
-          console.log('[AccountSwitcher] Usando método de recarregamento extremo');
+          // Enviar o formulário - isso forçará um recarregamento completo do servidor
+          form.submit();
           
-          // Recarregar com parâmetro de timestamp para evitar cache
-          const baseUrl = window.location.href.split('?')[0].split('#')[0];
-          const forcedUrl = `${baseUrl}?forceReload=true&account=${account.loginid}&t=${Date.now()}`;
-          
-          // Tentar método 1: window.location.replace (mais forte que href)
-          window.location.replace(forcedUrl);
-          
-          // Tentar método 2 como backup (após breve atraso)
+          // Como backup, tentar recarregar após 500ms se o formulário não funcionar
           setTimeout(() => {
-            window.location.href = forcedUrl;
-          }, 200);
+            console.log('[AccountSwitcher] Backup: forçando recarregamento direto');
+            window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
+          }, 500);
         } catch (e) {
           console.error('[AccountSwitcher] Erro no recarregamento:', e);
           // Última tentativa caso as anteriores falhem
           window.location.reload();
         }
-      }, 1000);
+      }, 300);
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
