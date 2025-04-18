@@ -290,10 +290,13 @@ export function BotPage() {
             const price = event.price;
             const lastDigit = event.lastDigit;
             
-            // Atualizar últimos dígitos
+            // Atualizar últimos dígitos - FORÇAR ATUALIZAÇÃO
             setLastDigits(prev => {
-              const updated = [lastDigit, ...prev];
-              return updated.slice(0, 20);
+              console.log('[BOT_PAGE] Atualizando lastDigits com novo dígito:', lastDigit);
+              // Criando um novo array para garantir que o React reconheça a mudança
+              const updated = [lastDigit, ...prev].slice(0, 20);
+              console.log('[BOT_PAGE] Novo array de dígitos:', updated);
+              return updated;
             });
             
             // Atualizar estatísticas de dígitos
@@ -453,24 +456,34 @@ export function BotPage() {
     }
   }, []);
   
-  // Atualizar estatísticas de dígitos
+  // Atualizar estatísticas de dígitos - VERSÃO CORRIGIDA
   const updateDigitStats = (newDigit: number) => {
+    console.log("[BOT_PAGE] Atualizando estatísticas com novo dígito:", newDigit);
+    
     setDigitStats(prev => {
       // Contagem de dígitos nos últimos ticks
       const counts: number[] = Array(10).fill(0);
       const updatedLastDigits = [newDigit, ...lastDigits].slice(0, parseInt(ticks));
       
+      // Contar ocorrências
       updatedLastDigits.forEach(d => {
         if (d >= 0 && d <= 9) counts[d]++;
       });
       
       // Cálculo de percentuais
       const total = updatedLastDigits.length;
-      return prev.map((stat, i) => ({
+      
+      // Criar um novo array para garantir que o React reconheça a mudança
+      const newStats = Array(10).fill(0).map((_, i) => ({
         digit: i,
         count: counts[i],
         percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
       }));
+      
+      console.log("[BOT_PAGE] Novas estatísticas calculadas:", 
+        newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", "));
+      
+      return newStats;
     });
   };
   
@@ -1024,18 +1037,23 @@ export function BotPage() {
               
               {/* Sequência de Dígitos */}
               <div>
-                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos</h3>
+                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos ({lastDigits.length})</h3>
                 <div className="flex flex-wrap gap-1">
-                  {lastDigits.slice(0, 20).map((digit, index) => (
-                    <div
-                      key={index}
-                      className={`w-8 h-8 flex items-center justify-center rounded ${
-                        digit > 4 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
-                      }`}
-                    >
-                      {digit}
-                    </div>
-                  ))}
+                  {lastDigits.length > 0 ? (
+                    // Forçar renderização com key baseada no conteúdo
+                    lastDigits.slice(0, 20).map((digit, index) => (
+                      <div
+                        key={`digit-${index}-${digit}-${Date.now()}`}
+                        className={`w-8 h-8 flex items-center justify-center rounded ${
+                          digit > 4 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
+                        }`}
+                      >
+                        {digit}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-500">Aguardando ticks...</div>
+                  )}
                 </div>
               </div>
             </div>
