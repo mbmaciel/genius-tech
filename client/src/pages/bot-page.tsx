@@ -661,50 +661,11 @@ export function BotPage() {
         }
       }
       
-      // Verificar se há uma reautorização pendente
-      const pendingReauth = localStorage.getItem('deriv_pending_reauth');
-      if (pendingReauth === 'true') {
+      // Verificação de reautorização pendente removida por solicitação do usuário
+      // Se houver uma autorização pendente antiga, podemos limpá-la silenciosamente
+      if (localStorage.getItem('deriv_pending_reauth') === 'true') {
         const pendingTimestamp = Number(localStorage.getItem('deriv_pending_reauth_timestamp') || '0');
-        
-        // Se a reautorização foi iniciada recentemente (menos de 30 minutos)
-        if (Date.now() - pendingTimestamp < 30 * 60 * 1000) {
-          toast({
-            title: "Reautorização pendente",
-            description: "Você iniciou o processo de autorização Deriv mas ainda não o concluiu.",
-            variant: "warning",
-            action: (
-              <Button 
-                onClick={() => {
-                  const appId = '71403';
-                  const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
-                  const scope = encodeURIComponent('read admin payments trade trading trading_information');
-                  const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
-                  window.open(authUrl, '_blank', 'width=800,height=600');
-                }}
-                variant="outline"
-                size="sm"
-                className="border-amber-600 text-amber-500 hover:bg-amber-100"
-              >
-                Concluir autorização
-              </Button>
-            ),
-            duration: 10000,
-          });
-          
-          // Se a autorização foi iniciada há menos de 5 minutos, impedir início
-          if (Date.now() - pendingTimestamp < 5 * 60 * 1000) {
-            return;
-          }
-          
-          // Caso contrário, avisar sobre possíveis problemas mas permitir continuar
-          toast({
-            title: "Continuando com possíveis limitações",
-            description: "O bot será iniciado, mas algumas operações podem falhar se não houver permissões suficientes.",
-            variant: "default",
-            duration: 5000,
-          });
-        } else {
-          // Limpar autorização pendente antiga
+        if (Date.now() - pendingTimestamp > 30 * 60 * 1000) {
           localStorage.removeItem('deriv_pending_reauth');
           localStorage.removeItem('deriv_pending_reauth_timestamp');
         }

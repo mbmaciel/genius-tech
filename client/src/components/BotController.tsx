@@ -142,31 +142,10 @@ export function BotController({
         }
       }
       
-      // Evento de reautorização necessária
+      // Evento de reautorização necessária - removido por solicitação do usuário
       if (event.type === 'reauthorization_required') {
-        toast({
-          title: "Reautorização necessária",
-          description: event.message,
-          variant: "default",
-          duration: 8000,
-        });
-        
-        // Exibir link de autorização se disponível
-        if (event.url) {
-          setTimeout(() => {
-            toast({
-              title: "Autorização Deriv",
-              description: "Você está sendo redirecionado para a página de autorização da Deriv. Permita pop-ups para este site.",
-              action: (
-                <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
-                     onClick={() => window.open(event.url, '_blank')}>
-                  Autorizar
-                </div>
-              ),
-              duration: 20000,
-            });
-          }, 3000);
-        }
+        // Removido o aviso de reautorização conforme solicitado
+        console.log("[BOT_CONTROLLER] Evento de reautorização recebido, mas o aviso foi desativado");
       }
       
       if (event.type === 'authorized') {
@@ -190,24 +169,8 @@ export function BotController({
           ['trade', 'trading', 'trading_information'].includes(scope.toLowerCase())
         );
         
-        // Mostrar notificação de autorização bem-sucedida
-        toast({
-          title: "Autorização concluída",
-          description: `Conta: ${event.account?.loginid || 'Deriv'} ${hasTrading ? '✓ Trading permitido' : ''}`,
-          variant: hasTrading ? "default" : "warning",
-        });
-        
-        // Aviso sobre permissões se não tiver trading
-        if (event.account?.scopes && !hasTrading) {
-          setTimeout(() => {
-            toast({
-              title: "Permissões limitadas",
-              description: "Seu token não tem permissões completas de trading. Algumas operações podem falhar.",
-              variant: "warning",
-              duration: 8000,
-            });
-          }, 2000);
-        }
+        // Notificação de autorização (removido aviso de conta conforme solicitado)
+        console.log('[BOT_CONTROLLER] Autorização concluída:', event.account?.loginid, 'Trading permitido:', hasTrading);
       }
       
       // Atualizar saldo quando receber atualização
