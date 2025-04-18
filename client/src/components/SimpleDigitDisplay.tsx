@@ -226,35 +226,6 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
       
       <Separator className="bg-[#2a3756] mb-4" />
       
-      {/* Estatísticas */}
-      <div className="mb-4">
-        <h3 className="text-xs text-gray-400 font-medium mb-2">Distribuição de dígitos:</h3>
-        <div className="grid grid-cols-5 gap-2">
-          {stats.map((stat) => (
-            <div key={`stat-${stat.digit}`} className="relative">
-              <div className="text-center mb-1">
-                <span className={`text-xs font-medium ${
-                  stat.percentage >= 30 ? 'text-red-400' : 
-                  stat.percentage >= 20 ? 'text-amber-400' : 
-                  stat.percentage >= 10 ? 'text-green-400' : 'text-gray-400'
-                }`}>
-                  {stat.digit}
-                </span>
-              </div>
-              <div className="h-4 bg-[#1d2a45] rounded-full overflow-hidden">
-                <div 
-                  className="h-full transition-all duration-500 ease-out"
-                  style={getPercentageBackgroundStyle(stat.percentage)}
-                ></div>
-              </div>
-              <div className="text-center mt-1">
-                <span className="text-[10px] text-gray-400">{stat.percentage}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      
       {/* Padrões detectados */}
       {patterns.length > 0 && (
         <div>
