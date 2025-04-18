@@ -814,13 +814,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     this.sessionStats.netProfit = this.sessionStats.totalProfit - this.sessionStats.totalLoss;
     
     // Se atingiu a meta de lucro, parar
-    if (profitTarget && this.sessionStats.netProfit >= profitTarget) {
-      console.log(`[OAUTH_DIRECT] Meta de lucro atingida: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTarget}`);
+    const profitTargetNum = typeof profitTarget === 'string' ? parseFloat(profitTarget) : profitTarget;
+    if (profitTargetNum && !isNaN(profitTargetNum) && this.sessionStats.netProfit >= profitTargetNum) {
+      console.log(`[OAUTH_DIRECT] Meta de lucro atingida: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTargetNum}`);
       
       // Notificar interface
       this.notifyListeners({
         type: 'bot_target_reached',
-        message: `Meta de lucro de ${profitTarget} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`,
+        message: `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`,
         profit: this.sessionStats.netProfit
       });
       
@@ -828,13 +829,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     // Se atingiu o limite de perda, parar
-    if (lossLimit && this.sessionStats.totalLoss >= lossLimit) {
-      console.log(`[OAUTH_DIRECT] Limite de perda atingido: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimit}`);
+    const lossLimitNum = typeof lossLimit === 'string' ? parseFloat(lossLimit) : lossLimit;
+    if (lossLimitNum && !isNaN(lossLimitNum) && this.sessionStats.totalLoss >= lossLimitNum) {
+      console.log(`[OAUTH_DIRECT] Limite de perda atingido: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitNum}`);
       
       // Notificar interface
       this.notifyListeners({
         type: 'bot_limit_reached',
-        message: `Limite de perda de ${lossLimit} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`,
+        message: `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`,
         loss: this.sessionStats.totalLoss
       });
       
@@ -1683,6 +1685,65 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           message: 'Conta sem permissões de trading. Por favor, reautorize com permissões adequadas.'
         });
         return false;
+      }
+      
+      // Obter saldo atual antes de iniciar operações para rastreamento de lucro/perda
+      try {
+        await new Promise<void>((resolve) => {
+          // Criar handler temporário para receber o saldo
+          const balanceHandler = (event: MessageEvent) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data && data.balance) {
+                // Salvar saldo inicial para cálculos de lucro/perda
+                this.sessionStats.initialBalance = parseFloat(data.balance.balance);
+                this.sessionStats.currentBalance = this.sessionStats.initialBalance;
+                
+                // Reiniciar estatísticas da sessão
+                this.sessionStats.totalProfit = 0;
+                this.sessionStats.totalLoss = 0;
+                this.sessionStats.wins = 0;
+                this.sessionStats.losses = 0;
+                this.sessionStats.netProfit = 0;
+                this.sessionStats.startTime = new Date();
+                
+                console.log(`[OAUTH_DIRECT] Saldo inicial registrado: ${this.sessionStats.initialBalance}`);
+                
+                // Remover handler após receber o saldo
+                if (this.webSocket) {
+                  this.webSocket.removeEventListener('message', balanceHandler);
+                }
+                resolve();
+              }
+            } catch (e) {
+              // Ignorar mensagens que não são do tipo balance
+            }
+          };
+          
+          // Adicionar handler temporário
+          if (this.webSocket) {
+            this.webSocket.addEventListener('message', balanceHandler);
+            
+            // Solicitar saldo
+            const balanceRequest = {
+              balance: 1
+            };
+            this.webSocket.send(JSON.stringify(balanceRequest));
+            
+            // Definir timeout para caso não receba resposta
+            setTimeout(() => {
+              if (this.webSocket) {
+                this.webSocket.removeEventListener('message', balanceHandler);
+              }
+              resolve(); // Continuar mesmo sem o saldo
+            }, 3000);
+          } else {
+            resolve(); // Continuar mesmo sem WebSocket
+          }
+        });
+      } catch (e) {
+        console.warn('[OAUTH_DIRECT] Erro ao obter saldo inicial:', e);
+        // Continuar mesmo sem o saldo inicial
       }
       
       // Solicitar compra (API Deriv)
