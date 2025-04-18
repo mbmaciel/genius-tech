@@ -1113,11 +1113,11 @@ export function BotPage() {
           <div className="flex items-center">
             <h1 className="text-2xl font-bold text-white mr-4">Robô de Automações</h1>
             
-            {/* Informações da conta (ID e saldo) */}
+            {/* Informações da conta (ID e saldo) - Versão com destaque */}
             <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
               <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium text-white mr-2">
-                {selectedAccount?.loginid || accountInfo?.loginid || "CR1330028"}
+                {selectedAccount?.loginid || accountInfo?.loginid || ""}
               </span>
               <span className="text-sm font-bold text-white">
                 {typeof realTimeBalance?.balance === 'number' 
