@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
-// Removendo a importação do tipo Toast que não existe
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-// Componente OperationStatus removido conforme solicitado
 import { BotController } from "@/components/BotController";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
 import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
@@ -16,6 +14,7 @@ import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
+import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 
