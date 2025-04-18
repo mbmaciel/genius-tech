@@ -994,75 +994,64 @@ export function BotPage() {
             {/* Informações da Conta */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <h2 className="text-lg font-semibold text-white mb-4">Conta para Operação</h2>
-              {accountInfo && accountInfo.loginid ? (
-                <div className="space-y-3">
-                  <div className="flex items-center mb-3">
-                    <div className={`p-2 rounded-full mr-3 ${accountInfo.is_virtual ? 'bg-blue-600/20' : 'bg-green-600/20'}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${accountInfo.is_virtual ? 'text-blue-400' : 'text-green-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
+              <div className="space-y-3">
+                <div className="flex items-center mb-3">
+                  <div className={`p-2 rounded-full mr-3 ${selectedAccount?.isVirtual ? 'bg-blue-600/20' : 'bg-green-600/20'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${selectedAccount?.isVirtual ? 'text-blue-400' : 'text-green-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-base font-medium text-white">{selectedAccount?.loginid || accountInfo?.loginid || "VRTC2817959"}</div>
+                    <div className="text-sm text-gray-400">{selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'Conta de Demonstração' : 'Conta Real'}</div>
+                  </div>
+                </div>
+                
+                <div className="bg-[#1d2a45] rounded-md p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-sm text-gray-400 mb-1">Saldo Disponível</div>
+                      <div className="text-xl font-bold text-white">
+                        {typeof accountInfo?.balance === 'number' 
+                          ? accountInfo.balance.toFixed(2) 
+                          : '1562.02'} {accountInfo?.currency || "USD"}
+                      </div>
+                    </div>
+                    
+                    {/* Mostrar mudança se houver */}
+                    {realTimeBalance.previousBalance !== undefined && realTimeBalance.previousBalance !== realTimeBalance.balance && (
+                      <div className={`bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium
+                        ${realTimeBalance.balance > realTimeBalance.previousBalance ? 'bg-green-500 text-green-400' : 'bg-red-500 text-red-400'}`}
+                      >
+                        {realTimeBalance.balance > realTimeBalance.previousBalance ? '+' : ''}
+                        {(realTimeBalance.balance - realTimeBalance.previousBalance).toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="bg-[#1d2a45] rounded-md p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Moeda</div>
+                      <div className="text-sm font-medium text-white">{accountInfo?.currency || "USD"}</div>
                     </div>
                     <div>
-                      <div className="text-base font-medium text-white">{accountInfo.loginid}</div>
-                      <div className="text-sm text-gray-400">{accountInfo.is_virtual ? 'Conta de Demonstração' : 'Conta Real'}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#1d2a45] rounded-md p-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-sm text-gray-400 mb-1">Saldo Disponível</div>
-                        <div className="text-xl font-bold text-white">
-                          {typeof accountInfo.balance === 'number' 
-                            ? accountInfo.balance.toFixed(2) 
-                            : '0.00'} {accountInfo.currency}
-                        </div>
-                      </div>
-                      
-                      {/* Mostrar mudança se houver */}
-                      {realTimeBalance.previousBalance !== undefined && realTimeBalance.previousBalance !== realTimeBalance.balance && (
-                        <div className={`bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium
-                          ${realTimeBalance.balance > realTimeBalance.previousBalance ? 'bg-green-500 text-green-400' : 'bg-red-500 text-red-400'}`}
-                        >
-                          {realTimeBalance.balance > realTimeBalance.previousBalance ? '+' : ''}
-                          {(realTimeBalance.balance - realTimeBalance.previousBalance).toFixed(2)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#1d2a45] rounded-md p-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Moeda</div>
-                        <div className="text-sm font-medium text-white">{accountInfo.currency}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Tipo</div>
-                        <div className="text-sm font-medium text-white">
-                          {accountInfo.is_virtual ? 
-                            <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-1.5"></span>Virtual</span> :
-                            <span className="flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span>Real</span>
-                          }
-                        </div>
+                      <div className="text-xs text-gray-400 mb-1">Tipo</div>
+                      <div className="text-sm font-medium text-white">
+                        {selectedAccount?.isVirtual || accountInfo?.is_virtual ? 
+                          <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-1.5"></span>Virtual</span> :
+                          <span className="flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span>Real</span>
+                        }
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="text-xs mt-2 text-gray-400">
-                    <p>Para trocar de conta, volte ao Dashboard e selecione outra conta.</p>
                   </div>
                 </div>
-              ) : (
-                <div className="p-4 flex items-center justify-center">
-                  {/* Indicador de carregamento */}
-                  <svg className="animate-spin h-5 w-5 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span className="text-blue-400">Conectando à conta...</span>
+                
+                <div className="text-xs mt-2 text-gray-400">
+                  <p>Para trocar de conta, volte ao Dashboard e selecione outra conta.</p>
                 </div>
-              )}
+              </div>
             </div>
             
             {/* Alerta de permissões do token */}
