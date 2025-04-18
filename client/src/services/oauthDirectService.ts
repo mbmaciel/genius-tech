@@ -1442,6 +1442,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Verificar se o serviço já está em execução
       if (this.isRunning) {
+        // Enviar novamente o evento de bot iniciado para garantir que a interface esteja correta
+        this.notifyListeners({
+          type: 'bot_started',
+          message: 'Bot já em execução'
+        });
         console.log('[OAUTH_DIRECT] Serviço já está em execução');
         return true;
       }
@@ -1652,10 +1657,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Enviar solicitação
       this.webSocket.send(JSON.stringify(buyRequest));
       
-      // Notificar sobre a tentativa de compra
+      // Notificar sobre a tentativa de compra e enviar evento de bot ativo para atualizar a interface
       this.notifyListeners({
         type: 'operation_started',
         message: `Iniciando operação: ${contractType} em ${symbolCode}, valor: ${amount}`
+      });
+      
+      // Enviar explicitamente um evento bot_started para garantir que a interface seja atualizada
+      this.notifyListeners({
+        type: 'bot_started',
+        message: 'Bot ativado após início de operação'
       });
       
       return true;
