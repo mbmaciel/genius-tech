@@ -152,6 +152,7 @@ export function GestaoOperacional() {
       form.setValue('saldoInicial', parsedSaldo);
       onSubmit({ saldoInicial: parsedSaldo });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Salvar no localStorage quando o saldo mudar
