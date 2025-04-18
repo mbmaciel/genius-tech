@@ -194,25 +194,33 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.tokens = []; // Resetar lista de tokens
       
       // 0. Verificar conta ativa definida na UI
-      let activeAccountInfo = null;
+      let activeAccountInfo: any = null;
       try {
         const activeAccountStr = localStorage.getItem('deriv_active_account');
-        if (activeAccountStr) {
-          activeAccountInfo = JSON.parse(activeAccountStr);
-          
-          // Verificar se os dados são recentes (menos de 10 minutos)
-          if (activeAccountInfo && activeAccountInfo.timestamp && 
-              (Date.now() - activeAccountInfo.timestamp < 10 * 60 * 1000)) {
+        if (activeAccountStr && activeAccountStr.trim() !== '') {
+          try {
+            activeAccountInfo = JSON.parse(activeAccountStr);
             
-            // Esta conta será definida como a primária
-            if (activeAccountInfo.token) {
-              this.addToken(activeAccountInfo.token, true, activeAccountInfo.loginid);
-              console.log(`[OAUTH_DIRECT] Conta ativa encontrada no localStorage: ${activeAccountInfo.loginid}`);
+            // Verificar se os dados são válidos e recentes (menos de 10 minutos)
+            if (activeAccountInfo && 
+                typeof activeAccountInfo === 'object' && 
+                activeAccountInfo.timestamp && 
+                (Date.now() - activeAccountInfo.timestamp < 10 * 60 * 1000)) {
+              
+              // Esta conta será definida como a primária apenas se tiver token válido
+              if (activeAccountInfo.token && typeof activeAccountInfo.token === 'string') {
+                this.addToken(activeAccountInfo.token, true, activeAccountInfo.loginid);
+                console.log(`[OAUTH_DIRECT] Conta ativa encontrada no localStorage: ${activeAccountInfo.loginid}`);
+              }
             }
+          } catch (parseError) {
+            console.error('[OAUTH_DIRECT] Erro ao fazer parse do JSON da conta ativa', parseError);
+            activeAccountInfo = null; // Resetar para evitar uso de dados inválidos
           }
         }
       } catch (e) {
-        console.error('[OAUTH_DIRECT] Erro ao processar conta ativa:', e);
+        console.warn('[OAUTH_DIRECT] Erro ao processar conta ativa:', e ? (e as Error).message : 'Erro desconhecido');
+        activeAccountInfo = null; // Garantir que seja nulo em caso de erro
       }
       
       // 1. Tentar obter token principal do localStorage
@@ -266,17 +274,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Se encontramos pelo menos um token, usar o marcado como primário ou o primeiro
       if (this.tokens.length > 0) {
-        const primaryToken = this.tokens.find(t => t.primary) || this.tokens[0];
-        this.activeToken = primaryToken.token;
+        // Primeiro tenta encontrar o token marcado como primário
+        let primaryToken = this.tokens.find(t => t.primary);
         
-        // Se nenhum token estiver marcado como primário, marcar o primeiro
-        if (!primaryToken.primary) {
-          primaryToken.primary = true;
+        // Se não encontrar nenhum marcado como primário, usar o primeiro token disponível
+        if (!primaryToken) {
+          primaryToken = this.tokens[0];
+          primaryToken.primary = true; // Marcar como primário
+          console.log('[OAUTH_DIRECT] Nenhum token encontrado como primário. Definindo o primeiro token como primário.');
         }
         
-        console.log(`[OAUTH_DIRECT] Total de ${this.tokens.length} tokens carregados. Token ativo: ${primaryToken.loginid || 'desconhecido'}`);
+        // Definir o token ativo
+        this.activeToken = primaryToken.token;
+        
+        // Verificar se temos o loginid para esse token
+        const loginidStr = primaryToken.loginid || 'desconhecido';
+        console.log(`[OAUTH_DIRECT] Total de ${this.tokens.length} tokens carregados. Token ativo: ${loginidStr}`);
       } else {
         console.warn('[OAUTH_DIRECT] Nenhum token encontrado em qualquer fonte!');
+        // Definir token como null para provocar novo processo de autenticação
+        this.activeToken = null;
       }
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao carregar tokens:', error);
@@ -318,8 +335,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
         
         // Verificar se temos um token ativo
-        if (!this.activeToken) {
-          this.activeToken = this.tokens[0].token;
+        if (!this.activeToken && this.tokens.length > 0) {
+          // Selecionar o token principal ou o primeiro disponível
+          const primaryToken = this.tokens.find(t => t.primary) || this.tokens[0];
+          this.activeToken = primaryToken.token;
+          console.log(`[OAUTH_DIRECT] Token ativo definido para ${primaryToken.loginid || 'desconhecido'}`);
+        } else if (!this.activeToken) {
+          // Caso extremo: não temos token ativo e nem tokens disponíveis
+          console.error('[OAUTH_DIRECT] Erro crítico: nenhum token disponível para conexão');
+          reject(new Error('Nenhum token disponível para conexão. Faça login novamente.'));
+          return;
         }
         
         // Limpar conexão existente se houver
