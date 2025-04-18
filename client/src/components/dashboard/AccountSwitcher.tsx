@@ -57,10 +57,24 @@ export function AccountSwitcher() {
       }
     };
 
+    // Listener para validação de token do oauthDirectService
+    const handleTokenValidation = (event: CustomEvent) => {
+      const data = event.detail;
+      if (data && data.loginid) {
+        toast({
+          title: "Token validado com sucesso",
+          description: `Token da conta ${data.loginid} validado e pronto para operações.`,
+          variant: "default",
+        });
+      }
+    };
+
     document.addEventListener('deriv:account_info' as any, handleAccountInfo as any);
+    document.addEventListener('deriv:token_validated' as any, handleTokenValidation as any);
 
     return () => {
       document.removeEventListener('deriv:account_info' as any, handleAccountInfo as any);
+      document.removeEventListener('deriv:token_validated' as any, handleTokenValidation as any);
     };
   }, []);
 
@@ -73,10 +87,40 @@ export function AccountSwitcher() {
       const token = localStorage.getItem(accountTokenKey);
       
       if (!token) {
-        throw new Error(`Token not found for account ${account.loginid}`);
+        throw new Error(`Token não encontrado para a conta ${account.loginid}`);
       }
       
-      // Set reconnection flag and store new token
+      // Notificar o serviço OAuth sobre a mudança de conta
+      toast({
+        title: "Trocando de conta",
+        description: `Validando token da conta ${account.loginid}...`,
+        variant: "default",
+      });
+      
+      // 1. Atualizar no localStorage para permitir comunicação indireta
+      localStorage.setItem('deriv_oauth_selected_account', JSON.stringify({
+        accountId: account.loginid,
+        token: token,
+        timestamp: new Date().getTime()
+      }));
+      
+      // 2. Emitir evento para oauthDirectService
+      const accountSwitchEvent = new CustomEvent('deriv:oauth_account_switch', { 
+        detail: { 
+          accountId: account.loginid,
+          token: token
+        } 
+      });
+      document.dispatchEvent(accountSwitchEvent);
+      
+      // Atualizar a visualização na UI imediatamente
+      setActiveAccount({
+        loginid: account.loginid,
+        isVirtual: account.isVirtual,
+        currency: account.currency
+      });
+      
+      // Set reconnection flag and store new token para WebSocket do frontend
       localStorage.setItem('force_reconnect', 'true');
       localStorage.setItem('deriv_api_token', token);
       
@@ -84,7 +128,9 @@ export function AccountSwitcher() {
       derivAPI.disconnect(true);
       
       // Reload page to apply new account
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000); // Pequeno atraso para garantir que o evento foi processado
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
