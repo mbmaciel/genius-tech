@@ -1374,56 +1374,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   </Select>
                 </div>
                 
-                {/* Valor de Entrada */}
-                <div className="mb-3">
-                  <label className="block text-sm text-gray-400 mb-1">Valor de Entrada ($)</label>
-                  <Input
-                    type="text"
-                    value={entryValue}
-                    onChange={(e) => setEntryValue(e.target.value)}
-                    className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
-                    placeholder="0.35"
-                  />
-                </div>
-                
-                {/* Meta de Lucro */}
-                <div className="mb-3">
-                  <label className="block text-sm text-gray-400 mb-1">Meta de Lucro ($)</label>
-                  <Input
-                    type="text"
-                    value={profitTarget}
-                    onChange={(e) => setProfitTarget(e.target.value)}
-                    className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
-                    placeholder="1000"
-                  />
-                </div>
-                
-                {/* Limite de Perda */}
-                <div className="mb-3">
-                  <label className="block text-sm text-gray-400 mb-1">Limite de Perda ($)</label>
-                  <Input
-                    type="text"
-                    value={lossLimit}
-                    onChange={(e) => setLossLimit(e.target.value)}
-                    className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
-                    placeholder="20"
-                  />
-                </div>
-                
-                {/* Fator de Martingale */}
-                <div className="mb-5">
-                  <label className="block text-sm text-gray-400 mb-1">Fator de Martingale</label>
-                  <Input
-                    type="text"
-                    value={martingaleFactor}
-                    onChange={(e) => setMartingaleFactor(e.target.value)}
-                    className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
-                    placeholder="1.5"
-                  />
-                  <span className="text-xs text-gray-500 mt-1 block">Multiplicador aplicado após cada perda (ex: 1.5)</span>
-                </div>
-                
-                {/* Painel de controle do bot - Com configuração adaptável */}
+                {/* Painel de controle do bot com configuração adaptável sem campos duplicados */}
                 <div className="mb-4">
                   <BotController 
                     entryValue={parseFloat(entryValue) || 0.35}
