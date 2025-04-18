@@ -53,10 +53,20 @@ export function BotController({
           if (storedAccountInfo && storedAccountInfo.loginid) {
             console.log('[BOT_CONTROLLER] Informações da conta carregadas do localStorage:', storedAccountInfo.loginid);
             
+            // Extrair saldo corretamente
+            let balance = 0;
+            if (typeof storedAccountInfo.balance === 'object' && storedAccountInfo.balance !== null) {
+              balance = parseFloat(storedAccountInfo.balance.balance || 0);
+            } else {
+              balance = parseFloat(storedAccountInfo.balance || 0);
+            }
+            
+            console.log('[BOT_CONTROLLER] Saldo carregado:', balance);
+            
             // Atualizar estado com as informações da conta
             setAccountInfo({
               loginid: storedAccountInfo.loginid,
-              balance: storedAccountInfo.balance?.balance || storedAccountInfo.balance || 0,
+              balance: balance,
               currency: storedAccountInfo.currency || 'USD',
               is_virtual: storedAccountInfo.is_virtual || (storedAccountInfo.loginid?.startsWith('VRT') ?? false)
             });
@@ -175,11 +185,28 @@ export function BotController({
       
       // Atualizar saldo quando receber atualização
       if (event.type === 'balance_update' && event.balance) {
+        // Forçar atualização do saldo diretamente com o valor correto
+        const newBalance = parseFloat(event.balance.balance || 0);
+        console.log('[BOT_CONTROLLER] Atualizando saldo de:', accountInfo.balance, 'para:', newBalance);
+        
         setAccountInfo(prev => ({
           ...prev,
-          balance: parseFloat(event.balance.balance || 0),
+          balance: newBalance,
           currency: event.balance.currency || prev.currency
         }));
+        
+        // Forçar atualização do localStorage para garantir persistência
+        try {
+          const accountInfoStr = localStorage.getItem('deriv_account_info');
+          if (accountInfoStr) {
+            const storedInfo = JSON.parse(accountInfoStr);
+            storedInfo.balance = newBalance;
+            localStorage.setItem('deriv_account_info', JSON.stringify(storedInfo));
+          }
+        } catch (e) {
+          console.error('[BOT_CONTROLLER] Erro ao atualizar localStorage:', e);
+        }
+        
         console.log('[BOT_CONTROLLER] Saldo atualizado:', event.balance);
       }
       
