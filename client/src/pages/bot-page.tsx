@@ -400,42 +400,85 @@ export function BotPage() {
           if (event.type === 'authorized') {
             console.log('[OAUTH_DIRECT] Autorização realizada com sucesso na conta:', event.account?.loginid);
             
-            // Atualizar informações da conta se necessário
+            // Atualizar informações da conta sempre que houver autorização (troca de conta)
             if (event.account) {
-              const updatedAccount = {
-                ...parsedInfo,
-                loginid: event.account.loginid,
-                balance: event.account.balance?.toString() || parsedInfo.balance,
-                currency: event.account.currency || parsedInfo.currency
-              };
+              // Extrair valores do evento
+              const loginid = event.account.loginid;
+              const balance = typeof event.account.balance === 'number' 
+                ? event.account.balance 
+                : parseFloat(event.account.balance || '0');
+              const currency = event.account.currency || 'USD';
+              const isVirtual = event.account.is_virtual || false;
               
-              setAccountInfo(updatedAccount);
-              console.log('[OAUTH_DIRECT] Informações da conta atualizadas');
+              // Atualizar informações da conta
+              setAccountInfo({
+                loginid: loginid,
+                balance: balance,
+                currency: currency,
+                is_virtual: isVirtual,
+                name: event.account.name || '',
+                email: event.account.email || ''
+              });
+              
+              // Atualizar conta selecionada
+              setSelectedAccount({
+                account: loginid,
+                loginid: loginid,
+                currency: currency,
+                isVirtual: isVirtual,
+                accountType: isVirtual ? 'demo' : 'real',
+                balance: balance
+              });
+              
+              // Atualizar saldo em tempo real
+              setRealTimeBalance({
+                balance: balance,
+                previousBalance: realTimeBalance.balance
+              });
+              
+              console.log('[OAUTH_DIRECT] Informações da conta atualizadas para:', loginid, 'Saldo:', balance, currency);
             }
           }
           
           // Atualização de saldo
           if (event.type === 'balance_update' && event.balance) {
-            if (accountInfo) {
-              const newBalance = parseFloat(event.balance.balance);
-              const currentBalance = parseFloat(accountInfo.balance);
-              
-              // Atualizar informações da conta apenas se o saldo mudou
-              if (newBalance !== currentBalance) {
-                setAccountInfo({
-                  ...accountInfo,
-                  balance: newBalance // Mantém como número, sem converter para string
-                });
-                
-                // Atualizar saldo em tempo real
-                setRealTimeBalance({
+            // Sempre atualizar quando receber um evento de saldo, independente da conta atual
+            const newBalance = parseFloat(event.balance.balance);
+            const currentBalance = realTimeBalance?.balance || 0;
+            
+            // Atualizar informações da conta com novos dados
+            setAccountInfo(prev => {
+              if (prev) {
+                return {
+                  ...prev,
+                  loginid: event.balance.loginid || prev.loginid,
                   balance: newBalance,
-                  previousBalance: currentBalance
-                });
-                
-                console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance}`);
+                  currency: event.balance.currency || prev.currency
+                };
               }
-            }
+              return prev;
+            });
+            
+            // Atualizar saldo em tempo real sempre que receber atualizações
+            setRealTimeBalance({
+              balance: newBalance,
+              previousBalance: currentBalance
+            });
+            
+            // Atualizar conta selecionada se necessário
+            setSelectedAccount(prev => {
+              if (prev && event.balance.loginid) {
+                return {
+                  ...prev,
+                  loginid: event.balance.loginid,
+                  balance: newBalance,
+                  currency: event.balance.currency || prev.currency
+                };
+              }
+              return prev;
+            });
+            
+            console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance} (Conta: ${event.balance.loginid})`);
           }
           
           // Compra de contrato
