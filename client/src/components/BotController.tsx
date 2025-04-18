@@ -136,7 +136,7 @@ export function BotController({
         toast({
           title: severity === 'high' ? "Erro de permissão" : "Aviso de permissão",
           description: event.message,
-          variant: severity === 'high' ? "destructive" : "warning",
+          variant: severity === 'high' ? "destructive" : "default",
           duration: 10000, // 10 segundos para ler
         });
         

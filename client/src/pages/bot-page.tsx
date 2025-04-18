@@ -325,6 +325,61 @@ export function BotPage() {
           buyPrice: parseFloat(entryValue) || 0
         }));
         
+        // Configurar listener para atualização de conta no localStorage
+        // Este listener detecta quando o usuário muda de conta na dashboard
+        const handleStorageChange = (event: StorageEvent) => {
+          if (event.key === 'dashboard_account' && event.newValue) {
+            try {
+              console.log('[BOT_PAGE] Detectada mudança na conta selecionada na dashboard');
+              const newAccount = JSON.parse(event.newValue);
+              
+              // Atualizar a conta selecionada no estado
+              setSelectedAccount({
+                loginid: newAccount.loginid,
+                token: newAccount.token, 
+                currency: newAccount.currency,
+                balance: newAccount.balance,
+                isVirtual: newAccount.loginid.startsWith('VRT')
+              });
+              
+              // Atualizar informações da conta para exibição
+              setAccountInfo({
+                loginid: newAccount.loginid,
+                balance: newAccount.balance,
+                currency: newAccount.currency,
+                is_virtual: newAccount.loginid.startsWith('VRT')
+              });
+              
+              // Atualizar conta ativa no serviço
+              console.log('[BOT_PAGE] Alterando conta ativa no serviço:', newAccount.loginid);
+              
+              // Definir a nova conta como ativa no serviço
+              oauthDirectService.setActiveAccount(newAccount.loginid, newAccount.token);
+              
+              // Solicitar autorização com a nova conta
+              oauthDirectService.authorizeActiveToken()
+                .then(success => {
+                  if (success) {
+                    console.log('[BOT_PAGE] Autorização bem-sucedida com nova conta:', newAccount.loginid);
+                    
+                    // Forçar atualização de saldo
+                    oauthDirectService.getAccountBalance();
+                    
+                    toast({
+                      title: "Conta alterada",
+                      description: `Conta alterada para ${newAccount.loginid}`,
+                    });
+                  }
+                });
+            } catch (error) {
+              console.error('[BOT_PAGE] Erro ao processar mudança de conta:', error);
+            }
+          }
+        };
+        
+        // Registrar o listener para mudanças no localStorage
+        window.addEventListener('storage', handleStorageChange);
+                
         // Antes de iniciar, forçar a definição da conta selecionada como ativa no serviço
         console.log('[BOT] Definindo conta ativa no serviço OAuth:', dashboardAccount.loginid);
         
@@ -348,6 +403,11 @@ export function BotPage() {
                   .then(reconnectSuccess => {
                     if (reconnectSuccess) {
                       console.log('[BOT] Reconexão inicial bem-sucedida');
+                      
+                      // Solicitar saldo atual após reconexão bem-sucedida
+                      setTimeout(() => {
+                        oauthDirectService.getAccountBalance();
+                      }, 1000);
                     } else {
                       console.error('[BOT] Falha na reconexão inicial');
                     }
@@ -373,6 +433,11 @@ export function BotPage() {
               variant: "destructive"
             });
           });
+          
+        // Remover event listener ao desmontar o componente
+        return () => {
+          window.removeEventListener('storage', handleStorageChange);
+        };
         
         // Configurar handlers para eventos do serviço OAuth Direct
         const handleEvents = (event: any) => {
