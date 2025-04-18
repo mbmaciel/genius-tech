@@ -45,19 +45,26 @@ class DerivHistoryService {
   private initializeDigitStats(symbol: string) {
     // Verificar se já existe dados para este símbolo
     if (!this.historyData[symbol]) {
+      // Criar estatísticas para todos os dígitos (0-9)
+      const stats: DigitStats = {};
+      for (let i = 0; i <= 9; i++) {
+        stats[i] = { count: 0, percentage: 0 };
+      }
+      
       this.historyData[symbol] = {
         lastDigits: [],
-        digitStats: {},
+        digitStats: stats,
         lastUpdated: new Date(),
         totalCount: 0
       };
-      
-      // Inicializar estatísticas para todos os dígitos
-      const stats: DigitStats = {};
-      for (let i = 0; i < 10; i++) {
-        stats[i] = { count: 0, percentage: 0 };
+    } else {
+      // Garantir que todos os dígitos (0-9) estão presentes nas estatísticas
+      const stats = this.historyData[symbol].digitStats;
+      for (let i = 0; i <= 9; i++) {
+        if (!stats[i]) {
+          stats[i] = { count: 0, percentage: 0 };
+        }
       }
-      this.historyData[symbol].digitStats = stats;
     }
     
     // Inicializar histórico de ticks vazio se não existir
@@ -137,13 +144,15 @@ class DerivHistoryService {
       
       // Limpar dados anteriores antes de buscar novos ticks
       // Isto garante que sempre começamos com o estado atual do mercado
+      // E garantindo que todos os dígitos (0-9) estão incluídos
+      const statsObj: DigitStats = {};
+      for (let i = 0; i <= 9; i++) {
+        statsObj[i] = {count: 0, percentage: 0};
+      }
+      
       this.historyData[symbol] = {
         lastDigits: [],
-        digitStats: { 0: {count: 0, percentage: 0}, 1: {count: 0, percentage: 0}, 
-                      2: {count: 0, percentage: 0}, 3: {count: 0, percentage: 0}, 
-                      4: {count: 0, percentage: 0}, 5: {count: 0, percentage: 0}, 
-                      6: {count: 0, percentage: 0}, 7: {count: 0, percentage: 0}, 
-                      8: {count: 0, percentage: 0}, 9: {count: 0, percentage: 0} },
+        digitStats: statsObj,
         lastUpdated: new Date(),
         totalCount: 0
       };
@@ -159,7 +168,7 @@ class DerivHistoryService {
       console.log(`[DerivHistoryService] Solicitando exatamente ${count} ticks mais recentes do mercado para ${symbol}`);
       this.websocket.send(JSON.stringify({
         ticks_history: symbol,
-        count: count,
+        count: count > 0 ? count : 500, // Garantir que solicitamos pelo menos 500 ticks
         end: 'latest',
         style: 'ticks',
         subscribe: subscribe ? 1 : undefined
@@ -402,8 +411,23 @@ class DerivHistoryService {
         this.historyData[symbol].lastUpdated = new Date(data.lastUpdated);
         this.historyData[symbol].totalCount = data.totalCount || 0;
         
-        // Recalcular estatísticas
+        // Recalcular estatísticas e garantir que todos os dígitos (0-9) estão presentes
         this.recalculateStats(symbol);
+        
+        // Verificar se todos os dígitos (0-9) estão presentes
+        const stats = this.historyData[symbol].digitStats;
+        for (let i = 0; i <= 9; i++) {
+          if (!stats[i]) {
+            stats[i] = { count: 0, percentage: 0 };
+          }
+        }
+        
+        // Ordenar os dígitos numericamente (0-9)
+        const orderedStats: DigitStats = {};
+        for (let i = 0; i <= 9; i++) {
+          orderedStats[i] = stats[i];
+        }
+        this.historyData[symbol].digitStats = orderedStats;
         
         console.log(`[DerivHistoryService] Dados de ${symbol} carregados do localStorage`);
         return true;
