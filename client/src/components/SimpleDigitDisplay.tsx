@@ -34,29 +34,29 @@ export const SimpleDigitDisplay = React.memo(function SimpleDigitDisplayInner({
     }
   }, [externalDigits]);
 
-  // Escutar eventos de tick com debounce para reduzir atualizações
+  // Escutar eventos de tick e atualizar imediatamente, mostrando um dígito de cada vez
   useEffect(() => {
-    let tickTimer: NodeJS.Timeout | null = null;
-    let tickQueue: number[] = [];
-
     const handleTick = (event: any) => {
       if (event.type === 'tick' && typeof event.lastDigit === 'number') {
-        // Adicionar tick à fila
-        tickQueue.unshift(event.lastDigit);
+        // Atualizar o estado imediatamente com o novo dígito
+        setInternalDigits(prevDigits => {
+          // Criar cópia do array atual
+          const newDigits = [...prevDigits];
+          
+          // Adicionar o novo dígito no início
+          newDigits.unshift(event.lastDigit);
+          
+          // Manter apenas os últimos 10 dígitos
+          if (newDigits.length > 10) {
+            return newDigits.slice(0, 10);
+          }
+          
+          return newDigits;
+        });
         
-        // Limitar tamanho da fila
-        if (tickQueue.length > 20) {
-          tickQueue = tickQueue.slice(0, 20);
-        }
-        
-        // Debounce: atualizar estado apenas uma vez a cada 300ms
-        if (!tickTimer) {
-          tickTimer = setTimeout(() => {
-            setInternalDigits([...tickQueue]);
-            setLastUpdate(new Date());
-            tickTimer = null;
-          }, 300);
-        }
+        // Atualizar timestamp
+        setLastUpdate(new Date());
+        localStorage.setItem('last_tick_timestamp', Date.now().toString());
       }
     };
 
@@ -66,7 +66,6 @@ export const SimpleDigitDisplay = React.memo(function SimpleDigitDisplayInner({
     // Limpar recursos ao desmontar
     return () => {
       oauthDirectService.removeEventListener(handleTick);
-      if (tickTimer) clearTimeout(tickTimer);
     };
   }, []);
 
