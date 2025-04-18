@@ -11,6 +11,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
   
+  // API routes
+  
+  // Rota para salvar estatísticas de dígitos
+  app.post('/api/digit-history', async (req, res) => {
+    try {
+      console.log('[API] Recebendo estatísticas de dígitos:', req.body.symbol);
+      
+      const { symbol, lastDigits, digitStats, totalCount, lastUpdated } = req.body;
+      
+      if (!symbol || !lastDigits || !digitStats) {
+        return res.status(400).json({ error: 'Dados incompletos' });
+      }
+      
+      // Verificar se já existem estatísticas para este símbolo
+      const existingStats = await db.select().from(digitStats)
+        .where(and(
+          eq(digitStats.symbol, symbol)
+        ));
+      
+      if (existingStats.length > 0) {
+        // Atualizar estatísticas existentes
+        await db.update(digitStats)
+          .set({
+            data: digitStats,
+            updated_at: new Date()
+          })
+          .where(eq(digitStats.symbol, symbol));
+        
+        console.log(`[API] Estatísticas atualizadas para ${symbol}`);
+      } else {
+        // Inserir novas estatísticas
+        await db.insert(digitStats)
+          .values({
+            symbol,
+            data: digitStats,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+        
+        console.log(`[API] Novas estatísticas inseridas para ${symbol}`);
+      }
+      
+      // Verificar se já existe histórico para este símbolo
+      const existingHistory = await db.select().from(digitHistory)
+        .where(eq(digitHistory.symbol, symbol));
+      
+      if (existingHistory.length > 0) {
+        // Atualizar histórico existente
+        await db.update(digitHistory)
+          .set({
+            digits: lastDigits,
+            total_count: totalCount,
+            updated_at: new Date()
+          })
+          .where(eq(digitHistory.symbol, symbol));
+      } else {
+        // Inserir novo histórico
+        await db.insert(digitHistory)
+          .values({
+            symbol,
+            digits: lastDigits,
+            total_count: totalCount,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+      }
+      
+      res.status(200).json({ success: true, message: 'Dados salvos com sucesso' });
+    } catch (error) {
+      console.error('[API] Erro ao salvar estatísticas de dígitos:', error);
+      res.status(500).json({ error: 'Erro ao processar requisição' });
+    }
+  });
+  
+  // Rota para obter estatísticas de dígitos
+  app.get('/api/digit-history/:symbol', async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      
+      if (!symbol) {
+        return res.status(400).json({ error: 'Símbolo é obrigatório' });
+      }
+      
+      // Buscar estatísticas
+      const statsResult = await db.select().from(digitStats)
+        .where(eq(digitStats.symbol, symbol));
+      
+      // Buscar histórico
+      const historyResult = await db.select().from(digitHistory)
+        .where(eq(digitHistory.symbol, symbol));
+      
+      if (statsResult.length === 0 || historyResult.length === 0) {
+        return res.status(404).json({ error: 'Dados não encontrados' });
+      }
+      
+      const result = {
+        symbol,
+        lastDigits: historyResult[0].digits || [],
+        digitStats: statsResult[0].data || {},
+        totalCount: historyResult[0].total_count || 0,
+        lastUpdated: historyResult[0].updated_at
+      };
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[API] Erro ao obter estatísticas de dígitos:', error);
+      res.status(500).json({ error: 'Erro ao processar requisição' });
+    }
+  });
+  
   // Create WebSocket server
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   

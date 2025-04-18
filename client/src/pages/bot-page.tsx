@@ -18,6 +18,72 @@ import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 
+// Função para salvar estatísticas diretamente no backend
+const saveDigitToBackend = async (
+  symbol: string,
+  newDigit: number,
+  lastDigits: number[],
+  digitStats: Array<{ digit: number; count: number; percentage: number }>
+) => {
+  try {
+    // Preparar os dados para enviar ao backend
+    const statsObj: Record<number, { count: number; percentage: number }> = {};
+    
+    // Converter para o formato esperado pelo backend
+    digitStats.forEach(stat => {
+      statsObj[stat.digit] = {
+        count: stat.count,
+        percentage: stat.percentage
+      };
+    });
+    
+    // Criar objeto para enviar
+    const dataToSave = {
+      symbol,
+      lastDigits: [newDigit, ...lastDigits].slice(0, 500), // Limitar a 500 dígitos
+      digitStats: statsObj,
+      totalCount: lastDigits.length + 1,
+      lastUpdated: new Date()
+    };
+    
+    // Enviar para o backend
+    console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol);
+    
+    // Fazer requisição assíncrona para o backend
+    fetch('/api/digit-history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(dataToSave)
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
+      }
+      console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas no banco de dados`);
+    })
+    .catch(error => {
+      console.error('[BOT_PAGE] Erro ao salvar estatísticas no backend:', error);
+      
+      // Salvar em localStorage como fallback
+      try {
+        localStorage.setItem(`digit_history_${symbol}`, JSON.stringify({
+          lastDigits: dataToSave.lastDigits,
+          digitStats: dataToSave.digitStats,
+          lastUpdated: dataToSave.lastUpdated,
+          totalCount: dataToSave.totalCount
+        }));
+        console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas em localStorage como backup`);
+      } catch (localError) {
+        console.error('[BOT_PAGE] Erro ao salvar em localStorage:', localError);
+      }
+    });
+  } catch (error) {
+    console.error('[BOT_PAGE] Erro ao preparar estatísticas para envio:', error);
+  }
+};
+
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
@@ -773,8 +839,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Também atualizar o serviço de histórico para persistência
     // O serviço vai cuidar de salvar no banco de dados
     try {
-      // Adicionar o dígito ao histórico do serviço
-      derivHistoryService.addDigitToHistory('R_100', newDigit);
+      // Salvar no banco de dados diretamente
+      saveDigitToBackend('R_100', newDigit, updatedLastDigits, newStats);
     } catch (error) {
       console.error('[BOT_PAGE] Erro ao atualizar histórico de dígitos:', error);
     }
