@@ -1019,19 +1019,17 @@ export function BotPage() {
                 <h2 className="text-lg font-semibold text-white">Painel de Controle</h2>
                 
                 {/* Informações da conta na barra superior do painel */}
-                {(accountInfo?.loginid || selectedAccount?.loginid) && (
-                  <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
-                    <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                    <span className="text-sm font-medium text-white mr-2">
-                      {selectedAccount?.loginid || accountInfo?.loginid}
-                    </span>
-                    <span className="text-sm font-bold text-white">
-                      {typeof realTimeBalance?.balance === 'number' 
-                        ? realTimeBalance.balance.toFixed(2) 
-                        : '0.00'} {selectedAccount?.currency || accountInfo?.currency}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center bg-[#1a2b4c] px-3 py-1.5 rounded-lg border border-[#2c3e5d] shadow-md">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                  <span className="text-sm font-medium text-white mr-2">
+                    {selectedAccount?.loginid || accountInfo?.loginid || "Conectando..."}
+                  </span>
+                  <span className="text-sm font-bold text-white">
+                    {typeof realTimeBalance?.balance === 'number' 
+                      ? realTimeBalance.balance.toFixed(2) 
+                      : '0.00'} {selectedAccount?.currency || accountInfo?.currency || "USD"}
+                  </span>
+                </div>
               </div>
               
               {/* Status da Operação */}
