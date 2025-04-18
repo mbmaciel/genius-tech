@@ -46,12 +46,29 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     // Obter a estratégia completa para acessar configurações específicas
     const strategy = getStrategyById(strategyId);
     
+    // Obter configurações do usuário para a estratégia
+    const configObj = localStorage.getItem(`strategy_config_${strategyId}`);
+    let userConfig: any = null;
+    
+    if (configObj) {
+      try {
+        userConfig = JSON.parse(configObj);
+      } catch (err) {
+        console.error("[RELATORIO] Erro ao carregar configuração do usuário:", err);
+      }
+    }
+    
+    // Verificar se temos configuração de parcelas martingale
+    const hasParcelasMartingale = 
+      userConfig?.parcelasMartingale || 
+      strategy?.config?.maxMartingaleLevel;
+    
     // Mapeamento dos comandos específicos para cada estratégia
     switch (strategyId.toLowerCase()) {
       case 'advance':
         // Obter o valor da porcentagem específica para a estratégia Advance
-        // Usar a configuração dinâmica do objeto de estratégia
-        const entryPercentage = strategy?.config?.entryPercentage || 8;
+        // Usar a configuração do usuário, se disponível, ou o valor padrão
+        let entryPercentage = userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage || 8;
         
         // Garantir que estamos exibindo um valor numérico, não uma string
         const percentageValue = typeof entryPercentage === 'string' 
@@ -60,25 +77,74 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
         
         console.log("[RELATORIO] Usando valor dinâmico para porcentagem de entrada:", percentageValue);
         
-        return `PORCENTAGEM PARA ENTRAR: ${percentageValue}%`;
+        let command = `PORCENTAGEM PARA ENTRAR: ${percentageValue}%`;
+        
+        // Adicionar parcelas martingale se configurado
+        if (hasParcelasMartingale) {
+          const parcelas = userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel;
+          command += ` | PARCELAS MARTINGALE: ${parcelas}`;
+        }
+        
+        return command;
       case 'profitpro':
-        return "ENTRADA PROFIT PRO";
+        return hasParcelasMartingale 
+          ? `ENTRADA PROFIT PRO | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA PROFIT PRO";
       case 'manualunder':
-        return "ENTRADA MANUAL UNDER";
+        return hasParcelasMartingale 
+          ? `ENTRADA MANUAL UNDER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA MANUAL UNDER";
       case 'manualover':
-        return "ENTRADA MANUAL OVER";
+        return hasParcelasMartingale 
+          ? `ENTRADA MANUAL OVER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA MANUAL OVER";
       case 'ironover':
-        return "ENTRADA IRON OVER";
+        // Para Iron Over, adicionar também o parâmetro "Usar Martingale Após X Loss"
+        let ironOverCommand = "ENTRADA IRON OVER";
+        
+        // Adicionar parcelas martingale se configurado
+        if (hasParcelasMartingale) {
+          ironOverCommand += ` | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`;
+        }
+        
+        // Adicionar informação sobre "USAR MARTINGALE APÓS X LOSS"
+        if (userConfig?.usarMartingaleAposXLoss !== undefined) {
+          ironOverCommand += ` | USAR MARTINGALE APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
+        }
+        
+        return ironOverCommand;
+        
       case 'ironunder':
-        return "ENTRADA IRON UNDER";
+        // Para Iron Under, adicionar também o parâmetro "Usar Martingale Após X Loss"
+        let ironUnderCommand = "ENTRADA IRON UNDER";
+        
+        // Adicionar parcelas martingale se configurado
+        if (hasParcelasMartingale) {
+          ironUnderCommand += ` | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`;
+        }
+        
+        // Adicionar informação sobre "USAR MARTINGALE APÓS X LOSS"
+        if (userConfig?.usarMartingaleAposXLoss !== undefined) {
+          ironUnderCommand += ` | USAR MARTINGALE APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
+        }
+        
+        return ironUnderCommand;
       case 'botlow':
-        return "ENTRADA BOT LOW";
+        return hasParcelasMartingale 
+          ? `ENTRADA BOT LOW | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA BOT LOW";
       case 'maxpro':
-        return "ENTRADA MAXPRO";
+        return hasParcelasMartingale 
+          ? `ENTRADA MAXPRO | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA MAXPRO";
       case 'green':
-        return "ENTRADA GREEN";
+        return hasParcelasMartingale 
+          ? `ENTRADA GREEN | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA GREEN";
       case 'wisetendencia':
-        return "ENTRADA TENDÊNCIA";
+        return hasParcelasMartingale 
+          ? `ENTRADA TENDÊNCIA | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA TENDÊNCIA";
       default:
         return "Entrada";
     }
