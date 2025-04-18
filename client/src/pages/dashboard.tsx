@@ -358,6 +358,56 @@ export default function Dashboard() {
       
       {/* Conteúdo principal */}
       <div className="flex-1 md:ml-16 transition-all duration-300">
+        {/* Barra superior com links */}
+        <div className="w-full bg-[#13203a] flex justify-end items-center p-2 pr-4 space-x-4">
+          {/* Botão Robô de Operações - Só aparece quando o usuário está conectado */}
+          {isAuthenticated && accountInfo && (
+            <a href="/bot" className="text-white hover:text-[#00e5b3] text-sm font-medium flex items-center">
+              Robô de Operações
+            </a>
+          )}
+          
+          {/* Logout DERIV - Também só aparece quando o usuário está conectado */}
+          {isAuthenticated && accountInfo ? (
+            <a href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                // Remover tokens e dados da conta
+                localStorage.removeItem('deriv_token');
+                localStorage.removeItem('deriv_oauth_token');
+                localStorage.removeItem('deriv_account_info');
+                localStorage.removeItem('deriv_active_loginid');
+                
+                // Aviso de sucesso
+                toast({
+                  title: "Desconectado com sucesso",
+                  description: "Você foi desconectado da Deriv",
+                });
+                
+                // Atualizar estado
+                setIsAuthenticated(false);
+                setAccountInfo(null);
+                
+                // Recarregar a página após pequeno delay
+                setTimeout(() => window.location.reload(), 500);
+              }}
+              className="text-white hover:text-[#00e5b3] text-sm">
+              Logout DERIV
+            </a>
+          ) : (
+            // Link Login quando não estiver autenticado
+            <a href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                const button = document.querySelector('[class*="DerivConnectButton"]') as HTMLElement;
+                if (button) button.click();
+              }}
+              className="text-white hover:text-[#00e5b3] text-sm">
+              Login DERIV
+            </a>
+          )}
+        </div>
+        
         <main className="p-4">
           {/* Cabeçalho com informações da conta e botão de login */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 bg-[#162746] rounded-lg p-4 border border-[#1c3654]">
@@ -394,6 +444,33 @@ export default function Dashboard() {
                     <Users className="h-4 w-4 mr-1" />
                     Contas
                   </button>
+                  
+                  {/* Botão de logout */}
+                  <button
+                    onClick={() => {
+                      // Remover tokens e dados da conta
+                      localStorage.removeItem('deriv_token');
+                      localStorage.removeItem('deriv_oauth_token');
+                      localStorage.removeItem('deriv_account_info');
+                      localStorage.removeItem('deriv_active_loginid');
+                      
+                      // Aviso de sucesso
+                      toast({
+                        title: "Desconectado com sucesso",
+                        description: "Você foi desconectado da Deriv",
+                      });
+                      
+                      // Atualizar estado
+                      setIsAuthenticated(false);
+                      setAccountInfo(null);
+                      
+                      // Recarregar a página após pequeno delay
+                      setTimeout(() => window.location.reload(), 500);
+                    }}
+                    className="bg-red-700 hover:bg-red-800 text-white px-3 py-1 rounded-md text-sm flex items-center"
+                  >
+                    Logout
+                  </button>
                 </div>
               ) : (
                 <DerivConnectButton />
@@ -401,22 +478,44 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Componente R_100 */}
+          {/* Grade com os dois gráficos lado a lado */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Coluna da esquerda: Gráfico de barras */}
             <div className="w-full">
-              <DashboardR100Display />
+              <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
+                  <select 
+                    className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
+                    defaultValue="10"
+                  >
+                    <option value="10">10 Ticks</option>
+                    <option value="25">25 Ticks</option>
+                    <option value="50">50 Ticks</option>
+                    <option value="100">100 Ticks</option>
+                  </select>
+                </div>
+                <DashboardR100Display />
+              </div>
             </div>
+            
+            {/* Coluna da direita: Gráfico Deriv */}
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
               <div className="aspect-video bg-[#0c1525] rounded-md">
                 <iframe
-                  src="https://deriv.com/market-indices/volatility-100-index"
+                  src="https://charts.deriv.com/deriv"
                   className="w-full h-full rounded-md"
                   style={{ border: "none" }}
-                  title="Gráfico Deriv R_100"
+                  title="Gráfico Deriv"
                 ></iframe>
               </div>
             </div>
+          </div>
+          
+          {/* Texto de aviso no rodapé, igual à imagem */}
+          <div className="mt-8 text-xs text-gray-500 bg-[#13203a] p-4 rounded-lg">
+            <p>AVISO DE RISCOS: Os produtos disponibilizados através deste site incluem opções binárias, contratos por diferenças ("CFDs") e outros derivados complexos. A negociação de opções binárias pode não ser adequada para todos. A negociação de CFDs implica um elevado grau de risco, uma vez que a alavancagem pode trabalhar tanto para a sua vantagem como para a sua desvantagem. Como resultado, os produtos disponibilizados neste site podem não ser adequados para todo tipo de investidor, devido ao risco de se perder todo o capital investido. Nunca se deve investir dinheiro que precisa e nunca se deve negociar com dinheiro emprestado. Antes de negociar os complexos produtos disponibilizados, certifique-se de que compreende os riscos envolvidos e aprenda mais sobre a negociação responsável.</p>
           </div>
         </main>
       </div>
