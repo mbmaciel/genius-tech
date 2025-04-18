@@ -5,6 +5,7 @@ import { DerivConnectButton } from "@/components/DerivConnectButton";
 import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
+import { simpleTicker } from "@/services/simpleTicker";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -220,6 +221,9 @@ export default function Dashboard() {
     // Iniciar a conexão WebSocket para dados R_100
     // Desativado temporariamente para depuração
     // startKeepAlive();
+    
+    // Iniciar o serviço de ticks independente sem afetar a conexão OAuth
+    simpleTicker.start(); // Usar o serviço dedicado exclusivamente ao dashboard
     
     // Adicionar listener para eventos de tick
     const handleTick = (event: CustomEvent) => {
