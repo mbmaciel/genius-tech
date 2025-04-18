@@ -22,9 +22,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private webSocket: WebSocket | null = null;
   private tokens: TokenInfo[] = [];
   private activeToken: string | null = null;
+  private activeSymbol: string = 'R_100'; // Símbolo ativo para reconexões
   private isRunning: boolean = false;
   private eventListeners: Array<(event: TradingEvent) => void> = [];
   private currentContractId: string | number | null = null;
+  private verboseLogging: boolean = false; // Controle de logs detalhados
   private settings: TradingSettings = {
     entryValue: 0.35,
     profitTarget: 20,

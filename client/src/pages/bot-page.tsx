@@ -165,36 +165,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   useEffect(() => {
     console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
     
-    // Script para forçar atualização da página a cada 30 segundos se necessário
-    // Isso ajuda a resolver problemas de atualização da interface
-    let updateAttempts = 0;
-    const maxUpdateAttempts = 3;
-    
-    const forcePageRefresh = () => {
-      if (updateAttempts < maxUpdateAttempts) {
-        updateAttempts++;
-        console.log(`[BOT_PAGE] Forçando atualização da interface (tentativa ${updateAttempts}/${maxUpdateAttempts})`);
-        
-        // Forçar um re-render usando o estado React
-        setLastDigits(prev => [...prev]);
-        setDigitStats(prev => [...prev]);
-        
-        // Se não resolver após tentativas, recarregar a página
-        if (updateAttempts === maxUpdateAttempts) {
-          console.log('[BOT_PAGE] Problemas persistentes na interface, recarregando página...');
-          setTimeout(() => window.location.reload(), 5000);
-        }
-      }
-    };
-    
-    // Adicionar script para forçar refresh se necessário
+    // Verificação de conexão WebSocket ativa, mas sem forçar recarregamentos
+    // Apenas fazer diagnóstico da conexão
     const checkInterfaceUpdates = setInterval(() => {
       const lastTick = localStorage.getItem('last_tick_timestamp');
       const now = Date.now();
       
-      if (lastTick && (now - parseInt(lastTick)) > 20000) {
-        console.log('[BOT_PAGE] Detectada inatividade na interface há mais de 20 segundos');
-        forcePageRefresh();
+      // Se estiver inativo há mais de 1 minuto, verificar a conexão sem recarregar a página
+      if (lastTick && (now - parseInt(lastTick)) > 60000) {
+        console.log('[BOT_PAGE] Verificando estado da conexão WebSocket após 60 segundos sem ticks');
+        
+        // Verificar se o WebSocket ainda está conectado
+        if (oauthDirectService && typeof oauthDirectService.subscribeToTicks === 'function') {
+          // Tentar reinscrever nos ticks, mas sem recarregar a página
+          oauthDirectService.subscribeToTicks('R_100');
+          console.log('[BOT_PAGE] Tentativa de reativação da conexão de ticks realizada');
+          
+          // Atualizar timestamp para evitar novas tentativas por 30 segundos
+          localStorage.setItem('last_tick_timestamp', (now - 30000).toString());
+        }
       }
     }, 30000);
     
