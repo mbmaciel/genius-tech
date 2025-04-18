@@ -870,10 +870,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       return;
     }
     
-    // Incluir o token na solicitação para garantir a conta correta
+    // Solicitação de apenas balanço (sem combiná-la com authorize)
     const request = {
-      balance: 1,
-      authorize: this.activeToken
+      balance: 1
     };
     
     console.log(`[OAUTH_DIRECT] Solicitando saldo atual para conta com token ${this.activeToken.substring(0, 4)}...`);
@@ -901,11 +900,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       return;
     }
     
-    // Incluir o token na solicitação para garantir a conta correta
+    // Solicitação de inscrição de balanço (sem combiná-la com authorize)
     const request = {
       balance: 1,
-      subscribe: 1,
-      authorize: this.activeToken
+      subscribe: 1
     };
     
     console.log(`[OAUTH_DIRECT] Inscrevendo-se para atualizações de saldo para conta com token ${this.activeToken.substring(0, 4)}...`);
