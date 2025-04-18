@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from "@/components/ui/card";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { Badge } from "@/components/ui/badge";
@@ -15,53 +15,61 @@ interface DigitStat {
   percentage: number;
 }
 
-export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisplayProps) {
-  const [internalDigits, setInternalDigits] = useState<number[]>(digits);
-  const [renderKey, setRenderKey] = useState<number>(Date.now());
+// Componente estabilizado com React.memo para evitar renderizações desnecessárias
+export const SimpleDigitDisplay = React.memo(function SimpleDigitDisplayInner({ 
+  digits: externalDigits, 
+  symbol = "R_100" 
+}: SimpleDigitDisplayProps) {
+  // Estados
+  const [internalDigits, setInternalDigits] = useState<number[]>(externalDigits || []);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  
-  // Forçar renderização apenas quando os dados mudarem (evita atualizações constantes)
-  useEffect(() => {
-    // Atualizar a chave de renderização apenas quando os dígitos mudarem
-    setRenderKey(Date.now());
-  }, [internalDigits]);
-  
+
+  // Memoizar uma chave de renderização estável
+  const renderKey = useMemo(() => Date.now(), []);
+
   // Atualizar quando os dígitos externos mudarem
   useEffect(() => {
-    console.log("[SIMPLE_DIGIT] Atualizando com novos dígitos externos:", digits);
-    setInternalDigits(digits);
-  }, [digits]);
-  
-  // Escutar eventos de tick diretamente
+    if (externalDigits && externalDigits.length > 0) {
+      setInternalDigits(externalDigits);
+    }
+  }, [externalDigits]);
+
+  // Escutar eventos de tick com debounce para reduzir atualizações
   useEffect(() => {
-    console.log("[SIMPLE_DIGIT] Configurando listener de ticks para exibição simples");
-    
+    let tickTimer: NodeJS.Timeout | null = null;
+    let tickQueue: number[] = [];
+
     const handleTick = (event: any) => {
       if (event.type === 'tick' && typeof event.lastDigit === 'number') {
-        console.log(`[SIMPLE_DIGIT] Tick recebido diretamente: ${event.lastDigit} (timestamp: ${event.timestamp || 'n/a'})`);
+        // Adicionar tick à fila
+        tickQueue.unshift(event.lastDigit);
         
-        setInternalDigits(prev => {
-          // Criar uma referência completamente nova para o array
-          const updated = [event.lastDigit, ...prev].slice(0, 20);
-          return updated;
-        });
+        // Limitar tamanho da fila
+        if (tickQueue.length > 20) {
+          tickQueue = tickQueue.slice(0, 20);
+        }
         
-        // Atualizar timestamp
-        setLastUpdate(new Date());
-        
-        // Não precisamos forçar renderização aqui, já temos um useEffect que observa internalDigits
+        // Debounce: atualizar estado apenas uma vez a cada 300ms
+        if (!tickTimer) {
+          tickTimer = setTimeout(() => {
+            setInternalDigits([...tickQueue]);
+            setLastUpdate(new Date());
+            tickTimer = null;
+          }, 300);
+        }
       }
     };
-    
+
     // Registrar handler
     oauthDirectService.addEventListener(handleTick);
-    
-    // Limpar
+
+    // Limpar recursos ao desmontar
     return () => {
       oauthDirectService.removeEventListener(handleTick);
+      if (tickTimer) clearTimeout(tickTimer);
     };
   }, []);
-  
+
   // Calcular estatísticas de dígitos
   const stats = useMemo(() => {
     if (internalDigits.length === 0) return [];
@@ -69,10 +77,10 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
     // Contar ocorrências
     const counts = Array(10).fill(0);
     internalDigits.forEach(digit => {
-      counts[digit]++;
+      if (digit >= 0 && digit <= 9) counts[digit]++;
     });
     
-    // Calcular percentuais e criar array com estatísticas
+    // Calcular percentuais
     return Array.from({ length: 10 }, (_, i) => ({
       digit: i,
       count: counts[i],
@@ -80,13 +88,13 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
     })) as DigitStat[];
   }, [internalDigits]);
   
-  // Checar padrões
+  // Detectar padrões nos dígitos
   const patterns = useMemo(() => {
     if (internalDigits.length < 3) return [];
     
     const results = [];
     
-    // Padrão: 3 ou mais dígitos pares consecutivos
+    // Padrão: 3+ dígitos pares consecutivos
     let consecPairs = 0;
     for (let i = 0; i < internalDigits.length; i++) {
       if (internalDigits[i] % 2 === 0) {
@@ -111,7 +119,7 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
       });
     }
     
-    // Padrão: 3 ou mais dígitos ímpares consecutivos
+    // Padrão: 3+ dígitos ímpares consecutivos
     let consecOdds = 0;
     for (let i = 0; i < internalDigits.length; i++) {
       if (internalDigits[i] % 2 !== 0) {
@@ -152,7 +160,7 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
     return results;
   }, [internalDigits, stats]);
   
-  // Função para determinar a cor do dígito
+  // Determinar a cor do dígito
   const getDigitColor = (digit: number): string => {
     if (digit === 0 || digit === 5) {
       return "bg-amber-500 text-white"; // Amarelo para 0 e 5
@@ -163,15 +171,13 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
     }
   };
   
-  // Função para determinar cor de fundo baseada na porcentagem
+  // Determinar cor de fundo baseada na porcentagem
   const getPercentageBackgroundStyle = (percentage: number) => {
     if (percentage >= 30) return { width: `${percentage}%`, backgroundColor: '#ef4444' }; // Vermelho
     if (percentage >= 20) return { width: `${percentage}%`, backgroundColor: '#f59e0b' }; // Âmbar
     if (percentage >= 10) return { width: `${percentage}%`, backgroundColor: '#10b981' }; // Verde
     return { width: `${percentage}%`, backgroundColor: '#6b7280' }; // Cinza
   };
-
-  console.log("[SIMPLE_DIGIT] Renderizando com key:", renderKey, "dígitos:", internalDigits);
   
   return (
     <Card className="bg-[#13203a] p-4 shadow-lg border border-[#2a3756]">
@@ -192,7 +198,7 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
           {internalDigits.length > 0 ? (
             internalDigits.map((digit, index) => (
               <div 
-                key={`digit-${index}-${digit}-${renderKey}`}
+                key={`digit-${index}-${renderKey}`}
                 className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md transform ${index === 0 ? 'scale-110 border-2 border-white' : ''}`}
               >
                 {digit}
@@ -245,4 +251,4 @@ export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisp
       )}
     </Card>
   );
-}
+});
