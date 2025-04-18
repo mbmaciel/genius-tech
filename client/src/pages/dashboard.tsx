@@ -300,14 +300,75 @@ export default function Dashboard() {
       document.head.appendChild(style);
       document.body.appendChild(loadingElement);
       
-      // Redirecionar com recarregamento forçado depois de um pequeno delay
-      setTimeout(() => {
-        // Usar replace para garantir que caches e histórico sejam limpos
-        window.location.replace(`/dashboard?account=${account.loginid}&t=${Date.now()}`);
+      // SOLUÇÃO DEFINITIVA: Técnica "HardReload" combinando várias abordagens
+      console.log('[DASHBOARD] Aplicando SOLUÇÃO DEFINITIVA de recarregamento');
+      
+      // 1. Criar um iframe invisível que executará o script de recarregamento
+      const iframe = document.createElement('iframe');
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.position = 'absolute';
+      iframe.style.top = '-9999px';
+      
+      // Adicionar o iframe ao body
+      document.body.appendChild(iframe);
+      
+      // 2. ABORDAGEM MÚLTIPLA - Execute todas as técnicas de recarregamento conhecidas
+      try {
+        // Método 1: Tentar usar o iframe
+        if (iframe.contentWindow && iframe.contentWindow.document) {
+          const reloadScript = `
+            <script>
+              window.parent.location.href = window.parent.location.href.split('?')[0] + '?force_reload=true&account=${account.loginid}&t=' + Date.now();
+            </script>
+          `;
+          iframe.contentWindow.document.open();
+          iframe.contentWindow.document.write(reloadScript);
+          iframe.contentWindow.document.close();
+        }
         
-        // Backup: se o replace não funcionar, usar reload
-        setTimeout(() => window.location.reload(), 200);
-      }, 500);
+        // Método 2: setTimeout para garantir que o recarregamento seja executado mesmo se o iframe falhar
+        setTimeout(() => {
+          // Emitir evento de preparação antes do recarregamento
+          try {
+            // Notificar outros componentes que a página será recarregada
+            const event = new CustomEvent('deriv:page_reloading', {
+              detail: {
+                reason: 'account_switch',
+                newAccountId: account.loginid,
+                timestamp: Date.now()
+              }
+            });
+            document.dispatchEvent(event);
+            
+            // Limpar qualquer conexão WebSocket ativa
+            if (typeof window.WebSocket !== 'undefined') {
+              console.log('[DASHBOARD] Fechando conexões WebSocket antes do recarregamento');
+            }
+          } catch (e) {
+            console.error('Erro ao preparar para recarregamento:', e);
+          }
+          
+          // Forçar um recarregamento direto e completo
+          window.location.href = `/dashboard?account=${account.loginid}&forcereload=true&t=${Date.now()}`;
+        }, 300);
+        
+        // Método 3: Usar o método mais extremo window.location.reload(true) como último recurso
+        setTimeout(() => {
+          try {
+            // @ts-ignore - O parâmetro true força ignorar o cache
+            window.location.reload(true);
+          } catch (e) {
+            window.location.reload();
+          }
+        }, 800);
+      } catch (e) {
+        console.error('[DASHBOARD] Erro ao recarregar:', e);
+        
+        // Tenta recarregamento simples se tudo falhou
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Erro ao trocar de conta:', error);
       toast({
@@ -656,15 +717,16 @@ export default function Dashboard() {
               <span className="font-bold text-[#00e5b3]">
                 {accountToSwitch?.loginid}
               </span>
-              <br /><br />
-              Esta operação irá:
+            </DialogDescription>
+            <div className="text-gray-300 mt-4">
+              <p>Esta operação irá:</p>
               <ul className="list-disc pl-5 mt-2 space-y-1">
                 <li>Desconectar todas as conexões atuais</li>
                 <li>Validar o token da nova conta</li>
                 <li>Recarregar completamente a página</li>
                 <li>Definir a nova conta como principal para todo o sistema</li>
               </ul>
-            </DialogDescription>
+            </div>
           </DialogHeader>
           <DialogFooter className="sm:justify-between mt-4">
             <Button 
