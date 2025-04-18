@@ -482,6 +482,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                     if (reconnectSuccess) {
                       console.log('[BOT] Reconexão inicial bem-sucedida');
                       
+                      // Importar o serviço de histórico para carregar imediatamente os últimos 500 dígitos
+                      import('../services/deriv-history-service').then(module => {
+                        const derivHistoryService = module.derivHistoryService;
+                        console.log('[BOT] Solicitando histórico inicial de 500 dígitos mais recentes do mercado');
+                        derivHistoryService.getTicksHistory('R_100', 500, false)
+                          .then(() => console.log('[BOT] Histórico inicial de dígitos solicitado com sucesso'))
+                          .catch(err => console.error('[BOT] Erro ao solicitar histórico inicial:', err));
+                      });
+                      
                       // Solicitar saldo atual após reconexão bem-sucedida
                       // Usar o novo método com subscribe: true para receber atualizações contínuas
                       setTimeout(() => {
