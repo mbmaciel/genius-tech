@@ -326,52 +326,72 @@ export function AccountSwitcher() {
       // 4. Esperar um pouco para garantir que tudo seja processado
       console.log('[AccountSwitcher] 4/5: Aguardando processamento...');
       
-      // SOLUÇÃO RADICAL: Usar um formulário para forçar um POST real e recarregamento
-      // com um redirecionamento completo do servidor
-      console.log('[AccountSwitcher] 5/5: Aplicando método ultra-radical de recarregamento');
+      // SOLUÇÃO DEFINITIVA: Técnica "HardReload" combinando várias abordagens
+      console.log('[AccountSwitcher] 5/5: Aplicando SOLUÇÃO DEFINITIVA de recarregamento');
       
-      // Criar um formulário invisível que usará método POST
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = window.location.href.split('?')[0]; // URL sem parâmetros
+      // 1. Criar um código JavaScript que será executado em um iframe para forçar recarregamento
+      const reloadScript = `
+        <script>
+          window.parent.location.href = window.parent.location.href.split('?')[0] + '?force_reload=true&t=' + Date.now();
+        </script>
+      `;
       
-      // Adicionar campos ocultos com informações da conta
-      const addHiddenField = (name: string, value: string) => {
-        const field = document.createElement('input');
-        field.type = 'hidden';
-        field.name = name;
-        field.value = value;
-        form.appendChild(field);
-      };
+      // 2. Criar um iframe invisível que executará o script
+      const iframe = document.createElement('iframe');
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.position = 'absolute';
+      iframe.style.top = '-9999px';
       
-      // Adicionar todos os dados relevantes
-      addHiddenField('accountId', account.loginid);
-      addHiddenField('forceReload', 'true');
-      addHiddenField('timestamp', Date.now().toString());
+      // Adicionar o iframe ao body
+      document.body.appendChild(iframe);
       
-      // Adicionar o formulário ao corpo do documento
-      document.body.appendChild(form);
-      
-      // Mostrar mensagem final
-      console.log('[AccountSwitcher] ENVIANDO FORMULÁRIO DE RECARREGAMENTO COMPLETO');
-      
-      // Enviar o formulário após um pequeno atraso para garantir que o localStorage foi salvo
-      setTimeout(() => {
-        try {
-          // Enviar o formulário - isso forçará um recarregamento completo do servidor
-          form.submit();
-          
-          // Como backup, tentar recarregar após 500ms se o formulário não funcionar
-          setTimeout(() => {
-            console.log('[AccountSwitcher] Backup: forçando recarregamento direto');
-            window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
-          }, 500);
-        } catch (e) {
-          console.error('[AccountSwitcher] Erro no recarregamento:', e);
-          // Última tentativa caso as anteriores falhem
-          window.location.reload();
+      // 3. ABORDAGEM MÚLTIPLA - Execute todas as técnicas de recarregamento conhecidas
+      try {
+        // Método 1: Write no iframe para executar JavaScript que faz recarregamento
+        if (iframe.contentWindow && iframe.contentWindow.document) {
+          iframe.contentWindow.document.open();
+          iframe.contentWindow.document.write(reloadScript);
+          iframe.contentWindow.document.close();
         }
-      }, 300);
+        
+        // Método 2: Recarregar diretamente
+        console.log('[AccountSwitcher] Executando método location.href com timestamp');
+        
+        // Forçar recarregamento depois de 100ms 
+        setTimeout(() => {
+          const timestamp = Date.now();
+          window.location.href = window.location.href.split('?')[0] + 
+            `?account=${account.loginid}&forcereload=true&t=${timestamp}`;
+        }, 100);
+        
+        // Método 3: Usar o método mais extremo window.location.reload(true)
+        setTimeout(() => {
+          try {
+            // @ts-ignore - O parâmetro true força ignorar o cache
+            window.location.reload(true);
+          } catch (e) {
+            window.location.reload();
+          }
+        }, 300);
+        
+        // Método 4: Redirecionar para um URL diferente e voltar
+        setTimeout(() => {
+          const currentUrl = window.location.href;
+          const tempUrl = window.location.href + '#temp';
+          window.location.href = tempUrl;
+          
+          setTimeout(() => {
+            window.location.href = currentUrl + '?t=' + Date.now();
+          }, 50);
+        }, 500);
+      } catch (e) {
+        console.error('[AccountSwitcher] Erro ao recarregar:', e);
+        
+        // Tenta recarregamento simples se tudo falhou
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
