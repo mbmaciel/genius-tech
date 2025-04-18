@@ -416,6 +416,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   
   private getReadyStateText(state: number): string {
+    if (!state && state !== 0) return 'DESCONHECIDO';
+    
     switch (state) {
       case WebSocket.CONNECTING:
         return "CONNECTING (0)";

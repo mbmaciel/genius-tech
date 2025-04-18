@@ -29,6 +29,49 @@ interface DerivAccount {
 export function BotPage() {
   const { toast } = useToast();
   
+  // Função para recarregar a página forçadamente
+  const forceFullReload = () => {
+    console.log('[BOT_PAGE] Forçando recarregamento completo da página...');
+    
+    // Criar elemento visual de carregamento
+    const loadingElement = document.createElement('div');
+    loadingElement.style.position = 'fixed';
+    loadingElement.style.top = '0';
+    loadingElement.style.left = '0';
+    loadingElement.style.width = '100%';
+    loadingElement.style.height = '100%';
+    loadingElement.style.backgroundColor = 'rgba(11, 20, 41, 0.9)';
+    loadingElement.style.zIndex = '9999';
+    loadingElement.style.display = 'flex';
+    loadingElement.style.alignItems = 'center';
+    loadingElement.style.justifyContent = 'center';
+    loadingElement.style.flexDirection = 'column';
+    loadingElement.style.color = 'white';
+    loadingElement.style.fontSize = '24px';
+    loadingElement.style.fontWeight = 'bold';
+    loadingElement.innerHTML = `
+      <div style="margin-bottom: 20px;">ATUALIZANDO PÁGINA</div>
+      <div style="font-size: 18px; margin-bottom: 30px;">Recarregando aplicação...</div>
+      <div style="width: 60px; height: 60px; border: 5px solid #1E3A8A; border-top: 5px solid #00E5B3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    `;
+    
+    // Adicionar estilo de animação
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(loadingElement);
+    
+    // Recarregar a página após pequeno delay
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
+  
   // Estado para autenticação e dados da conta
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<DerivAccount | null>(null);
