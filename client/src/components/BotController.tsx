@@ -375,37 +375,13 @@ export function BotController({
   // Renderizar botão de início/pausa e informações da conta
   return (
     <div className="space-y-4">
-      {/* Barra superior com status de execução */}
+      {/* Barra superior - Modal de status totalmente removido conforme solicitado */}
       <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] shadow-lg">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`p-2 rounded-full mr-2 ${
-              status === 'running' ? 'bg-green-600/20' : 
-              status === 'paused' ? 'bg-yellow-600/20' : 'bg-gray-600/20'
-            }`}>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${
-                status === 'running' ? 'text-green-400' : 
-                status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
-              }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                  d={status === 'running' 
-                    ? "M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
-                    : status === 'paused' 
-                    ? "M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" 
-                    : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"} 
-                />
-              </svg>
-            </div>
-            <div>
-              {/* Modal de status - Texto removido conforme solicitado pelo usuário */}
-              {/* Removido as informações de Entrada, Alvo e Stop conforme solicitado */}
-            </div>
-          </div>
-          
           {status === 'running' && (
-            <div className="flex items-center bg-green-600/10 py-1 px-3 rounded-full">
+            <div className="flex items-center bg-green-600/10 py-2 px-4 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-              <span className="text-xs text-green-400">Operando</span>
+              <span className="text-sm text-green-400 font-medium">Operando</span>
             </div>
           )}
         </div>
