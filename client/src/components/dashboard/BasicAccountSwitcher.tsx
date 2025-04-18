@@ -171,9 +171,8 @@ export function BasicAccountSwitcher() {
       // Forçar recarregamento da página depois de um breve delay
       setTimeout(() => {
         try {
-          // Método 1: Criar uma URL com parâmetros para evitar cache
-          window.location.href = window.location.pathname + 
-            `?account=${account.loginid}&t=${Date.now()}`;
+          // Redirecionar explicitamente para o dashboard com parâmetros para evitar cache
+          window.location.href = '/dashboard?account=' + account.loginid + '&t=' + Date.now();
         } catch (e) {
           console.error('Erro ao recarregar página:', e);
           window.location.reload();

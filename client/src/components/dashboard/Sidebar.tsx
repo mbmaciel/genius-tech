@@ -38,7 +38,7 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
       icon: <LayoutDashboard className="h-5 w-5" /> 
     },
     { 
-      path: '/trading-bot', 
+      path: '/bot', 
       label: 'Robô de Operações', 
       icon: <Bot className="h-5 w-5" /> 
     },
