@@ -77,7 +77,14 @@ export function BotPage() {
   
   // Estado para autenticação e dados da conta
   const [accountInfo, setAccountInfo] = useState<any>(null);
-  const [selectedAccount, setSelectedAccount] = useState<DerivAccount | null>(null);
+  // Adicionado default para garantir valor inicial
+const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
+  loginid: "",
+  token: "",
+  currency: "USD",
+  balance: 0,
+  isVirtual: false
+});
   const [authToken, setAuthToken] = useState<string | null>(null); // Token para autorização de operações
   
   // Estado para controle do robô
@@ -989,9 +996,10 @@ export function BotPage() {
     time: Date;
   }[]>([]);
   
-  // Use o useEffect para registrar ouvintes de eventos de operação
+  // Use o useEffect para registrar ouvintes de eventos de operação e saldo
   useEffect(() => {
-    const handleOperation = (event: any) => {
+    const handleEvents = (event: any) => {
+      // Processar eventos de operação finalizada
       if (event.type === 'operation_finished') {
         // Adicionar operação ao histórico
         const newOperation = {
@@ -1005,16 +1013,74 @@ export function BotPage() {
         
         setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
       }
+      
+      // Processar eventos de atualização de saldo
+      if (event.type === 'balance_update' && event.balance) {
+        console.log('[BOT_PAGE] ★★★ Evento balance_update recebido diretamente no ouvinte principal:', event.balance);
+        
+        // FORÇAR exibição do saldo recebido
+        const realBalance = typeof event.balance.balance === 'number' 
+          ? event.balance.balance 
+          : parseFloat(String(event.balance.balance));
+
+        // Imprimir valores com tipo explícito para debug
+        console.log('[BOT_PAGE] ★★★ Valor numérico REAL do saldo:', realBalance, 'tipo:', typeof realBalance);
+
+        // Atualizar saldo em tempo real - GARANTIR QUE É NÚMERO
+        setRealTimeBalance({
+          balance: realBalance,
+          previousBalance: realTimeBalance.balance || 0
+        });
+        
+        // Atualizar dados da conta no topo da tela
+        setAccountInfo(prev => {
+          const updated = {
+            ...prev,
+            loginid: event.balance.loginid || '',
+            balance: realBalance,
+            currency: event.balance.currency || 'USD',
+            is_virtual: (event.balance.loginid || '').startsWith('VRT')
+          };
+          console.log('[BOT_PAGE] ★★★ accountInfo atualizado para:', updated);
+          return updated;
+        });
+        
+        // Forçar atualização da conta selecionada também
+        setSelectedAccount(prev => {
+          const updated = {
+            ...prev,
+            loginid: event.balance.loginid || prev.loginid,
+            balance: realBalance,
+            currency: event.balance.currency || prev.currency
+          };
+          console.log('[BOT_PAGE] ★★★ selectedAccount atualizado para:', updated);
+          return updated;
+        });
+        
+        // Adicionar valor ao localStorage para depuração
+        try {
+          localStorage.setItem('last_balance_update', JSON.stringify({
+            balance: realBalance,
+            currency: event.balance.currency,
+            loginid: event.balance.loginid,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {
+          console.error('[BOT_PAGE] Erro ao salvar saldo no localStorage:', e);
+        }
+        
+        console.log('[BOT_PAGE] ★★★ Saldo atualizado para:', realBalance, event.balance.currency);
+      }
     };
     
     // Registrar ouvinte de eventos
-    oauthDirectService.addEventListener(handleOperation);
+    oauthDirectService.addEventListener(handleEvents);
     
     // Limpar ouvinte ao desmontar
     return () => {
-      oauthDirectService.removeEventListener(handleOperation);
+      oauthDirectService.removeEventListener(handleEvents);
     };
-  }, []);
+  }, [realTimeBalance.balance]);
 
   const renderActionButton = () => {
     // Usar o novo BotController para melhor feedback visual e controle
