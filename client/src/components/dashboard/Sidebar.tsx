@@ -127,9 +127,8 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
             </nav>
           </div>
           
-          <div className="p-4 border-t border-[#1c3654]">
-            <DirectHTMLSwitcher />
-          </div>
+          {/* Área vazia no rodapé da sidebar */}
+          <div className="p-2"></div>
         </aside>
       )}
 
@@ -166,9 +165,8 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
             </nav>
           </div>
           
-          <div className={`border-t border-[#1c3654] ${isHovered ? 'p-4' : 'p-3 flex justify-center'}`}>
-            <DirectHTMLSwitcher />
-          </div>
+          {/* Área vazia no rodapé da sidebar */}
+          <div className={`border-t border-[#1c3654] ${isHovered ? 'p-4' : 'p-3 flex justify-center'}`}></div>
         </aside>
       )}
     </>
