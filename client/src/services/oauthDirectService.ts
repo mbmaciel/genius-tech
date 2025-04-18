@@ -1043,53 +1043,192 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Verifica se o array de escopos contém permissões de trading
    */
   private checkHasTradingPermission(scopes: string[]): boolean {
-    if (!scopes || !Array.isArray(scopes)) return false;
+    if (!scopes || !Array.isArray(scopes)) {
+      console.error('[OAUTH_DIRECT] Escopos inválidos recebidos:', scopes);
+      return false;
+    }
     
-    const tradingScopes = ['trade', 'trading', 'trading_information'];
-    return scopes.some(scope => tradingScopes.includes(scope.toLowerCase()));
+    // Lista de escopos necessários e recomendados
+    const requiredScopes = ['trade', 'trading'];
+    const recommendedScopes = ['trading_information', 'payments', 'admin', 'read'];
+    const allScopes = [...requiredScopes, ...recommendedScopes];
+    
+    // Normalizar escopos para comparação (converter para minúsculas)
+    const normalizedScopes = scopes.map(s => s.toLowerCase());
+    
+    // Verificar se pelo menos um dos escopos necessários está presente
+    const hasRequiredScope = requiredScopes.some(scope => 
+      normalizedScopes.includes(scope.toLowerCase())
+    );
+    
+    // Verificar escopos ausentes
+    const missingScopes = allScopes.filter(scope => 
+      !normalizedScopes.includes(scope.toLowerCase())
+    );
+    
+    // Registrar informações para depuração e interface
+    console.log(`[OAUTH_DIRECT] Token tem permissões de trading: ${hasRequiredScope ? 'SIM' : 'NÃO'}`);
+    console.log(`[OAUTH_DIRECT] Escopos encontrados: ${normalizedScopes.join(', ')}`);
+    
+    if (!hasRequiredScope) {
+      console.error('[OAUTH_DIRECT] Token não possui permissões de trading necessárias');
+      
+      // Registrar erro para ser exibido na interface
+      const errorData = {
+        token: this.activeToken ? this.activeToken.substring(0, 8) + '...' : 'desconhecido',
+        error: 'missing_trading_permission',
+        message: 'Este token não possui as permissões necessárias para operações de trading',
+        requiredScopes: requiredScopes,
+        foundScopes: normalizedScopes,
+        timestamp: Date.now()
+      };
+      
+      // Salvar no localStorage
+      localStorage.setItem('deriv_token_scope_error', JSON.stringify(errorData));
+      
+      // Disparar evento para notificar componentes
+      try {
+        const scopeErrorEvent = new CustomEvent('deriv_token_scope_error', {
+          detail: errorData
+        });
+        document.dispatchEvent(scopeErrorEvent);
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao disparar evento de erro de escopo:', error);
+      }
+    } 
+    else if (missingScopes.length > 0) {
+      // Se tem os escopos necessários mas faltam alguns recomendados
+      console.warn('[OAUTH_DIRECT] Token tem permissões essenciais, mas faltam escopos recomendados:', missingScopes);
+      
+      // Disparar evento de aviso para interface
+      try {
+        const warningEvent = new CustomEvent('deriv_token_permission_warning', {
+          detail: {
+            token: this.activeToken ? this.activeToken.substring(0, 8) + '...' : 'desconhecido',
+            missingScopes: missingScopes,
+            foundScopes: normalizedScopes,
+            timestamp: Date.now()
+          }
+        });
+        document.dispatchEvent(warningEvent);
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao disparar evento de aviso de permissão:', error);
+      }
+    }
+    
+    return hasRequiredScope;
   }
   
   /**
    * Solicita ao usuário que reautorize a aplicação com os escopos corretos
+   * Versão melhorada com registro de ações e notificações abrangentes
    */
   private promptForReauthorization(): void {
     try {
+      // Identificar a conta atual
+      const currentAccount = localStorage.getItem('deriv_active_loginid') || 'sua conta';
+      
       // Salvar o estado atual para retornar após a reautorização
       localStorage.setItem('deriv_pending_reauth', 'true');
+      localStorage.setItem('deriv_pending_reauth_timestamp', Date.now().toString());
       
       // Montar a URL de autorização com os escopos corretos
       const appId = '71403'; // App ID do projeto
       const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
-      const scope = encodeURIComponent('read admin payments trade trading trading_information');
       
-      // URL de autorização da Deriv
+      // Definir todos os escopos necessários
+      const allScopes = ['read', 'admin', 'payments', 'trade', 'trading', 'trading_information'];
+      const scope = encodeURIComponent(allScopes.join(' '));
+      
+      // URL de autorização da Deriv com idioma português
       const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+      
+      // Registrar solicitação de reautorização completa
+      console.log(`[OAUTH_DIRECT] Solicitando reautorização para ${currentAccount} com escopos: ${allScopes.join(', ')}`);
+      
+      // Salvar informações de solicitação
+      localStorage.setItem('deriv_reauth_request', JSON.stringify({
+        timestamp: Date.now(),
+        account: currentAccount,
+        scopes: allScopes,
+        url: authUrl
+      }));
       
       // Notificar o usuário
       this.notifyListeners({
         type: 'reauthorization_required',
-        message: 'É necessário reautorizar sua conta para operações de trading',
-        details: 'Você será redirecionado para a página de autorização da Deriv',
+        message: `É necessário reautorizar ${currentAccount} para operações de trading`,
+        details: 'A plataforma precisa de permissões adicionais para funcionar corretamente',
+        account: currentAccount,
+        scopes: allScopes,
         url: authUrl
       });
       
-      // Abrir página de autorização em uma nova janela após 3 segundos
+      // Abrir página de autorização em uma nova janela após breve delay
       setTimeout(() => {
-        const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
-        
-        if (!authWindow) {
-          console.error('[OAUTH_DIRECT] Falha ao abrir janela de autorização. Possível bloqueio de pop-up.');
+        try {
+          const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
           
-          // Caso falhe em abrir a janela, mostrar instrução para o usuário
+          if (!authWindow) {
+            console.error('[OAUTH_DIRECT] Falha ao abrir janela de autorização. Possível bloqueio de pop-up.');
+            
+            // Caso falhe em abrir a janela, mostrar instrução detalhada para o usuário
+            this.notifyListeners({
+              type: 'error',
+              message: 'Não foi possível abrir a janela de autorização',
+              details: 'Seu navegador pode estar bloqueando pop-ups. Por favor, permita pop-ups para este site ou use o botão de reautorização na interface.',
+              actionRequired: true,
+              actionUrl: authUrl
+            });
+            
+            // Disparar evento personalizado de falha na autorização
+            const failEvent = new CustomEvent('deriv_auth_window_blocked', {
+              detail: {
+                timestamp: Date.now(),
+                account: currentAccount,
+                url: authUrl
+              }
+            });
+            document.dispatchEvent(failEvent);
+          } else {
+            console.log('[OAUTH_DIRECT] Janela de autorização aberta com sucesso');
+            
+            // Verificar se a janela está sendo carregada corretamente
+            setTimeout(() => {
+              try {
+                if (authWindow.closed) {
+                  console.warn('[OAUTH_DIRECT] Janela de autorização foi fechada rapidamente');
+                  this.notifyListeners({
+                    type: 'warning',
+                    message: 'O processo de autorização foi interrompido',
+                    details: 'A janela de autorização foi fechada antes de concluir o processo.'
+                  });
+                }
+              } catch (e) {
+                // Ignorar erros de acesso entre origens
+              }
+            }, 5000);
+          }
+        } catch (windowError) {
+          console.error('[OAUTH_DIRECT] Erro ao abrir janela de autorização:', windowError);
+          
+          // Notificar que é necessário autorizar manualmente
           this.notifyListeners({
             type: 'error',
-            message: 'Não foi possível abrir a janela de autorização. Verifique se o bloqueador de pop-ups está desativado.',
-            details: 'Clique no botão de login para tentar novamente'
+            message: 'Erro ao abrir janela de autorização',
+            details: 'Por favor, use o botão de reautorização na interface para tentar novamente.'
           });
         }
-      }, 3000);
+      }, 1000);
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao solicitar reautorização:', error);
+      
+      // Notificar erro geral
+      this.notifyListeners({
+        type: 'error',
+        message: 'Erro ao iniciar processo de reautorização',
+        details: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
     }
   }
   

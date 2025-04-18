@@ -600,36 +600,57 @@ export function BotPage() {
         return;
       }
       
-      // Verificar se há erros armazenados relacionados ao token
+      // Verificar se há erros críticos relacionados ao token
       const tokenErrorStr = localStorage.getItem('deriv_token_scope_error');
       if (tokenErrorStr) {
         try {
           const tokenError = JSON.parse(tokenErrorStr);
           const errorTimestamp = tokenError.timestamp || 0;
           
-          // Se o erro for recente (menos de 30 minutos)
-          if (Date.now() - errorTimestamp < 30 * 60 * 1000) {
+          // Se o erro for recente (menos de 1 hora)
+          if (Date.now() - errorTimestamp < 60 * 60 * 1000) {
+            // Mostrar erro grave, impedir início do bot
             toast({
-              title: "Aviso: Possível problema de permissão",
-              description: "O token atual pode não ter permissões suficientes para trading. Algumas operações podem falhar.",
-              variant: "warning",
+              title: "⚠️ Permissões insuficientes",
+              description: "O token atual não possui permissões necessárias para operações de trading.",
+              variant: "destructive",
               duration: 8000,
             });
             
+            // Mostrar instruções para resolver o problema
             setTimeout(() => {
               toast({
-                title: "Solução de permissões",
-                description: "Para garantir todas as permissões necessárias, volte ao Dashboard e faça login novamente",
+                title: "Como resolver",
+                description: "É necessário reautorizar a aplicação com os escopos corretos.",
                 variant: "default",
                 action: (
-                  <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
-                       onClick={() => window.open("/dashboard", "_self")}>
-                    Dashboard
-                  </div>
+                  <Button 
+                    onClick={() => {
+                      const appId = '71403';
+                      const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+                      const scope = encodeURIComponent('read admin payments trade trading trading_information');
+                      const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+                      
+                      // Registrar que uma reautorização foi solicitada
+                      localStorage.setItem('deriv_pending_reauth', 'true');
+                      localStorage.setItem('deriv_pending_reauth_timestamp', Date.now().toString());
+                      
+                      // Abrir página de autorização
+                      window.open(authUrl, '_blank', 'width=800,height=600');
+                    }}
+                    variant="default"
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                  >
+                    Reautorizar
+                  </Button>
                 ),
-                duration: 10000,
+                duration: 15000,
               });
-            }, 2000);
+            }, 1000);
+            
+            // Impedir início do bot
+            return;
           } else {
             // Limpar erros antigos
             localStorage.removeItem('deriv_token_scope_error');
@@ -643,24 +664,50 @@ export function BotPage() {
       // Verificar se há uma reautorização pendente
       const pendingReauth = localStorage.getItem('deriv_pending_reauth');
       if (pendingReauth === 'true') {
-        toast({
-          title: "Reautorização pendente",
-          description: "Você iniciou um processo de reautorização. Para garantir acesso completo, conclua a autorização.",
-          variant: "warning",
-          action: (
-            <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
-                 onClick={() => {
-                   const appId = '71403';
-                   const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
-                   const scope = encodeURIComponent('read admin payments trade trading trading_information');
-                   const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
-                   window.open(authUrl, '_blank', 'width=800,height=600');
-                 }}>
-              Autorizar
-            </div>
-          ),
-          duration: 10000,
-        });
+        const pendingTimestamp = Number(localStorage.getItem('deriv_pending_reauth_timestamp') || '0');
+        
+        // Se a reautorização foi iniciada recentemente (menos de 30 minutos)
+        if (Date.now() - pendingTimestamp < 30 * 60 * 1000) {
+          toast({
+            title: "Reautorização pendente",
+            description: "Você iniciou o processo de autorização Deriv mas ainda não o concluiu.",
+            variant: "warning",
+            action: (
+              <Button 
+                onClick={() => {
+                  const appId = '71403';
+                  const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+                  const scope = encodeURIComponent('read admin payments trade trading trading_information');
+                  const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+                  window.open(authUrl, '_blank', 'width=800,height=600');
+                }}
+                variant="outline"
+                size="sm"
+                className="border-amber-600 text-amber-500 hover:bg-amber-100"
+              >
+                Concluir autorização
+              </Button>
+            ),
+            duration: 10000,
+          });
+          
+          // Se a autorização foi iniciada há menos de 5 minutos, impedir início
+          if (Date.now() - pendingTimestamp < 5 * 60 * 1000) {
+            return;
+          }
+          
+          // Caso contrário, avisar sobre possíveis problemas mas permitir continuar
+          toast({
+            title: "Continuando com possíveis limitações",
+            description: "O bot será iniciado, mas algumas operações podem falhar se não houver permissões suficientes.",
+            variant: "default",
+            duration: 5000,
+          });
+        } else {
+          // Limpar autorização pendente antiga
+          localStorage.removeItem('deriv_pending_reauth');
+          localStorage.removeItem('deriv_pending_reauth_timestamp');
+        }
       }
       
       // Configurar parâmetros
