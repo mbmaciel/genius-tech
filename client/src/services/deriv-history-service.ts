@@ -119,7 +119,7 @@ class DerivHistoryService {
    * @param count Quantidade de ticks a serem solicitados
    * @param subscribe Se true, continua recebendo ticks em tempo real
    */
-  public async getTicksHistory(symbol: string = 'R_100', count: number = 5000, subscribe: boolean = false): Promise<DigitHistoryData> {
+  public async getTicksHistory(symbol: string = 'R_100', count: number = 500, subscribe: boolean = false): Promise<DigitHistoryData> {
     try {
       // Verificar se estamos conectados
       if (!this.connected) {
@@ -133,44 +133,30 @@ class DerivHistoryService {
       // Inicializar dados para este símbolo
       this.initializeDigitStats(symbol);
       
-      // Primeiro tentamos carregar do servidor
-      try {
-        console.log(`[DerivHistoryService] Tentando buscar dados históricos do backend para ${symbol}`);
-        const response = await fetch(`/api/digit-history/${symbol}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[DerivHistoryService] Dados históricos encontrados no backend para ${symbol}, ${data.lastDigits?.length || 0} dígitos`);
-          
-          if (data.lastDigits && data.lastDigits.length > 0) {
-            // Atualizar objeto de histórico
-            this.historyData[symbol] = {
-              lastDigits: data.lastDigits,
-              digitStats: data.digitStats,
-              lastUpdated: new Date(data.lastUpdated),
-              totalCount: data.totalCount
-            };
-            
-            // Atualizar memória local
-            this.saveToLocalStorage(symbol);
-            this.recalculateStats(symbol);
-            
-            console.log(`[DerivHistoryService] Histórico carregado do backend com ${data.lastDigits.length} dígitos`);
-          }
-        }
-      } catch (error) {
-        console.error(`[DerivHistoryService] Erro ao carregar dados do backend:`, error);
-        // Carregar de localStorage como fallback
-        this.loadFromLocalStorage(symbol);
-      }
+      console.log(`[DerivHistoryService] Solicitando os ${count} ticks mais recentes do mercado para ${symbol}`);
+      
+      // Limpar dados anteriores antes de buscar novos ticks
+      // Isto garante que sempre começamos com o estado atual do mercado
+      this.historyData[symbol] = {
+        lastDigits: [],
+        digitStats: { 0: {count: 0, percentage: 0}, 1: {count: 0, percentage: 0}, 
+                      2: {count: 0, percentage: 0}, 3: {count: 0, percentage: 0}, 
+                      4: {count: 0, percentage: 0}, 5: {count: 0, percentage: 0}, 
+                      6: {count: 0, percentage: 0}, 7: {count: 0, percentage: 0}, 
+                      8: {count: 0, percentage: 0}, 9: {count: 0, percentage: 0} },
+        lastUpdated: new Date(),
+        totalCount: 0
+      };
+      
+      this.tickHistories[symbol] = [];
       
       // Enviar solicitação para autorização
       this.websocket.send(JSON.stringify({
         authorize: this.token
       }));
       
-      // Solicitar histórico máximo de ticks (5000 é o máximo da API Deriv)
-      console.log(`[DerivHistoryService] Solicitando ${count} ticks do histórico para ${symbol}`);
+      // Solicitar histórico de ticks (500 ticks é o padrão conforme solicitado)
+      console.log(`[DerivHistoryService] Solicitando exatamente ${count} ticks mais recentes do mercado para ${symbol}`);
       this.websocket.send(JSON.stringify({
         ticks_history: symbol,
         count: count,
@@ -179,7 +165,7 @@ class DerivHistoryService {
         subscribe: subscribe ? 1 : undefined
       }));
       
-      // Retornar os dados já carregados enquanto aguardamos atualizações
+      // Retornar os dados vazios enquanto aguardamos os ticks mais recentes
       return this.historyData[symbol];
     } catch (error) {
       console.error('[DerivHistoryService] Erro ao solicitar histórico de ticks:', error);
