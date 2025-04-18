@@ -10,7 +10,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { BasicAccountSwitcher } from './BasicAccountSwitcher';
+import { DirectAccountSwitcher } from './DirectAccountSwitcher';
 
 interface SidebarProps {
   className?: string;
@@ -120,7 +120,7 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
         </div>
         
         <div className="p-4 border-t border-[#1c3654]">
-          <BasicAccountSwitcher />
+          <DirectAccountSwitcher />
         </div>
       </aside>
     </>
