@@ -54,6 +54,7 @@ export interface OAuthDirectServiceInterface {
   start(): Promise<boolean>;
   stop(): void;
   closeConnection(): void;
+  reconnect(): Promise<boolean>;
   
   // Métodos para configuração
   setSettings(settings: Partial<TradingSettings>): void;
