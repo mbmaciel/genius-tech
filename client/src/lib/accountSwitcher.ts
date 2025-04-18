@@ -134,39 +134,36 @@ export const updateSelectedAccount = (accountId: string): void => {
     console.log(`[AccountSwitcher] Conta selecionada atualizada para ${accountId}`);
     
     // Notificar o serviço OAuth Direct para usar esta conta
-    // Importação dinâmica para evitar dependência circular
-    import('../services/oauthDirectService').then(module => {
-      const oauthDirectService = module.oauthDirectService;
+    // Vamos usar evento customizado para evitar dependência circular
+    // e garantir que o serviço esteja disponível
+    const token = getAccountToken(accountId);
+    
+    if (token) {
+      console.log(`[AccountSwitcher] Notificando sistema sobre a troca para conta ${accountId}`);
       
-      // Obter o token da conta
-      const token = getAccountToken(accountId);
+      // Criar e disparar um evento para o serviço OAuth
+      const accountSwitchEvent = new CustomEvent('deriv:oauth_account_switch', { 
+        detail: { 
+          accountId,
+          token
+        } 
+      });
+      document.dispatchEvent(accountSwitchEvent);
       
-      if (token) {
-        console.log(`[AccountSwitcher] Notificando serviço OAuth sobre a troca para conta ${accountId}`);
-        
-        // Definir a conta como ativa no serviço OAuth
-        oauthDirectService.setActiveAccount(accountId, token);
-        
-        // Forçar reconexão para garantir que a nova conta seja usada
-        if (typeof oauthDirectService.reconnect === 'function') {
-          oauthDirectService.reconnect()
-            .then(success => {
-              if (success) {
-                console.log(`[AccountSwitcher] Serviço OAuth reconectado com a conta ${accountId}`);
-              } else {
-                console.error(`[AccountSwitcher] Falha na reconexão do serviço OAuth para a conta ${accountId}`);
-              }
-            })
-            .catch(error => {
-              console.error('[AccountSwitcher] Erro ao reconectar serviço OAuth:', error);
-            });
-        }
-      } else {
-        console.warn(`[AccountSwitcher] Token não encontrado para a conta ${accountId}, serviço OAuth não será atualizado`);
+      // Salvar a seleção no localStorage para que outros componentes
+      // possam detectar a mudança (como o serviço OAuth)
+      try {
+        localStorage.setItem('deriv_oauth_selected_account', JSON.stringify({
+          accountId,
+          token,
+          timestamp: new Date().getTime()
+        }));
+      } catch (e) {
+        console.error('[AccountSwitcher] Erro ao salvar seleção OAuth:', e);
       }
-    }).catch(err => {
-      console.error('[AccountSwitcher] Erro ao importar serviço OAuth:', err);
-    });
+    } else {
+      console.warn(`[AccountSwitcher] Token não encontrado para a conta ${accountId}, serviço OAuth não será atualizado`);
+    }
     
   } catch (error) {
     console.error('[AccountSwitcher] Erro ao atualizar conta selecionada:', error);
