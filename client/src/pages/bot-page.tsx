@@ -851,19 +851,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Tentar carregar do backend primeiro, se falhar, carregar do serviço local
+    // Tentar carregar do backend primeiro para ter um estado inicial rapidamente,
+    // e SEMPRE buscar os dados atuais do mercado logo em seguida
     loadFromBackend().then(loadedFromBackend => {
       if (!loadedFromBackend) {
         console.log('[BOT_PAGE] Dados não encontrados no backend, carregando do serviço local');
-        loadDigitHistory();
       }
+      
+      // Independentemente do resultado, sempre buscar os últimos 500 dígitos do mercado da Deriv
+      // para garantir que estamos mostrando o estado atual
+      console.log('[BOT_PAGE] Solicitando os 500 dígitos mais recentes da Deriv para garantir dados atualizados');
+      loadDigitHistory();
     });
     
     // Conectar ao serviço de histórico para receber atualizações
     derivHistoryService.connect().then(connected => {
       if (connected) {
         console.log('[BOT_PAGE] Conexão estabelecida com o serviço de histórico de dígitos');
-        derivHistoryService.getTicksHistory('R_100', 0, true);
+        // Sempre buscar os últimos 500 ticks do mercado e se inscrever para atualizações
+        derivHistoryService.getTicksHistory('R_100', 500, true);
       } else {
         console.error('[BOT_PAGE] Falha ao conectar com o serviço de histórico de dígitos');
       }
