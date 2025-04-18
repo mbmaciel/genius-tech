@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
+import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
 import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
@@ -110,6 +111,39 @@ export function BotPage() {
   useEffect(() => {
     console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
     
+    // Script para forçar atualização da página a cada 30 segundos se necessário
+    // Isso ajuda a resolver problemas de atualização da interface
+    let updateAttempts = 0;
+    const maxUpdateAttempts = 3;
+    
+    const forcePageRefresh = () => {
+      if (updateAttempts < maxUpdateAttempts) {
+        updateAttempts++;
+        console.log(`[BOT_PAGE] Forçando atualização da interface (tentativa ${updateAttempts}/${maxUpdateAttempts})`);
+        
+        // Forçar um re-render usando o estado React
+        setLastDigits(prev => [...prev]);
+        setDigitStats(prev => [...prev]);
+        
+        // Se não resolver após tentativas, recarregar a página
+        if (updateAttempts === maxUpdateAttempts) {
+          console.log('[BOT_PAGE] Problemas persistentes na interface, recarregando página...');
+          setTimeout(() => window.location.reload(), 5000);
+        }
+      }
+    };
+    
+    // Adicionar script para forçar refresh se necessário
+    const checkInterfaceUpdates = setInterval(() => {
+      const lastTick = localStorage.getItem('last_tick_timestamp');
+      const now = Date.now();
+      
+      if (lastTick && (now - parseInt(lastTick)) > 20000) {
+        console.log('[BOT_PAGE] Detectada inatividade na interface há mais de 20 segundos');
+        forcePageRefresh();
+      }
+    }, 30000);
+    
     // Inicializar a conexão WebSocket do OAuth assim que a página carregar
     oauthDirectService.initializeConnection()
       .then(success => {
@@ -119,6 +153,9 @@ export function BotPage() {
             title: "Conexão estabelecida",
             description: "Conexão com servidor da Deriv estabelecida com sucesso"
           });
+          
+          // Marcar timestamp do último tick
+          localStorage.setItem('last_tick_timestamp', Date.now().toString());
         } else {
           console.error('[BOT_PAGE] Falha ao inicializar conexão WebSocket');
           toast({
@@ -136,6 +173,11 @@ export function BotPage() {
           variant: "destructive"
         });
       });
+      
+    // Limpar intervalos ao desmontar
+    return () => {
+      clearInterval(checkInterfaceUpdates);
+    };
     
     // Verificar parâmetros OAuth na URL
     const url = window.location.href;
