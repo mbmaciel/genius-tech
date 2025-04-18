@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Estilização personalizada para barra de rolagem */
+.scrollbar-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-container::-webkit-scrollbar-track {
+  background: rgba(19, 32, 58, 0.5);
+  border-radius: 4px;
+}
+
+.scrollbar-container::-webkit-scrollbar-thumb {
+  background: rgba(78, 70, 229, 0.5);
+  border-radius: 4px;
+}
+
+.scrollbar-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(78, 70, 229, 0.8);
+}
+
+/* Estilo da barra de rolagem para Firefox */
+.scrollbar-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(78, 70, 229, 0.5) rgba(19, 32, 58, 0.5);
+}
+
 @layer base {
   :root {
     --background: 220 70% 13%;
