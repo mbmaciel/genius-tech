@@ -141,11 +141,18 @@ export function OperationStatus({
             ? 'text-red-500' 
             : 'text-white'
           }`}>
-            {balanceInfo.balance.toFixed(2)} {balanceInfo.currency}
+            {new Intl.NumberFormat('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            }).format(balanceInfo.balance)} {balanceInfo.currency}
             
             {balanceInfo.change && (
               <span className="text-xs ml-1">
-                ({balanceInfo.change > 0 ? '+' : ''}{balanceInfo.change.toFixed(2)})
+                ({balanceInfo.change > 0 ? '+' : ''}
+                {new Intl.NumberFormat('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                }).format(balanceInfo.change)})
               </span>
             )}
           </span>

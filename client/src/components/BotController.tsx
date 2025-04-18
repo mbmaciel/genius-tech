@@ -348,12 +348,14 @@ export function BotController({
     // Garantir que valor é um número
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: currency,
+    // Usar formatação manual para evitar bugs com o currency
+    const formatted = new Intl.NumberFormat('pt-BR', {
+      style: 'decimal',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(numValue);
+    
+    return `${formatted} ${currency}`;
   };
   
   // Renderizar botão de início/pausa e informações da conta
