@@ -105,6 +105,33 @@ export function BotPage() {
   useEffect(() => {
     console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
     
+    // Inicializar a conexão WebSocket do OAuth assim que a página carregar
+    oauthDirectService.initializeConnection()
+      .then(success => {
+        if (success) {
+          console.log('[BOT_PAGE] Conexão WebSocket inicializada com sucesso');
+          toast({
+            title: "Conexão estabelecida",
+            description: "Conexão com servidor da Deriv estabelecida com sucesso"
+          });
+        } else {
+          console.error('[BOT_PAGE] Falha ao inicializar conexão WebSocket');
+          toast({
+            title: "Erro de conexão",
+            description: "Falha ao conectar com servidor da Deriv",
+            variant: "destructive"
+          });
+        }
+      })
+      .catch(error => {
+        console.error('[BOT_PAGE] Erro ao inicializar conexão WebSocket:', error);
+        toast({
+          title: "Erro de conexão",
+          description: error.message || "Falha ao conectar com servidor Deriv",
+          variant: "destructive"
+        });
+      });
+    
     // Verificar parâmetros OAuth na URL
     const url = window.location.href;
     if (url.includes('acct1=') && url.includes('token1=')) {
