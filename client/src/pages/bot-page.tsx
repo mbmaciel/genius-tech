@@ -153,7 +153,7 @@ export function BotPage() {
         setAuthToken(storedAuthToken);
         setIsAuthenticated(true);
         
-        // Carregar automaticamente a conta da dashboard
+        // Carregar dados da conta da dashboard
         const dashboardAccount: DerivAccount = {
           loginid: parsedInfo.loginid || '',
           token: storedAuthToken,
@@ -162,13 +162,43 @@ export function BotPage() {
           isVirtual: (parsedInfo.loginid || '').startsWith('VRT')
         };
         
+        // Verificar se há uma conta previamente selecionada pelo usuário
+        try {
+          const savedAccount = localStorage.getItem('deriv_selected_account');
+          if (savedAccount) {
+            const parsedAccount = JSON.parse(savedAccount);
+            if (parsedAccount && parsedAccount.token && parsedAccount.loginid) {
+              // Conta selecionada pelo usuário encontrada
+              console.log(`[BOT] Usando conta previamente selecionada pelo usuário: ${parsedAccount.loginid}`);
+              
+              // Usar esta conta em vez da conta da dashboard
+              const userAccount: DerivAccount = {
+                loginid: parsedAccount.loginid,
+                token: parsedAccount.token,
+                currency: dashboardAccount.currency, // Usar moeda da dashboard como fallback
+                balance: dashboardAccount.balance,   // Usar saldo da dashboard como fallback
+                isVirtual: parsedAccount.loginid.startsWith('VRT')
+              };
+              
+              // Definir como conta selecionada
+              setSelectedAccount(userAccount);
+              
+              // Informar o serviço OAuth Direct para usar esta conta
+              oauthDirectService.setActiveAccount(userAccount.loginid, userAccount.token);
+              
+              console.log('[BOT] Conta selecionada pelo usuário restaurada:', userAccount.loginid);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('[BOT] Erro ao restaurar conta selecionada pelo usuário:', error);
+        }
+        
+        // Se não houver conta previamente selecionada, usar a conta da dashboard
+        console.log('[BOT] Nenhuma conta selecionada pelo usuário encontrada, usando dashboard:', dashboardAccount.loginid);
+        
         // Definir como conta selecionada
         setSelectedAccount(dashboardAccount);
-        
-        // Informar o serviço OAuth Direct para usar esta conta
-        oauthDirectService.setActiveAccount(dashboardAccount.loginid, dashboardAccount.token);
-        
-        console.log('[BOT] Usando automaticamente a conta da dashboard:', dashboardAccount.loginid);
         console.log('[BOT] Autenticação verificada com sucesso');
         
         // Configurar valores iniciais
@@ -721,9 +751,78 @@ export function BotPage() {
                     <span className="text-muted-foreground">Saldo:</span>
                     <span className="font-medium text-white">{realTimeBalance.balance.toFixed(2)} {selectedAccount.currency}</span>
                   </div>
-                  <div className="text-xs mt-3 text-gray-400">
-                    <p>Operando com a conta selecionada na dashboard.</p>
-                    <p>Para trocar de conta, volte à dashboard.</p>
+                  {/* Seletor de Contas */}
+                  <div className="mt-4">
+                    <h3 className="text-sm font-medium text-white mb-2">Alterar Conta</h3>
+                    <div className="bg-[#0e1a2e] border border-[#2c3e5d] rounded p-3">
+                      {isAuthenticated && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-2">
+                            Selecione a conta que deseja usar para operações:
+                          </p>
+                          
+                          {/* Lista de contas disponíveis através do OAuth */}
+                          <div className="space-y-2 mt-2">
+                            {(() => {
+                              // Obter todas as contas salvas do localStorage
+                              try {
+                                const allAccounts = localStorage.getItem('deriv_accounts');
+                                if (allAccounts) {
+                                  const accounts = JSON.parse(allAccounts);
+                                  return accounts.map((account: any, index: number) => (
+                                    <button
+                                      key={index}
+                                      onClick={() => {
+                                        // Ao clicar, define esta conta como ativa
+                                        const derivAccount: DerivAccount = {
+                                          loginid: account.acct || account.loginid,
+                                          token: account.token,
+                                          currency: account.currency || selectedAccount?.currency || 'USD',
+                                          isVirtual: (account.acct || account.loginid || '').startsWith('VRT'),
+                                          balance: selectedAccount?.balance || 0
+                                        };
+                                        
+                                        // Atualizar estado
+                                        setSelectedAccount(derivAccount);
+                                        
+                                        // Importante: dizer ao serviço OAuth para usar esta conta
+                                        oauthDirectService.setActiveAccount(derivAccount.loginid, derivAccount.token);
+                                        
+                                        toast({
+                                          title: "Conta alterada",
+                                          description: `Agora usando: ${derivAccount.loginid}`,
+                                        });
+                                      }}
+                                      className={`w-full p-2 text-left text-xs rounded flex items-center ${
+                                        selectedAccount?.loginid === (account.acct || account.loginid)
+                                          ? 'bg-indigo-900 border border-indigo-500'
+                                          : 'bg-[#172338] hover:bg-[#1c2c46]'
+                                      }`}
+                                    >
+                                      <div className={`w-2 h-2 rounded-full mr-2 ${(account.acct || account.loginid || '').startsWith('VRT') ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                                      <div>
+                                        <div className="font-medium text-white">{account.acct || account.loginid}</div>
+                                        <div className="text-xs text-gray-400">
+                                          {(account.acct || account.loginid || '').startsWith('VRT') ? 'Demo' : 'Real'}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ));
+                                }
+                              } catch (error) {
+                                console.error("Erro ao carregar contas:", error);
+                              }
+                              
+                              return (
+                                <div className="text-xs text-yellow-400">
+                                  Nenhuma conta adicional disponível
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (
