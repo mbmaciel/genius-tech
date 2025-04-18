@@ -119,7 +119,7 @@ class DerivHistoryService {
    * @param count Quantidade de ticks a serem solicitados
    * @param subscribe Se true, continua recebendo ticks em tempo real
    */
-  public async getTicksHistory(symbol: string = 'R_100', count: number = 500, subscribe: boolean = false): Promise<DigitHistoryData> {
+  public async getTicksHistory(symbol: string = 'R_100', count: number = 5000, subscribe: boolean = false): Promise<DigitHistoryData> {
     try {
       // Verificar se estamos conectados
       if (!this.connected) {
@@ -133,15 +133,44 @@ class DerivHistoryService {
       // Inicializar dados para este símbolo
       this.initializeDigitStats(symbol);
       
-      // Carregar de localStorage
-      this.loadFromLocalStorage(symbol);
+      // Primeiro tentamos carregar do servidor
+      try {
+        console.log(`[DerivHistoryService] Tentando buscar dados históricos do backend para ${symbol}`);
+        const response = await fetch(`/api/digit-history/${symbol}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[DerivHistoryService] Dados históricos encontrados no backend para ${symbol}, ${data.lastDigits?.length || 0} dígitos`);
+          
+          if (data.lastDigits && data.lastDigits.length > 0) {
+            // Atualizar objeto de histórico
+            this.historyData[symbol] = {
+              lastDigits: data.lastDigits,
+              digitStats: data.digitStats,
+              lastUpdated: new Date(data.lastUpdated),
+              totalCount: data.totalCount
+            };
+            
+            // Atualizar memória local
+            this.saveToLocalStorage(symbol);
+            this.recalculateStats(symbol);
+            
+            console.log(`[DerivHistoryService] Histórico carregado do backend com ${data.lastDigits.length} dígitos`);
+          }
+        }
+      } catch (error) {
+        console.error(`[DerivHistoryService] Erro ao carregar dados do backend:`, error);
+        // Carregar de localStorage como fallback
+        this.loadFromLocalStorage(symbol);
+      }
       
       // Enviar solicitação para autorização
       this.websocket.send(JSON.stringify({
         authorize: this.token
       }));
       
-      // Enviar solicitação para histórico de ticks
+      // Solicitar histórico máximo de ticks (5000 é o máximo da API Deriv)
+      console.log(`[DerivHistoryService] Solicitando ${count} ticks do histórico para ${symbol}`);
       this.websocket.send(JSON.stringify({
         ticks_history: symbol,
         count: count,

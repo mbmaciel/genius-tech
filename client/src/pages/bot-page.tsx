@@ -780,6 +780,14 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             console.log('[BOT_PAGE] Estatísticas carregadas do backend:', 
               newStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
             
+            // Notificar usuário que os dados foram carregados
+            toast({
+              title: "Estatísticas carregadas",
+              description: `Recuperadas ${data.lastDigits.length} estatísticas anteriores do banco de dados`,
+              variant: "default",
+              duration: 3000,
+            });
+            
             // Se encontramos dados do backend, não precisamos carregar do serviço local
             return true;
           }
@@ -1732,8 +1740,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 </div>
               </div>
               
-              {/* Visualização Estatística de Dígitos */}
+              {/* Visualização Estatística de Dígitos com Indicador de Persistência */}
               <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-white text-md font-medium">Estatísticas de Dígitos</h3>
+                  <div className="flex items-center space-x-2">
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                    <span className="text-xs text-gray-400">Dados persistentes</span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-10 gap-1 mt-2">
                   {digitStats.map(stat => (
                     <div key={stat.digit} className="flex flex-col items-center">
