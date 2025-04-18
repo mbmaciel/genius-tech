@@ -11,11 +11,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'ProfitPro Atualizado',
     description: 'Estratégia Profitpro com gestão financeira adaptativa',
     xmlPath: '/attached_assets/Profitpro Atualizado.xml',
+    type: 'BOTH',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   {
@@ -23,11 +25,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'Manual Over',
     description: 'Estratégia manual otimizada para contratos CALL/ACIMA',
     xmlPath: '/attached_assets/Manual Over.xml',
+    type: 'RISE',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   {
@@ -35,11 +39,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'Manual Under',
     description: 'Estratégia manual otimizada para contratos PUT/ABAIXO',
     xmlPath: '/attached_assets/Manual Under.xml',
+    type: 'FALL',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   {
@@ -47,11 +53,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'BOT LOW',
     description: 'Estratégia simples otimizada para operações de baixo risco',
     xmlPath: '/attached_assets/BOT LOW.xml',
+    type: 'BOTH',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   
@@ -61,11 +69,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'IRON OVER',
     description: 'Estratégia IRON otimizada para contratos CALL/ACIMA',
     xmlPath: '/attached_assets/IRON OVER.xml',
+    type: 'RISE',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 0.5
+      martingaleFactor: 0.5,
+      maxMartingaleLevel: 2
     }
   },
   {
@@ -73,11 +83,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'IRON UNDER',
     description: 'Estratégia IRON otimizada para contratos PUT/ABAIXO',
     xmlPath: '/attached_assets/IRON UNDER.xml',
+    type: 'FALL',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 0.5
+      martingaleFactor: 0.5,
+      maxMartingaleLevel: 2
     }
   },
   {
@@ -85,11 +97,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'MAXPRO',
     description: 'Estratégia avançada de alta rentabilidade',
     xmlPath: '/attached_assets/MAXPRO .xml',
+    type: 'BOTH',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   {
@@ -97,11 +111,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'ADVANCE',
     description: 'Estratégia avançada com análise de tendência',
     xmlPath: '/attached_assets/Advance .xml',
+    type: 'ADVANCED',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   },
   {
@@ -109,11 +125,13 @@ export const availableStrategies: BinaryBotStrategy[] = [
     name: 'WISE PRO TENDÊNCIA',
     description: 'Estratégia profissional com análise de tendência e reversão',
     xmlPath: '/attached_assets/WISE PRO TENDENCIA.xml',
+    type: 'BOTH',
     config: {
       initialStake: 0.35,
       targetProfit: 20,
       stopLoss: 10,
-      martingaleFactor: 1.5
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
     }
   }
 ];
