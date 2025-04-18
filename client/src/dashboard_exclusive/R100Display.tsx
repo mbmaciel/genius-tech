@@ -179,19 +179,6 @@ export function DashboardR100Display() {
       <div className="mt-4 bg-[#1d2a45] p-2 rounded">
         <div className="flex flex-wrap justify-center gap-1">
           {lastDigits.slice().reverse().map((digit, index) => {
-            // Cores diferentes dependendo do dígito
-            let bgColor = '';
-            let textColor = 'text-white';
-            
-            // Cores estilizadas para diferentes dígitos
-            if (digit === 0 || digit === 5) {
-              bgColor = 'bg-blue-500'; // Azul para 0 e 5
-            } else if (digit % 2 === 0) {
-              bgColor = 'bg-red-500'; // Vermelho para pares (exceto 0)
-            } else {
-              bgColor = 'bg-green-500'; // Verde para ímpares (exceto 5)
-            }
-            
             return (
               <div key={index} className="relative">
                 {/* Indicador de mais recente */}
@@ -199,11 +186,10 @@ export function DashboardR100Display() {
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
                 )}
                 
-                {/* Dígito com design hexagonal */}
+                {/* Dígito com design hexagonal - usando tom azul da plataforma */}
                 <div 
-                  className={`${bgColor} ${textColor} w-9 h-9 flex items-center justify-center m-0.5 
-                               shadow-lg transform transition-all duration-200 
-                               clip-path-hexagon`}
+                  className="bg-[#2a407c] text-white w-9 h-9 flex items-center justify-center m-0.5 
+                             shadow-lg transform transition-all duration-200"
                   style={{
                     clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
                   }}
