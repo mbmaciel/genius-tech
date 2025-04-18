@@ -539,34 +539,43 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // Resposta de tick - VERSÃO CORRIGIDA
-      if (data.msg_type === 'tick') {
+      if (data.msg_type === 'tick' && data.tick) {
         try {
-          // Processar tick recebido diretamente da conexão
-          const price = parseFloat(data.tick.quote);
+          // Processar tick conforme esquema JSON
+          const tickData = data.tick;
+          const price = parseFloat(tickData.quote);
           
-          // Forçar extração do último dígito de forma mais confiável
+          // Extração otimizada do último dígito
           const priceStr = price.toString();
           const lastDigit = parseInt(priceStr.charAt(priceStr.length - 1));
           
-          const symbol = data.tick.symbol;
-          const epoch = data.tick.epoch;
+          // Extrair dados adicionais do esquema
+          const symbol = tickData.symbol;
+          const epoch = tickData.epoch;
+          const pip_size = tickData.pip_size;
+          const subscription_id = tickData.id || (data.subscription ? data.subscription.id : null);
           
-          console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+          // Reduzir frequência de logs (log a cada 5 ticks em média)
+          if (Math.random() < 0.2) {
+            console.log(`[OAUTH_DIRECT] Tick recebido: ${price}, Último dígito: ${lastDigit}`);
+          }
           
-          // Evitar processamento se o último dígito não for um número válido
+          // Verificar se o último dígito é válido
           if (!isNaN(lastDigit)) {
-            // Adicionar timestamp para forçar a interface a reconhecer uma mudança
-            const timestamp = Date.now();
-            
-            // Notificar para atualização de interface com dados completos
-            this.notifyListeners({
+            // Criar evento com dados completos
+            const tickEvent = {
               type: 'tick',
               price,
               lastDigit,
               symbol,
               epoch,
-              timestamp  // Adicionar timestamp para forçar nova renderização
-            });
+              pip_size,
+              subscription_id,
+              timestamp: Date.now()
+            };
+            
+            // Notificar listners para atualização de interface
+            this.notifyListeners(tickEvent);
           } else {
             console.error('[OAUTH_DIRECT] Último dígito inválido no tick:', price);
           }
@@ -760,6 +769,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Assina ticks do símbolo especificado (ou R_100 por padrão)
    * Método público para poder ser chamado diretamente da página
    */
+  /**
+   * Assina ticks do símbolo especificado seguindo o esquema JSON oficial
+   * Otimizado conforme o schema fornecido para Ticks Stream Request
+   * 
+   * @param symbol Símbolo para receber ticks (R_100 por padrão)
+   */
   public subscribeToTicks(symbol: string = 'R_100'): void {
     if (!this.webSocket) {
       console.error('[OAUTH_DIRECT] WebSocket não está inicializado!');
@@ -779,9 +794,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
+      // Criar requisição conforme o schema JSON oficial
       const request = {
         ticks: symbol,
-        subscribe: 1
+        subscribe: 1,
+        req_id: Date.now() // Identificador único para rastrear esta requisição
       };
       
       console.log(`[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo ${symbol}`);
@@ -790,7 +807,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.webSocket.send(JSON.stringify(request));
       console.log('[OAUTH_DIRECT] Requisição de ticks enviada com sucesso');
       
-      // Verificar se ainda está tentando inscrever-se 3 segundos depois
+      // Registrar o símbolo ativo para futuras reconexões
+      this.activeSymbol = symbol;
+      
+      // Verificar se ainda está conectado após 3 segundos
       setTimeout(() => {
         if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
           console.log('[OAUTH_DIRECT] Verificação de inscrição de ticks: WebSocket ainda aberto');

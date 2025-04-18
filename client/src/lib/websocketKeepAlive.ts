@@ -106,6 +106,8 @@ export class WebSocketKeepAlive {
   /**
    * Envia um ping para o servidor
    */
+  private pingCounter: number = 1;
+  
   private sendPing(): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       console.warn("[KEEPALIVE] Não foi possível enviar ping, WebSocket não está aberto");
@@ -113,12 +115,15 @@ export class WebSocketKeepAlive {
     }
 
     try {
-      console.log("[KEEPALIVE] Enviando ping para manter conexão ativa");
+      // Usar contador para reduzir frequência de logs
+      if (this.pingCounter % 5 === 0) {
+        console.log("[KEEPALIVE] Sistema de keep-alive ativo");
+      }
       
-      // Enviar ping com req_id para identificação
+      // Enviar ping com req_id para identificação conforme esquema JSON
       const pingMessage = JSON.stringify({
         ping: 1,
-        req_id: Date.now()
+        req_id: Date.now() + this.pingCounter++
       });
       
       this.socket.send(pingMessage);
