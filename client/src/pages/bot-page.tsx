@@ -1002,7 +1002,7 @@ export function BotPage() {
                     </svg>
                   </div>
                   <div>
-                    <div className="text-base font-medium text-white">{selectedAccount?.loginid || accountInfo?.loginid || "VRTC2817959"}</div>
+                    <div className="text-base font-medium text-white">{selectedAccount?.loginid || accountInfo?.loginid}</div>
                     <div className="text-sm text-gray-400">{selectedAccount?.isVirtual || accountInfo?.is_virtual ? 'Conta de Demonstração' : 'Conta Real'}</div>
                   </div>
                 </div>
@@ -1012,9 +1012,9 @@ export function BotPage() {
                     <div>
                       <div className="text-sm text-gray-400 mb-1">Saldo Disponível</div>
                       <div className="text-xl font-bold text-white">
-                        {typeof accountInfo?.balance === 'number' 
-                          ? accountInfo.balance.toFixed(2) 
-                          : '1562.02'} {accountInfo?.currency || "USD"}
+                        {typeof realTimeBalance?.balance === 'number' 
+                          ? realTimeBalance.balance.toFixed(2) 
+                          : ''} {selectedAccount?.currency || accountInfo?.currency}
                       </div>
                     </div>
                     
@@ -1034,7 +1034,7 @@ export function BotPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xs text-gray-400 mb-1">Moeda</div>
-                      <div className="text-sm font-medium text-white">{accountInfo?.currency || "USD"}</div>
+                      <div className="text-sm font-medium text-white">{selectedAccount?.currency || accountInfo?.currency}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-400 mb-1">Tipo</div>
