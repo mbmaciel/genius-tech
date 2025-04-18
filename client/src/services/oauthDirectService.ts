@@ -1048,10 +1048,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       return false;
     }
     
-    // Lista de escopos necessários e recomendados
+    // Lista de escopos necessários
     const requiredScopes = ['trade', 'trading'];
-    const recommendedScopes = ['trading_information', 'payments', 'admin', 'read'];
-    const allScopes = [...requiredScopes, ...recommendedScopes];
     
     // Normalizar escopos para comparação (converter para minúsculas)
     const normalizedScopes = scopes.map(s => s.toLowerCase());
@@ -1061,15 +1059,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       normalizedScopes.includes(scope.toLowerCase())
     );
     
-    // Verificar escopos ausentes
-    const missingScopes = allScopes.filter(scope => 
-      !normalizedScopes.includes(scope.toLowerCase())
-    );
-    
-    // Registrar informações para depuração e interface
+    // Registrar informações para depuração
     console.log(`[OAUTH_DIRECT] Token tem permissões de trading: ${hasRequiredScope ? 'SIM' : 'NÃO'}`);
     console.log(`[OAUTH_DIRECT] Escopos encontrados: ${normalizedScopes.join(', ')}`);
     
+    // Apenas registrar erro crítico - quando não tem permissões essenciais
     if (!hasRequiredScope) {
       console.error('[OAUTH_DIRECT] Token não possui permissões de trading necessárias');
       
@@ -1095,26 +1089,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       } catch (error) {
         console.error('[OAUTH_DIRECT] Erro ao disparar evento de erro de escopo:', error);
       }
-    } 
-    else if (missingScopes.length > 0) {
-      // Se tem os escopos necessários mas faltam alguns recomendados
-      console.warn('[OAUTH_DIRECT] Token tem permissões essenciais, mas faltam escopos recomendados:', missingScopes);
-      
-      // Disparar evento de aviso para interface
-      try {
-        const warningEvent = new CustomEvent('deriv_token_permission_warning', {
-          detail: {
-            token: this.activeToken ? this.activeToken.substring(0, 8) + '...' : 'desconhecido',
-            missingScopes: missingScopes,
-            foundScopes: normalizedScopes,
-            timestamp: Date.now()
-          }
-        });
-        document.dispatchEvent(warningEvent);
-      } catch (error) {
-        console.error('[OAUTH_DIRECT] Erro ao disparar evento de aviso de permissão:', error);
-      }
     }
+    // Removido o else if para alertas de permissões opcionais
     
     return hasRequiredScope;
   }

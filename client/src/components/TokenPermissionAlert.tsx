@@ -137,13 +137,8 @@ export function TokenPermissionAlert({ onReauthorize }: TokenPermissionAlertProp
       {tokenError && (
         <Alert variant="destructive" className="border-orange-500 bg-orange-950/20">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle className="flex items-center">
+          <AlertTitle>
             Permissões insuficientes
-            {account && (
-              <Badge variant="outline" className="ml-2 text-xs border-orange-500 text-orange-300">
-                {account}
-              </Badge>
-            )}
           </AlertTitle>
           <AlertDescription className="mt-2">
             <div className="text-sm mb-2">
@@ -189,36 +184,7 @@ export function TokenPermissionAlert({ onReauthorize }: TokenPermissionAlertProp
         </Alert>
       )}
       
-      {permissionWarning && !tokenError && (
-        <Alert className="border-yellow-500 bg-yellow-950/20">
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <AlertTitle className="flex items-center text-yellow-300">
-            Aviso de permissões
-            {account && (
-              <Badge variant="outline" className="ml-2 text-xs border-yellow-500 text-yellow-300">
-                {account}
-              </Badge>
-            )}
-          </AlertTitle>
-          <AlertDescription className="mt-2">
-            <p className="text-sm">
-              O token tem acesso limitado. Algumas operações de trading podem não funcionar corretamente.
-              Recomendamos reautorizar para garantir funcionalidade completa.
-            </p>
-            <div className="mt-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleReauthorize}
-                className="border-yellow-600 hover:bg-yellow-900/50 text-yellow-300"
-              >
-                <Key className="h-3 w-3 mr-1" />
-                Atualizar permissões
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Aviso de permissões recomendadas removido por solicitação do usuário */}
       
       {pendingReauth && !tokenError && !permissionWarning && (
         <Alert className="border-blue-500 bg-blue-950/20">
