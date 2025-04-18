@@ -362,8 +362,9 @@ export function BotPage() {
                   if (success) {
                     console.log('[BOT_PAGE] Autorização bem-sucedida com nova conta:', newAccount.loginid);
                     
-                    // Forçar atualização de saldo
-                    oauthDirectService.getAccountBalance();
+                    // Forçar atualização de saldo com inscrição após troca de conta
+                    // Utilizar o novo método com o parâmetro subscribe para garantir recebimento contínuo
+                    oauthDirectService.getAccountBalance({ subscribe: true });
                     
                     toast({
                       title: "Conta alterada",
@@ -405,8 +406,9 @@ export function BotPage() {
                       console.log('[BOT] Reconexão inicial bem-sucedida');
                       
                       // Solicitar saldo atual após reconexão bem-sucedida
+                      // Usar o novo método com subscribe: true para receber atualizações contínuas
                       setTimeout(() => {
-                        oauthDirectService.getAccountBalance();
+                        oauthDirectService.getAccountBalance({ subscribe: true });
                       }, 1000);
                     } else {
                       console.error('[BOT] Falha na reconexão inicial');

@@ -826,23 +826,58 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Método público para solicitar saldo atual da conta
    * Pode ser chamado pelo componente para atualizar o saldo exibido
    */
-  public getAccountBalance(): void {
+  /**
+   * Solicita o saldo atual da conta
+   * @param options Opções adicionais (subscribe para inscrever-se em atualizações)
+   */
+  public getAccountBalance(options?: { subscribe?: boolean }): void {
+    const subscribe = options?.subscribe ?? false;
+    
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
       console.log('[OAUTH_DIRECT] WebSocket não está conectado para obter saldo');
       this.reconnect().then(success => {
         if (success) {
-          this.subscribeToBalance();
+          if (subscribe) {
+            this._subscribeToBalance();
+          } else {
+            this._requestBalance();
+          }
         }
       });
       return;
     }
     
-    // Solicitar saldo atual sem criar uma assinatura
+    if (subscribe) {
+      this._subscribeToBalance();
+    } else {
+      this._requestBalance();
+    }
+  }
+
+  /**
+   * Solicita o saldo atual sem criar uma assinatura
+   * Método privado utilizado por getAccountBalance
+   */
+  private _requestBalance(): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado para solicitar saldo');
+      return;
+    }
+    
+    // Garantir que estamos usando o token ativo correto
+    if (!this.activeToken) {
+      console.warn('[OAUTH_DIRECT] Nenhum token ativo para solicitar saldo');
+      return;
+    }
+    
+    // Incluir o token na solicitação para garantir a conta correta
     const request = {
-      balance: 1
+      balance: 1,
+      authorize: this.activeToken
     };
     
-    console.log('[OAUTH_DIRECT] Solicitando saldo atual');
+    console.log(`[OAUTH_DIRECT] Solicitando saldo atual para conta com token ${this.activeToken.substring(0, 4)}...`);
+    
     try {
       this.webSocket.send(JSON.stringify(request));
     } catch (error) {
@@ -852,20 +887,41 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
   /**
    * Assina atualizações de saldo
+   * Método privado utilizado por getAccountBalance
    */
-  private subscribeToBalance(): void {
+  private _subscribeToBalance(): void {
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado para inscrever em saldo');
       return;
     }
     
+    // Garantir que estamos usando o token ativo correto
+    if (!this.activeToken) {
+      console.warn('[OAUTH_DIRECT] Nenhum token ativo para inscrever em saldo');
+      return;
+    }
+    
+    // Incluir o token na solicitação para garantir a conta correta
     const request = {
       balance: 1,
-      subscribe: 1
+      subscribe: 1,
+      authorize: this.activeToken
     };
     
-    console.log('[OAUTH_DIRECT] Inscrevendo-se para atualizações de saldo');
-    this.webSocket.send(JSON.stringify(request));
+    console.log(`[OAUTH_DIRECT] Inscrevendo-se para atualizações de saldo para conta com token ${this.activeToken.substring(0, 4)}...`);
+    
+    try {
+      this.webSocket.send(JSON.stringify(request));
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao inscrever-se para atualizações de saldo:', error);
+    }
+  }
+  
+  /**
+   * Método legado para compatibilidade - utiliza o novo método _subscribeToBalance
+   */
+  private subscribeToBalance(): void {
+    this._subscribeToBalance();
   }
   
   /**
