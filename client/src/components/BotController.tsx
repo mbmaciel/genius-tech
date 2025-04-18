@@ -375,78 +375,52 @@ export function BotController({
   // Renderizar botão de início/pausa e informações da conta
   return (
     <div className="space-y-4">
-      {/* Barra superior com informações da conta - Design melhorado */}
-      <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] flex items-center justify-between shadow-lg">
-        <div className="flex items-center">
-          <div className={`p-2 rounded-full mr-2 ${accountInfo.is_virtual ? 'bg-blue-600/20' : 'bg-green-600/20'}`}>
-            <User className={`h-5 w-5 ${accountInfo.is_virtual ? 'text-blue-400' : 'text-green-400'}`} />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center">
-              <span className="text-xs text-gray-400">ID Conta:</span>
-              <span className="text-sm font-bold ml-1.5 text-white">{accountInfo.loginid || '...'}</span>
-              {accountInfo.is_virtual && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-700 text-white rounded-full text-[10px] font-bold">DEMO</span>
-              )}
-              {!accountInfo.is_virtual && accountInfo.loginid && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-700 text-white rounded-full text-[10px] font-bold">REAL</span>
-              )}
+      {/* Barra superior com status de execução */}
+      <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className={`p-2 rounded-full mr-2 ${
+              status === 'running' ? 'bg-green-600/20' : 
+              status === 'paused' ? 'bg-yellow-600/20' : 'bg-gray-600/20'
+            }`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${
+                status === 'running' ? 'text-green-400' : 
+                status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
+              }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d={status === 'running' 
+                    ? "M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                    : status === 'paused' 
+                    ? "M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" 
+                    : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"} 
+                />
+              </svg>
             </div>
-            <div className="flex mt-0.5 items-center">
-              <span className="text-xs text-gray-400">Status:</span>
-              <div className="flex items-center ml-1.5">
-                <div className={`w-2.5 h-2.5 rounded-full mr-1.5 ${
-                  status === 'running' ? 'bg-green-500 animate-pulse' : 
-                  status === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
-                }`}></div>
-                <span className={`text-xs font-medium ${
-                  status === 'running' ? 'text-green-400' : 
-                  status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
-                }`}>
-                  {status === 'running' ? 'Em execução' : 
-                  status === 'paused' ? 'Pausado' : 'Inativo'}
-                </span>
+            <div>
+              <div className={`text-sm font-medium ${
+                status === 'running' ? 'text-green-400' : 
+                status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
+              }`}>
+                {status === 'running' ? 'Bot em Execução' : 
+                 status === 'paused' ? 'Bot Pausado' : 'Bot Inativo'}
+              </div>
+              <div className="flex mt-0.5 items-center">
+                <span className="text-xs text-gray-400">Entrada:</span>
+                <span className="text-xs ml-1.5 text-white">{entryValue}</span>
+                <span className="text-xs text-gray-400 ml-3">Alvo:</span>
+                <span className="text-xs ml-1.5 text-white">{profitTarget}</span>
+                <span className="text-xs text-gray-400 ml-3">Stop:</span>
+                <span className="text-xs ml-1.5 text-white">{lossLimit}</span>
               </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center">
-          <div className="bg-gradient-to-r from-green-600/20 to-green-500/10 p-2 rounded-full mr-2">
-            <Wallet className="h-5 w-5 text-green-400" />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center">
-              <span className="text-xs text-gray-400">Saldo:</span>
-              <span className="text-sm font-bold ml-1.5 text-white">
-                {accountInfo.balance !== undefined && accountInfo.currency 
-                  ? `${accountInfo.balance.toFixed(2)} ${accountInfo.currency}`
-                  : '...'}
-              </span>
-              {/* Indicador de mudança de saldo */}
-              {stats.totalProfit > 0 && (
-                <span className="ml-2 text-xs text-green-400 font-medium flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                  </svg>
-                  {stats.totalProfit.toFixed(2)}
-                </span>
-              )}
-              {stats.totalProfit < 0 && (
-                <span className="ml-2 text-xs text-red-400 font-medium flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                  {Math.abs(stats.totalProfit).toFixed(2)}
-                </span>
-              )}
+          
+          {status === 'running' && (
+            <div className="flex items-center bg-green-600/10 py-1 px-3 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
+              <span className="text-xs text-green-400">Operando</span>
             </div>
-            <div className="flex mt-0.5 items-center">
-              <span className="text-xs text-gray-400">Entrada:</span>
-              <span className="text-xs ml-1.5 text-white">{entryValue}</span>
-              <span className="text-xs text-gray-400 ml-3">Alvo:</span>
-              <span className="text-xs ml-1.5 text-white">{profitTarget}</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
       
