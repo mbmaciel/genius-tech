@@ -16,42 +16,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rota para salvar estatísticas de dígitos
   app.post('/api/digit-history', async (req, res) => {
     try {
-      console.log('[API] Recebendo estatísticas de dígitos:', req.body.symbol);
+      console.log('[API] Recebendo estatísticas de dígitos:', req.body.symbol, 'com', req.body.lastDigits?.length || 0, 'dígitos');
       
-      const { symbol, lastDigits, digitStats, totalCount, lastUpdated } = req.body;
+      const { symbol, lastDigits, digitStats: statsData, totalCount, lastUpdated } = req.body;
       
-      if (!symbol || !lastDigits || !digitStats) {
+      if (!symbol || !lastDigits || !statsData) {
         return res.status(400).json({ error: 'Dados incompletos' });
       }
       
-      // Verificar se já existem estatísticas para este símbolo
-      const existingStats = await db.select().from(digitStats)
-        .where(and(
-          eq(digitStats.symbol, symbol)
-        ));
-      
-      if (existingStats.length > 0) {
-        // Atualizar estatísticas existentes
-        await db.update(digitStats)
-          .set({
-            data: digitStats,
-            updated_at: new Date()
-          })
-          .where(eq(digitStats.symbol, symbol));
+      // Para cada dígito (0-9), atualize ou insira suas estatísticas
+      for (let digit = 0; digit <= 9; digit++) {
+        const digitData = statsData[digit];
+        if (!digitData) continue;
         
-        console.log(`[API] Estatísticas atualizadas para ${symbol}`);
-      } else {
-        // Inserir novas estatísticas
-        await db.insert(digitStats)
-          .values({
-            symbol,
-            data: digitStats,
-            created_at: new Date(),
-            updated_at: new Date()
-          });
+        // Verificar se já existe estatística para este símbolo e dígito
+        const existingStats = await db.select().from(digitStats)
+          .where(and(
+            eq(digitStats.symbol, symbol),
+            eq(digitStats.digit, digit)
+          ));
         
-        console.log(`[API] Novas estatísticas inseridas para ${symbol}`);
+        if (existingStats.length > 0) {
+          // Atualizar estatísticas existentes
+          await db.update(digitStats)
+            .set({
+              count: digitData.count,
+              percentage: digitData.percentage,
+              updated_at: new Date()
+            })
+            .where(and(
+              eq(digitStats.symbol, symbol),
+              eq(digitStats.digit, digit)
+            ));
+        } else {
+          // Inserir novas estatísticas
+          await db.insert(digitStats)
+            .values({
+              symbol,
+              digit,
+              count: digitData.count,
+              percentage: digitData.percentage,
+              updated_at: new Date()
+            });
+        }
       }
+      
+      console.log(`[API] Estatísticas atualizadas para ${symbol} (todos os dígitos)`);
+      
       
       // Verificar se já existe histórico para este símbolo
       const existingHistory = await db.select().from(digitHistory)
@@ -94,22 +105,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Símbolo é obrigatório' });
       }
       
-      // Buscar estatísticas
-      const statsResult = await db.select().from(digitStats)
+      // Buscar estatísticas de dígitos
+      const statsResults = await db.select().from(digitStats)
         .where(eq(digitStats.symbol, symbol));
       
-      // Buscar histórico
+      // Buscar histórico de dígitos
       const historyResult = await db.select().from(digitHistory)
         .where(eq(digitHistory.symbol, symbol));
       
-      if (statsResult.length === 0 || historyResult.length === 0) {
+      if (statsResults.length === 0 || historyResult.length === 0) {
         return res.status(404).json({ error: 'Dados não encontrados' });
       }
+      
+      // Converter resultados de dígitos para formato esperado pelo cliente
+      const digitStatsObj: Record<number, { count: number; percentage: number }> = {};
+      statsResults.forEach(stat => {
+        digitStatsObj[stat.digit] = {
+          count: stat.count,
+          percentage: stat.percentage
+        };
+      });
       
       const result = {
         symbol,
         lastDigits: historyResult[0].digits || [],
-        digitStats: statsResult[0].data || {},
+        digitStats: digitStatsObj,
         totalCount: historyResult[0].total_count || 0,
         lastUpdated: historyResult[0].updated_at
       };

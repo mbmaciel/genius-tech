@@ -47,7 +47,8 @@ const saveDigitToBackend = async (
     };
     
     // Enviar para o backend
-    console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol);
+    console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol, 'com', dataToSave.lastDigits.length, 'dígitos e estatísticas:', 
+      Object.entries(dataToSave.digitStats).map(([digit, data]) => `${digit}: ${data.percentage}%`).join(', '));
     
     // Fazer requisição assíncrona para o backend
     fetch('/api/digit-history', {
