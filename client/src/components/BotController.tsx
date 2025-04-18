@@ -404,14 +404,7 @@ export function BotController({
                 {status === 'running' ? 'Bot em Execução' : 
                  status === 'paused' ? 'Bot Pausado' : 'Bot Inativo'}
               </div>
-              <div className="flex mt-0.5 items-center">
-                <span className="text-xs text-gray-400">Entrada:</span>
-                <span className="text-xs ml-1.5 text-white">{entryValue}</span>
-                <span className="text-xs text-gray-400 ml-3">Alvo:</span>
-                <span className="text-xs ml-1.5 text-white">{profitTarget}</span>
-                <span className="text-xs text-gray-400 ml-3">Stop:</span>
-                <span className="text-xs ml-1.5 text-white">{lossLimit}</span>
-              </div>
+              {/* Removido as informações de Entrada, Alvo e Stop conforme solicitado */}
             </div>
           </div>
           
