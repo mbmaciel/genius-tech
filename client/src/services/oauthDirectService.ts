@@ -345,22 +345,57 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private subscribeToTicks(): void {
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
       console.error('[OAUTH_DIRECT] WebSocket não está disponível para inscrição de ticks');
+      
+      // Notificar sobre o problema
+      this.notifyListeners({
+        type: 'error',
+        message: 'WebSocket não está disponível para inscrição de ticks'
+      });
+      
+      // Tentar reconexão se o WebSocket estiver fechado
+      if (!this.webSocket || this.webSocket.readyState === WebSocket.CLOSED) {
+        console.log('[OAUTH_DIRECT] Tentando reestabelecer conexão para ticks...');
+        this.setupWebSocket().catch(error => {
+          console.error('[OAUTH_DIRECT] Falha ao reconectar para ticks:', error);
+        });
+      }
+      
       return;
     }
     
     console.log('[OAUTH_DIRECT] Inscrevendo para receber ticks do R_100...');
     
-    // Inscrever para ticks do R_100
-    this.webSocket.send(JSON.stringify({
-      ticks: 'R_100',
-      subscribe: 1
-    }));
-    
-    // Inscrever para atualizações de saldo
-    this.webSocket.send(JSON.stringify({
-      balance: 1,
-      subscribe: 1
-    }));
+    try {
+      // Inscrever para ticks do R_100
+      const ticksRequest = {
+        ticks: 'R_100',
+        subscribe: 1
+      };
+      
+      console.log('[OAUTH_DIRECT] Enviando solicitação de ticks:', JSON.stringify(ticksRequest));
+      this.webSocket.send(JSON.stringify(ticksRequest));
+      
+      // Inscrever para atualizações de saldo
+      const balanceRequest = {
+        balance: 1,
+        subscribe: 1
+      };
+      
+      console.log('[OAUTH_DIRECT] Enviando solicitação de saldo:', JSON.stringify(balanceRequest));
+      this.webSocket.send(JSON.stringify(balanceRequest));
+      
+      // Notificar sobre a inscrição bem-sucedida
+      this.notifyListeners({
+        type: 'subscribed_to_ticks',
+        message: 'Inscrito para receber ticks do R_100'
+      });
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao inscrever para ticks:', error);
+      this.notifyListeners({
+        type: 'error',
+        message: 'Erro ao inscrever para ticks: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      });
+    }
   }
   
   /**

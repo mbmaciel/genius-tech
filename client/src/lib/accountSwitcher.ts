@@ -115,6 +115,7 @@ export const switchToAccount = async (
 
 /**
  * Atualiza a conta selecionada no armazenamento local
+ * e notifica o serviço OAuth para usar essa conta
  * 
  * @param accountId ID da conta selecionada
  */
@@ -131,6 +132,42 @@ export const updateSelectedAccount = (accountId: string): void => {
     document.dispatchEvent(accountEvent);
     
     console.log(`[AccountSwitcher] Conta selecionada atualizada para ${accountId}`);
+    
+    // Notificar o serviço OAuth Direct para usar esta conta
+    // Importação dinâmica para evitar dependência circular
+    import('../services/oauthDirectService').then(module => {
+      const oauthDirectService = module.oauthDirectService;
+      
+      // Obter o token da conta
+      const token = getAccountToken(accountId);
+      
+      if (token) {
+        console.log(`[AccountSwitcher] Notificando serviço OAuth sobre a troca para conta ${accountId}`);
+        
+        // Definir a conta como ativa no serviço OAuth
+        oauthDirectService.setActiveAccount(accountId, token);
+        
+        // Forçar reconexão para garantir que a nova conta seja usada
+        if (typeof oauthDirectService.reconnect === 'function') {
+          oauthDirectService.reconnect()
+            .then(success => {
+              if (success) {
+                console.log(`[AccountSwitcher] Serviço OAuth reconectado com a conta ${accountId}`);
+              } else {
+                console.error(`[AccountSwitcher] Falha na reconexão do serviço OAuth para a conta ${accountId}`);
+              }
+            })
+            .catch(error => {
+              console.error('[AccountSwitcher] Erro ao reconectar serviço OAuth:', error);
+            });
+        }
+      } else {
+        console.warn(`[AccountSwitcher] Token não encontrado para a conta ${accountId}, serviço OAuth não será atualizado`);
+      }
+    }).catch(err => {
+      console.error('[AccountSwitcher] Erro ao importar serviço OAuth:', err);
+    });
+    
   } catch (error) {
     console.error('[AccountSwitcher] Erro ao atualizar conta selecionada:', error);
   }

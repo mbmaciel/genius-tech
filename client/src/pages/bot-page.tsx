@@ -207,6 +207,12 @@ export function BotPage() {
           buyPrice: parseFloat(entryValue) || 0
         }));
         
+        // Antes de iniciar, forçar a definição da conta selecionada como ativa no serviço
+        console.log('[BOT] Definindo conta ativa no serviço OAuth:', dashboardAccount.loginid);
+        
+        // Garantir que o oauthDirectService use a conta selecionada na dashboard
+        oauthDirectService.setActiveAccount(dashboardAccount.loginid, dashboardAccount.token);
+        
         // Iniciar a conexão WebSocket do serviço OAuth Direct
         oauthDirectService.start()
           .then(success => {
@@ -216,6 +222,22 @@ export function BotPage() {
                 title: "Conexão estabelecida",
                 description: "Conectado ao servidor Deriv via OAuth",
               });
+              
+              // Forçar a reconexão para garantir que os dígitos apareçam corretamente
+              if (typeof oauthDirectService.reconnect === 'function') {
+                console.log('[BOT] Forçando reconexão inicial para garantir recebimento de dígitos...');
+                oauthDirectService.reconnect()
+                  .then(reconnectSuccess => {
+                    if (reconnectSuccess) {
+                      console.log('[BOT] Reconexão inicial bem-sucedida');
+                    } else {
+                      console.error('[BOT] Falha na reconexão inicial');
+                    }
+                  })
+                  .catch(error => {
+                    console.error('[BOT] Erro na reconexão inicial:', error);
+                  });
+              }
             } else {
               console.error('[BOT] Falha ao iniciar conexão OAuth Direct');
               toast({
