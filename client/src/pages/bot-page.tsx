@@ -778,11 +778,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             setLastDigits(data.lastDigits.slice(-parseInt(ticks)));
             
             // Converter estatísticas para o formato usado pelo componente
+            // Garantir que todos os dígitos (0-9) sejam incluídos mesmo se não tiverem ocorrências
             const newStats = Array.from({ length: 10 }, (_, i) => ({
               digit: i,
               count: data.digitStats[i]?.count || 0,
               percentage: data.digitStats[i]?.percentage || 0
             }));
+            
+            // Ordenar os stats por dígito para garantir a ordem correta (0-9)
+            newStats.sort((a, b) => a.digit - b.digit);
             
             setDigitStats(newStats);
             
@@ -825,11 +829,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           setLastDigits(historyData.lastDigits.slice(-parseInt(ticks)));
           
           // Converter estatísticas para o formato usado pelo componente
+          // Garantir que todos os dígitos (0-9) sejam incluídos mesmo se não tiverem ocorrências
           const newStats = Array.from({ length: 10 }, (_, i) => ({
             digit: i,
             count: historyData.digitStats[i]?.count || 0,
             percentage: historyData.digitStats[i]?.percentage || 0
           }));
+          
+          // Ordenar os stats por dígito para garantir a ordem correta (0-9)
+          newStats.sort((a, b) => a.digit - b.digit);
           
           setDigitStats(newStats);
           
@@ -884,12 +892,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Cálculo de percentuais
     const total = updatedLastDigits.length;
     
-    // Criar um novo array
+    // Criar um novo array com todos os dígitos (0-9), mesmo os que não têm ocorrências
     const newStats = Array(10).fill(0).map((_, i) => ({
       digit: i,
       count: counts[i],
       percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
     }));
+    
+    // Garantir que os dígitos estão na ordem correta (0-9)
+    newStats.sort((a, b) => a.digit - b.digit);
     
     console.log("[BOT_PAGE] Novas estatísticas calculadas:", 
       newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", "));
