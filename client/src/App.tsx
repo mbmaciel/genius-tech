@@ -5,7 +5,6 @@ import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import { BotPage } from "@/pages/bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
-import { ConfirmAccountSwitch } from "@/components/dashboard/ConfirmAccountSwitch";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
