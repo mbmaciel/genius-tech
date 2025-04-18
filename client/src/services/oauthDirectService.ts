@@ -48,30 +48,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     startTime: new Date() // Horário de início da sessão
   };
   
-  // Definição de tipo para estratégia
-  private strategyConfig: {
-    name?: string;
-    config?: {
-      prediction?: string | number;
-      contractType?: string;
-      symbol?: string;
-      duration?: string | number;
-      durationUnit?: string;
-    }
-  } | string = '';
-  
-  private get activeStrategy(): string | {
-    name?: string;
-    config?: {
-      prediction?: string | number;
-      contractType?: string;
-      symbol?: string;
-      duration?: string | number;
-      durationUnit?: string;
-    }
-  } {
-    return this.strategyConfig;
-  }
+  private strategyConfig: string = '';
   
   private operationTimeout: any = null;
   private pingInterval: any = null;
@@ -1785,37 +1762,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Usaremos configurações padrão simplificadas para iniciar
       console.log('[OAUTH_DIRECT] Usando configurações padrão para primeira operação');
       
-      // Se a estratégia tiver sido carregada de um objeto e não só uma string de nome
-      if (typeof this.activeStrategy === 'object' && this.activeStrategy) {
-        try {
-          console.log('[OAUTH_DIRECT] Usando parâmetros da estratégia:', this.activeStrategy);
-          
-          // Verificar se o objeto tem a estrutura esperada
-          if (this.activeStrategy.config) {
-            if (this.activeStrategy.config.prediction !== undefined) {
-              prediction = this.activeStrategy.config.prediction.toString();
-              console.log('[OAUTH_DIRECT] Usando previsão da estratégia:', prediction);
-            }
-            
-            if (this.activeStrategy.config.contractType) {
-              contractType = this.activeStrategy.config.contractType;
-              console.log('[OAUTH_DIRECT] Usando tipo de contrato da estratégia:', contractType);
-            }
-            
-            if (this.activeStrategy.config.symbol) {
-              symbolCode = this.activeStrategy.config.symbol;
-              console.log('[OAUTH_DIRECT] Usando símbolo da estratégia:', symbolCode);
-            }
-            
-            if (this.activeStrategy.config.duration) {
-              duration = this.activeStrategy.config.duration.toString();
-              durationUnit = this.activeStrategy.config.durationUnit || 't';
-              console.log('[OAUTH_DIRECT] Usando duração da estratégia:', duration, durationUnit);
-            }
-          }
-        } catch (error) {
-          console.error('[OAUTH_DIRECT] Erro ao processar parâmetros da estratégia:', error);
+      // A estratégia agora é sempre uma string simples
+      // Derivamos parâmetros do nome e configurações
+      try {
+        // Determinar tipo de contrato com base no nome da estratégia
+        if (this.strategyConfig.includes('under') || this.strategyConfig.includes('baixo') || this.strategyConfig.includes('low')) {
+          contractType = 'DIGITUNDER';
+          console.log('[OAUTH_DIRECT] Usando tipo DIGITUNDER baseado no nome da estratégia');
+        } else if (this.strategyConfig.includes('over') || this.strategyConfig.includes('alto') || this.strategyConfig.includes('high')) {
+          contractType = 'DIGITOVER';
+          console.log('[OAUTH_DIRECT] Usando tipo DIGITOVER baseado no nome da estratégia');
+        } else if (this.strategyConfig.includes('diff')) {
+          contractType = 'DIGITDIFF';
+          console.log('[OAUTH_DIRECT] Usando tipo DIGITDIFF baseado no nome da estratégia');
+        } else if (this.strategyConfig.includes('match')) {
+          contractType = 'DIGITMATICH';
+          console.log('[OAUTH_DIRECT] Usando tipo DIGITMATCH baseado no nome da estratégia');
         }
+        
+        // Usar settings para previsão
+        if (this.settings.prediction !== undefined) {
+          prediction = this.settings.prediction.toString();
+          console.log('[OAUTH_DIRECT] Usando previsão das configurações:', prediction);
+        }
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao processar parâmetros da estratégia:', error);
       }
       
       // Construir parâmetros básicos
