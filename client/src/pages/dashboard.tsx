@@ -358,54 +358,110 @@ export default function Dashboard() {
       
       {/* Conteúdo principal */}
       <div className="flex-1 md:ml-16 transition-all duration-300">
-        {/* Barra superior com links */}
-        <div className="w-full bg-[#13203a] flex justify-end items-center p-2 pr-4 space-x-4">
-          {/* Botão Robô de Operações - Só aparece quando o usuário está conectado */}
-          {isAuthenticated && accountInfo && (
-            <a href="/bot" className="text-white hover:text-[#00e5b3] text-sm font-medium flex items-center">
-              Robô de Operações
-            </a>
+        {/* Barra superior com seletor de contas e links */}
+        <div className="w-full bg-[#13203a] flex justify-between items-center p-2 px-4 space-x-4">
+          {/* Seletor de contas - Lado esquerdo */}
+          {isAuthenticated && accountInfo && accounts.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowAccountOptions(!showAccountOptions)}
+                className="bg-[#1d2a45] hover:bg-[#2a3756] text-white px-3 py-1 rounded-md text-sm flex items-center"
+              >
+                <div className={`h-2 w-2 rounded-full mr-2 ${accountInfo.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'}`}></div>
+                <span className="mr-1">{accountInfo.loginid}</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              
+              {/* Menu dropdown para contas */}
+              {showAccountOptions && (
+                <div className="absolute left-0 mt-1 w-60 bg-[#1d2a45] rounded-md shadow-lg z-50 border border-[#2a3756] overflow-hidden">
+                  <div className="p-2 border-b border-[#2a3756]">
+                    <h3 className="text-sm text-gray-300">Selecionar Conta</h3>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {accounts.map((account) => (
+                      <button
+                        key={account.loginid}
+                        onClick={() => {
+                          // Se for a mesma conta, apenas fechar o menu
+                          if (account.loginid === accountInfo.loginid) {
+                            setShowAccountOptions(false);
+                            return;
+                          }
+                          // Confirmar troca para outra conta
+                          setAccountToSwitch(account);
+                          setConfirmAccountSwitch(true);
+                          setShowAccountOptions(false);
+                        }}
+                        className={`flex items-center justify-between w-full p-2 text-sm hover:bg-[#2a3756] ${
+                          account.loginid === accountInfo.loginid ? 'bg-[#2a3756]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          <div className={`h-2 w-2 rounded-full mr-2 ${account.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'}`}></div>
+                          <span className="text-white">{account.loginid}</span>
+                        </div>
+                        <span className={`${account.isVirtual ? 'text-blue-400' : 'text-[#00e5b3]'}`}>
+                          {account.balance?.toFixed(2)} {account.currency}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           
-          {/* Logout DERIV - Também só aparece quando o usuário está conectado */}
-          {isAuthenticated && accountInfo ? (
-            <a href="#" 
-              onClick={(e) => {
-                e.preventDefault();
-                // Remover tokens e dados da conta
-                localStorage.removeItem('deriv_token');
-                localStorage.removeItem('deriv_oauth_token');
-                localStorage.removeItem('deriv_account_info');
-                localStorage.removeItem('deriv_active_loginid');
-                
-                // Aviso de sucesso
-                toast({
-                  title: "Desconectado com sucesso",
-                  description: "Você foi desconectado da Deriv",
-                });
-                
-                // Atualizar estado
-                setIsAuthenticated(false);
-                setAccountInfo(null);
-                
-                // Recarregar a página após pequeno delay
-                setTimeout(() => window.location.reload(), 500);
-              }}
-              className="text-white hover:text-[#00e5b3] text-sm">
-              Logout DERIV
-            </a>
-          ) : (
-            // Link Login quando não estiver autenticado
-            <a href="#" 
-              onClick={(e) => {
-                e.preventDefault();
-                const button = document.querySelector('[class*="DerivConnectButton"]') as HTMLElement;
-                if (button) button.click();
-              }}
-              className="text-white hover:text-[#00e5b3] text-sm">
-              Login DERIV
-            </a>
-          )}
+          {/* Lado direito com os botões/links */}
+          <div className="flex items-center space-x-4">
+            {/* Botão Robô de Operações - Só aparece quando o usuário está conectado */}
+            {isAuthenticated && accountInfo && (
+              <a href="/bot" className="text-white hover:text-[#00e5b3] text-sm font-medium flex items-center">
+                <Bot className="h-4 w-4 mr-1" />
+                Robô de Operações
+              </a>
+            )}
+            
+            {/* Logout DERIV - Também só aparece quando o usuário está conectado */}
+            {isAuthenticated && accountInfo ? (
+              <a href="#" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Remover tokens e dados da conta
+                  localStorage.removeItem('deriv_token');
+                  localStorage.removeItem('deriv_oauth_token');
+                  localStorage.removeItem('deriv_account_info');
+                  localStorage.removeItem('deriv_active_loginid');
+                  
+                  // Aviso de sucesso
+                  toast({
+                    title: "Desconectado com sucesso",
+                    description: "Você foi desconectado da Deriv",
+                  });
+                  
+                  // Atualizar estado
+                  setIsAuthenticated(false);
+                  setAccountInfo(null);
+                  
+                  // Recarregar a página após pequeno delay
+                  setTimeout(() => window.location.reload(), 500);
+                }}
+                className="text-white hover:text-[#00e5b3] text-sm">
+                Logout DERIV
+              </a>
+            ) : (
+              // Link Login quando não estiver autenticado
+              <a href="#" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  const button = document.querySelector('[class*="DerivConnectButton"]') as HTMLElement;
+                  if (button) button.click();
+                }}
+                className="text-white hover:text-[#00e5b3] text-sm">
+                Login DERIV
+              </a>
+            )}
+          </div>
         </div>
         
         <main className="p-4">

@@ -40,11 +40,6 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
       icon: <LayoutDashboard className="h-5 w-5" /> 
     },
     { 
-      path: '/bot', 
-      label: 'Robô de Operações', 
-      icon: <Bot className="h-5 w-5" /> 
-    },
-    { 
       path: '/gestao-operacional', 
       label: 'Gestão Operacional', 
       icon: <CalculatorIcon className="h-5 w-5" /> 
@@ -63,11 +58,6 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
       path: '/cashier', 
       label: 'Operações de Caixa', 
       icon: <Wallet className="h-5 w-5" /> 
-    },
-    { 
-      path: '/accounts', 
-      label: 'Contas', 
-      icon: <Users className="h-5 w-5" /> 
     }
   ];
 
