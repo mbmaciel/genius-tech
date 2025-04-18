@@ -32,7 +32,15 @@ class DerivHistoryService {
   private readonly MIN_SAVE_INTERVAL = 5000; // 5 segundos entre salvamentos
   
   private constructor() {
+    // Inicializar estruturas com dados vazios para começar sempre limpo
     this.initializeDigitStats('R_100');
+    
+    // NUNCA carregar dados de localStorage ou outras fontes de persistência
+    // durante a inicialização
+    console.log('[DerivHistoryService] Iniciado com estruturas vazias, ignorando qualquer persistência');
+    
+    // Remover dados do localStorage para R_100 para garantir que começamos do zero
+    localStorage.removeItem('digit_history_R_100');
   }
   
   public static getInstance(): DerivHistoryService {
@@ -121,12 +129,54 @@ class DerivHistoryService {
   }
   
   /**
+   * Limpa todo o histórico armazenado para um símbolo específico
+   * @param symbol Símbolo a ser limpo (ex: R_100)
+   */
+  public clearHistory(symbol: string): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        console.log(`[DerivHistoryService] Limpando todo o histórico armazenado para ${symbol}`);
+        
+        // Remover dados do localStorage
+        localStorage.removeItem(`digit_history_${symbol}`);
+        
+        // Reinicializar estruturas de dados
+        const statsObj: DigitStats = {};
+        for (let i = 0; i <= 9; i++) {
+          statsObj[i] = {count: 0, percentage: 0};
+        }
+        
+        this.historyData[symbol] = {
+          lastDigits: [],
+          digitStats: statsObj,
+          lastUpdated: new Date(),
+          totalCount: 0
+        };
+        
+        this.tickHistories[symbol] = [];
+        
+        console.log(`[DerivHistoryService] Histórico para ${symbol} limpo com sucesso`);
+        resolve();
+      } catch (error) {
+        console.error(`[DerivHistoryService] Erro ao limpar histórico para ${symbol}:`, error);
+        resolve(); // Resolve mesmo em caso de erro para não interromper o fluxo
+      }
+    });
+  }
+  
+  /**
    * Solicita histórico de ticks para um símbolo
    * @param symbol Símbolo (ex: R_100)
    * @param count Quantidade de ticks a serem solicitados
    * @param subscribe Se true, continua recebendo ticks em tempo real
+   * @param forceRefresh Se true, ignora qualquer cache e busca dados frescos
    */
-  public async getTicksHistory(symbol: string = 'R_100', count: number = 500, subscribe: boolean = false): Promise<DigitHistoryData> {
+  public async getTicksHistory(
+    symbol: string = 'R_100', 
+    count: number = 500, 
+    subscribe: boolean = false,
+    forceRefresh: boolean = false
+  ): Promise<DigitHistoryData> {
     try {
       // Verificar se estamos conectados
       if (!this.connected) {
@@ -142,22 +192,29 @@ class DerivHistoryService {
       
       console.log(`[DerivHistoryService] Solicitando os ${count} ticks mais recentes do mercado para ${symbol}`);
       
-      // Limpar dados anteriores antes de buscar novos ticks
-      // Isto garante que sempre começamos com o estado atual do mercado
-      // E garantindo que todos os dígitos (0-9) estão incluídos
-      const statsObj: DigitStats = {};
-      for (let i = 0; i <= 9; i++) {
-        statsObj[i] = {count: 0, percentage: 0};
+      // Se forceRefresh é true, limpar todos os dados anteriores
+      if (forceRefresh) {
+        console.log(`[DerivHistoryService] FORÇA ATUALIZAÇÃO: limpando dados armazenados para ${symbol} antes de buscar novos`);
+        
+        // Limpar dados anteriores antes de buscar novos ticks
+        // Isto garante que sempre começamos com o estado atual do mercado
+        const statsObj: DigitStats = {};
+        for (let i = 0; i <= 9; i++) {
+          statsObj[i] = {count: 0, percentage: 0};
+        }
+        
+        this.historyData[symbol] = {
+          lastDigits: [],
+          digitStats: statsObj,
+          lastUpdated: new Date(),
+          totalCount: 0
+        };
+        
+        this.tickHistories[symbol] = [];
+        
+        // Também remover do localStorage
+        localStorage.removeItem(`digit_history_${symbol}`);
       }
-      
-      this.historyData[symbol] = {
-        lastDigits: [],
-        digitStats: statsObj,
-        lastUpdated: new Date(),
-        totalCount: 0
-      };
-      
-      this.tickHistories[symbol] = [];
       
       // Enviar solicitação para autorização
       this.websocket.send(JSON.stringify({
@@ -377,22 +434,15 @@ class DerivHistoryService {
   }
   
   /**
-   * Salva dados em localStorage
+   * DESATIVADO - Não salva mais em localStorage
+   * Método mantido por compatibilidade, mas não faz nada
    */
   private saveToLocalStorage(symbol: string) {
-    try {
-      const data = {
-        lastDigits: this.historyData[symbol].lastDigits,
-        tickHistory: this.tickHistories[symbol],
-        lastUpdated: this.historyData[symbol].lastUpdated.toISOString(),
-        totalCount: this.historyData[symbol].totalCount
-      };
-      
-      localStorage.setItem(`digit_history_${symbol}`, JSON.stringify(data));
-      console.log(`[DerivHistoryService] Dados de ${symbol} salvos em localStorage`);
-    } catch (error) {
-      console.error('[DerivHistoryService] Erro ao salvar em localStorage:', error);
-    }
+    // A persistência em localStorage foi desativada
+    // Método mantido por compatibilidade com o código existente
+    // O REQUISITO CRÍTICO é NUNCA usar dados persistidos de sessões anteriores
+    console.log(`[DerivHistoryService] Método saveToLocalStorage chamado para ${symbol}, mas desativado por projeto`);
+    return;
   }
   
   /**

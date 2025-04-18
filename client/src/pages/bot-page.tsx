@@ -816,14 +816,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Carregar histórico de dígitos do serviço local como fallback
+    // Carregar histórico de dígitos DIRETAMENTE da Deriv API
     const loadDigitHistory = async () => {
       try {
-        // Tentar obter do serviço de histórico
+        console.log('[BOT_PAGE] Solicitando dados diretamente da Deriv API (500 ticks)');
+        
+        // FORÇAR o carregamento fresco da Deriv, sempre com 500 ticks e sem usar cache local
+        try {
+          // Como adicionamos o método clearHistory, vamos usá-lo
+          await derivHistoryService.clearHistory('R_100'); // Limpar qualquer histórico antes
+        } catch (error) {
+          console.warn("[BOT_PAGE] Método clearHistory não disponível, continuando com limpeza padrão");
+        }
+        
+        // Solicitar explicitamente 500 ticks e não se inscrever para atualizações ainda
+        // (a inscrição será feita separadamente)
         const historyData = await derivHistoryService.getTicksHistory('R_100', 500, false);
         
         if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
-          console.log('[BOT_PAGE] Histórico de dígitos carregado do serviço local:', historyData.lastDigits.length, 'dígitos');
+          console.log('[BOT_PAGE] Recebidos', historyData.lastDigits.length, 'dígitos DIRETAMENTE da Deriv');
           
           // Atualizar array de últimos dígitos (limitando aos mais recentes)
           setLastDigits(historyData.lastDigits.slice(-parseInt(ticks)));
@@ -841,28 +852,40 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           setDigitStats(newStats);
           
-          console.log('[BOT_PAGE] Estatísticas carregadas do serviço local:', 
+          console.log('[BOT_PAGE] Estatísticas atualizadas diretamente da Deriv API:', 
             newStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+          
+          toast({
+            title: "Dados atualizados",
+            description: `Carregados ${historyData.lastDigits.length} dígitos diretamente da Deriv`,
+            variant: "default",
+            duration: 3000,
+          });
         } else {
-          console.log('[BOT_PAGE] Nenhum histórico de dígitos encontrado, iniciando com valores vazios');
+          console.log('[BOT_PAGE] Nenhum dígito recebido da Deriv API, verificando conexão');
+          
+          toast({
+            title: "Sem dados",
+            description: "Não foi possível obter dados da Deriv. Verificando conexão...",
+            variant: "default",
+            duration: 3000,
+          });
         }
       } catch (error) {
-        console.error('[BOT_PAGE] Erro ao carregar histórico de dígitos:', error);
+        console.error('[BOT_PAGE] Erro ao carregar dígitos da Deriv API:', error);
+        
+        toast({
+          title: "Erro de conexão",
+          description: "Falha ao obter dados atualizados da Deriv. Tentando reconectar...",
+          variant: "destructive",
+          duration: 5000,
+        });
       }
     };
     
-    // Tentar carregar do backend primeiro para ter um estado inicial rapidamente,
-    // e SEMPRE buscar os dados atuais do mercado logo em seguida
-    loadFromBackend().then(loadedFromBackend => {
-      if (!loadedFromBackend) {
-        console.log('[BOT_PAGE] Dados não encontrados no backend, carregando do serviço local');
-      }
-      
-      // Independentemente do resultado, sempre buscar os últimos 500 dígitos do mercado da Deriv
-      // para garantir que estamos mostrando o estado atual
-      console.log('[BOT_PAGE] Solicitando os 500 dígitos mais recentes da Deriv para garantir dados atualizados');
-      loadDigitHistory();
-    });
+    // NUNCA carregar do backend ou localStorage, sempre buscar direto da Deriv
+    console.log('[BOT_PAGE] Ignorando dados do backend e localStorage, solicitando APENAS os 500 dígitos mais recentes da Deriv');
+    loadDigitHistory();
     
     // Conectar ao serviço de histórico para receber atualizações
     derivHistoryService.connect().then(connected => {
