@@ -180,14 +180,17 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
                             strategyId.includes('bot') || 
                             strategyId.includes('maxpro') ||
                             strategyId.includes('wise') ||
-                            strategyId.includes('tendencia');
+                            strategyId.includes('tendencia') ||
+                            strategyId.includes('green');
   
   const showParcelasMartingale = strategyId === 'profitpro' || 
-                               strategyId.includes('manual');
+                               strategyId.includes('manual') ||
+                               strategyId.includes('green');
   
   const showPorcentagemParaEntrar = strategyId.includes('advance');
   
-  const showUsarMartingaleAposXLoss = strategyId.includes('iron');
+  const showUsarMartingaleAposXLoss = strategyId.includes('iron') ||
+                                    strategyId.includes('green');
 
   // Renderizar configuração específica para a estratégia
   return (

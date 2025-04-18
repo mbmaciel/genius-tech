@@ -133,6 +133,20 @@ export const availableStrategies: BinaryBotStrategy[] = [
       martingaleFactor: 1.5,
       maxMartingaleLevel: 3
     }
+  },
+  {
+    id: 'green',
+    name: 'Green',
+    description: 'Estratégia Green para contratos binários',
+    xmlPath: '/attached_assets/green.xml',
+    type: 'BOTH',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5,
+      maxMartingaleLevel: 3
+    }
   }
 ];
 
@@ -144,7 +158,7 @@ export const strategyCategories = {
     ['profitpro', 'manual_over', 'manual_under', 'bot_low'].includes(s.id)
   ),
   premium: availableStrategies.filter(s => 
-    ['iron_over', 'iron_under', 'maxpro', 'advance', 'wise_pro_tendencia'].includes(s.id)
+    ['iron_over', 'iron_under', 'maxpro', 'advance', 'wise_pro_tendencia', 'green'].includes(s.id)
   )
 };
 
@@ -271,6 +285,10 @@ export function getContractTypeForStrategy(strategyId: string): string {
            id.includes('tendencia')) {
     return 'DIGITDIFF';
   } 
+  // Green estratégia
+  else if (id.includes('green')) {
+    return 'DIGITOVER';
+  }
   // Default é DIGITOVER
   else {
     return 'DIGITOVER';
