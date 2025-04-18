@@ -497,14 +497,8 @@ export default function Dashboard() {
                     )}
                   </div>
                   
-                  {/* Seletor de conta (botão que abre opções) */}
-                  <button
-                    onClick={() => setShowAccountOptions(!showAccountOptions)}
-                    className="bg-[#1d2a45] hover:bg-[#2a3756] text-white px-3 py-1 rounded-md text-sm flex items-center"
-                  >
-                    <Users className="h-4 w-4 mr-1" />
-                    Contas
-                  </button>
+                  {/* Espaçador */}
+                  <div className="w-2"></div>
                   
                   {/* Botão de logout */}
                   <button
