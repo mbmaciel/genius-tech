@@ -18,72 +18,68 @@ import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 
-// Função para salvar estatísticas diretamente no backend
-const saveDigitToBackend = async (
+/**
+ * Função para salvar estatísticas de dígitos no backend
+ * Com fallback para localStorage em caso de erro
+ */
+function saveDigitToBackend(
   symbol: string,
   newDigit: number,
   lastDigits: number[],
   digitStats: Array<{ digit: number; count: number; percentage: number }>
-) => {
-  try {
-    // Preparar os dados para enviar ao backend
-    const statsObj: Record<number, { count: number; percentage: number }> = {};
-    
-    // Converter para o formato esperado pelo backend
-    digitStats.forEach(stat => {
-      statsObj[stat.digit] = {
-        count: stat.count,
-        percentage: stat.percentage
-      };
-    });
-    
-    // Criar objeto para enviar
-    const dataToSave = {
-      symbol,
-      lastDigits: [newDigit, ...lastDigits].slice(0, 500), // Limitar a 500 dígitos
-      digitStats: statsObj,
-      totalCount: lastDigits.length + 1,
-      lastUpdated: new Date()
+) {
+  // Preparar os dados
+  const statsObj: Record<string, { count: number; percentage: number }> = {};
+  digitStats.forEach(stat => {
+    statsObj[stat.digit.toString()] = {
+      count: stat.count,
+      percentage: stat.percentage
     };
+  });
+  
+  // Criar objeto para enviar
+  const updatedDigits = [newDigit, ...lastDigits].slice(0, 500); // Limitar a 500 dígitos  
+  const dataToSave = {
+    symbol,
+    lastDigits: updatedDigits,
+    digitStats: statsObj,
+    totalCount: updatedDigits.length,
+    lastUpdated: new Date()
+  };
+  
+  // Log de debug
+  console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol, 'com', 
+    dataToSave.lastDigits.length, 'dígitos');
+  
+  // Enviar ao backend usando fetch
+  fetch('/api/digit-history', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(dataToSave)
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Erro HTTP: ${response.status}`);
+    }
+    console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas no banco de dados com sucesso`);
+    return true;
+  })
+  .catch(error => {
+    console.error('[BOT_PAGE] Erro ao salvar estatísticas no backend:', error);
     
-    // Enviar para o backend
-    console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol, 'com', dataToSave.lastDigits.length, 'dígitos e estatísticas:', 
-      Object.entries(dataToSave.digitStats).map(([digit, data]) => `${digit}: ${data.percentage}%`).join(', '));
+    // Salvar em localStorage como fallback
+    try {
+      localStorage.setItem(`digit_history_${symbol}`, JSON.stringify(dataToSave));
+      console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas em localStorage como backup`);
+    } catch (localError) {
+      console.error('[BOT_PAGE] Erro ao salvar em localStorage:', localError);
+    }
     
-    // Fazer requisição assíncrona para o backend
-    fetch('/api/digit-history', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(dataToSave)
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
-      }
-      console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas no banco de dados`);
-    })
-    .catch(error => {
-      console.error('[BOT_PAGE] Erro ao salvar estatísticas no backend:', error);
-      
-      // Salvar em localStorage como fallback
-      try {
-        localStorage.setItem(`digit_history_${symbol}`, JSON.stringify({
-          lastDigits: dataToSave.lastDigits,
-          digitStats: dataToSave.digitStats,
-          lastUpdated: dataToSave.lastUpdated,
-          totalCount: dataToSave.totalCount
-        }));
-        console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas em localStorage como backup`);
-      } catch (localError) {
-        console.error('[BOT_PAGE] Erro ao salvar em localStorage:', localError);
-      }
-    });
-  } catch (error) {
-    console.error('[BOT_PAGE] Erro ao preparar estatísticas para envio:', error);
-  }
-};
+    return false;
+  });
+}
 
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
@@ -757,14 +753,56 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   useEffect(() => {
     console.log('[BOT_PAGE] Carregando histórico de dígitos inicial');
     
-    // Carregar histórico de dígitos do serviço
+    // Carregar histórico de dígitos do banco de dados
+    const loadFromBackend = async () => {
+      try {
+        console.log('[BOT_PAGE] Tentando carregar dados do backend...');
+        
+        const response = await fetch('/api/digit-history/R_100');
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[BOT_PAGE] Dados carregados do backend:', data);
+          
+          if (data.lastDigits && data.lastDigits.length > 0) {
+            // Atualizar array de últimos dígitos (limitando aos mais recentes)
+            setLastDigits(data.lastDigits.slice(-parseInt(ticks)));
+            
+            // Converter estatísticas para o formato usado pelo componente
+            const newStats = Array.from({ length: 10 }, (_, i) => ({
+              digit: i,
+              count: data.digitStats[i]?.count || 0,
+              percentage: data.digitStats[i]?.percentage || 0
+            }));
+            
+            setDigitStats(newStats);
+            
+            console.log('[BOT_PAGE] Estatísticas carregadas do backend:', 
+              newStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+            
+            // Se encontramos dados do backend, não precisamos carregar do serviço local
+            return true;
+          }
+        } else if (response.status !== 404) {
+          // Se não for 404 (dados não encontrados), é um erro real
+          console.error('[BOT_PAGE] Erro ao carregar do backend:', response.status, response.statusText);
+        }
+        
+        return false;
+      } catch (error) {
+        console.error('[BOT_PAGE] Erro ao carregar do backend:', error);
+        return false;
+      }
+    };
+    
+    // Carregar histórico de dígitos do serviço local como fallback
     const loadDigitHistory = async () => {
       try {
         // Tentar obter do serviço de histórico
         const historyData = await derivHistoryService.getTicksHistory('R_100', 500, false);
         
         if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
-          console.log('[BOT_PAGE] Histórico de dígitos carregado:', historyData.lastDigits.length, 'dígitos');
+          console.log('[BOT_PAGE] Histórico de dígitos carregado do serviço local:', historyData.lastDigits.length, 'dígitos');
           
           // Atualizar array de últimos dígitos (limitando aos mais recentes)
           setLastDigits(historyData.lastDigits.slice(-parseInt(ticks)));
@@ -778,7 +816,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           setDigitStats(newStats);
           
-          console.log('[BOT_PAGE] Estatísticas carregadas do histórico:', 
+          console.log('[BOT_PAGE] Estatísticas carregadas do serviço local:', 
             newStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
         } else {
           console.log('[BOT_PAGE] Nenhum histórico de dígitos encontrado, iniciando com valores vazios');
@@ -788,8 +826,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Carregar histórico inicial
-    loadDigitHistory();
+    // Tentar carregar do backend primeiro, se falhar, carregar do serviço local
+    loadFromBackend().then(loadedFromBackend => {
+      if (!loadedFromBackend) {
+        console.log('[BOT_PAGE] Dados não encontrados no backend, carregando do serviço local');
+        loadDigitHistory();
+      }
+    });
     
     // Conectar ao serviço de histórico para receber atualizações
     derivHistoryService.connect().then(connected => {
