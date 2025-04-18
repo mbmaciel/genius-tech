@@ -978,6 +978,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     finalValue: number;
     profit: number;
     time: Date;
+    notification?: {
+      type: 'error' | 'warning' | 'success' | 'info';
+      message: string;
+    };
   }[]>([]);
   
   // Use o useEffect para registrar ouvintes de eventos de operação e saldo
@@ -999,6 +1003,54 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
           setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
         }
+      }
+      
+      // Processar eventos de limite atingido (stop loss ou take profit)
+      if (event.type === 'bot_limit_reached') {
+        // Adicionar notificação ao histórico no topo
+        const notificationType = event.message.includes('perda') ? 'error' : 'success';
+        const newNotification = {
+          id: Date.now(),
+          entryValue: 0,
+          finalValue: 0,
+          profit: 0,
+          time: new Date(),
+          notification: {
+            type: notificationType,
+            message: event.message
+          }
+        };
+        
+        console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico:', newNotification);
+        setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+      }
+      
+      // Processar eventos de parada do bot
+      if (event.type === 'bot_stopped' && event.reason) {
+        // Determinar o tipo de notificação com base na razão
+        let notificationType: 'error' | 'warning' | 'success' | 'info' = 'info';
+        if (event.reason.includes('erro')) {
+          notificationType = 'error';
+        } else if (event.reason.includes('perda')) {
+          notificationType = 'warning';
+        } else if (event.reason.includes('lucro') || event.reason.includes('meta')) {
+          notificationType = 'success';
+        }
+        
+        const newNotification = {
+          id: Date.now(),
+          entryValue: 0,
+          finalValue: 0,
+          profit: 0,
+          time: new Date(),
+          notification: {
+            type: notificationType,
+            message: `Bot parado: ${event.reason}`
+          }
+        };
+        
+        console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico:', newNotification);
+        setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
       }
       
       // Processar eventos de atualização de saldo
@@ -1469,20 +1521,42 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                       </tr>
                     ) : (
                       operationHistory.map((op) => (
-                        <tr key={op.id} className="border-b border-[#1d2a45]">
-                          <td className="py-2 px-2">{op.id.toString().substring(0, 8)}</td>
-                          <td className="py-2 px-2 text-right">
-                            ${op.entryValue.toFixed(2)}
-                          </td>
-                          <td className={`py-2 px-2 text-right font-medium ${
-                            op.profit >= 0 ? 'text-green-500' : 'text-red-500'
-                          }`}>
-                            ${op.finalValue.toFixed(2)}
-                          </td>
-                          <td className="py-2 px-2 text-right text-gray-400">
-                            {op.time.toLocaleTimeString()}
-                          </td>
-                        </tr>
+                        <React.Fragment key={op.id}>
+                          <tr className="border-b border-[#1d2a45]">
+                            <td className="py-2 px-2">{op.id.toString().substring(0, 8)}</td>
+                            <td className="py-2 px-2 text-right">
+                              ${op.entryValue.toFixed(2)}
+                            </td>
+                            <td className={`py-2 px-2 text-right font-medium ${
+                              op.profit >= 0 ? 'text-green-500' : 'text-red-500'
+                            }`}>
+                              ${op.finalValue.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-2 text-right text-gray-400">
+                              {op.time.toLocaleTimeString()}
+                            </td>
+                          </tr>
+                          {op.notification && (
+                            <tr className="border-b border-[#1d2a45] bg-opacity-20" style={{ backgroundColor: op.notification.type === 'error' ? '#5a1f1f' : op.notification.type === 'warning' ? '#5a4e1f' : op.notification.type === 'success' ? '#1f5a2e' : '#1f3a5a' }}>
+                              <td colSpan={4} className="py-2 px-2 text-sm italic">
+                                <div className="flex items-center">
+                                  <span className={`mr-2 ${
+                                    op.notification.type === 'error' ? 'text-red-400' : 
+                                    op.notification.type === 'warning' ? 'text-yellow-400' : 
+                                    op.notification.type === 'success' ? 'text-green-400' : 
+                                    'text-blue-400'
+                                  }`}>
+                                    {op.notification.type === 'error' ? '⚠️' : 
+                                     op.notification.type === 'warning' ? '⚠️' : 
+                                     op.notification.type === 'success' ? '✅' : 
+                                     'ℹ️'}
+                                  </span>
+                                  <span className="text-gray-300">{op.notification.message}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))
                     )}
                   </tbody>
