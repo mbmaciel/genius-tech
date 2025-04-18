@@ -1045,7 +1045,29 @@ export function BotPage() {
                   />
                 </div>
                 
-                {/* Botões de Ação */}
+                {/* Painel de informações da conta e controle do bot */}
+                <div className="mb-4">
+                  <BotController 
+                    entryValue={parseFloat(entryValue) || 0.35}
+                    profitTarget={parseFloat(profitTarget) || 1000}
+                    lossLimit={parseFloat(lossLimit) || 500}
+                    selectedStrategy={selectedStrategy || ''}
+                    onStatusChange={(status) => setBotStatus(status)}
+                    onStatsChange={(newStats) => setStats(newStats)}
+                    onTickReceived={(price, lastDigit) => {
+                      // Atualizar últimos dígitos
+                      setLastDigits(prev => {
+                        const updated = [lastDigit, ...prev].slice(0, 20);
+                        return updated;
+                      });
+                      
+                      // Atualizar estatísticas
+                      updateDigitStats(lastDigit);
+                    }}
+                  />
+                </div>
+                
+                {/* Botões de Ação (backup) */}
                 <div className="space-y-3">
                   <button
                     onClick={handleStartBot}
