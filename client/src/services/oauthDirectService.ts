@@ -326,17 +326,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         this.closeConnection();
         
         console.log('[OAUTH_DIRECT] Estabelecendo conexão WebSocket dedicada com Deriv');
+        
+        // CORREÇÃO: Usar o endereço correto com porta segura
         this.webSocket = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=71403');
+        
+        // DEPURAÇÃO: Verificar ReadyState da conexão WebSocket
+        console.log(`[OAUTH_DIRECT] Estado inicial WebSocket: ${this.getReadyStateText(this.webSocket.readyState)}`);
         
         // Configurar timeout para conexão
         const connectionTimeout = setTimeout(() => {
+          console.error('[OAUTH_DIRECT] Timeout ao tentar conectar WebSocket');
           reject(new Error('Timeout ao conectar ao servidor'));
-        }, 10000);
+        }, 15000); // Aumentado para 15 segundos
         
         // Handler de abertura
         this.webSocket.onopen = () => {
           clearTimeout(connectionTimeout);
           console.log('[OAUTH_DIRECT] Conexão WebSocket estabelecida com sucesso!');
+          console.log(`[OAUTH_DIRECT] Estado após conexão: ${this.getReadyStateText(this.webSocket.readyState)}`);
           
           // Configurar ping para manter conexão
           this.setupKeepAlive();
@@ -347,7 +354,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               this.initialized = true;
               resolve(true);
             })
-            .catch((error) => reject(error));
+            .catch((error) => {
+              console.error('[OAUTH_DIRECT] Falha na autorização de tokens:', error);
+              reject(error);
+            });
         };
         
         // Handler de erro
@@ -359,15 +369,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         };
         
         // Handler de fechamento
-        this.webSocket.onclose = () => {
-          console.log('[OAUTH_DIRECT] Conexão WebSocket fechada');
+        this.webSocket.onclose = (event) => {
+          console.log(`[OAUTH_DIRECT] Conexão WebSocket fechada: Código ${event.code}, Razão: ${event.reason}`);
           this.scheduleReconnect();
           
           // Se estiver em estado de execução, notificar erro
           if (this.isRunning) {
             this.notifyListeners({
               type: 'error',
-              message: 'Conexão com o servidor perdida. Tentando reconectar automaticamente.'
+              message: `Conexão com o servidor perdida (${event.code}). Tentando reconectar automaticamente.`
             });
           }
         };
@@ -381,6 +391,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         reject(error);
       }
     });
+  }
+  
+  /**
+   * Retorna uma descrição textual para o estado de ReadyState do WebSocket
+   */
+  private getReadyStateText(state: number): string {
+    switch (state) {
+      case WebSocket.CONNECTING:
+        return "CONNECTING (0)";
+      case WebSocket.OPEN:
+        return "OPEN (1)";
+      case WebSocket.CLOSING:
+        return "CLOSING (2)";
+      case WebSocket.CLOSED:
+        return "CLOSED (3)";
+      default:
+        return `DESCONHECIDO (${state})`;
+    }
   }
   
   /**
@@ -615,18 +643,49 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Assina ticks do símbolo R_100
    */
   private subscribeToTicks(): void {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
+    if (!this.webSocket) {
+      console.error('[OAUTH_DIRECT] WebSocket não está inicializado!');
+      this.reconnect().catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
       return;
     }
     
-    const request = {
-      ticks: 'R_100',
-      subscribe: 1
-    };
+    if (this.webSocket.readyState !== WebSocket.OPEN) {
+      console.error(`[OAUTH_DIRECT] WebSocket não está aberto para inscrição de ticks! Estado atual: ${this.getReadyStateText(this.webSocket.readyState)}`);
+      
+      // Tentar reconectar se não estiver em estado CONNECTING
+      if (this.webSocket.readyState !== WebSocket.CONNECTING) {
+        console.log('[OAUTH_DIRECT] Tentando reconectar antes de inscrever para ticks...');
+        this.reconnect().catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
+      }
+      return;
+    }
     
-    console.log('[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo R_100');
-    this.webSocket.send(JSON.stringify(request));
+    try {
+      const request = {
+        ticks: 'R_100',
+        subscribe: 1
+      };
+      
+      console.log('[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo R_100');
+      console.log(`[OAUTH_DIRECT] Estado WebSocket antes do envio: ${this.getReadyStateText(this.webSocket.readyState)}`);
+      
+      this.webSocket.send(JSON.stringify(request));
+      console.log('[OAUTH_DIRECT] Requisição de ticks enviada com sucesso');
+      
+      // Verificar se ainda está tentando inscrever-se 3 segundos depois
+      setTimeout(() => {
+        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+          console.log('[OAUTH_DIRECT] Verificação de inscrição de ticks: WebSocket ainda aberto');
+        } else {
+          console.error('[OAUTH_DIRECT] WebSocket fechou após tentativa de inscrição de ticks!');
+          this.reconnect().catch(console.error);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao enviar requisição de ticks:', error);
+      // Tentar reconectar em caso de erro
+      this.reconnect().catch(console.error);
+    }
   }
   
   /**
