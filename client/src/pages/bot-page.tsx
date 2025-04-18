@@ -163,6 +163,19 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // Estado para controlar se o usuário está autenticado
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   
+  // Estado para histórico de operações
+  const [operationHistory, setOperationHistory] = useState<Array<{
+    id: number;
+    entryValue: number;
+    finalValue: number;
+    profit: number;
+    time: Date;
+    notification?: {
+      type: 'success' | 'info' | 'warning' | 'error';
+      message: string;
+    };
+  }>>([]);
+  
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
     console.log('[BOT_PAGE] Inicializando página do bot com conexão OAuth dedicada');
@@ -972,18 +985,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     return percentage >= 20 ? 'bg-red-500' : 'bg-gray-500';
   };
   
-  // Estado para histórico de operações
-  const [operationHistory, setOperationHistory] = useState<{
-    id: number;
-    entryValue: number;
-    finalValue: number;
-    profit: number;
-    time: Date;
-    notification?: {
-      type: 'error' | 'warning' | 'success' | 'info';
-      message: string;
-    };
-  }[]>([]);
+  // Estado para histórico de operações já definido anteriormente
+  // Removendo duplicação para resolver erro de "Identifier has already been declared"
+  // Declaração original na linha 167
   
   // Use o useEffect para registrar ouvintes de eventos de operação e saldo
   useEffect(() => {
@@ -1075,6 +1079,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             }
           }
 
+          // Garantir que o tipo está dentro dos valores possíveis para evitar erros de tipagem
+          const safeCommandType: 'success' | 'info' | 'warning' | 'error' = 
+            (commandType === 'success' || commandType === 'info' || 
+             commandType === 'warning' || commandType === 'error') 
+              ? commandType 
+              : 'info';
+              
           const newNotification = {
             id: typeof contract.contract_id === 'number' ? contract.contract_id : Math.random(),
             entryValue: contract.buy_price || 0,
@@ -1082,7 +1093,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             profit: 0,
             time: new Date(),
             notification: {
-              type: commandType as 'success' | 'info' | 'warning' | 'error',
+              type: safeCommandType,
               message: commandMessage
             }
           };
