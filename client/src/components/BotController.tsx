@@ -325,27 +325,43 @@ export function BotController({
   // Renderizar botão de início/pausa e informações da conta
   return (
     <div className="space-y-4">
-      {/* Barra superior com informações da conta */}
-      <div className="bg-[#13203a] p-3 rounded-md border border-[#2a3756] flex items-center justify-between shadow-lg">
+      {/* Barra superior com informações da conta - Design melhorado */}
+      <div className="bg-gradient-to-r from-[#13203a] to-[#1a2b4c] p-3 rounded-md border border-[#2a3756] flex items-center justify-between shadow-lg">
         <div className="flex items-center">
-          <div className="bg-blue-600/30 p-1.5 rounded-full mr-2">
-            <User className="h-5 w-5 text-blue-400" />
+          <div className={`p-2 rounded-full mr-2 ${accountInfo.is_virtual ? 'bg-blue-600/20' : 'bg-green-600/20'}`}>
+            <User className={`h-5 w-5 ${accountInfo.is_virtual ? 'text-blue-400' : 'text-green-400'}`} />
           </div>
           <div className="flex flex-col">
             <div className="flex items-center">
               <span className="text-xs text-gray-400">ID Conta:</span>
               <span className="text-sm font-bold ml-1.5 text-white">{accountInfo.loginid || '...'}</span>
               {accountInfo.is_virtual && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full text-[10px] font-bold">DEMO</span>
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-700 text-white rounded-full text-[10px] font-bold">DEMO</span>
               )}
               {!accountInfo.is_virtual && accountInfo.loginid && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-600 text-white rounded-full text-[10px] font-bold">REAL</span>
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-700 text-white rounded-full text-[10px] font-bold">REAL</span>
               )}
+            </div>
+            <div className="flex mt-0.5 items-center">
+              <span className="text-xs text-gray-400">Status:</span>
+              <div className="flex items-center ml-1.5">
+                <div className={`w-2.5 h-2.5 rounded-full mr-1.5 ${
+                  status === 'running' ? 'bg-green-500 animate-pulse' : 
+                  status === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
+                }`}></div>
+                <span className={`text-xs font-medium ${
+                  status === 'running' ? 'text-green-400' : 
+                  status === 'paused' ? 'text-yellow-400' : 'text-gray-400'
+                }`}>
+                  {status === 'running' ? 'Em execução' : 
+                  status === 'paused' ? 'Pausado' : 'Inativo'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
         <div className="flex items-center">
-          <div className="bg-green-600/30 p-1.5 rounded-full mr-2">
+          <div className="bg-gradient-to-r from-green-600/20 to-green-500/10 p-2 rounded-full mr-2">
             <Wallet className="h-5 w-5 text-green-400" />
           </div>
           <div className="flex flex-col">
@@ -356,55 +372,111 @@ export function BotController({
                   ? formatCurrency(accountInfo.balance, accountInfo.currency)
                   : '...'}
               </span>
+              {/* Indicador de mudança de saldo */}
+              {stats.totalProfit > 0 && (
+                <span className="ml-2 text-xs text-green-400 font-medium flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                  </svg>
+                  {stats.totalProfit.toFixed(2)}
+                </span>
+              )}
+              {stats.totalProfit < 0 && (
+                <span className="ml-2 text-xs text-red-400 font-medium flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                  {Math.abs(stats.totalProfit).toFixed(2)}
+                </span>
+              )}
+            </div>
+            <div className="flex mt-0.5 items-center">
+              <span className="text-xs text-gray-400">Entrada:</span>
+              <span className="text-xs ml-1.5 text-white">{entryValue}</span>
+              <span className="text-xs text-gray-400 ml-3">Alvo:</span>
+              <span className="text-xs ml-1.5 text-white">{profitTarget}</span>
             </div>
           </div>
         </div>
       </div>
       
-      {/* Status atual e botões de controle */}
+      {/* Estatísticas de operações - NOVO! */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-[#0e1a2e] rounded-md p-3 border border-[#2a3756]">
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Vitórias</span>
+          <span className="text-lg font-bold text-green-400">{stats.wins}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Derrotas</span>
+          <span className="text-lg font-bold text-red-400">{stats.losses}</span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Taxa de Acerto</span>
+          <span className="text-lg font-bold text-yellow-400">
+            {stats.wins + stats.losses > 0 
+              ? `${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%` 
+              : '0%'}
+          </span>
+        </div>
+        <div className="flex flex-col items-center justify-center p-2 bg-[#13203a] rounded">
+          <span className="text-xs text-gray-400">Lucro Total</span>
+          <span className={`text-lg font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {stats.totalProfit.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Estratégia e botões de controle melhorados */}
       <div className="space-y-3">
-        {/* Status do Bot */}
-        <div className="flex justify-between items-center px-4 py-2 bg-[#0e1a2e] rounded-md border border-[#2a3756]">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-2 ${
-              status === 'running' ? 'bg-green-500 animate-pulse' : 
-              status === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
-            }`}></div>
-            <span className="text-sm text-gray-300">Status:</span>
-            <span className="text-sm font-bold ml-1.5 text-white">
-              {status === 'running' ? 'Em execução' : 
-               status === 'paused' ? 'Pausado' : 'Inativo'}
-            </span>
-          </div>
-          <div className="text-xs text-gray-400">
-            W: {stats.wins} | L: {stats.losses} | P: {stats.totalProfit.toFixed(2)}
+        <div className="flex items-center p-3 bg-[#0e1a2e] rounded-md border border-[#2a3756]">
+          <div className="flex-1">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+              </svg>
+              <span className="text-sm text-white font-medium">Estratégia Ativa:</span>
+              <span className="ml-2 text-sm text-blue-400 font-bold">{selectedStrategy || "Nenhuma"}</span>
+            </div>
           </div>
         </div>
 
-        {/* Botões de controle */}
+        {/* Botões de controle com design aprimorado */}
         <div className="flex space-x-2">
           {status === 'running' ? (
             <Button
               onClick={stopBot}
-              className="flex-1 bg-[#8B0000] hover:bg-red-800 text-white border border-red-900 shadow-inner shadow-red-900/30"
+              className="flex-1 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 text-white font-medium border border-red-900/50 shadow"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
               </svg>
-              Pausar Robô
+              Parar Robô
             </Button>
           ) : (
             <Button
               onClick={startBot}
-              className="flex-1 bg-[#006400] hover:bg-green-800 text-white border border-green-900 shadow-inner shadow-green-900/30"
+              className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
+              disabled={!selectedStrategy}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5 3 19 12 5 21 5 3"></polygon>
               </svg>
-              Executar Robô
+              Iniciar Operações
             </Button>
           )}
         </div>
+        
+        {/* Dicas para o usuário - NOVO! */}
+        {!selectedStrategy && (
+          <div className="mt-2 text-xs text-center text-yellow-500">
+            Selecione uma estratégia antes de iniciar as operações
+          </div>
+        )}
+        {status === 'running' && (
+          <div className="mt-2 text-xs text-center text-green-500 animate-pulse">
+            Robô executando operações automaticamente...
+          </div>
+        )}
       </div>
     </div>
   );
