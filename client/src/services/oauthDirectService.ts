@@ -1201,24 +1201,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       });
       
       // Preparar solicitação de compra de contrato
-      const buyRequest = {
-        buy: 1,
-        price: amount,
-        parameters: {
-          amount: amount,
-          basis: 'stake',
-          contract_type: contractType,
-          currency: 'USD',
-          duration: 5,
-          duration_unit: 't',
-          symbol: 'R_100',
-        }
+      const parameters: any = {
+        amount: amount,
+        basis: 'stake',
+        contract_type: contractType,
+        currency: 'USD',
+        duration: 5,
+        duration_unit: 't',
+        symbol: 'R_100',
       };
       
       // Adicionar predição se for tipo de contrato com dígito
       if (contractType.includes('DIGIT')) {
-        buyRequest.parameters['barrier'] = prediction.toString();
+        parameters.barrier = prediction.toString();
       }
+      
+      const buyRequest = {
+        buy: 1,
+        price: amount,
+        parameters
+      };
       
       console.log('[OAUTH_DIRECT] Enviando solicitação de compra de contrato:', buyRequest);
       this.webSocket.send(JSON.stringify(buyRequest));

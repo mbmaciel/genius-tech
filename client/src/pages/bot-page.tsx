@@ -10,6 +10,7 @@ import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
 import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
+import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { BotStatus } from "@/services/botService";
@@ -599,6 +600,69 @@ export function BotPage() {
         return;
       }
       
+      // Verificar se há erros armazenados relacionados ao token
+      const tokenErrorStr = localStorage.getItem('deriv_token_scope_error');
+      if (tokenErrorStr) {
+        try {
+          const tokenError = JSON.parse(tokenErrorStr);
+          const errorTimestamp = tokenError.timestamp || 0;
+          
+          // Se o erro for recente (menos de 30 minutos)
+          if (Date.now() - errorTimestamp < 30 * 60 * 1000) {
+            toast({
+              title: "Aviso: Possível problema de permissão",
+              description: "O token atual pode não ter permissões suficientes para trading. Algumas operações podem falhar.",
+              variant: "warning",
+              duration: 8000,
+            });
+            
+            setTimeout(() => {
+              toast({
+                title: "Solução de permissões",
+                description: "Para garantir todas as permissões necessárias, volte ao Dashboard e faça login novamente",
+                variant: "default",
+                action: (
+                  <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
+                       onClick={() => window.open("/dashboard", "_self")}>
+                    Dashboard
+                  </div>
+                ),
+                duration: 10000,
+              });
+            }, 2000);
+          } else {
+            // Limpar erros antigos
+            localStorage.removeItem('deriv_token_scope_error');
+          }
+        } catch (e) {
+          console.error('[BOT_PAGE] Erro ao processar informações de erro do token:', e);
+          localStorage.removeItem('deriv_token_scope_error');
+        }
+      }
+      
+      // Verificar se há uma reautorização pendente
+      const pendingReauth = localStorage.getItem('deriv_pending_reauth');
+      if (pendingReauth === 'true') {
+        toast({
+          title: "Reautorização pendente",
+          description: "Você iniciou um processo de reautorização. Para garantir acesso completo, conclua a autorização.",
+          variant: "warning",
+          action: (
+            <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
+                 onClick={() => {
+                   const appId = '71403';
+                   const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+                   const scope = encodeURIComponent('read admin payments trade trading trading_information');
+                   const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+                   window.open(authUrl, '_blank', 'width=800,height=600');
+                 }}>
+              Autorizar
+            </div>
+          ),
+          duration: 10000,
+        });
+      }
+      
       // Configurar parâmetros
       const entryNum = parseFloat(entryValue || "0.35");
       const profitNum = parseFloat(profitTarget || "1000");
@@ -944,6 +1008,26 @@ export function BotPage() {
                 </div>
               )}
             </div>
+            
+            {/* Alerta de permissões do token */}
+            <TokenPermissionAlert 
+              onReauthorize={() => {
+                const appId = '71403';
+                const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+                const scope = encodeURIComponent('read admin payments trade trading trading_information');
+                const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+                window.open(authUrl, '_blank', 'width=800,height=600');
+                
+                // Registrar reautorização pendente
+                localStorage.setItem('deriv_pending_reauth', 'true');
+                localStorage.setItem('deriv_pending_reauth_timestamp', Date.now().toString());
+                
+                toast({
+                  title: "Autorização iniciada",
+                  description: "Complete a autorização na janela aberta para obter todas as permissões necessárias.",
+                });
+              }}
+            />
             
             {/* Painel de Controle Principal */}
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
