@@ -39,6 +39,37 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     });
   };
 
+  // Função para obter o comando específico da estratégia
+  const getStrategyCommand = (strategyId: string | undefined) => {
+    if (!strategyId) return "Entrada";
+    
+    // Mapeamento dos comandos específicos para cada estratégia
+    switch (strategyId.toLowerCase()) {
+      case 'advance':
+        return "PORCENTAGEM PARA ENTRAR";
+      case 'profitpro':
+        return "ENTRADA PROFIT PRO";
+      case 'manualunder':
+        return "ENTRADA MANUAL UNDER";
+      case 'manualover':
+        return "ENTRADA MANUAL OVER";
+      case 'ironover':
+        return "ENTRADA IRON OVER";
+      case 'ironunder':
+        return "ENTRADA IRON UNDER";
+      case 'botlow':
+        return "ENTRADA BOT LOW";
+      case 'maxpro':
+        return "ENTRADA MAXPRO";
+      case 'green':
+        return "ENTRADA GREEN";
+      case 'wisetendencia':
+        return "ENTRADA TENDÊNCIA";
+      default:
+        return "Entrada";
+    }
+  };
+
   // Função para obter o ícone com base no tipo de notificação
   const getNotificationIcon = (type: 'success' | 'info' | 'warning' | 'error') => {
     switch (type) {
@@ -68,6 +99,9 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
       </div>
     );
   };
+
+  // Obter o comando atual da estratégia selecionada
+  const strategyCommand = getStrategyCommand(selectedStrategy);
 
   return (
     <div className="bg-[#13203a] rounded-lg shadow-lg p-4 h-full">
@@ -114,6 +148,11 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                   {/* Detalhes da operação, se for uma operação completa */}
                   {!op.notification && (
                     <>
+                      {/* Comando específico da estratégia */}
+                      <div className="text-xs text-yellow-400 font-medium mb-1">
+                        {strategyCommand}
+                      </div>
+                      
                       <div className="flex items-center gap-1 mb-1">
                         {op.profit > 0 ? (
                           <ArrowUpIcon className="w-5 h-5 text-green-500" />
