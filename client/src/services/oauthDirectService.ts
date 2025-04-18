@@ -426,81 +426,70 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         // Notificar para atualização de interface
         this.notifyListeners({
           type: 'tick',
-          price: price,
-          lastDigit: lastDigit,
-          symbol: symbol,
-          epoch: epoch
+          price,
+          lastDigit,
+          symbol,
+          epoch
         });
-        
-        // Se o bot estiver executando, analise o tick para possível operação
-        if (this.isRunning && !this.currentContractId) {
-          this.analyzeTickForOperation(price, lastDigit);
-        }
       }
       
-      // Resposta de compra
+      // Resposta de compra de contrato
       if (data.msg_type === 'buy') {
         if (data.error) {
-          console.error('[OAUTH_DIRECT] Erro ao comprar contrato:', data.error.message);
+          console.error('[OAUTH_DIRECT] Erro na compra de contrato:', data.error.message);
           this.notifyListeners({
             type: 'error',
-            message: data.error.message
+            message: `Erro na compra: ${data.error.message}`
           });
-          
-          // Agendar próxima operação mesmo com erro
-          if (this.isRunning) {
-            this.scheduleNextOperation();
-          }
-        } else if (data.buy) {
-          const contractId = data.buy.contract_id;
-          const buyPrice = data.buy.buy_price;
-          
-          console.log(`[OAUTH_DIRECT] Contrato comprado: ID ${contractId}, Valor $${buyPrice}`);
-          this.currentContractId = contractId;
+        } else {
+          console.log('[OAUTH_DIRECT] Contrato comprado com sucesso:', data.buy.contract_id);
+          this.currentContractId = data.buy.contract_id;
           
           this.notifyListeners({
             type: 'contract_purchased',
-            contract_id: contractId,
-            buy_price: buyPrice
+            contract_id: data.buy.contract_id,
+            buy_price: data.buy.buy_price,
+            contract: data.buy
           });
           
-          // Monitorar contrato
-          this.monitorContract(contractId);
+          // Inscrever para atualizações deste contrato
+          this.subscribeToProposalOpenContract();
         }
       }
       
-      // Atualização de contrato aberto
+      // Resposta de atualização de contrato
       if (data.msg_type === 'proposal_open_contract') {
         const contract = data.proposal_open_contract;
         
-        if (contract && contract.contract_id === this.currentContractId) {
-          // Atualizar interface com status do contrato
-          this.notifyListeners({
-            type: 'contract_update',
-            contract: contract
-          });
-          
-          // Verificar se o contrato foi encerrado
-          if (contract.is_sold === 1) {
-            console.log('[OAUTH_DIRECT] Contrato encerrado:', contract);
-            
-            // Calcular resultado
-            const isWin = contract.profit >= 0;
-            const profit = parseFloat(contract.profit);
+        if (contract) {
+          // Verificar se o contrato é o atual
+          if (this.currentContractId && this.currentContractId.toString() === contract.contract_id.toString()) {
+            console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} atualizado, status: ${contract.status}`);
             
             this.notifyListeners({
-              type: 'contract_finished',
+              type: 'contract_update',
               contract_id: contract.contract_id,
-              profit: profit,
-              is_win: isWin,
               contract_details: contract
             });
             
-            this.currentContractId = null;
-            
-            // Se o bot ainda estiver em execução, programar próxima operação
-            if (this.isRunning) {
-              this.scheduleNextOperation();
+            // Se o contrato foi finalizado, notificar resultado
+            if (contract.status !== 'open') {
+              // Obter resultado final
+              const isWin = contract.status === 'won';
+              const profit = contract.profit;
+              
+              console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}`);
+              
+              this.notifyListeners({
+                type: 'contract_finished',
+                contract_id: contract.contract_id,
+                is_win: isWin,
+                profit: profit,
+                contract_details: contract
+              });
+              
+              // Iniciar próxima operação após resultado
+              this.startNextOperation(isWin, contract);
             }
           }
         }
@@ -508,919 +497,595 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Resposta de saldo
       if (data.msg_type === 'balance') {
-        console.log('[OAUTH_DIRECT] Atualização de saldo recebida:', data.balance);
+        const balance = data.balance;
+        console.log('[OAUTH_DIRECT] Saldo atualizado:', balance);
         
-        // Notificar para atualização de interface
         this.notifyListeners({
           type: 'balance_update',
-          balance: data.balance
+          balance: balance
         });
       }
       
-      // Resposta de ping
-      if (data.msg_type === 'ping') {
-        // Responder com pong para manter a conexão
-        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-          this.webSocket.send(JSON.stringify({ pong: 1 }));
+      // Resposta de venda (sell)
+      if (data.msg_type === 'sell') {
+        if (data.error) {
+          console.error('[OAUTH_DIRECT] Erro na venda de contrato:', data.error.message);
+          this.notifyListeners({
+            type: 'error',
+            message: `Erro na venda: ${data.error.message}`
+          });
+        } else {
+          console.log('[OAUTH_DIRECT] Contrato vendido com sucesso:', data.sell);
+          
+          // Notificar interface sobre venda bem-sucedida
+          this.notifyListeners({
+            type: 'contract_finished',
+            contract_id: this.currentContractId,
+            sold: true,
+            profit: data.sell.profit,
+            contract_details: {
+              contract_id: this.currentContractId,
+              status: 'sold',
+              profit: data.sell.profit
+            }
+          });
         }
       }
-      
     } catch (error) {
-      console.error('[OAUTH_DIRECT] Erro ao processar mensagem:', error);
+      console.error('[OAUTH_DIRECT] Erro ao processar mensagem recebida:', error);
     }
   }
   
   /**
-   * Inscreve para receber ticks do R_100
+   * Inicia uma nova operação após o resultado de uma anterior
    */
-  private subscribeToTicks(): void {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está disponível para inscrição de ticks');
+  private startNextOperation(isWin: boolean, lastContract: any): void {
+    try {
+      // Implementação específica do martingale
+      // Será executada posteriormente
+      const nextAmount = this.calculateNextAmount(isWin, lastContract);
       
-      // Notificar sobre o problema
-      this.notifyListeners({
-        type: 'error',
-        message: 'WebSocket não está disponível para inscrição de ticks'
-      });
-      
-      // Tentar reconexão se o WebSocket estiver fechado
-      if (!this.webSocket || this.webSocket.readyState === WebSocket.CLOSED) {
-        console.log('[OAUTH_DIRECT] Tentando reestabelecer conexão para ticks...');
-        this.setupWebSocket().catch(error => {
-          console.error('[OAUTH_DIRECT] Falha ao reconectar para ticks:', error);
-        });
+      // Se temos uma operação agendada, limpar
+      if (this.operationTimeout) {
+        clearTimeout(this.operationTimeout);
       }
       
-      return;
-    }
-    
-    console.log('[OAUTH_DIRECT] Inscrevendo para receber ticks do R_100...');
-    
-    try {
-      // Inscrever para ticks do R_100
-      const ticksRequest = {
-        ticks: 'R_100',
-        subscribe: 1
-      };
+      // Verificar se podemos continuar com base nas configurações
+      const shouldContinue = this.validateOperationContinuation(isWin, lastContract);
       
-      console.log('[OAUTH_DIRECT] Enviando solicitação de ticks:', JSON.stringify(ticksRequest));
-      this.webSocket.send(JSON.stringify(ticksRequest));
-      
-      // Inscrever para atualizações de saldo
-      const balanceRequest = {
-        balance: 1,
-        subscribe: 1
-      };
-      
-      console.log('[OAUTH_DIRECT] Enviando solicitação de saldo:', JSON.stringify(balanceRequest));
-      this.webSocket.send(JSON.stringify(balanceRequest));
-      
-      // Notificar sobre a inscrição bem-sucedida
-      this.notifyListeners({
-        type: 'subscribed_to_ticks',
-        message: 'Inscrito para receber ticks do R_100'
-      });
+      if (shouldContinue) {
+        // Agendar próxima operação
+        this.operationTimeout = setTimeout(() => {
+          this.executeContractBuy(nextAmount);
+        }, 3000);
+      } else {
+        console.log('[OAUTH_DIRECT] Estratégia finalizada devido às condições de parada');
+        
+        this.notifyListeners({
+          type: 'bot_stopped',
+          message: 'Condições de parada atingidas'
+        });
+        
+        // Parar a execução
+        this.stop();
+      }
     } catch (error) {
-      console.error('[OAUTH_DIRECT] Erro ao inscrever para ticks:', error);
+      console.error('[OAUTH_DIRECT] Erro ao iniciar próxima operação:', error);
+      
+      // Notificar erro e parar a execução
       this.notifyListeners({
         type: 'error',
-        message: 'Erro ao inscrever para ticks: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+        message: `Erro ao iniciar próxima operação: ${error}`
       });
+      
+      this.stop();
     }
   }
   
   /**
-   * Analisa o tick recebido para possível execução de operação
+   * Calcula o próximo valor de entrada com base no resultado anterior
    */
-  private analyzeTickForOperation(price: number, lastDigit: number): void {
-    // Esta função permite analisar o tick para decidir quando executar uma operação
-    // Nesta implementação simplificada, apenas registramos o tick
+  private calculateNextAmount(isWin: boolean, lastContract: any): number {
+    if (!lastContract || !lastContract.buy_price) {
+      return Number(this.settings.entryValue) || 1;
+    }
     
-    // Exemplo: Executar de acordo com a estratégia e último dígito
-    const shouldExecute = this.shouldExecuteBasedOnStrategy(lastDigit);
+    let buyPrice = Number(lastContract.buy_price);
     
-    if (shouldExecute) {
-      console.log(`[OAUTH_DIRECT] Condições atendidas para operação: dígito ${lastDigit}`);
-      this.executeOperation();
+    if (isWin) {
+      // Em caso de vitória, voltar ao valor inicial
+      return Number(this.settings.entryValue) || 1;
+    } else {
+      // Em caso de perda, aplicar multiplicador martingale
+      const factor = this.settings.martingaleFactor || 1.5;
+      return Math.round(buyPrice * factor * 100) / 100;
     }
   }
   
   /**
-   * Determina se deve executar operação com base na estratégia e dígito
+   * Validar se a operação deve continuar com base nos limites configurados
    */
-  private shouldExecuteBasedOnStrategy(lastDigit: number): boolean {
-    // Implementação básica para decisão de execução
-    // Na versão atual, vamos simplificar e permitir execução a cada tick
+  private validateOperationContinuation(isWin: boolean, lastContract: any): boolean {
+    // Implementação de validação baseada no lucro/perda e limites
+    // A ser implementada posteriormente
     return true;
   }
   
   /**
-   * Autoriza o token da conta selecionada pelo usuário
+   * Assina ticks do símbolo R_100
    */
-  private authorizeAllTokens(): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-      console.log(`[OAUTH_DIRECT] Verificando se há uma conta ativa selecionada pelo usuário`);
-      
-      if (this.tokens.length === 0) {
-        reject(new Error('Nenhum token disponível para autorização'));
-        return;
-      }
-      
-      // Verificar qual token deve ser usado prioritariamente
-      let selectedToken = null;
-      
-      // 1. Verificar se já temos um token marcado como primário (explicitamente escolhido pelo usuário)
-      const primaryToken = this.tokens.find(t => t.primary === true);
-      
-      if (primaryToken) {
-        // Usuário já escolheu uma conta específica através da interface
-        console.log(`[OAUTH_DIRECT] Usando conta explicitamente selecionada pelo usuário: ${primaryToken.loginid || 'desconhecida'}`);
-        selectedToken = primaryToken;
-      } 
-      // 2. Se não temos token primário, usar o token ativo (se houver)
-      else if (this.activeToken) {
-        const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
-        if (activeTokenInfo) {
-          console.log(`[OAUTH_DIRECT] Usando token atualmente ativo: ${activeTokenInfo.loginid || 'desconhecido'}`);
-          selectedToken = activeTokenInfo;
-        }
-      }
-      // 3. Se não temos token primário nem ativo, buscar no localStorage
-      else {
-        const savedToken = localStorage.getItem('deriv_selected_account');
-        if (savedToken) {
-          try {
-            const savedAccount = JSON.parse(savedToken);
-            if (savedAccount && savedAccount.token) {
-              const savedTokenInfo = this.tokens.find(t => 
-                t.token === savedAccount.token || 
-                (savedAccount.loginid && t.loginid === savedAccount.loginid)
-              );
-              
-              if (savedTokenInfo) {
-                console.log(`[OAUTH_DIRECT] Usando conta salva no localStorage: ${savedTokenInfo.loginid || 'desconhecida'}`);
-                selectedToken = savedTokenInfo;
-              }
-            }
-          } catch (e) {
-            console.error('[OAUTH_DIRECT] Erro ao processar conta salva no localStorage:', e);
-          }
-        }
-      }
-      
-      // 4. Se ainda não temos um token selecionado, verificar tokens da dashboard
-      if (!selectedToken) {
-        const dashboardToken = localStorage.getItem('deriv_oauth_token');
-        if (dashboardToken) {
-          console.log('[OAUTH_DIRECT] Verificando tokens de conta da dashboard');
-          
-          // Verificar se já existe na lista de tokens
-          let tokenInfo = this.tokens.find(t => t.token === dashboardToken);
-          if (!tokenInfo) {
-            // Se não existe, adicionamos ele de forma não-primária
-            console.log('[OAUTH_DIRECT] Adicionando token da dashboard na lista como não-primário');
-            this.addToken(dashboardToken, false); // Não é primário por padrão
-            tokenInfo = this.tokens.find(t => t.token === dashboardToken);
-          }
-          
-          if (tokenInfo) {
-            console.log(`[OAUTH_DIRECT] Usando token da dashboard como fallback: ${tokenInfo.loginid || 'desconhecido'}`);
-            selectedToken = tokenInfo;
-          }
-        }
-      }
-      
-      // 5. Em último caso, usar o primeiro token disponível
-      if (!selectedToken && this.tokens.length > 0) {
-        console.log('[OAUTH_DIRECT] Nenhum token específico encontrado, usando o primeiro disponível');
-        selectedToken = this.tokens[0];
-      }
-      
-      // Agora que temos um token selecionado, autorizá-lo
-      if (selectedToken) {
-        // Atualizar o token ativo para todas as operações
-        this.activeToken = selectedToken.token;
-        
-        try {
-          // Autorizar apenas este token
-          await this.authorizeToken(selectedToken.token);
-          
-          // Marcar como autorizado
-          selectedToken.authorized = true;
-          selectedToken.connected = true;
-          
-          // Garantir que este seja o token primário
-          this.tokens.forEach(t => {
-            t.primary = (t === selectedToken);
-          });
-          
-          console.log(`[OAUTH_DIRECT] Token autorizado com sucesso: ${selectedToken.loginid || 'desconhecido'}`);
-          
-          // Inscrever para ticks
-          this.subscribeToTicks();
-          
-          // Salvar esta escolha para futuras reconexões
-          try {
-            localStorage.setItem('deriv_selected_account', JSON.stringify({
-              token: selectedToken.token,
-              loginid: selectedToken.loginid
-            }));
-          } catch (e) {
-            console.error('[OAUTH_DIRECT] Erro ao salvar conta selecionada:', e);
-          }
-          
-          resolve();
-        } catch (error) {
-          console.error('[OAUTH_DIRECT] Falha ao autorizar token da conta:', error);
-          
-          // Tentar próximo token se houver falha
-          const nextToken = this.tokens.find(t => t !== selectedToken);
-          if (nextToken) {
-            console.log(`[OAUTH_DIRECT] Tentando token alternativo: ${nextToken.loginid || 'desconhecido'}`);
-            this.activeToken = nextToken.token;
-            try {
-              await this.authorizeToken(nextToken.token);
-              nextToken.authorized = true;
-              nextToken.connected = true;
-              this.subscribeToTicks();
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
-          } else {
-            reject(error);
-          }
-        }
-      } else {
-        reject(new Error('Nenhum token disponível para autorização'));
-      }
-    });
+  private subscribeToTicks(): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
+      return;
+    }
+    
+    const request = {
+      ticks: 'R_100',
+      subscribe: 1
+    };
+    
+    console.log('[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo R_100');
+    this.webSocket.send(JSON.stringify(request));
   }
   
   /**
-   * Autoriza um token específico
+   * Assina atualizações do contrato aberto atual
    */
-  private authorizeToken(token: string): Promise<void> {
+  private subscribeToProposalOpenContract(): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN || !this.currentContractId) {
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado ou não há contrato atual');
+      return;
+    }
+    
+    const request = {
+      proposal_open_contract: 1,
+      contract_id: this.currentContractId,
+      subscribe: 1
+    };
+    
+    console.log(`[OAUTH_DIRECT] Inscrevendo-se para atualizações do contrato ${this.currentContractId}`);
+    this.webSocket.send(JSON.stringify(request));
+  }
+  
+  /**
+   * Assina atualizações de saldo
+   */
+  private subscribeToBalance(): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
+      return;
+    }
+    
+    const request = {
+      balance: 1,
+      subscribe: 1
+    };
+    
+    console.log('[OAUTH_DIRECT] Inscrevendo-se para atualizações de saldo');
+    this.webSocket.send(JSON.stringify(request));
+  }
+  
+  /**
+   * Configura mecanismo para manter a conexão ativa
+   */
+  private setupKeepAlive(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+    
+    // Enviar ping a cada 30 segundos para manter a conexão
+    this.pingInterval = setInterval(() => {
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        const pingRequest = {
+          ping: 1
+        };
+        this.webSocket.send(JSON.stringify(pingRequest));
+        console.log('[OAUTH_DIRECT] Ping enviado para manter conexão');
+      }
+    }, 30000);
+  }
+  
+  /**
+   * Agenda uma reconexão em caso de erro
+   */
+  private scheduleReconnect(): void {
+    // Limpar reconexão agendada, se houver
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    
+    // Se o serviço estiver em execução, tentar reconectar
+    if (this.isRunning) {
+      console.log('[OAUTH_DIRECT] Agendando reconexão...');
+      
+      // Aplicar backoff exponencial
+      const baseDelay = 1000; // 1 segundo
+      const maxDelay = 30000; // 30 segundos
+      
+      // Calcular atraso com backoff
+      const delay = Math.min(baseDelay * Math.pow(1.5, this.reconnectAttempts), maxDelay);
+      this.reconnectAttempts++;
+      
+      console.log(`[OAUTH_DIRECT] Tentativa ${this.reconnectAttempts} agendada para ${delay}ms`);
+      
+      this.reconnectTimeout = setTimeout(() => {
+        console.log(`[OAUTH_DIRECT] Executando reconexão (tentativa ${this.reconnectAttempts})`);
+        this.reconnect()
+          .then(success => {
+            if (success) {
+              console.log('[OAUTH_DIRECT] Reconexão bem-sucedida');
+              this.reconnectAttempts = 0;
+            } else {
+              console.error('[OAUTH_DIRECT] Falha na reconexão');
+              this.scheduleReconnect();
+            }
+          })
+          .catch(error => {
+            console.error('[OAUTH_DIRECT] Erro na reconexão:', error);
+            this.scheduleReconnect();
+          });
+      }, delay);
+    }
+  }
+  
+  /**
+   * Autoriza um token com o servidor
+   */
+  private authorizeToken(token: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
       if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket não está conectado'));
         return;
       }
       
-      if (!token) {
-        reject(new Error('Token inválido'));
-        return;
-      }
-      
-      console.log('[OAUTH_DIRECT] Autorizando com token OAuth...');
-      
-      // Configura timeout para autorização
+      // Timeout para caso não haja resposta
       const authTimeout = setTimeout(() => {
         reject(new Error('Timeout na autorização'));
-      }, 5000);
+      }, 10000);
       
-      // Handler para mensagem de autorização
+      // Handler de resposta para autorização
       const authHandler = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           
+          // Verificar se é resposta para authorize
           if (data.msg_type === 'authorize') {
-            this.webSocket?.removeEventListener('message', authHandler);
+            // Remover o handler após receber a resposta
+            if (this.webSocket) {
+              this.webSocket.removeEventListener('message', authHandler);
+            }
+            
             clearTimeout(authTimeout);
             
             if (data.error) {
               console.error('[OAUTH_DIRECT] Erro na autorização:', data.error.message);
-              reject(new Error(data.error.message));
-            } else {
-              console.log('[OAUTH_DIRECT] Autorização bem-sucedida para:', data.authorize?.loginid);
-              
-              // Atualizar loginid do token correspondente
-              const tokenIndex = this.tokens.findIndex(t => t.token === token);
-              if (tokenIndex >= 0) {
-                this.tokens[tokenIndex].loginid = data.authorize?.loginid;
-              }
-              
-              // Notificar autorização bem-sucedida
-              this.notifyListeners({
-                type: 'authorized',
-                account: data.authorize
-              });
-              
-              resolve();
+              reject(new Error(`Autorização falhou: ${data.error.message}`));
+              return;
             }
+            
+            console.log('[OAUTH_DIRECT] Autorização bem-sucedida:', data.authorize?.loginid);
+            
+            // Atualizar o status do token na lista
+            const tokenInfo = this.tokens.find(t => t.token === token);
+            if (tokenInfo) {
+              tokenInfo.authorized = true;
+              tokenInfo.loginid = data.authorize.loginid;
+            }
+            
+            // Inscrever-se para atualizações de saldo
+            this.subscribeToBalance();
+            
+            resolve(true);
           }
         } catch (error) {
-          console.error('[OAUTH_DIRECT] Erro ao processar mensagem de autorização:', error);
+          console.error('[OAUTH_DIRECT] Erro ao processar resposta de autorização:', error);
         }
       };
       
-      // Adicionar handler temporário para autorização
+      // Adicionar handler temporário para resposta de autorização
       this.webSocket.addEventListener('message', authHandler);
       
       // Enviar solicitação de autorização
-      this.webSocket.send(JSON.stringify({
+      const authorizeRequest = {
         authorize: token
-      }));
+      };
+      
+      console.log('[OAUTH_DIRECT] Enviando solicitação de autorização');
+      this.webSocket.send(JSON.stringify(authorizeRequest));
     });
   }
   
   /**
-   * Configura envio periódico de ping para manter a conexão ativa
+   * Autoriza todos os tokens disponíveis
    */
-  private setupKeepAlive(): void {
-    // Limpar intervalo existente se houver
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-    }
-    
-    // Configurar novo intervalo
-    this.pingInterval = setInterval(() => {
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        this.webSocket.send(JSON.stringify({ ping: 1 }));
+  private authorizeAllTokens(): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Verificar se temos tokens
+        if (this.tokens.length === 0) {
+          console.error('[OAUTH_DIRECT] Nenhum token disponível');
+          reject(new Error('Nenhum token disponível para autorização'));
+          return;
+        }
+        
+        // Identificar token primário
+        const primaryToken = this.tokens.find(t => t.primary);
+        
+        if (!primaryToken) {
+          console.warn('[OAUTH_DIRECT] Nenhum token primário encontrado, usando o primeiro');
+          this.tokens[0].primary = true;
+        }
+        
+        // Usar token primário ou o primeiro da lista
+        const tokenToAuthorize = (primaryToken || this.tokens[0]).token;
+        this.activeToken = tokenToAuthorize;
+        
+        console.log('[OAUTH_DIRECT] Iniciando autorização com token principal');
+        
+        try {
+          // Autorizar com o token principal
+          await this.authorizeToken(tokenToAuthorize);
+          console.log('[OAUTH_DIRECT] Autorização com token principal concluída');
+          
+          // Inscrever-se para receber ticks
+          this.subscribeToTicks();
+          
+          resolve(true);
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro na autorização com token principal:', error);
+          
+          // Tentar outros tokens se o principal falhar
+          let authorized = false;
+          
+          // Iterar pelos tokens restantes
+          for (const tokenInfo of this.tokens) {
+            // Pular o token primário que já falhou
+            if (tokenInfo.token === tokenToAuthorize) continue;
+            
+            try {
+              console.log('[OAUTH_DIRECT] Tentando autorização com token alternativo');
+              await this.authorizeToken(tokenInfo.token);
+              
+              // Se chegou aqui, a autorização foi bem-sucedida
+              console.log('[OAUTH_DIRECT] Autorização com token alternativo bem-sucedida');
+              this.activeToken = tokenInfo.token;
+              
+              // Marcar como primário
+              this.tokens.forEach(t => t.primary = false);
+              tokenInfo.primary = true;
+              
+              // Inscrever-se para receber ticks
+              this.subscribeToTicks();
+              
+              authorized = true;
+              break;
+            } catch (altError) {
+              console.error('[OAUTH_DIRECT] Erro na autorização com token alternativo:', altError);
+            }
+          }
+          
+          if (!authorized) {
+            reject(new Error('Falha na autorização com todos os tokens disponíveis'));
+          } else {
+            resolve(true);
+          }
+        }
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro global na autorização de tokens:', error);
+        reject(error);
       }
-    }, 30000); // 30 segundos
+    });
   }
   
   /**
-   * Agenda tentativa de reconexão
+   * Executa compra de contrato
    */
-  private scheduleReconnect(): void {
-    // Limpar timeout existente se houver
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-    
-    // Incrementar contador de tentativas
-    this.reconnectAttempts++;
-    
-    // Limitar número de tentativas
-    if (this.reconnectAttempts > 10) {
-      console.log('[OAUTH_DIRECT] Número máximo de tentativas de reconexão atingido');
+  private executeContractBuy(amount: number = 1): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
       this.notifyListeners({
         type: 'error',
-        message: 'Não foi possível reconectar ao servidor após várias tentativas.'
+        message: 'WebSocket não está conectado'
       });
       return;
     }
     
-    // Calcular delay baseado no número de tentativas (exponential backoff)
-    const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
-    console.log(`[OAUTH_DIRECT] Agendando reconexão em ${delay/1000}s (tentativa ${this.reconnectAttempts}/10)`);
-    
-    // Agendar reconexão
-    this.reconnectTimeout = setTimeout(() => {
-      console.log(`[OAUTH_DIRECT] Tentativa de reconexão ${this.reconnectAttempts}/10`);
-      this.setupWebSocket()
-        .then(() => {
-          console.log('[OAUTH_DIRECT] Reconexão bem-sucedida!');
-          this.reconnectAttempts = 0;
-          
-          // Se estava em execução, retomar operações
-          if (this.isRunning) {
-            this.scheduleNextOperation();
-          }
-        })
-        .catch(error => {
-          console.error('[OAUTH_DIRECT] Falha na tentativa de reconexão:', error);
-        });
-    }, delay);
+    try {
+      const contractType = this.settings.contractType || 'DIGITOVER';
+      const prediction = this.settings.prediction || 5;
+      
+      // Notificar início da operação
+      this.notifyListeners({
+        type: 'operation_started',
+        amount: amount,
+        contract_type: contractType,
+        prediction: prediction
+      });
+      
+      // Preparar solicitação de compra de contrato
+      const buyRequest = {
+        buy: 1,
+        price: amount,
+        parameters: {
+          amount: amount,
+          basis: 'stake',
+          contract_type: contractType,
+          currency: 'USD',
+          duration: 5,
+          duration_unit: 't',
+          symbol: 'R_100',
+        }
+      };
+      
+      // Adicionar predição se for tipo de contrato com dígito
+      if (contractType.includes('DIGIT')) {
+        buyRequest.parameters['barrier'] = prediction.toString();
+      }
+      
+      console.log('[OAUTH_DIRECT] Enviando solicitação de compra de contrato:', buyRequest);
+      this.webSocket.send(JSON.stringify(buyRequest));
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao executar compra de contrato:', error);
+      this.notifyListeners({
+        type: 'error',
+        message: `Erro ao executar compra de contrato: ${error}`
+      });
+    }
   }
   
   /**
-   * Inicia o bot de trading
+   * Fecha a conexão WebSocket
+   */
+  closeConnection(): void {
+    if (this.webSocket) {
+      try {
+        this.webSocket.close();
+        this.webSocket = null;
+        console.log('[OAUTH_DIRECT] Conexão WebSocket fechada manualmente');
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao fechar conexão WebSocket:', error);
+      }
+    }
+    
+    // Limpar intervals e timeouts
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    if (this.operationTimeout) {
+      clearTimeout(this.operationTimeout);
+      this.operationTimeout = null;
+    }
+  }
+  
+  /**
+   * Inicia o serviço de conexão dedicada e trading
    */
   async start(): Promise<boolean> {
     try {
-      console.log('[OAUTH_DIRECT] Iniciando serviço de trading...');
+      console.log('[OAUTH_DIRECT] Iniciando serviço de trading direto...');
       
-      // Verificar se já estamos executando
+      // Verificar se o serviço já está em execução
       if (this.isRunning) {
         console.log('[OAUTH_DIRECT] Serviço já está em execução');
         return true;
       }
       
-      this.isRunning = true;
-      
-      // Recarregar tokens para garantir que temos a conta mais atualizada
+      // Carregar tokens novamente para garantir que temos os mais recentes
       this.loadAllTokens();
       
-      // Verificar se temos uma conta ativa explicitamente definida
-      const activeLoginID = localStorage.getItem('deriv_active_loginid');
-      if (activeLoginID) {
-        // Verificar se temos um token para esta conta
-        let tokenForActiveAccount = null;
-        
-        // Primeiro verificar deriv_active_account
-        try {
-          const activeAccountStr = localStorage.getItem('deriv_active_account');
-          if (activeAccountStr) {
-            const activeAccount = JSON.parse(activeAccountStr);
-            if (activeAccount && activeAccount.loginid === activeLoginID && activeAccount.token) {
-              tokenForActiveAccount = activeAccount.token;
-            }
-          }
-        } catch (e) {
-          console.warn('[OAUTH_DIRECT] Erro ao processar conta ativa:', e);
-        }
-        
-        // Se não encontramos, procurar nos tokens carregados
-        if (!tokenForActiveAccount) {
-          const existingToken = this.tokens.find(t => t.loginid === activeLoginID);
-          if (existingToken) {
-            tokenForActiveAccount = existingToken.token;
-          }
-        }
-        
-        // Se encontramos um token para a conta ativa, garantir que seja usado
-        if (tokenForActiveAccount) {
-          console.log(`[OAUTH_DIRECT] Usando conta ativa ${activeLoginID} como principal`);
-          
-          // Definir como conta ativa
-          this.tokens.forEach(t => t.primary = (t.loginid === activeLoginID));
-          this.activeToken = tokenForActiveAccount;
-        }
-      }
-      
-      // Verificar se temos tokens disponíveis
+      // Verificar se temos tokens
       if (this.tokens.length === 0) {
-        // Tentar carregar novamente os tokens
-        this.loadAllTokens();
-        
-        if (this.tokens.length === 0) {
-          console.error('[OAUTH_DIRECT] Nenhum token OAuth disponível');
-          this.notifyListeners({
-            type: 'error',
-            message: 'Nenhum token OAuth encontrado. Faça login novamente.'
-          });
-          this.isRunning = false;
-          return false;
-        }
+        console.error('[OAUTH_DIRECT] Nenhum token encontrado para iniciar o serviço');
+        throw new Error('Nenhum token encontrado. Faça login novamente.');
       }
       
-      // Configurar a conexão WebSocket se não existir
-      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-        console.log('[OAUTH_DIRECT] WebSocket não está conectado, estabelecendo conexão...');
-        try {
-          await this.setupWebSocket();
-        } catch (error) {
-          console.error('[OAUTH_DIRECT] Falha ao estabelecer conexão WebSocket:', error);
-          this.notifyListeners({
-            type: 'error',
-            message: 'Falha ao conectar ao servidor. Tente novamente.'
-          });
-          return false;
-        }
-      }
+      // Estabelecer conexão WebSocket
+      await this.setupWebSocket();
       
-      // Verificar se temos um token ativo e autorizado
-      const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken && t.authorized);
-      if (!activeTokenInfo) {
-        console.error('[OAUTH_DIRECT] Nenhum token ativo e autorizado disponível');
-        this.notifyListeners({
-          type: 'error',
-          message: 'Problema com a autorização. Tente fazer login novamente.'
-        });
-        return false;
-      }
-      
-      // Atualizar estado
+      // Definir como em execução
       this.isRunning = true;
       
-      // Notificar início
+      // Notificar que o serviço foi iniciado
       this.notifyListeners({
         type: 'bot_started',
         strategy: this.activeStrategy,
         settings: this.settings
       });
       
-      // Programar primeira operação
-      this.scheduleNextOperation(2000);
-      
+      console.log('[OAUTH_DIRECT] Serviço de trading direto iniciado com sucesso');
       return true;
-    } catch (error: any) {
-      console.error('[OAUTH_DIRECT] Erro ao iniciar bot:', error);
-      this.notifyListeners({
-        type: 'error',
-        message: 'Erro ao iniciar bot: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
-      });
-      return false;
-    }
-  }
-  
-  /**
-   * Para o bot de trading
-   */
-  stop(): void {
-    console.log('[OAUTH_DIRECT] Parando serviço de trading');
-    this.isRunning = false;
-    
-    // Limpar timeout pendente se houver
-    if (this.operationTimeout) {
-      clearTimeout(this.operationTimeout);
-      this.operationTimeout = null;
-    }
-    
-    // Notificar parada do bot
-    this.notifyListeners({
-      type: 'bot_stopped'
-    });
-  }
-  
-  /**
-   * Fecha completamente a conexão e limpa recursos
-   */
-  closeConnection(): void {
-    // Parar keep-alive
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
-    }
-    
-    // Parar reconexão
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-    
-    // Fechar WebSocket
-    if (this.webSocket) {
-      if (this.webSocket.readyState === WebSocket.OPEN || 
-          this.webSocket.readyState === WebSocket.CONNECTING) {
-        this.webSocket.close();
-      }
-      this.webSocket = null;
-    }
-  }
-  
-  /**
-   * Força a reconexão do WebSocket e reautorização com token atual
-   * Útil quando o usuário troca de conta manualmente
-   * Este método valida o token da conta selecionada na dashboard
-   */
-  async reconnect(): Promise<boolean> {
-    try {
-      console.log('[OAUTH_DIRECT] Forçando reconexão com a conta ativa...');
-      
-      // Notificar usuários sobre o processo de reconexão
-      this.notifyListeners({
-        type: 'reconnecting',
-        message: 'Validando token e reconectando...'
-      });
-      
-      // Verificar se temos um token ativo antes de prosseguir
-      if (!this.activeToken) {
-        console.log('[OAUTH_DIRECT] Nenhum token ativo encontrado, verificando alternativas...');
-        
-        // Verificar se temos um token primário (escolhido pelo usuário na UI)
-        const primaryToken = this.tokens.find(t => t.primary === true);
-        if (primaryToken) {
-          console.log('[OAUTH_DIRECT] Usando token primário:', primaryToken.loginid);
-          this.activeToken = primaryToken.token;
-        } else {
-          // Verificar no localStorage se há uma conta selecionada
-          try {
-            const savedAccount = localStorage.getItem('deriv_selected_account');
-            if (savedAccount) {
-              // Pode ser objeto ou string
-              const accountInfo = typeof savedAccount === 'string' && savedAccount.startsWith('{') 
-                ? JSON.parse(savedAccount) 
-                : { loginid: savedAccount };
-                
-              // Encontrar o token correspondente, se existir
-              const matchingToken = this.tokens.find(t => 
-                t.loginid === accountInfo.loginid || 
-                (accountInfo.token && t.token === accountInfo.token)
-              );
-              
-              if (matchingToken) {
-                console.log('[OAUTH_DIRECT] Usando token da conta salva:', matchingToken.loginid);
-                this.activeToken = matchingToken.token;
-              }
-            }
-          } catch (e) {
-            console.error('[OAUTH_DIRECT] Erro ao processar conta do localStorage:', e);
-          }
-        }
-        
-        // Se ainda não temos token ativo, usar o primeiro disponível
-        if (!this.activeToken && this.tokens.length > 0) {
-          console.log('[OAUTH_DIRECT] Usando primeiro token disponível:', this.tokens[0].loginid);
-          this.activeToken = this.tokens[0].token;
-        }
-        
-        // Se mesmo assim não temos token, não podemos continuar
-        if (!this.activeToken) {
-          const errorMsg = 'Não foi possível validar token: nenhuma conta disponível';
-          console.error('[OAUTH_DIRECT] ' + errorMsg);
-          this.notifyListeners({
-            type: 'error',
-            message: errorMsg
-          });
-          return false;
-        }
-      }
-      
-      // Limpar ciclo atual de keep-alive
-      if (this.pingInterval) {
-        clearInterval(this.pingInterval);
-        this.pingInterval = null;
-      }
-      
-      // Fechar a conexão atual sem parar o serviço
-      if (this.webSocket) {
-        if (this.webSocket.readyState === WebSocket.OPEN || 
-            this.webSocket.readyState === WebSocket.CONNECTING) {
-          this.webSocket.close();
-        }
-        this.webSocket = null;
-      }
-      
-      // Registrar a atividade de validação de token
-      console.log(`[OAUTH_DIRECT] Validando token da conta ativa: ${
-        this.tokens.find(t => t.token === this.activeToken)?.loginid || 'desconhecida'
-      }`);
-      
-      // Pequeno atraso para garantir que tudo seja fechado adequadamente
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Reestabelecer a conexão usando o método setupWebSocket()
-      try {
-        const connected = await this.setupWebSocket();
-        
-        if (!connected) {
-          throw new Error('Falha ao estabelecer conexão WebSocket');
-        }
-        
-        // Autorizar token atual - isso valida o token
-        await this.authorizeToken(this.activeToken);
-        
-        // Após autorização bem-sucedida, marcar o token como validado
-        const tokenIndex = this.tokens.findIndex(t => t.token === this.activeToken);
-        if (tokenIndex >= 0) {
-          this.tokens[tokenIndex].authorized = true;
-          this.tokens[tokenIndex].connected = true;
-          
-          // Se foi validado com sucesso, marcar como primário
-          // para que seja usado em futuras reconexões
-          this.tokens.forEach((t, i) => {
-            t.primary = (i === tokenIndex);
-          });
-        }
-        
-        // Inscrever-se para ticks
-        this.subscribeToTicks();
-        
-        console.log('[OAUTH_DIRECT] Token validado e reconexão bem-sucedida');
-        
-        // Notificar ouvintes sobre a reconexão
-        this.notifyListeners({
-          type: 'reconnected',
-          message: 'Token validado e conexão reestabelecida com sucesso',
-          loginid: this.tokens.find(t => t.token === this.activeToken)?.loginid
-        });
-        
-        return true;
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
-        
-        console.error('[OAUTH_DIRECT] Falha na validação do token:', errorMsg);
-        
-        this.notifyListeners({
-          type: 'error',
-          message: 'Falha na validação do token: ' + errorMsg
-        });
-        
-        // Se falhou na autorização com este token, ele pode estar expirado
-        // Vamos tentar outro token disponível, se houver
-        const failedTokenIndex = this.tokens.findIndex(t => t.token === this.activeToken);
-        if (failedTokenIndex >= 0) {
-          this.tokens[failedTokenIndex].authorized = false;
-          this.tokens[failedTokenIndex].connected = false;
-          
-          // Encontrar outro token para tentar
-          const alternativeToken = this.tokens.find(t => t.token !== this.activeToken);
-          if (alternativeToken) {
-            console.log('[OAUTH_DIRECT] Tentando token alternativo:', alternativeToken.loginid);
-            
-            this.activeToken = alternativeToken.token;
-            
-            // Tentar novamente uma vez com o token alternativo
-            return this.reconnect();
-          }
-        }
-        
-        throw error;
-      }
     } catch (error) {
-      console.error('[OAUTH_DIRECT] Erro ao reconectar:', error);
+      console.error('[OAUTH_DIRECT] Erro ao iniciar serviço de trading:', error);
       this.notifyListeners({
         type: 'error',
-        message: 'Falha ao reconectar. Token inválido ou expirado.'
-      });
-      return false;
-    }
-  }
-  
-  /**
-   * Agenda a próxima operação
-   */
-  private scheduleNextOperation(delay: number = 5000): void {
-    // Limpar timeout pendente se houver
-    if (this.operationTimeout) {
-      clearTimeout(this.operationTimeout);
-    }
-    
-    console.log(`[OAUTH_DIRECT] Próxima operação agendada em ${delay}ms`);
-    
-    // Agendar próxima operação
-    this.operationTimeout = setTimeout(() => {
-      // Verificar se ainda estamos em execução
-      if (!this.isRunning) return;
-      
-      // Executar operação
-      this.executeOperation();
-    }, delay);
-  }
-  
-  /**
-   * Executa uma operação de trading
-   */
-  private async executeOperation(): Promise<void> {
-    console.log('[OAUTH_DIRECT] Executando operação de trading');
-    
-    // Verificar se estamos rodando
-    if (!this.isRunning) {
-      console.log('[OAUTH_DIRECT] Serviço não está em execução');
-      return;
-    }
-    
-    // Verificar se já existe um contrato em andamento
-    if (this.currentContractId) {
-      console.log('[OAUTH_DIRECT] Já existe um contrato em andamento');
-      return;
-    }
-    
-    // Verificar conexão
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está disponível');
-      
-      // Tentar restabelecer conexão
-      try {
-        await this.setupWebSocket();
-      } catch (error) {
-        console.error('[OAUTH_DIRECT] Falha ao reconectar:', error);
-        this.notifyListeners({
-          type: 'error',
-          message: 'Falha na conexão com o servidor'
-        });
-        return;
-      }
-    }
-    
-    // Verificar se temos um token ativo e autorizado
-    if (!this.activeToken) {
-      console.error('[OAUTH_DIRECT] Nenhum token ativo disponível');
-      
-      // Verificar se temos algum token autorizado
-      const authorizedToken = this.tokens.find(t => t.authorized);
-      if (authorizedToken) {
-        this.activeToken = authorizedToken.token;
-        console.log(`[OAUTH_DIRECT] Usando token autorizado: ${authorizedToken.loginid || 'desconhecido'}`);
-      } else {
-        this.notifyListeners({
-          type: 'error',
-          message: 'Nenhum token autorizado disponível. Faça login novamente.'
-        });
-        return;
-      }
-    }
-    
-    try {
-      // Determinar o tipo de contrato com base na estratégia
-      let contractType = 'DIGITOVER';
-      
-      if (this.activeStrategy.includes('under')) {
-        contractType = 'DIGITUNDER';
-      } else if (this.activeStrategy.includes('over')) {
-        contractType = 'DIGITOVER';
-      }
-      
-      // Atualizar tipo de contrato nas configurações
-      this.settings.contractType = contractType;
-      
-      // Obter parâmetros para a solicitação
-      const amount = parseFloat(this.settings.entryValue.toString());
-      const prediction = this.settings.prediction || 5;
-      
-      // Verificar se estamos usando o token da conta selecionada pelo usuário
-      const activeTokenInfo = this.tokens.find(t => t.token === this.activeToken);
-      
-      // Se não estamos usando o token primário, corrigir para usar o token primário
-      if (!activeTokenInfo || !activeTokenInfo.primary) {
-        // Se não for o token primário, vamos tentar encontrar o token primário
-        const primaryToken = this.tokens.find(t => t.primary);
-        if (primaryToken) {
-          this.activeToken = primaryToken.token;
-          console.log(`[OAUTH_DIRECT] Corrigindo para usar o token primário: ${primaryToken.loginid}`);
-        }
-      }
-      
-      // USAR FORMATO MÍNIMO CORRETO DA API DERIV
-      // Com base na documentação, apenas buy e price são necessários
-      const buyRequest = {
-        buy: 1,
-        price: amount
-      };
-      
-      console.log(`[OAUTH_DIRECT] Enviando solicitação de compra com token ${activeTokenInfo?.loginid || 'desconhecido'}:`, buyRequest);
-      
-      // Enviar solicitação diretamente
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        this.webSocket.send(JSON.stringify(buyRequest));
-      } else {
-        throw new Error('WebSocket não está disponível ou conectado');
-      }
-      
-      // Notificar sobre o início da operação
-      this.notifyListeners({
-        type: 'operation_started',
-        contract_type: contractType,
-        amount: amount,
-        prediction: prediction,
-        loginid: activeTokenInfo?.loginid
-      });
-    } catch (error: any) {
-      console.error('[OAUTH_DIRECT] Erro ao executar operação:', error);
-      this.notifyListeners({
-        type: 'error',
-        message: 'Erro ao executar operação: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+        message: `Erro ao iniciar serviço: ${error}`
       });
       
-      // Agendar próxima operação mesmo com erro
-      this.scheduleNextOperation();
-    }
-  }
-  
-  /**
-   * Executa uma requisição de compra com formato correto
-   */
-  private executeBuyRequest(contractType: string, amount: number, prediction: number, loginid?: string): void {
-    try {
-      // SOLUÇÃO CORRETA: Ao verificar a documentação da API, vimos que a estrutura correta é:
-      // 1. buy: Identificador (1 para parâmetros definidos in-line)
-      // 2. price: Valor máximo para compra
-      // 3. parameters: Campo não deve ser passado diretamente, mas sim:
+      // Limpar recursos em caso de erro
+      this.closeConnection();
+      this.isRunning = false;
       
-      // Formato correto com apenas buy e price
-      const buyRequest = {
-        buy: 1,
-        price: amount
-      };
-      
-      console.log(`[OAUTH_DIRECT] NOVA TENTATIVA: Enviando solicitação de compra com token ${loginid || 'desconhecido'}:`, buyRequest);
-      
-      // Enviar solicitação se o WebSocket estiver disponível
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        this.webSocket.send(JSON.stringify(buyRequest));
-      } else {
-        throw new Error('WebSocket não está disponível ou conectado');
-      }
-    } catch (error) {
-      console.error('[OAUTH_DIRECT] Erro ao enviar solicitação de compra:', error);
       throw error;
     }
   }
   
   /**
-   * Monitora um contrato específico
+   * Para o serviço de conexão dedicada e trading
    */
-  private monitorContract(contractId: number | string): void {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está pronto para monitorar contrato');
+  stop(): void {
+    if (!this.isRunning) {
+      console.log('[OAUTH_DIRECT] Serviço já está parado');
       return;
     }
     
-    // Inscrever-se para atualizações do contrato
-    const subscribeRequest = {
-      proposal_open_contract: 1,
-      contract_id: contractId,
-      subscribe: 1
-    };
+    console.log('[OAUTH_DIRECT] Parando serviço de trading direto...');
     
+    // Definir como não em execução
+    this.isRunning = false;
+    
+    // Fechar conexão WebSocket
+    this.closeConnection();
+    
+    // Notificar que o serviço foi parado
+    this.notifyListeners({
+      type: 'bot_stopped',
+      message: 'Serviço parado manualmente'
+    });
+    
+    console.log('[OAUTH_DIRECT] Serviço de trading direto parado com sucesso');
+  }
+  
+  /**
+   * Reconecta o serviço para atualizar tokens ou após erro
+   */
+  async reconnect(): Promise<boolean> {
     try {
-      this.webSocket.send(JSON.stringify(subscribeRequest));
-      console.log(`[OAUTH_DIRECT] Monitorando contrato ID ${contractId}`);
+      console.log('[OAUTH_DIRECT] Reconectando serviço de trading direto...');
+      
+      // Fechar conexão existente
+      this.closeConnection();
+      
+      // Estabelecer nova conexão
+      await this.setupWebSocket();
+      
+      console.log('[OAUTH_DIRECT] Reconexão bem-sucedida');
+      return true;
     } catch (error) {
-      console.error('[OAUTH_DIRECT] Erro ao iniciar monitoramento do contrato:', error);
+      console.error('[OAUTH_DIRECT] Erro na reconexão:', error);
+      
+      // Notificar erro
+      this.notifyListeners({
+        type: 'error',
+        message: `Erro na reconexão: ${error}`
+      });
+      
+      return false;
     }
   }
   
   /**
-   * Define as configurações do serviço
+   * Define as configurações de trading
    */
   setSettings(settings: Partial<TradingSettings>): void {
+    // Mesclar novas configurações com as existentes
     this.settings = { ...this.settings, ...settings };
     console.log('[OAUTH_DIRECT] Configurações atualizadas:', this.settings);
+    
+    // Notificar mudança de configurações
+    if (this.isRunning) {
+      this.notifyListeners({
+        type: 'settings_updated',
+        settings: this.settings
+      });
+    }
   }
   
   /**
@@ -1428,7 +1093,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   setActiveStrategy(strategy: string): void {
     this.activeStrategy = strategy;
-    console.log('[OAUTH_DIRECT] Estratégia definida:', strategy);
+    console.log(`[OAUTH_DIRECT] Estratégia definida: ${strategy}`);
   }
   
   /**
@@ -1437,66 +1102,100 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @param token Token de autorização 
    */
   setActiveAccount(loginid: string, token: string): void {
-    console.log(`[OAUTH_DIRECT] SOLICITAÇÃO PARA DEFINIR CONTA ATIVA: ${loginid} com token ${token.substring(0, 8)}...`);
+    console.log(`[OAUTH_DIRECT] ⚠️ SOLICITAÇÃO PARA DEFINIR NOVA CONTA ATIVA: ${loginid} com token ${token.substring(0, 8)}...`);
     
-    // FORÇA: Remover qualquer outra conta como primária
-    this.tokens.forEach(t => {
-      if (t.primary) {
-        console.log(`[OAUTH_DIRECT] Removendo status primário da conta anterior: ${t.loginid || 'desconhecida'}`);
-        t.primary = false;
+    try {
+      // PASSO 1: Obter conta anterior para comparação
+      const previousAccount = this.tokens.find(t => t.primary);
+      const isPrimary = previousAccount?.loginid === loginid;
+      
+      if (isPrimary) {
+        console.log(`[OAUTH_DIRECT] Conta ${loginid} já é a primária. Apenas atualizando token...`);
+      } else {
+        console.log(`[OAUTH_DIRECT] Trocando conta primária de ${previousAccount?.loginid || 'desconhecida'} para ${loginid}`);
       }
-    });
-    
-    // Verificar se o token existe na lista
-    let tokenInfo = this.tokens.find(t => t.token === token);
-    
-    // Se não encontrou pelo token, tenta pelo loginid
-    if (!tokenInfo) {
-      tokenInfo = this.tokens.find(t => t.loginid === loginid);
-    }
-    
-    if (tokenInfo) {
-      console.log(`[OAUTH_DIRECT] Definindo conta ativa: ${loginid}`);
-      this.activeToken = token;
-      tokenInfo.loginid = loginid; // Atualiza o loginid se necessário
       
-      // FORÇA: Marcar APENAS este token como primário
-      tokenInfo.primary = true;
+      // PASSO 2: Remover flag primária de todas as contas existentes
+      this.tokens.forEach(t => {
+        if (t.primary) {
+          console.log(`[OAUTH_DIRECT] Removendo status primário da conta anterior: ${t.loginid || 'desconhecida'}`);
+          t.primary = false;
+        }
+      });
       
-      // Salvar explicitamente no localStorage
+      // PASSO 3: Encontrar token existente ou criar novo
+      let tokenInfo = this.tokens.find(t => t.token === token);
+      if (!tokenInfo) {
+        tokenInfo = this.tokens.find(t => t.loginid === loginid);
+      }
+      
+      let isNewToken = false;
+      
+      if (tokenInfo) {
+        // Atualizar token existente
+        console.log(`[OAUTH_DIRECT] Atualizando token existente para conta: ${loginid}`);
+        this.activeToken = token;
+        tokenInfo.token = token; // Garantir que o token está atualizado
+        tokenInfo.loginid = loginid; // Garantir que o loginid está atualizado
+        tokenInfo.primary = true; // Marcar como primário
+      } else {
+        // Criar novo token
+        console.log(`[OAUTH_DIRECT] Adicionando nova conta ativa: ${loginid}`);
+        this.addToken(token, true, loginid);
+        this.activeToken = token;
+        isNewToken = true;
+      }
+      
+      // PASSO 4: Salvar em TODOS os locais do localStorage para garantir consistência
       try {
+        // Múltiplos formatos de armazenamento para compatibilidade
+        localStorage.setItem('deriv_active_loginid', loginid);
+        localStorage.setItem('deriv_api_token', token);
+        localStorage.setItem('deriv_oauth_token', token);
         localStorage.setItem('deriv_selected_account', JSON.stringify({
           token: token,
-          loginid: loginid
+          loginid: loginid,
+          timestamp: Date.now()
+        }));
+        localStorage.setItem('deriv_oauth_selected_account', JSON.stringify({
+          accountId: loginid,
+          token: token,
+          timestamp: Date.now()
         }));
         
-        // Atualizar token OAuth global para uso na dashboard
-        localStorage.setItem('deriv_oauth_token', token);
+        // Salvar explicitamente como conta ativa
+        localStorage.setItem('deriv_active_account', JSON.stringify({
+          loginid: loginid,
+          token: token, 
+          timestamp: Date.now(),
+          is_virtual: tokenInfo?.loginid?.startsWith('VRTC') || false,
+          active: true
+        }));
         
-        console.log(`[OAUTH_DIRECT] Conta ${loginid} salva no localStorage como primária`);
+        console.log(`[OAUTH_DIRECT] Conta ${loginid} salva em todos os locais de armazenamento`);
       } catch (e) {
         console.error('[OAUTH_DIRECT] Erro ao salvar conta no localStorage:', e);
       }
       
-      // Notificar mudança de conta
+      // PASSO 5: Notificar mudança de conta
       this.notifyListeners({
         type: 'account_changed',
         loginid: loginid
       });
       
-      // Se já estamos em execução, realizar validação do token
+      // PASSO 6: Validar o token se a conexão estiver aberta
       if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
         console.log(`[OAUTH_DIRECT] Validando token da conta ${loginid}...`);
         
         // Tentar autorizar com o novo token sem reconexão completa
         this.authorizeToken(token)
           .then(() => {
-            console.log(`[OAUTH_DIRECT] Token da conta ${loginid} validado com sucesso!`);
+            console.log(`[OAUTH_DIRECT] ✅ Token da conta ${loginid} validado com sucesso!`);
             
             // Garantir que estamos inscritos para ticks após validação
             this.subscribeToTicks();
             
-            // Notificar sobre validação bem-sucedida
+            // Notificar sobre validação bem-sucedida via evento interno
             this.notifyListeners({
               type: 'token_validated',
               message: `Token da conta ${loginid} validado com sucesso`,
@@ -1508,7 +1207,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               const tokenValidatedEvent = new CustomEvent('deriv:token_validated', {
                 detail: {
                   loginid: loginid,
-                  message: `Token da conta ${loginid} validado com sucesso`
+                  message: `Token da conta ${loginid} validado com sucesso`,
+                  isNewAccount: !isPrimary
                 }
               });
               document.dispatchEvent(tokenValidatedEvent);
@@ -1517,77 +1217,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             }
           })
           .catch(error => {
-            console.error(`[OAUTH_DIRECT] Erro ao validar token da conta ${loginid}:`, error);
+            console.error(`[OAUTH_DIRECT] ❌ Erro ao validar token da conta ${loginid}:`, error);
             
-            // Em caso de erro na validação, forçar uma reconexão completa
+            // Em caso de erro na validação de token atual, forçar reconexão completa
             console.log(`[OAUTH_DIRECT] Forçando reconexão completa após erro de validação...`);
             this.closeConnection();
             this.setupWebSocket().catch(reconnectError => {
               console.error('[OAUTH_DIRECT] Falha na reconexão após erro de validação:', reconnectError);
             });
           });
+      } else {
+        console.log(`[OAUTH_DIRECT] WebSocket não está aberto. Conta definida, mas token não validado.`);
       }
-    } else {
-      // Se o token não existe, vamos adicioná-lo e marcar como primário
-      console.log(`[OAUTH_DIRECT] Adicionando nova conta ativa: ${loginid}`);
-      this.addToken(token, true, loginid);
-      this.activeToken = token;
-      
-      // Salvar explicitamente no localStorage
-      try {
-        localStorage.setItem('deriv_selected_account', JSON.stringify({
-          token: token,
-          loginid: loginid
-        }));
-        
-        // Atualizar token OAuth global para uso na dashboard
-        localStorage.setItem('deriv_oauth_token', token);
-        
-        console.log(`[OAUTH_DIRECT] Nova conta ${loginid} salva no localStorage como primária`);
-      } catch (e) {
-        console.error('[OAUTH_DIRECT] Erro ao salvar nova conta no localStorage:', e);
-      }
-      
-      // Se já estamos conectados, autorizar este token
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        this.authorizeToken(token)
-          .then(() => {
-            console.log(`[OAUTH_DIRECT] Nova conta autorizada com sucesso: ${loginid}`);
-            
-            // Notificar mudança de conta e validação de token
-            this.notifyListeners({
-              type: 'account_changed',
-              loginid: loginid
-            });
-            
-            // Notificar também sobre validação de token
-            this.notifyListeners({
-              type: 'token_validated',
-              message: `Token da conta ${loginid} validado com sucesso`,
-              loginid: loginid
-            });
-            
-            // Emitir evento customizado para a UI atualizar
-            try {
-              const tokenValidatedEvent = new CustomEvent('deriv:token_validated', {
-                detail: {
-                  loginid: loginid,
-                  message: `Token da conta ${loginid} validado com sucesso`
-                }
-              });
-              document.dispatchEvent(tokenValidatedEvent);
-            } catch (e) {
-              console.error('[OAUTH_DIRECT] Erro ao emitir evento de validação de token:', e);
-            }
-          })
-          .catch(error => {
-            console.error(`[OAUTH_DIRECT] Erro ao autorizar nova conta: ${loginid}`, error);
-            this.notifyListeners({
-              type: 'error',
-              message: `Erro ao autorizar conta ${loginid}. Tente novamente.`
-            });
-          });
-      }
+    } catch (error) {
+      console.error(`[OAUTH_DIRECT] Erro crítico ao processar nova conta ativa:`, error);
     }
   }
   

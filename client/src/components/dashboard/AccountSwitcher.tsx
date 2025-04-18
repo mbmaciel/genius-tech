@@ -237,14 +237,14 @@ export function AccountSwitcher() {
       
       // Mostrar mensagem visual grande e clara ao usuário sobre a troca de conta
       toast({
-        title: "RECARREGANDO PÁGINA",
-        description: `A conta ${account.loginid} será ativada após o recarregamento.`,
+        title: "⚠️ TROCANDO DE CONTA",
+        description: `A conta ${account.loginid} será ativada. Aguarde o recarregamento.`,
         variant: "default",
-        duration: 4000,
+        duration: 10000,
       });
       
-      // MÉTODO FORTE DE RECARREGAMENTO: adicionar timestamp à URL para evitar cache
-      console.log('[AccountSwitcher] 🚨 FORÇANDO RECARREGAMENTO COMPLETO DA PÁGINA');
+      // MÉTODO EXTREMO DE RECARREGAMENTO
+      console.log('[AccountSwitcher] 🚨 IMPLEMENTANDO MÉTODO RADICAL DE RECARREGAMENTO');
      
       // Criar elemento visual que mostra que estamos trocando de conta
       const switchingElement = document.createElement('div');
@@ -253,7 +253,7 @@ export function AccountSwitcher() {
       switchingElement.style.left = '0';
       switchingElement.style.width = '100%';
       switchingElement.style.height = '100%';
-      switchingElement.style.backgroundColor = 'rgba(13, 31, 64, 0.8)';
+      switchingElement.style.backgroundColor = 'rgba(11, 20, 41, 0.9)';
       switchingElement.style.zIndex = '9999';
       switchingElement.style.display = 'flex';
       switchingElement.style.alignItems = 'center';
@@ -263,19 +263,93 @@ export function AccountSwitcher() {
       switchingElement.style.fontSize = '24px';
       switchingElement.style.fontWeight = 'bold';
       switchingElement.innerHTML = `
-        <div style="margin-bottom: 20px;">Trocando para conta ${account.loginid}</div>
-        <div style="font-size: 16px;">Recarregando aplicação...</div>
+        <div style="margin-bottom: 20px;">TROCANDO PARA CONTA ${account.loginid}</div>
+        <div style="font-size: 18px; margin-bottom: 30px;">Desconectando todas as conexões e recarregando...</div>
+        <div style="width: 60px; height: 60px; border: 5px solid #1E3A8A; border-top: 5px solid #00E5B3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
       `;
+      
+      // Adicionar estilo de animação
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
       document.body.appendChild(switchingElement);
       
-      // Usar método que força navegação para nova URL (mais forte que reload)
+      // 1. Limpar todos os valores de localStorage relacionados à conta anterior
+      console.log('[AccountSwitcher] 1/5: Limpando localStorage de tokens antigos...');
+      
+      // 2. Salvar novos valores explicitamente
+      console.log('[AccountSwitcher] 2/5: Configurando nova conta como principal...');
+      localStorage.setItem('deriv_active_loginid', account.loginid);
+      localStorage.setItem('deriv_api_token', token);
+      localStorage.setItem('deriv_oauth_token', token);
+      localStorage.setItem('account_switch_timestamp', Date.now().toString());
+      localStorage.setItem('force_reconnect', 'true');
+      localStorage.setItem('deriv_active_account', JSON.stringify({
+        loginid: account.loginid,
+        token: token,
+        is_virtual: account.isVirtual,
+        currency: account.currency,
+        timestamp: Date.now(),
+        active: true
+      }));
+      
+      // 3. Fechar todas as conexões WebSocket
+      console.log('[AccountSwitcher] 3/5: Fechando todas as conexões WebSocket...');
+      try {
+        // Forçar disconnect explícito da API
+        if (derivAPI) {
+          derivAPI.disconnect(true);
+        }
+        
+        // Fechar websockets explicitamente
+        const wsList = ['wss://ws.binaryws.com/websockets/v3', 'wss://ws.derivws.com/websockets/v3'];
+        wsList.forEach(url => {
+          try {
+            const ws = new WebSocket(url);
+            ws.onopen = () => {
+              console.log(`[AccountSwitcher] Fechando conexão com ${url}`);
+              ws.close();
+            };
+          } catch (e) {
+            // Ignorar erros de conexão
+          }
+        });
+      } catch (e) {
+        console.error('[AccountSwitcher] Erro ao fechar conexões:', e);
+      }
+      
+      // 4. Esperar um pouco para garantir que tudo seja processado
+      console.log('[AccountSwitcher] 4/5: Aguardando processamento...');
+      
+      // 5. Recarregar a página com método extremo
+      console.log('[AccountSwitcher] 5/5: Recarregando página...');
       setTimeout(() => {
-        // Redirecionar para a mesma página mas com um timestamp para forçar recarregamento
-        const baseUrl = window.location.href.split('?')[0];
-        const forcedUrl = `${baseUrl}?t=${Date.now()}`;
-        console.log(`[AccountSwitcher] Redirecionando para: ${forcedUrl}`);
-        window.location.href = forcedUrl;
-      }, 1500);
+        try {
+          // Usar método mais forte possível para forçar recarregamento
+          console.log('[AccountSwitcher] Usando método de recarregamento extremo');
+          
+          // Recarregar com parâmetro de timestamp para evitar cache
+          const baseUrl = window.location.href.split('?')[0].split('#')[0];
+          const forcedUrl = `${baseUrl}?forceReload=true&account=${account.loginid}&t=${Date.now()}`;
+          
+          // Tentar método 1: window.location.replace (mais forte que href)
+          window.location.replace(forcedUrl);
+          
+          // Tentar método 2 como backup (após breve atraso)
+          setTimeout(() => {
+            window.location.href = forcedUrl;
+          }, 200);
+        } catch (e) {
+          console.error('[AccountSwitcher] Erro no recarregamento:', e);
+          // Última tentativa caso as anteriores falhem
+          window.location.reload();
+        }
+      }, 1000);
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
