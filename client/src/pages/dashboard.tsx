@@ -357,13 +357,66 @@ export default function Dashboard() {
       <Sidebar isMobile={true} className="md:hidden" />
       
       {/* Conteúdo principal */}
-      <div className="flex-1 md:ml-64">
+      <div className="flex-1 md:ml-16 transition-all duration-300">
         <main className="p-4">
-          <h1 className="text-2xl font-bold text-white mb-4">Dashboard</h1>
+          {/* Cabeçalho com informações da conta e botão de login */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 bg-[#162746] rounded-lg p-4 border border-[#1c3654]">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full">
+              <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+              
+              <div className="flex-1"></div>
+              
+              {/* Informações da conta */}
+              {isAuthenticated && accountInfo ? (
+                <div className="flex flex-wrap items-center gap-2 md:gap-4">
+                  {/* Informações básicas da conta */}
+                  <div className="flex items-center">
+                    <div className={`h-3 w-3 rounded-full mr-2 ${accountInfo.isVirtual ? 'bg-blue-500' : 'bg-[#00e5b3]'}`}></div>
+                    <span className="text-white font-medium">{accountInfo.loginid}</span>
+                  </div>
+                  
+                  {/* Saldo com indicador de carregamento */}
+                  <div className="flex items-center bg-[#1d2a45] px-3 py-1 rounded-md">
+                    {isLoadingBalance ? (
+                      <RefreshCw className="h-4 w-4 text-white animate-spin mr-1" />
+                    ) : (
+                      <span className={`font-bold ${accountInfo.isVirtual ? 'text-blue-400' : 'text-[#00e5b3]'}`}>
+                        {accountInfo.balance?.toFixed(2)} {accountInfo.currency}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Seletor de conta (botão que abre opções) */}
+                  <button
+                    onClick={() => setShowAccountOptions(!showAccountOptions)}
+                    className="bg-[#1d2a45] hover:bg-[#2a3756] text-white px-3 py-1 rounded-md text-sm flex items-center"
+                  >
+                    <Users className="h-4 w-4 mr-1" />
+                    Contas
+                  </button>
+                </div>
+              ) : (
+                <DerivConnectButton />
+              )}
+            </div>
+          </div>
           
           {/* Componente R_100 */}
-          <div className="grid grid-cols-1 gap-6 mt-4">
-            <DashboardR100Display onUpdateDigits={handleNewDigit} tickCount={ticks} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div className="w-full">
+              <DashboardR100Display />
+            </div>
+            <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
+              <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
+              <div className="aspect-video bg-[#0c1525] rounded-md">
+                <iframe
+                  src="https://deriv.com/market-indices/volatility-100-index"
+                  className="w-full h-full rounded-md"
+                  style={{ border: "none" }}
+                  title="Gráfico Deriv R_100"
+                ></iframe>
+              </div>
+            </div>
           </div>
         </main>
       </div>
