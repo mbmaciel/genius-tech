@@ -105,8 +105,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   
   // Estados para configurações do bot
   const [entryValue, setEntryValue] = useState<string>("0.35");
-  const [profitTarget, setProfitTarget] = useState<string>("");
-  const [lossLimit, setLossLimit] = useState<string>("");
+  const [profitTarget, setProfitTarget] = useState<string>("20");
+  const [lossLimit, setLossLimit] = useState<string>("20");
+  const [martingaleFactor, setMartingaleFactor] = useState<string>("1.5");
   const [virtualLoss, setVirtualLoss] = useState<string>("");
   const [selectedBotType, setSelectedBotType] = useState<"lite" | "premium" | "">("");
   const [selectedStrategy, setSelectedStrategy] = useState<string>("");
@@ -1346,15 +1347,28 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 </div>
                 
                 {/* Limite de Perda */}
-                <div className="mb-5">
+                <div className="mb-3">
                   <label className="block text-sm text-gray-400 mb-1">Limite de Perda ($)</label>
                   <Input
                     type="text"
                     value={lossLimit}
                     onChange={(e) => setLossLimit(e.target.value)}
                     className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
-                    placeholder="500"
+                    placeholder="20"
                   />
+                </div>
+                
+                {/* Fator de Martingale */}
+                <div className="mb-5">
+                  <label className="block text-sm text-gray-400 mb-1">Fator de Martingale</label>
+                  <Input
+                    type="text"
+                    value={martingaleFactor}
+                    onChange={(e) => setMartingaleFactor(e.target.value)}
+                    className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white"
+                    placeholder="1.5"
+                  />
+                  <span className="text-xs text-gray-500 mt-1 block">Multiplicador aplicado após cada perda (ex: 1.5)</span>
                 </div>
                 
                 {/* Painel de controle do bot - Único ponto de controle */}
