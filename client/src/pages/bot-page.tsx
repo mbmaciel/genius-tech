@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
+// Removendo a importação do tipo Toast que não existe
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
@@ -513,6 +515,8 @@ export function BotPage() {
             const newBalance = parseFloat(event.balance.balance);
             const currentBalance = realTimeBalance?.balance || 0;
             
+            console.log(`[BOT_PAGE] Evento de atualização de saldo recebido: ${newBalance} ${event.balance.currency} (Conta: ${event.balance.loginid})`);
+            
             // Atualizar informações da conta com novos dados
             setAccountInfo(prev => {
               if (prev) {
@@ -527,25 +531,47 @@ export function BotPage() {
             });
             
             // Atualizar saldo em tempo real sempre que receber atualizações
-            setRealTimeBalance({
-              balance: newBalance,
-              previousBalance: currentBalance
-            });
+            // Forçar o tipo para number para garantir a exibição correta
+            const updatedBalance = {
+              balance: Number(newBalance),
+              previousBalance: Number(currentBalance)
+            };
+            
+            console.log(`[BOT_PAGE] Atualizando saldo em tempo real:`, updatedBalance);
+            setRealTimeBalance(updatedBalance);
             
             // Atualizar conta selecionada se necessário
             setSelectedAccount(prev => {
-              if (prev && event.balance.loginid) {
-                return {
+              if (prev) {
+                const updated = {
                   ...prev,
-                  loginid: event.balance.loginid,
                   balance: newBalance,
                   currency: event.balance.currency || prev.currency
                 };
+                
+                // Se o ID de login foi fornecido, atualize também
+                if (event.balance.loginid) {
+                  updated.loginid = event.balance.loginid;
+                }
+                
+                return updated;
               }
               return prev;
             });
             
-            console.log(`[OAUTH_DIRECT] Saldo atualizado: ${currentBalance} -> ${newBalance} (Conta: ${event.balance.loginid})`);
+            // Atualizar também no localStorage para persistência
+            try {
+              const accountInfoStr = localStorage.getItem('deriv_account_info');
+              if (accountInfoStr) {
+                const storedInfo = JSON.parse(accountInfoStr);
+                storedInfo.balance = newBalance;
+                localStorage.setItem('deriv_account_info', JSON.stringify(storedInfo));
+              }
+            } catch (e) {
+              console.error('[BOT_PAGE] Erro ao atualizar localStorage:', e);
+            }
+            
+            console.log(`[BOT_PAGE] Saldo atualizado: ${currentBalance} -> ${newBalance} (Conta: ${event.balance.loginid})`);
           }
           
           // Compra de contrato
@@ -733,30 +759,63 @@ export function BotPage() {
                 title: "Como resolver",
                 description: "É necessário reautorizar a aplicação com os escopos corretos.",
                 variant: "default",
-                action: (
-                  <Button 
-                    onClick={() => {
-                      const appId = '71403';
-                      const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
-                      const scope = encodeURIComponent('read admin payments trade trading trading_information');
-                      const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
-                      
-                      // Registrar que uma reautorização foi solicitada
-                      localStorage.setItem('deriv_pending_reauth', 'true');
-                      localStorage.setItem('deriv_pending_reauth_timestamp', Date.now().toString());
-                      
-                      // Abrir página de autorização
-                      window.open(authUrl, '_blank', 'width=800,height=600');
-                    }}
-                    variant="default"
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                  >
-                    Reautorizar
-                  </Button>
-                ),
+                // Usando uma implementação alternativa sem o 'action' que não está na tipagem
                 duration: 15000,
               });
+              
+              // Mostrar um botão de reautorização separado
+              setTimeout(() => {
+                // Criar elemento de reautorização direto na página em vez de usar toast com JSX
+                const reAuthContainer = document.createElement('div');
+                reAuthContainer.id = 'reauth-container';
+                reAuthContainer.className = 'fixed top-5 right-5 z-50 bg-[#13203a] border border-[#2c3e5d] rounded-lg p-4 shadow-lg max-w-sm';
+                reAuthContainer.innerHTML = `
+                  <div class="flex flex-col">
+                    <h3 class="text-white font-bold mb-2">Reautorizar aplicação</h3>
+                    <p class="text-gray-300 text-sm mb-3">Clique no botão para obter as permissões de trading necessárias</p>
+                    <button id="reauth-button" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors">
+                      Reautorizar agora
+                    </button>
+                  </div>
+                `;
+                
+                document.body.appendChild(reAuthContainer);
+                
+                // Adicionar evento de clique ao botão
+                const reAuthButton = document.getElementById('reauth-button');
+                if (reAuthButton) {
+                  reAuthButton.addEventListener('click', () => {
+                    const appId = '71403';
+                    const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+                    const scope = encodeURIComponent('read admin payments trade trading trading_information');
+                    const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+                    
+                    // Registrar que uma reautorização foi solicitada
+                    localStorage.setItem('deriv_pending_reauth', 'true');
+                    localStorage.setItem('deriv_pending_reauth_timestamp', Date.now().toString());
+                    
+                    // Abrir página de autorização
+                    window.open(authUrl, '_blank', 'width=800,height=600');
+                    
+                    // Remover o container após o clique
+                    reAuthContainer.remove();
+                  });
+                  
+                  // Auto-remover após 30 segundos
+                  setTimeout(() => {
+                    if (document.body.contains(reAuthContainer)) {
+                      reAuthContainer.remove();
+                    }
+                  }, 30000);
+                }
+                
+                // Adicionar um segundo toast com instruções simples
+                toast({
+                  title: "Reautorizar agora",
+                  description: "Clique no botão de reautorização no canto superior direito da tela",
+                  duration: 10000,
+                });
+              }, 1000);
             }, 1000);
             
             // Impedir início do bot
