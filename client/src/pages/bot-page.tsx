@@ -987,6 +987,56 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // Use o useEffect para registrar ouvintes de eventos de operação e saldo
   useEffect(() => {
     const handleEvents = (event: any) => {
+      // Processar evento de compra de contrato (início da operação)
+      if (event.type === 'contract_purchased') {
+        // Adicionar informação sobre o comando de entrada ao histórico
+        const contract = event.contract_details;
+        if (contract) {
+          const contractType = contract.contract_type || '';
+          let commandType = '';
+          let commandMessage = '';
+
+          // Mapear os tipos de contrato para descrições em português
+          if (contractType.includes('DIGITOVER')) {
+            commandType = 'success';
+            commandMessage = 'Compra ACIMA de ' + (contract.barrier || '?');
+          } else if (contractType.includes('DIGITUNDER')) {
+            commandType = 'info';
+            commandMessage = 'Compra ABAIXO de ' + (contract.barrier || '?');
+          } else if (contractType.includes('DIGITODD')) {
+            commandType = 'warning';
+            commandMessage = 'Compra ÍMPAR';
+          } else if (contractType.includes('DIGITEVEN')) {
+            commandType = 'warning';
+            commandMessage = 'Compra PAR';
+          } else if (contractType.includes('DIGITDIFF')) {
+            commandType = 'warning';
+            commandMessage = 'Compra DIFERENTE de ' + (contract.barrier || '?');
+          } else if (contractType.includes('DIGITMATH')) {
+            commandType = 'warning';
+            commandMessage = 'Compra IGUAL a ' + (contract.barrier || '?');
+          } else {
+            commandType = 'info';
+            commandMessage = 'Compra: ' + contractType;
+          }
+
+          const newNotification = {
+            id: typeof contract.contract_id === 'number' ? contract.contract_id : Math.random(),
+            entryValue: contract.buy_price || 0,
+            finalValue: 0,
+            profit: 0,
+            time: new Date(),
+            notification: {
+              type: commandType as 'success' | 'info' | 'warning' | 'error',
+              message: commandMessage
+            }
+          };
+          
+          console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico:', newNotification);
+          setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+        }
+      }
+      
       // Processar eventos de operação finalizada
       if (event.type === 'contract_finished') {
         // Adicionar operação ao histórico
