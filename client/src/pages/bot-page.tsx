@@ -145,7 +145,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // Estado para estatísticas
   const [stats, setStats] = useState({
     wins: 0,
-    losses: 0
+    losses: 0,
+    totalProfit: 0
   });
   
   // Estado para saldo em tempo real
