@@ -42,31 +42,66 @@ export function BotController({
 
   // Buscar informações da conta ao iniciar componente
   useEffect(() => {
-    // Tentativa de carregar informações armazenadas na sessão
-    try {
-      const accountInfoStr = localStorage.getItem('deriv_account_info');
-      if (accountInfoStr) {
-        const storedAccountInfo = JSON.parse(accountInfoStr);
-        
-        // Verificar se os dados são válidos
-        if (storedAccountInfo && storedAccountInfo.loginid) {
-          console.log('[BOT_CONTROLLER] Informações da conta carregadas do localStorage:', storedAccountInfo.loginid);
+    const loadAccountInfo = async () => {
+      // Primeiro, tentar carregar informações da sessão local
+      try {
+        const accountInfoStr = localStorage.getItem('deriv_account_info');
+        if (accountInfoStr) {
+          const storedAccountInfo = JSON.parse(accountInfoStr);
           
-          // Atualizar estado com as informações da conta
-          setAccountInfo({
-            loginid: storedAccountInfo.loginid,
-            balance: storedAccountInfo.balance?.balance || storedAccountInfo.balance || 0,
-            currency: storedAccountInfo.currency || 'USD',
-            is_virtual: storedAccountInfo.is_virtual || (storedAccountInfo.loginid?.startsWith('VRT') ?? false)
-          });
+          // Verificar se os dados são válidos
+          if (storedAccountInfo && storedAccountInfo.loginid) {
+            console.log('[BOT_CONTROLLER] Informações da conta carregadas do localStorage:', storedAccountInfo.loginid);
+            
+            // Atualizar estado com as informações da conta
+            setAccountInfo({
+              loginid: storedAccountInfo.loginid,
+              balance: storedAccountInfo.balance?.balance || storedAccountInfo.balance || 0,
+              currency: storedAccountInfo.currency || 'USD',
+              is_virtual: storedAccountInfo.is_virtual || (storedAccountInfo.loginid?.startsWith('VRT') ?? false)
+            });
+          }
         }
+      } catch (error) {
+        console.error('[BOT_CONTROLLER] Erro ao carregar informações da conta do localStorage:', error);
       }
-    } catch (error) {
-      console.error('[BOT_CONTROLLER] Erro ao carregar informações da conta:', error);
-    }
+      
+      // Em seguida, tentar obter dados atualizados via API
+      try {
+        // Iniciar processo de autorização para atualizar dados da conta
+        console.log('[BOT_CONTROLLER] Solicitando autorização via oauthDirectService');
+        await oauthDirectService.authorizeActiveToken();
+        
+        // Verificar se há token ativo para a conta selecionada
+        const activeAccount = localStorage.getItem('deriv_active_account');
+        const accountTokens = localStorage.getItem('deriv_account_tokens');
+        
+        if (activeAccount && accountTokens) {
+          try {
+            const tokens = JSON.parse(accountTokens);
+            const token = tokens[activeAccount];
+            
+            if (token) {
+              console.log('[BOT_CONTROLLER] Token ativo encontrado para a conta:', activeAccount);
+            }
+          } catch (e) {
+            console.error('[BOT_CONTROLLER] Erro ao processar tokens de conta:', e);
+          }
+        }
+      } catch (error) {
+        console.error('[BOT_CONTROLLER] Erro ao obter dados atualizados da conta:', error);
+      }
+    };
     
-    // Iniciar processo de autorização para atualizar dados da conta
-    oauthDirectService.authorizeActiveToken();
+    // Executar carregamento de dados
+    loadAccountInfo();
+    
+    // Verificar a cada 30 segundos se há atualizações de saldo
+    const refreshInterval = setInterval(() => {
+      oauthDirectService.getAccountBalance();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Configurar listeners para eventos do serviço OAuth
@@ -291,43 +326,85 @@ export function BotController({
   return (
     <div className="space-y-4">
       {/* Barra superior com informações da conta */}
-      <div className="bg-slate-800 p-3 rounded-md flex items-center justify-between">
+      <div className="bg-[#13203a] p-3 rounded-md border border-[#2a3756] flex items-center justify-between shadow-lg">
         <div className="flex items-center">
-          <User className="h-5 w-5 mr-2 text-blue-400" />
-          <span className="text-sm text-gray-300">ID: </span>
-          <span className="text-sm font-bold ml-1 text-white">{accountInfo.loginid || '-'}</span>
-          {accountInfo.is_virtual && (
-            <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded">Demo</span>
-          )}
+          <div className="bg-blue-600/30 p-1.5 rounded-full mr-2">
+            <User className="h-5 w-5 text-blue-400" />
+          </div>
+          <div className="flex flex-col">
+            <div className="flex items-center">
+              <span className="text-xs text-gray-400">ID Conta:</span>
+              <span className="text-sm font-bold ml-1.5 text-white">{accountInfo.loginid || '...'}</span>
+              {accountInfo.is_virtual && (
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full text-[10px] font-bold">DEMO</span>
+              )}
+              {!accountInfo.is_virtual && accountInfo.loginid && (
+                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-600 text-white rounded-full text-[10px] font-bold">REAL</span>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex items-center">
-          <Wallet className="h-5 w-5 mr-2 text-green-400" />
-          <span className="text-sm text-gray-300">Saldo: </span>
-          <span className="text-sm font-bold ml-1 text-white">
-            {accountInfo.balance !== undefined && accountInfo.currency 
-              ? formatCurrency(accountInfo.balance, accountInfo.currency)
-              : '-'}
-          </span>
+          <div className="bg-green-600/30 p-1.5 rounded-full mr-2">
+            <Wallet className="h-5 w-5 text-green-400" />
+          </div>
+          <div className="flex flex-col">
+            <div className="flex items-center">
+              <span className="text-xs text-gray-400">Saldo:</span>
+              <span className="text-sm font-bold ml-1.5 text-white">
+                {accountInfo.balance !== undefined && accountInfo.currency 
+                  ? formatCurrency(accountInfo.balance, accountInfo.currency)
+                  : '...'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       
-      {/* Botões de controle */}
-      <div className="flex space-x-2">
-        {status === 'running' ? (
-          <Button
-            onClick={stopBot}
-            className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-          >
-            Pausar BOT
-          </Button>
-        ) : (
-          <Button
-            onClick={startBot}
-            className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-          >
-            Executar BOT
-          </Button>
-        )}
+      {/* Status atual e botões de controle */}
+      <div className="space-y-3">
+        {/* Status do Bot */}
+        <div className="flex justify-between items-center px-4 py-2 bg-[#0e1a2e] rounded-md border border-[#2a3756]">
+          <div className="flex items-center">
+            <div className={`w-3 h-3 rounded-full mr-2 ${
+              status === 'running' ? 'bg-green-500 animate-pulse' : 
+              status === 'paused' ? 'bg-yellow-500' : 'bg-gray-500'
+            }`}></div>
+            <span className="text-sm text-gray-300">Status:</span>
+            <span className="text-sm font-bold ml-1.5 text-white">
+              {status === 'running' ? 'Em execução' : 
+               status === 'paused' ? 'Pausado' : 'Inativo'}
+            </span>
+          </div>
+          <div className="text-xs text-gray-400">
+            W: {stats.wins} | L: {stats.losses} | P: {stats.totalProfit.toFixed(2)}
+          </div>
+        </div>
+
+        {/* Botões de controle */}
+        <div className="flex space-x-2">
+          {status === 'running' ? (
+            <Button
+              onClick={stopBot}
+              className="flex-1 bg-[#8B0000] hover:bg-red-800 text-white border border-red-900 shadow-inner shadow-red-900/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
+              </svg>
+              Pausar Robô
+            </Button>
+          ) : (
+            <Button
+              onClick={startBot}
+              className="flex-1 bg-[#006400] hover:bg-green-800 text-white border border-green-900 shadow-inner shadow-green-900/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Executar Robô
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

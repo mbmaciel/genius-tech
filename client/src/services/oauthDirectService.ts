@@ -772,6 +772,34 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Método público para solicitar saldo atual da conta
+   * Pode ser chamado pelo componente para atualizar o saldo exibido
+   */
+  public getAccountBalance(): void {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.log('[OAUTH_DIRECT] WebSocket não está conectado para obter saldo');
+      this.reconnect().then(success => {
+        if (success) {
+          this.subscribeToBalance();
+        }
+      });
+      return;
+    }
+    
+    // Solicitar saldo atual sem criar uma assinatura
+    const request = {
+      balance: 1
+    };
+    
+    console.log('[OAUTH_DIRECT] Solicitando saldo atual');
+    try {
+      this.webSocket.send(JSON.stringify(request));
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao solicitar saldo:', error);
+    }
+  }
+
+  /**
    * Assina atualizações de saldo
    */
   private subscribeToBalance(): void {

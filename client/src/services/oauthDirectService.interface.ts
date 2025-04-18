@@ -64,6 +64,10 @@ export interface OAuthDirectServiceInterface {
   setActiveStrategy(strategy: string): void;
   setActiveAccount(loginid: string, token: string): void;
   
+  // Métodos para obter informações da conta
+  getAccountBalance(): void; // Método para solicitar saldo atual da conta
+  authorizeActiveToken(): Promise<boolean>; // Método para autorizar o token ativo
+  
   // Métodos para eventos
   addEventListener(listener: (event: TradingEvent) => void): void;
   removeEventListener(listener: (event: TradingEvent) => void): void;
