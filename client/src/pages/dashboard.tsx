@@ -519,7 +519,7 @@ export default function Dashboard() {
             {/* Coluna da direita: Gráfico Deriv */}
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
-              <div className="bg-[#0c1525] rounded-md" style={{ height: "380px" }}>
+              <div className="bg-[#0c1525] rounded-md" style={{ height: "480px" }}>
                 <iframe
                   src="https://charts.deriv.com/deriv"
                   className="w-full h-full rounded-md"
