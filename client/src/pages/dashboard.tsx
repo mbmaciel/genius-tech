@@ -462,112 +462,7 @@ export default function Dashboard() {
                                           ${isActive 
                                             ? 'bg-indigo-600 text-white' 
                                             : 'text-white hover:bg-[#2a3756]'}`}
-                                        onClick={() => {
-                                          if (isActive) {
-                                            setShowAccountOptions(false);
-                                            return;
-                                          }
-                                          
-                                          try {
-                                            // Obter informações detalhadas da conta
-                                            const accountInfoKey = `deriv_account_info_${acc.loginid}`;
-                                            const accountInfoStr = localStorage.getItem(accountInfoKey);
-                                            
-                                            if (accountInfoStr) {
-                                              // Se temos informações detalhadas, use-as
-                                              const accountData = JSON.parse(accountInfoStr);
-                                              
-                                              // Atualizar conta ativa
-                                              localStorage.setItem('deriv_active_account', acc.loginid);
-                                              localStorage.setItem('deriv_account_info', accountInfoStr);
-                                              
-                                              // Atualizar estado do componente
-                                              setAccountInfo({
-                                                loginid: accountData.loginid,
-                                                email: accountData.email,
-                                                name: accountData.fullname,
-                                                balance: accountData.balance,
-                                                currency: accountData.currency,
-                                                isVirtual: accountData.is_virtual,
-                                                landingCompanyName: accountData.landing_company_name
-                                              });
-                                              
-                                              // Iniciar assinatura de saldo
-                                              startBalanceSubscription(acc.loginid);
-                                              
-                                              toast({
-                                                title: "Conta alternada",
-                                                description: `Agora usando a conta ${acc.loginid}`,
-                                              });
-                                            } else {
-                                              // Se não temos informações detalhadas, fazer autorização
-                                              const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=71403');
-                                              
-                                              ws.onopen = () => {
-                                                const authRequest = { authorize: acc.token };
-                                                ws.send(JSON.stringify(authRequest));
-                                              };
-                                              
-                                              ws.onmessage = (event) => {
-                                                const response = JSON.parse(event.data);
-                                                
-                                                if (response.authorize) {
-                                                  // Autorização bem-sucedida
-                                                  localStorage.setItem('deriv_account_info', JSON.stringify(response.authorize));
-                                                  localStorage.setItem('deriv_active_account', acc.loginid);
-                                                  localStorage.setItem(accountInfoKey, JSON.stringify(response.authorize));
-                                                  
-                                                  // Atualizar estado 
-                                                  setAccountInfo({
-                                                    loginid: response.authorize.loginid,
-                                                    email: response.authorize.email,
-                                                    name: response.authorize.fullname,
-                                                    balance: response.authorize.balance,
-                                                    currency: response.authorize.currency,
-                                                    isVirtual: response.authorize.is_virtual,
-                                                    landingCompanyName: response.authorize.landing_company_name
-                                                  });
-                                                  
-                                                  // Iniciar assinatura de saldo
-                                                  startBalanceSubscription(response.authorize.loginid);
-                                                  
-                                                  toast({
-                                                    title: "Conta alternada",
-                                                    description: `Agora usando a conta ${response.authorize.loginid}`,
-                                                  });
-                                                  
-                                                  ws.close();
-                                                } else if (response.error) {
-                                                  console.error('Erro na autorização:', response.error);
-                                                  toast({
-                                                    title: 'Erro ao alternar conta',
-                                                    description: response.error.message || 'Falha na autorização',
-                                                    variant: 'destructive',
-                                                  });
-                                                  ws.close();
-                                                }
-                                              };
-                                              
-                                              ws.onerror = () => {
-                                                toast({
-                                                  title: 'Erro de conexão',
-                                                  description: 'Não foi possível conectar ao servidor da Deriv',
-                                                  variant: 'destructive',
-                                                });
-                                              };
-                                            }
-                                          } catch (error) {
-                                            console.error('Erro ao alternar conta:', error);
-                                            toast({
-                                              title: 'Erro ao alternar conta',
-                                              description: 'Não foi possível processar a troca de conta',
-                                              variant: 'destructive',
-                                            });
-                                          }
-                                          
-                                          // Fechar o menu dropdown após seleção
-                                          setShowAccountOptions(false);
-                                        }}
+                                        onClick={() => prepareAccountSwitch(acc)}
                                       >
                                         <div className="flex items-center">
                                           <div className={`w-2 h-2 rounded-full mr-2 ${isActive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
@@ -747,6 +642,47 @@ export default function Dashboard() {
           </p>
         </div>
       </div>
+      
+      {/* Modal de confirmação de troca de conta */}
+      <Dialog open={confirmAccountSwitch} onOpenChange={setConfirmAccountSwitch}>
+        <DialogContent className="bg-[#162746] border-[#1c3654] text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <AlertCircle className="h-6 w-6 text-yellow-500 mr-2" />
+              Confirmar troca de conta
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Você está prestes a trocar para a conta{' '}
+              <span className="font-bold text-[#00e5b3]">
+                {accountToSwitch?.loginid}
+              </span>
+              <br /><br />
+              Esta operação irá:
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>Desconectar todas as conexões atuais</li>
+                <li>Validar o token da nova conta</li>
+                <li>Recarregar completamente a página</li>
+                <li>Definir a nova conta como principal para todo o sistema</li>
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between mt-4">
+            <Button 
+              variant="outline"
+              onClick={() => setConfirmAccountSwitch(false)}
+              className="border-gray-600 text-white hover:bg-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => switchAccount(accountToSwitch)}
+              className="bg-[#00e5b3] text-[#0e1a33] hover:bg-[#00c99f] hover:text-[#0e1a33]"
+            >
+              Confirmar troca
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
