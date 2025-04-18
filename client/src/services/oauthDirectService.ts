@@ -815,10 +815,70 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Força a reconexão do WebSocket e reautorização com token atual
    * Útil quando o usuário troca de conta manualmente
+   * Este método valida o token da conta selecionada na dashboard
    */
   async reconnect(): Promise<boolean> {
     try {
       console.log('[OAUTH_DIRECT] Forçando reconexão com a conta ativa...');
+      
+      // Notificar usuários sobre o processo de reconexão
+      this.notifyListeners({
+        type: 'reconnecting',
+        message: 'Validando token e reconectando...'
+      });
+      
+      // Verificar se temos um token ativo antes de prosseguir
+      if (!this.activeToken) {
+        console.log('[OAUTH_DIRECT] Nenhum token ativo encontrado, verificando alternativas...');
+        
+        // Verificar se temos um token primário (escolhido pelo usuário na UI)
+        const primaryToken = this.tokens.find(t => t.primary === true);
+        if (primaryToken) {
+          console.log('[OAUTH_DIRECT] Usando token primário:', primaryToken.loginid);
+          this.activeToken = primaryToken.token;
+        } else {
+          // Verificar no localStorage se há uma conta selecionada
+          try {
+            const savedAccount = localStorage.getItem('deriv_selected_account');
+            if (savedAccount) {
+              // Pode ser objeto ou string
+              const accountInfo = typeof savedAccount === 'string' && savedAccount.startsWith('{') 
+                ? JSON.parse(savedAccount) 
+                : { loginid: savedAccount };
+                
+              // Encontrar o token correspondente, se existir
+              const matchingToken = this.tokens.find(t => 
+                t.loginid === accountInfo.loginid || 
+                (accountInfo.token && t.token === accountInfo.token)
+              );
+              
+              if (matchingToken) {
+                console.log('[OAUTH_DIRECT] Usando token da conta salva:', matchingToken.loginid);
+                this.activeToken = matchingToken.token;
+              }
+            }
+          } catch (e) {
+            console.error('[OAUTH_DIRECT] Erro ao processar conta do localStorage:', e);
+          }
+        }
+        
+        // Se ainda não temos token ativo, usar o primeiro disponível
+        if (!this.activeToken && this.tokens.length > 0) {
+          console.log('[OAUTH_DIRECT] Usando primeiro token disponível:', this.tokens[0].loginid);
+          this.activeToken = this.tokens[0].token;
+        }
+        
+        // Se mesmo assim não temos token, não podemos continuar
+        if (!this.activeToken) {
+          const errorMsg = 'Não foi possível validar token: nenhuma conta disponível';
+          console.error('[OAUTH_DIRECT] ' + errorMsg);
+          this.notifyListeners({
+            type: 'error',
+            message: errorMsg
+          });
+          return false;
+        }
+      }
       
       // Limpar ciclo atual de keep-alive
       if (this.pingInterval) {
@@ -835,57 +895,87 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         this.webSocket = null;
       }
       
+      // Registrar a atividade de validação de token
+      console.log(`[OAUTH_DIRECT] Validando token da conta ativa: ${
+        this.tokens.find(t => t.token === this.activeToken)?.loginid || 'desconhecida'
+      }`);
+      
       // Pequeno atraso para garantir que tudo seja fechado adequadamente
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Reestabelecer a conexão usando o método setupWebSocket()
       try {
-        await this.setupWebSocket();
+        const connected = await this.setupWebSocket();
         
-        // Autorizar token atual
-        if (this.activeToken) {
-          await this.authorizeToken(this.activeToken);
+        if (!connected) {
+          throw new Error('Falha ao estabelecer conexão WebSocket');
+        }
+        
+        // Autorizar token atual - isso valida o token
+        await this.authorizeToken(this.activeToken);
+        
+        // Após autorização bem-sucedida, marcar o token como validado
+        const tokenIndex = this.tokens.findIndex(t => t.token === this.activeToken);
+        if (tokenIndex >= 0) {
+          this.tokens[tokenIndex].authorized = true;
+          this.tokens[tokenIndex].connected = true;
           
-          // Inscrever-se para ticks
-          this.subscribeToTicks();
-          
-          console.log('[OAUTH_DIRECT] Reconexão bem-sucedida');
-          
-          // Notificar ouvintes sobre a reconexão
-          this.notifyListeners({
-            type: 'reconnected',
-            message: 'Conexão reestabelecida com sucesso'
+          // Se foi validado com sucesso, marcar como primário
+          // para que seja usado em futuras reconexões
+          this.tokens.forEach((t, i) => {
+            t.primary = (i === tokenIndex);
           });
+        }
+        
+        // Inscrever-se para ticks
+        this.subscribeToTicks();
+        
+        console.log('[OAUTH_DIRECT] Token validado e reconexão bem-sucedida');
+        
+        // Notificar ouvintes sobre a reconexão
+        this.notifyListeners({
+          type: 'reconnected',
+          message: 'Token validado e conexão reestabelecida com sucesso',
+          loginid: this.tokens.find(t => t.token === this.activeToken)?.loginid
+        });
+        
+        return true;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+        
+        console.error('[OAUTH_DIRECT] Falha na validação do token:', errorMsg);
+        
+        this.notifyListeners({
+          type: 'error',
+          message: 'Falha na validação do token: ' + errorMsg
+        });
+        
+        // Se falhou na autorização com este token, ele pode estar expirado
+        // Vamos tentar outro token disponível, se houver
+        const failedTokenIndex = this.tokens.findIndex(t => t.token === this.activeToken);
+        if (failedTokenIndex >= 0) {
+          this.tokens[failedTokenIndex].authorized = false;
+          this.tokens[failedTokenIndex].connected = false;
           
-          return true;
-        } else {
-          // Se não temos um token ativo, tentar usar qualquer token autorizado
-          const authorizedToken = this.tokens.find(t => t.authorized);
-          if (authorizedToken) {
-            this.activeToken = authorizedToken.token;
-            await this.authorizeToken(this.activeToken);
-            this.subscribeToTicks();
+          // Encontrar outro token para tentar
+          const alternativeToken = this.tokens.find(t => t.token !== this.activeToken);
+          if (alternativeToken) {
+            console.log('[OAUTH_DIRECT] Tentando token alternativo:', alternativeToken.loginid);
             
-            console.log('[OAUTH_DIRECT] Reconexão com token autorizado bem-sucedida');
+            this.activeToken = alternativeToken.token;
             
-            this.notifyListeners({
-              type: 'reconnected',
-              message: 'Conexão reestabelecida com sucesso'
-            });
-            
-            return true;
-          } else {
-            throw new Error('Nenhum token ativo ou autorizado disponível');
+            // Tentar novamente uma vez com o token alternativo
+            return this.reconnect();
           }
         }
-      } catch (error) {
+        
         throw error;
       }
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao reconectar:', error);
       this.notifyListeners({
         type: 'error',
-        message: 'Falha ao reconectar. Tente novamente.'
+        message: 'Falha ao reconectar. Token inválido ou expirado.'
       });
       return false;
     }
