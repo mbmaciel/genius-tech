@@ -659,9 +659,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
-   * Assina ticks do símbolo R_100
+   * Assina ticks do símbolo especificado (ou R_100 por padrão)
+   * Método público para poder ser chamado diretamente da página
    */
-  private subscribeToTicks(): void {
+  public subscribeToTicks(symbol: string = 'R_100'): void {
     if (!this.webSocket) {
       console.error('[OAUTH_DIRECT] WebSocket não está inicializado!');
       this.reconnect().catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
@@ -681,11 +682,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     try {
       const request = {
-        ticks: 'R_100',
+        ticks: symbol,
         subscribe: 1
       };
       
-      console.log('[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo R_100');
+      console.log(`[OAUTH_DIRECT] Inscrevendo-se para receber ticks do símbolo ${symbol}`);
       console.log(`[OAUTH_DIRECT] Estado WebSocket antes do envio: ${this.getReadyStateText(this.webSocket.readyState)}`);
       
       this.webSocket.send(JSON.stringify(request));

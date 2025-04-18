@@ -57,6 +57,7 @@ export interface OAuthDirectServiceInterface {
   closeConnection(): void;
   reconnect(): Promise<boolean>;
   initializeConnection(): Promise<boolean>; // Método para inicializar conexão
+  subscribeToTicks(symbol?: string): void; // Método para inscrição em ticks
   
   // Métodos para configuração
   setSettings(settings: Partial<TradingSettings>): void;

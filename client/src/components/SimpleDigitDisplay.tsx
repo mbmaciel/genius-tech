@@ -7,6 +7,7 @@ interface SimpleDigitDisplayProps {
 }
 
 export function SimpleDigitDisplay({ digits, symbol = "R_100" }: SimpleDigitDisplayProps) {
+  console.log("SimpleDigitDisplay renderizado com", digits.length, "dígitos:", digits);
   const getDigitColor = (digit: number) => {
     if (digit === 0 || digit === 5) {
       return "bg-[#fad75b] text-black"; // Amarelo
