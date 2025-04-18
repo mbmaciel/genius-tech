@@ -6,6 +6,7 @@ import { OperationStatus } from "@/components/OperationStatus";
 import { BotController } from "@/components/BotController";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
+import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import derivApiService from "@/services/derivApiService";
@@ -1041,10 +1042,15 @@ export function BotPage() {
               
               {/* Sequência de Dígitos com múltiplas abordagens de atualização */}
               <div>
-                <h3 className="text-white text-md font-medium mb-2">Dígitos em Tempo Real</h3>
+                <h3 className="text-white text-md font-medium mb-2">Conexão WebSocket Direta</h3>
                 
-                {/* Visualização com manipulação direta via refs */}
-                <DirectDigitDisplay />
+                {/* Componente com WebSocket próprio */}
+                <PureWebSocketDigits />
+                
+                <div className="mt-4">
+                  <h3 className="text-white text-md font-medium mb-2">Dígitos em Tempo Real</h3>
+                  <DirectDigitDisplay />
+                </div>
                 
                 <div className="mt-4">
                   <h3 className="text-white text-md font-medium mb-2">Visualização com Força de Atualização</h3>
