@@ -119,6 +119,56 @@ export function BotController({
         });
       }
       
+      // Eventos de problema de permissão de token
+      if (event.type === 'token_permission_error' || event.type === 'token_permission_warning') {
+        const severity = event.type === 'token_permission_error' ? 'high' : 'medium';
+        
+        toast({
+          title: severity === 'high' ? "Erro de permissão" : "Aviso de permissão",
+          description: event.message,
+          variant: severity === 'high' ? "destructive" : "warning",
+          duration: 10000, // 10 segundos para ler
+        });
+        
+        // Se for um erro crítico, exibir instruções mais detalhadas
+        if (severity === 'high') {
+          setTimeout(() => {
+            toast({
+              title: "Como resolver",
+              description: "Você precisa autorizar a aplicação com permissões de trading. Clique no botão de login na dashboard para autorizar novamente.",
+              duration: 15000,
+            });
+          }, 2000);
+        }
+      }
+      
+      // Evento de reautorização necessária
+      if (event.type === 'reauthorization_required') {
+        toast({
+          title: "Reautorização necessária",
+          description: event.message,
+          variant: "default",
+          duration: 8000,
+        });
+        
+        // Exibir link de autorização se disponível
+        if (event.url) {
+          setTimeout(() => {
+            toast({
+              title: "Autorização Deriv",
+              description: "Você está sendo redirecionado para a página de autorização da Deriv. Permita pop-ups para este site.",
+              action: (
+                <div className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer"
+                     onClick={() => window.open(event.url, '_blank')}>
+                  Autorizar
+                </div>
+              ),
+              duration: 20000,
+            });
+          }, 3000);
+        }
+      }
+      
       if (event.type === 'authorized') {
         // Atualizar informações da conta
         if (event.account) {
@@ -135,11 +185,29 @@ export function BotController({
           setAccountInfo(newAccountInfo);
         }
         
+        // Verificar se temos informações sobre escopos/permissões
+        const hasTrading = event.account?.scopes?.some((scope: string) => 
+          ['trade', 'trading', 'trading_information'].includes(scope.toLowerCase())
+        );
+        
         // Mostrar notificação de autorização bem-sucedida
         toast({
           title: "Autorização concluída",
-          description: `Conta: ${event.account?.loginid || 'Deriv'}`,
+          description: `Conta: ${event.account?.loginid || 'Deriv'} ${hasTrading ? '✓ Trading permitido' : ''}`,
+          variant: hasTrading ? "default" : "warning",
         });
+        
+        // Aviso sobre permissões se não tiver trading
+        if (event.account?.scopes && !hasTrading) {
+          setTimeout(() => {
+            toast({
+              title: "Permissões limitadas",
+              description: "Seu token não tem permissões completas de trading. Algumas operações podem falhar.",
+              variant: "warning",
+              duration: 8000,
+            });
+          }, 2000);
+        }
       }
       
       // Atualizar saldo quando receber atualização

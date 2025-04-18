@@ -962,6 +962,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             if (data.error) {
               console.error('[OAUTH_DIRECT] Erro na autorização:', data.error.message);
+              
+              // Verificar se o erro é devido a permissões insuficientes
+              if (data.error.code === 'ScopeError' || data.error.message.includes('scope') || data.error.message.includes('permission')) {
+                console.warn('[OAUTH_DIRECT] Token não tem permissões de trading. Notificando usuário para autorizar novamente.');
+                
+                // Armazenar o error e o token com problemas
+                localStorage.setItem('deriv_token_scope_error', JSON.stringify({
+                  token: token.substring(0, 10) + '...',
+                  error: data.error.message,
+                  timestamp: Date.now()
+                }));
+                
+                // Notificar a UI sobre o problema
+                this.notifyListeners({
+                  type: 'token_permission_error',
+                  message: 'O token não tem permissões suficientes para operações de trading. Por favor, autorize novamente com as permissões corretas.',
+                  details: data.error.message,
+                });
+                
+                // Direcionar o usuário a reautorizar com os escopos corretos
+                this.promptForReauthorization();
+              }
+              
               reject(new Error(`Autorização falhou: ${data.error.message}`));
               return;
             }
@@ -973,6 +996,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             if (tokenInfo) {
               tokenInfo.authorized = true;
               tokenInfo.loginid = data.authorize.loginid;
+            }
+            
+            // Verificar se o token tem permissões de trading verificando as scopes
+            if (data.authorize && data.authorize.scopes) {
+              const hasTrading = this.checkHasTradingPermission(data.authorize.scopes);
+              
+              console.log(`[OAUTH_DIRECT] Token tem permissões de trading: ${hasTrading ? 'SIM' : 'NÃO'}`);
+              
+              if (!hasTrading) {
+                console.warn('[OAUTH_DIRECT] Token autorizado, mas sem permissões de trading.');
+                
+                // Notificar a UI sobre o problema
+                this.notifyListeners({
+                  type: 'token_permission_warning',
+                  message: 'O token tem acesso limitado. Algumas operações de trading podem não funcionar.',
+                  details: 'Permissões de trading não detectadas',
+                });
+              }
             }
             
             // Inscrever-se para atualizações de saldo
@@ -996,6 +1037,60 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       console.log('[OAUTH_DIRECT] Enviando solicitação de autorização');
       this.webSocket.send(JSON.stringify(authorizeRequest));
     });
+  }
+  
+  /**
+   * Verifica se o array de escopos contém permissões de trading
+   */
+  private checkHasTradingPermission(scopes: string[]): boolean {
+    if (!scopes || !Array.isArray(scopes)) return false;
+    
+    const tradingScopes = ['trade', 'trading', 'trading_information'];
+    return scopes.some(scope => tradingScopes.includes(scope.toLowerCase()));
+  }
+  
+  /**
+   * Solicita ao usuário que reautorize a aplicação com os escopos corretos
+   */
+  private promptForReauthorization(): void {
+    try {
+      // Salvar o estado atual para retornar após a reautorização
+      localStorage.setItem('deriv_pending_reauth', 'true');
+      
+      // Montar a URL de autorização com os escopos corretos
+      const appId = '71403'; // App ID do projeto
+      const redirectUri = encodeURIComponent(window.location.origin + '/auth-callback');
+      const scope = encodeURIComponent('read admin payments trade trading trading_information');
+      
+      // URL de autorização da Deriv
+      const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${redirectUri}&scope=${scope}`;
+      
+      // Notificar o usuário
+      this.notifyListeners({
+        type: 'reauthorization_required',
+        message: 'É necessário reautorizar sua conta para operações de trading',
+        details: 'Você será redirecionado para a página de autorização da Deriv',
+        url: authUrl
+      });
+      
+      // Abrir página de autorização em uma nova janela após 3 segundos
+      setTimeout(() => {
+        const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
+        
+        if (!authWindow) {
+          console.error('[OAUTH_DIRECT] Falha ao abrir janela de autorização. Possível bloqueio de pop-up.');
+          
+          // Caso falhe em abrir a janela, mostrar instrução para o usuário
+          this.notifyListeners({
+            type: 'error',
+            message: 'Não foi possível abrir a janela de autorização. Verifique se o bloqueador de pop-ups está desativado.',
+            details: 'Clique no botão de login para tentar novamente'
+          });
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao solicitar reautorização:', error);
+    }
   }
   
   /**
