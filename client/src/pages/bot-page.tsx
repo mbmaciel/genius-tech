@@ -1423,12 +1423,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   <span className="text-xs text-gray-500 mt-1 block">Multiplicador aplicado após cada perda (ex: 1.5)</span>
                 </div>
                 
-                {/* Painel de controle do bot - Único ponto de controle */}
+                {/* Painel de controle do bot - Com configuração adaptável */}
                 <div className="mb-4">
                   <BotController 
                     entryValue={parseFloat(entryValue) || 0.35}
-                    profitTarget={parseFloat(profitTarget) || 1000}
-                    lossLimit={parseFloat(lossLimit) || 500}
+                    profitTarget={parseFloat(profitTarget) || 20}
+                    lossLimit={parseFloat(lossLimit) || 10}
                     selectedStrategy={selectedStrategy || ''}
                     onStatusChange={(status) => setBotStatus(status)}
                     onStatsChange={(newStats) => setStats(newStats)}

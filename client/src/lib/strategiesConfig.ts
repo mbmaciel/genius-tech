@@ -1,136 +1,119 @@
-import { BinaryBotStrategy, StrategyType } from './automationService';
+import { BinaryBotStrategy } from './automationService';
 
 /**
  * Lista de estratégias disponíveis com suas configurações padrão
  * baseadas nos arquivos XML analisados
  */
 export const availableStrategies: BinaryBotStrategy[] = [
-  // Estratégias Lite
+  // Estratégias lite
   {
     id: 'profitpro',
-    name: 'Profitpro Atualizado',
-    description: 'Estratégia para operações com gestão de perda virtual',
-    type: 'BOTH' as StrategyType,
+    name: 'ProfitPro Atualizado',
+    description: 'Estratégia Profitpro com gestão financeira adaptativa',
+    xmlPath: '/attached_assets/Profitpro Atualizado.xml',
     config: {
       initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 3,
       targetProfit: 20,
       stopLoss: 10,
-      prediction: 5
-    }
-  },
-  {
-    id: 'manual_under',
-    name: 'Manual Under',
-    description: 'Estratégia para operações abaixo de um limiar',
-    type: 'UNDER' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 3,
-      targetProfit: 20,
-      stopLoss: 10,
-      prediction: 4
-    }
-  },
-  {
-    id: 'advance',
-    name: 'Advance',
-    description: 'Estratégia avançada com análise percentual',
-    type: 'ADVANCED' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 15,
-      stopLoss: 10,
-      prediction: 5
-    }
-  },
-  {
-    id: 'wise_pro_tendencia',
-    name: 'WISE PRO TENDENCIA',
-    description: 'Estratégia que analisa tendências de mercado',
-    type: 'BOTH' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 20,
-      stopLoss: 10
-    }
-  },
-  
-  // Estratégias Premium
-  {
-    id: 'iron_over',
-    name: 'IRON OVER',
-    description: 'Estratégia para dígitos acima de 5',
-    type: 'OVER' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 0.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 15,
-      stopLoss: 10,
-      prediction: 5
-    }
-  },
-  {
-    id: 'iron_under',
-    name: 'IRON UNDER',
-    description: 'Estratégia para dígitos abaixo de 5',
-    type: 'UNDER' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 0.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 15,
-      stopLoss: 10,
-      prediction: 5
-    }
-  },
-  {
-    id: 'bot_low',
-    name: 'BOT LOW',
-    description: 'Estratégia para dígitos baixos',
-    type: 'UNDER' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 20,
-      stopLoss: 10,
-      prediction: 3
-    }
-  },
-  {
-    id: 'maxpro',
-    name: 'MAXPRO',
-    description: 'Estratégia de maximização de lucros',
-    type: 'OVER' as StrategyType,
-    config: {
-      initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 2,
-      targetProfit: 20,
-      stopLoss: 10,
-      prediction: 5
+      martingaleFactor: 1.5
     }
   },
   {
     id: 'manual_over',
     name: 'Manual Over',
-    description: 'Estratégia para operações acima de um limiar',
-    type: 'OVER' as StrategyType,
+    description: 'Estratégia manual otimizada para contratos CALL/ACIMA',
+    xmlPath: '/attached_assets/Manual Over.xml',
     config: {
       initialStake: 0.35,
-      martingaleFactor: 1.5,
-      maxMartingaleLevel: 3,
       targetProfit: 20,
       stopLoss: 10,
-      prediction: 5
+      martingaleFactor: 1.5
+    }
+  },
+  {
+    id: 'manual_under',
+    name: 'Manual Under',
+    description: 'Estratégia manual otimizada para contratos PUT/ABAIXO',
+    xmlPath: '/attached_assets/Manual Under.xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5
+    }
+  },
+  {
+    id: 'bot_low',
+    name: 'BOT LOW',
+    description: 'Estratégia simples otimizada para operações de baixo risco',
+    xmlPath: '/attached_assets/BOT LOW.xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5
+    }
+  },
+  
+  // Estratégias premium
+  {
+    id: 'iron_over',
+    name: 'IRON OVER',
+    description: 'Estratégia IRON otimizada para contratos CALL/ACIMA',
+    xmlPath: '/attached_assets/IRON OVER.xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 0.5
+    }
+  },
+  {
+    id: 'iron_under',
+    name: 'IRON UNDER',
+    description: 'Estratégia IRON otimizada para contratos PUT/ABAIXO',
+    xmlPath: '/attached_assets/IRON UNDER.xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 0.5
+    }
+  },
+  {
+    id: 'maxpro',
+    name: 'MAXPRO',
+    description: 'Estratégia avançada de alta rentabilidade',
+    xmlPath: '/attached_assets/MAXPRO .xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5
+    }
+  },
+  {
+    id: 'advance',
+    name: 'ADVANCE',
+    description: 'Estratégia avançada com análise de tendência',
+    xmlPath: '/attached_assets/Advance .xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5
+    }
+  },
+  {
+    id: 'wise_pro_tendencia',
+    name: 'WISE PRO TENDÊNCIA',
+    description: 'Estratégia profissional com análise de tendência e reversão',
+    xmlPath: '/attached_assets/WISE PRO TENDENCIA.xml',
+    config: {
+      initialStake: 0.35,
+      targetProfit: 20,
+      stopLoss: 10,
+      martingaleFactor: 1.5
     }
   }
 ];
@@ -139,8 +122,12 @@ export const availableStrategies: BinaryBotStrategy[] = [
  * Categorias de estratégias
  */
 export const strategyCategories = {
-  lite: ['profitpro', 'manual_under', 'advance', 'wise_pro_tendencia'],
-  premium: ['iron_over', 'iron_under', 'bot_low', 'maxpro', 'manual_over']
+  lite: availableStrategies.filter(s => 
+    ['profitpro', 'manual_over', 'manual_under', 'bot_low'].includes(s.id)
+  ),
+  premium: availableStrategies.filter(s => 
+    ['iron_over', 'iron_under', 'maxpro', 'advance', 'wise_pro_tendencia'].includes(s.id)
+  )
 };
 
 /**
@@ -154,47 +141,35 @@ export function getStrategyById(id: string): BinaryBotStrategy | null {
  * Obtém estratégias por categoria
  */
 export function getStrategiesByCategory(category: 'lite' | 'premium'): BinaryBotStrategy[] {
-  const categoryIds = strategyCategories[category];
-  return availableStrategies.filter(strategy => categoryIds.includes(strategy.id));
+  return strategyCategories[category] || [];
 }
 
 /**
  * Determina se uma estratégia é de maior risco
  */
 export function isHighRiskStrategy(strategyId: string): boolean {
-  return ['iron_over', 'iron_under', 'maxpro'].includes(strategyId);
+  return ['iron_over', 'iron_under', 'advance'].includes(strategyId);
 }
 
 /**
  * Verifica se uma estratégia usa previsão de dígito
  */
 export function usesDigitPrediction(strategyId: string): boolean {
-  const strategy = getStrategyById(strategyId);
-  return strategy?.config.prediction !== undefined;
+  return ['profitpro', 'manual_over', 'manual_under', 'iron_over', 'iron_under', 'advance'].includes(strategyId);
 }
 
 /**
  * Determina o tipo de contrato baseado na estratégia
  */
 export function getContractTypeForStrategy(strategyId: string): string {
-  const strategy = getStrategyById(strategyId);
-  if (!strategy) return 'DIGITOVER';
-  
-  switch (strategy.type) {
-    case 'OVER':
-      return 'DIGITOVER';
-    case 'UNDER':
-      return 'DIGITUNDER';
-    case 'ADVANCED':
-    case 'BOTH':
-      // Para estratégias que suportam ambos os tipos,
-      // usar a previsão para determinar o tipo
-      if (strategy.config.prediction && strategy.config.prediction >= 5) {
-        return 'DIGITOVER';
-      } else {
-        return 'DIGITUNDER';
-      }
-    default:
-      return 'DIGITOVER';
+  if (['manual_over', 'iron_over'].includes(strategyId)) {
+    return 'CALL';
+  } else if (['manual_under', 'iron_under'].includes(strategyId)) {
+    return 'PUT';
+  } else if (['bot_low', 'maxpro', 'wise_pro_tendencia'].includes(strategyId)) {
+    return 'DIGITDIFF';
+  } else {
+    // Profitpro e Advance usam DIGITOVER por padrão
+    return 'DIGITOVER';
   }
 }
