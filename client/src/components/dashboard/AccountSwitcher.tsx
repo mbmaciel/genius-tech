@@ -95,12 +95,45 @@ export function AccountSwitcher() {
     try {
       setIsLoading(true);
       
-      // Store token for the selected account
-      const accountTokenKey = `deriv_token_${account.loginid}`;
-      const token = localStorage.getItem(accountTokenKey);
+      // Obter token para a conta selecionada verificando múltiplas fontes
+      let token: string | null = null;
       
+      // Método 1: Tentar encontrar nos tokens por conta
+      const accountsStr = localStorage.getItem('deriv_accounts');
+      if (accountsStr) {
+        try {
+          const accounts = JSON.parse(accountsStr);
+          const matchingAccount = accounts.find((acc: any) => acc.loginid === account.loginid);
+          
+          if (matchingAccount && matchingAccount.token) {
+            token = matchingAccount.token;
+            console.log(`[AccountSwitcher] Token encontrado para ${account.loginid} em deriv_accounts`);
+          }
+        } catch (error) {
+          console.error('Erro ao processar accounts:', error);
+        }
+      }
+      
+      // Método 2: Tentar encontrar no formato específico se não foi encontrado anteriormente
       if (!token) {
-        throw new Error(`Token não encontrado para a conta ${account.loginid}`);
+        const accountTokenKey = `deriv_token_${account.loginid}`;
+        token = localStorage.getItem(accountTokenKey);
+        
+        if (token) {
+          console.log(`[AccountSwitcher] Token encontrado para ${account.loginid} em ${accountTokenKey}`);
+        }
+      }
+      
+      // Verificar se encontramos um token
+      if (!token) {
+        console.error(`[AccountSwitcher] Token não encontrado para a conta ${account.loginid}`);
+        toast({
+          title: "Erro ao trocar de conta",
+          description: `Token não encontrado para ${account.loginid}. Faça login novamente.`,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
       }
       
       // Notificar o serviço OAuth sobre a mudança de conta
@@ -202,11 +235,47 @@ export function AccountSwitcher() {
         console.error('[AccountSwitcher] Erro ao disparar evento force_token_update:', e);
       }
       
-      // Forçar recarregamento da página após breve atraso
-      // Isso garante que todos os serviços do sistema reconheçam a nova conta
+      // Mostrar mensagem visual grande e clara ao usuário sobre a troca de conta
+      toast({
+        title: "RECARREGANDO PÁGINA",
+        description: `A conta ${account.loginid} será ativada após o recarregamento.`,
+        variant: "default",
+        duration: 4000,
+      });
+      
+      // MÉTODO FORTE DE RECARREGAMENTO: adicionar timestamp à URL para evitar cache
+      console.log('[AccountSwitcher] 🚨 FORÇANDO RECARREGAMENTO COMPLETO DA PÁGINA');
+     
+      // Criar elemento visual que mostra que estamos trocando de conta
+      const switchingElement = document.createElement('div');
+      switchingElement.style.position = 'fixed';
+      switchingElement.style.top = '0';
+      switchingElement.style.left = '0';
+      switchingElement.style.width = '100%';
+      switchingElement.style.height = '100%';
+      switchingElement.style.backgroundColor = 'rgba(13, 31, 64, 0.8)';
+      switchingElement.style.zIndex = '9999';
+      switchingElement.style.display = 'flex';
+      switchingElement.style.alignItems = 'center';
+      switchingElement.style.justifyContent = 'center';
+      switchingElement.style.flexDirection = 'column';
+      switchingElement.style.color = 'white';
+      switchingElement.style.fontSize = '24px';
+      switchingElement.style.fontWeight = 'bold';
+      switchingElement.innerHTML = `
+        <div style="margin-bottom: 20px;">Trocando para conta ${account.loginid}</div>
+        <div style="font-size: 16px;">Recarregando aplicação...</div>
+      `;
+      document.body.appendChild(switchingElement);
+      
+      // Usar método que força navegação para nova URL (mais forte que reload)
       setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+        // Redirecionar para a mesma página mas com um timestamp para forçar recarregamento
+        const baseUrl = window.location.href.split('?')[0];
+        const forcedUrl = `${baseUrl}?t=${Date.now()}`;
+        console.log(`[AccountSwitcher] Redirecionando para: ${forcedUrl}`);
+        window.location.href = forcedUrl;
+      }, 1500);
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
