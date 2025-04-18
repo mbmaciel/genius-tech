@@ -22,11 +22,11 @@ export function AccountSwitcher() {
 
   useEffect(() => {
     // Load account info on component mount
-    const currentAccountInfo = derivAPI.getAccountInfo();
-    if (currentAccountInfo && currentAccountInfo.loginId) {
+    const currentAccountInfo = derivAPI.getAuthorizeInfo();
+    if (currentAccountInfo && currentAccountInfo.loginid) {
       setActiveAccount({
-        loginid: currentAccountInfo.loginId,
-        isVirtual: currentAccountInfo.isVirtual,
+        loginid: currentAccountInfo.loginid,
+        isVirtual: Boolean(currentAccountInfo.is_virtual),
         currency: currentAccountInfo.currency
       });
     }
@@ -34,9 +34,22 @@ export function AccountSwitcher() {
     // Fetch available accounts
     const fetchAccounts = async () => {
       try {
-        if (derivAPI.getConnectionStatus()) {
-          const accountList = await derivAPI.getAccountList();
-          setAccounts(accountList);
+        if (derivAPI.isConnected()) {
+          // Obter contas do localStorage pois a API não tem método getAccountList
+          const accountsStr = localStorage.getItem('deriv_accounts');
+          if (accountsStr) {
+            try {
+              const accountsData = JSON.parse(accountsStr);
+              const formattedAccounts = accountsData.map((acc: any) => ({
+                loginid: acc.loginid,
+                isVirtual: Boolean(acc.is_virtual),
+                currency: acc.currency
+              }));
+              setAccounts(formattedAccounts);
+            } catch (parseError) {
+              console.error('Error parsing accounts data:', parseError);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching accounts:', error);
@@ -48,10 +61,10 @@ export function AccountSwitcher() {
     // Listen for account changes
     const handleAccountInfo = (event: CustomEvent) => {
       const accountInfo = event.detail;
-      if (accountInfo && accountInfo.loginId) {
+      if (accountInfo && (accountInfo.loginId || accountInfo.loginid)) {
         setActiveAccount({
-          loginid: accountInfo.loginId,
-          isVirtual: accountInfo.isVirtual,
+          loginid: accountInfo.loginId || accountInfo.loginid,
+          isVirtual: Boolean(accountInfo.isVirtual || accountInfo.is_virtual),
           currency: accountInfo.currency
         });
       }

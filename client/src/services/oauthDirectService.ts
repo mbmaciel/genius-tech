@@ -1351,6 +1351,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               message: `Token da conta ${loginid} validado com sucesso`,
               loginid: loginid
             });
+            
+            // Emitir evento customizado para a UI atualizar
+            try {
+              const tokenValidatedEvent = new CustomEvent('deriv:token_validated', {
+                detail: {
+                  loginid: loginid,
+                  message: `Token da conta ${loginid} validado com sucesso`
+                }
+              });
+              document.dispatchEvent(tokenValidatedEvent);
+            } catch (e) {
+              console.error('[OAUTH_DIRECT] Erro ao emitir evento de validação de token:', e);
+            }
           })
           .catch(error => {
             console.error(`[OAUTH_DIRECT] Erro ao validar token da conta ${loginid}:`, error);
@@ -1390,11 +1403,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           .then(() => {
             console.log(`[OAUTH_DIRECT] Nova conta autorizada com sucesso: ${loginid}`);
             
-            // Notificar mudança de conta
+            // Notificar mudança de conta e validação de token
             this.notifyListeners({
               type: 'account_changed',
               loginid: loginid
             });
+            
+            // Notificar também sobre validação de token
+            this.notifyListeners({
+              type: 'token_validated',
+              message: `Token da conta ${loginid} validado com sucesso`,
+              loginid: loginid
+            });
+            
+            // Emitir evento customizado para a UI atualizar
+            try {
+              const tokenValidatedEvent = new CustomEvent('deriv:token_validated', {
+                detail: {
+                  loginid: loginid,
+                  message: `Token da conta ${loginid} validado com sucesso`
+                }
+              });
+              document.dispatchEvent(tokenValidatedEvent);
+            } catch (e) {
+              console.error('[OAUTH_DIRECT] Erro ao emitir evento de validação de token:', e);
+            }
           })
           .catch(error => {
             console.error(`[OAUTH_DIRECT] Erro ao autorizar nova conta: ${loginid}`, error);
