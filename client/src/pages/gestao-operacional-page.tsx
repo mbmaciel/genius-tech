@@ -3,11 +3,22 @@
  */
 import { GestaoOperacional } from "@/components/GestaoOperacional";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 
 export default function GestaoOperacionalPage() {
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold text-white mb-2">Gestão Operacional</h1>
+      <div className="flex justify-between items-center mb-2">
+        <h1 className="text-2xl font-bold text-white">Gestão Operacional</h1>
+        <Link href="/dashboard">
+          <Button className="bg-[#1d2a45] hover:bg-[#2a3756] text-white">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar para Dashboard
+          </Button>
+        </Link>
+      </div>
       <p className="text-slate-400 mb-6">
         Configure parâmetros operacionais, defina limites e acompanhe métricas de desempenho
       </p>
