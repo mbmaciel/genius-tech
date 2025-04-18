@@ -21,6 +21,62 @@ interface AccountInfo {
   is_virtual?: boolean;
 }
 
+// Componente de botão com estado interno para garantir mudança visual imediata
+interface BotButtonProps {
+  status: 'idle' | 'running' | 'paused';
+  selectedStrategy: string;
+  onStart: () => void;
+  onStop: () => void;
+}
+
+function BotButton({ status: externalStatus, selectedStrategy, onStart, onStop }: BotButtonProps) {
+  // Estado interno para garantir que o botão mude visualmente de forma imediata
+  const [internalStatus, setInternalStatus] = useState<'idle' | 'running' | 'paused'>(externalStatus);
+  
+  // Sincronizar estado interno com externo quando ele mudar
+  useEffect(() => {
+    setInternalStatus(externalStatus);
+  }, [externalStatus]);
+  
+  // Renderizar botão com base no estado interno
+  if (internalStatus === 'running') {
+    return (
+      <Button
+        onClick={() => {
+          console.log('[BOT_BUTTON] 🛑 Parando bot...');
+          // Mudar estado imediatamente para feedback visual
+          setInternalStatus('idle');
+          onStop();
+        }}
+        className="flex-1 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 text-white font-medium border border-red-900/50 shadow"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
+        </svg>
+        Parar Robô
+      </Button>
+    );
+  } else {
+    return (
+      <Button
+        onClick={() => {
+          console.log('[BOT_BUTTON] 🚀 Iniciando bot...');
+          // Mudar estado imediatamente para feedback visual
+          setInternalStatus('running');
+          onStart();
+        }}
+        className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
+        disabled={!selectedStrategy}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Iniciar Operações
+      </Button>
+    );
+  }
+}
+
 export function BotController({
   entryValue,
   profitTarget,
@@ -443,48 +499,19 @@ export function BotController({
 
         {/* Botões de controle com design aprimorado */}
         <div className="flex space-x-2">
-          {status === 'running' ? (
-            <Button
-              onClick={stopBot}
-              className="flex-1 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 text-white font-medium border border-red-900/50 shadow"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
-              </svg>
-              Parar Robô
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                try {
-                  console.log('[BOT_CONTROLLER] 🔴 BOTÃO DE INICIAR OPERAÇÕES CLICADO!', {
-                    estrategia: selectedStrategy, 
-                    entrada: entryValue, 
-                    alvo: profitTarget, 
-                    perda: lossLimit
-                  });
-                  
-                  // Verificar se temos todos os valores necessários
-                  if (!selectedStrategy) {
-                    console.error('Estratégia não selecionada!');
-                    return;
-                  }
-                  
-                  // Chamar função para iniciar o bot
-                  startBot();
-                } catch (error) {
-                  console.error('[BOT_CONTROLLER] Erro ao iniciar operações:', error);
-                }
-              }}
-              className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
-              disabled={!selectedStrategy}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-              Iniciar Operações
-            </Button>
-          )}
+          {/* NOVA ABORDAGEM: Usando useState local para controlar o botão */}
+          <BotButton 
+            status={status} 
+            selectedStrategy={selectedStrategy}
+            onStart={() => {
+              // Chamar função para iniciar o bot
+              startBot();
+            }}
+            onStop={() => {
+              // Chamar função para parar o bot
+              stopBot();
+            }}
+          />
         </div>
         
         {/* Dicas para o usuário - NOVO! */}
