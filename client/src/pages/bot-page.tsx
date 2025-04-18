@@ -686,7 +686,61 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     }
   }, []);
   
-  // Atualizar estatísticas de dígitos - VERSÃO OTIMIZADA
+  // Efeito para carregar o histórico de dígitos ao iniciar
+  useEffect(() => {
+    console.log('[BOT_PAGE] Carregando histórico de dígitos inicial');
+    
+    // Carregar histórico de dígitos do serviço
+    const loadDigitHistory = async () => {
+      try {
+        // Tentar obter do serviço de histórico
+        const historyData = await derivHistoryService.getTicksHistory('R_100', 500, false);
+        
+        if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+          console.log('[BOT_PAGE] Histórico de dígitos carregado:', historyData.lastDigits.length, 'dígitos');
+          
+          // Atualizar array de últimos dígitos (limitando aos mais recentes)
+          setLastDigits(historyData.lastDigits.slice(-parseInt(ticks)));
+          
+          // Converter estatísticas para o formato usado pelo componente
+          const newStats = Array.from({ length: 10 }, (_, i) => ({
+            digit: i,
+            count: historyData.digitStats[i]?.count || 0,
+            percentage: historyData.digitStats[i]?.percentage || 0
+          }));
+          
+          setDigitStats(newStats);
+          
+          console.log('[BOT_PAGE] Estatísticas carregadas do histórico:', 
+            newStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+        } else {
+          console.log('[BOT_PAGE] Nenhum histórico de dígitos encontrado, iniciando com valores vazios');
+        }
+      } catch (error) {
+        console.error('[BOT_PAGE] Erro ao carregar histórico de dígitos:', error);
+      }
+    };
+    
+    // Carregar histórico inicial
+    loadDigitHistory();
+    
+    // Conectar ao serviço de histórico para receber atualizações
+    derivHistoryService.connect().then(connected => {
+      if (connected) {
+        console.log('[BOT_PAGE] Conexão estabelecida com o serviço de histórico de dígitos');
+        derivHistoryService.getTicksHistory('R_100', 0, true);
+      } else {
+        console.error('[BOT_PAGE] Falha ao conectar com o serviço de histórico de dígitos');
+      }
+    });
+    
+    return () => {
+      // Limpar inscrição ao desmontar o componente
+      console.log('[BOT_PAGE] Limpando conexão com serviço de histórico de dígitos');
+    };
+  }, [ticks]);
+  
+  // Atualizar estatísticas de dígitos - VERSÃO OTIMIZADA COM PERSISTÊNCIA
   const updateDigitStats = (newDigit: number) => {
     console.log("[BOT_PAGE] Atualizando estatísticas com novo dígito:", newDigit);
     
@@ -715,6 +769,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     
     // Atualizar estado em uma única operação
     setDigitStats(newStats);
+    
+    // Também atualizar o serviço de histórico para persistência
+    // O serviço vai cuidar de salvar no banco de dados
+    try {
+      // Adicionar o dígito ao histórico do serviço
+      derivHistoryService.addDigitToHistory('R_100', newDigit);
+    } catch (error) {
+      console.error('[BOT_PAGE] Erro ao atualizar histórico de dígitos:', error);
+    }
   };
   
   // Iniciar o bot usando o serviço OAuth Direct

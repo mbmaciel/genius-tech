@@ -215,8 +215,9 @@ class DerivHistoryService {
   
   /**
    * Adiciona um dígito ao histórico e atualiza estatísticas
+   * Método privado usado internamente pelo serviço
    */
-  private addDigitToHistory(symbol: string, digit: number) {
+  private addDigitToHistoryInternal(symbol: string, digit: number) {
     // Verificar se temos dados para este símbolo
     if (!this.historyData[symbol]) {
       this.initializeDigitStats(symbol);
@@ -224,6 +225,11 @@ class DerivHistoryService {
     
     // Adicionar dígito ao array
     this.historyData[symbol].lastDigits.push(digit);
+    
+    // Inicializar array de histórico se necessário
+    if (!this.tickHistories[symbol]) {
+      this.tickHistories[symbol] = [];
+    }
     this.tickHistories[symbol].push(digit);
     
     // Limitar a 100 últimos dígitos para exibição
@@ -244,6 +250,79 @@ class DerivHistoryService {
     
     // Recalcular estatísticas
     this.recalculateStats(symbol);
+  }
+  
+  /**
+   * Adiciona um dígito ao histórico e atualiza estatísticas
+   * Método público para ser usado externamente
+   * @param symbol Símbolo (ex: R_100)
+   * @param digit Último dígito do preço
+   */
+  public addDigitToHistory(symbol: string, digit: number): void {
+    try {
+      // Adicionar ao histórico local
+      this.addDigitToHistoryInternal(symbol, digit);
+      
+      // Salvar no banco de dados
+      this.saveToDB(symbol);
+      
+      // Notificar ouvintes sobre a atualização
+      this.notifyListeners(symbol);
+    } catch (error) {
+      console.error('[DerivHistoryService] Erro ao adicionar dígito ao histórico:', error);
+    }
+  }
+  
+  /**
+   * Salva os dados atuais no banco de dados
+   */
+  private async saveToDB(symbol: string): Promise<void> {
+    try {
+      // Verificar se temos dados para salvar
+      if (!this.historyData[symbol] || this.historyData[symbol].lastDigits.length === 0) {
+        return;
+      }
+      
+      // Verificar se passamos do intervalo mínimo para salvar
+      const now = Date.now();
+      if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL) {
+        return; // Não salvar com muita frequência
+      }
+      
+      this.lastSaveTime = now;
+      
+      // Dados para salvar
+      const dataToSave = {
+        symbol,
+        lastDigits: this.historyData[symbol].lastDigits,
+        digitStats: this.historyData[symbol].digitStats,
+        totalCount: this.historyData[symbol].totalCount,
+        lastUpdated: new Date()
+      };
+      
+      // Requisição para salvar no backend
+      try {
+        const response = await fetch('/api/digit-history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(dataToSave)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
+        }
+        
+        console.log(`[DerivHistoryService] Dados de ${symbol} salvos no banco de dados`);
+      } catch (dbError) {
+        console.error('[DerivHistoryService] Erro ao salvar no banco:', dbError);
+        // Em caso de falha, salvar no localStorage
+        this.saveToLocalStorage(symbol);
+      }
+    } catch (error) {
+      console.error('[DerivHistoryService] Erro ao tentar salvar no banco:', error);
+    }
   }
   
   /**
