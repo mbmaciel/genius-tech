@@ -264,7 +264,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           {/* Campo Parcelas Martingale - apenas para estratégias que o usam */}
           {showParcelasMartingale && (
             <div className="space-y-2">
-              <Label htmlFor="parcelasMartingale">Parcelas Martingale</Label>
+              <Label htmlFor="parcelasMartingale">Parcelas de Martingale</Label>
               <Input
                 id="parcelasMartingale"
                 type="number"
