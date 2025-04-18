@@ -22,7 +22,7 @@ export function DashboardR100Display() {
   const [lastDigits, setLastDigits] = useState<number[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [digitStats, setDigitStats] = useState<DigitData[]>([]);
-  const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
+  const [tickCount, setTickCount] = useState<number>(10);
   
   // Efeito para gerenciar a conexão WebSocket
   useEffect(() => {
@@ -39,13 +39,9 @@ export function DashboardR100Display() {
         // Atualizar lista de dígitos
         setLastDigits(prev => {
           const newDigits = [...prev, lastDigit];
-          // Manter apenas os últimos 20 dígitos
-          return newDigits.slice(-20);
+          // Manter apenas os últimos N dígitos
+          return newDigits.slice(-parseInt(tickCount.toString()));
         });
-        
-        // Atualizar hora da última atualização
-        const now = new Date();
-        setLastUpdate(now.toLocaleTimeString());
       }
     };
     
@@ -66,11 +62,8 @@ export function DashboardR100Display() {
       document.removeEventListener('dashboard:tick', handleTick);
       dashboardWebSocket.unsubscribeTicks('R_100');
       clearInterval(connectionCheck);
-      
-      // Não desconectar o WebSocket aqui para manter a conexão 
-      // entre navegações, apenas cancelar a subscrição do R_100
     };
-  }, []);
+  }, [tickCount]);
   
   // Efeito para calcular estatísticas dos dígitos
   useEffect(() => {
@@ -98,18 +91,7 @@ export function DashboardR100Display() {
     }
   }, [lastDigits]);
   
-  // Função para determinar a cor do dígito
-  const getDigitColor = (digit: number): string => {
-    if (digit === 0 || digit === 5) {
-      return "bg-blue-500"; // Azul para 0 e 5
-    } else if (digit % 2 === 0) {
-      return "bg-red-500";  // Vermelho para pares
-    } else {
-      return "bg-green-500"; // Verde para ímpares
-    }
-  };
-  
-  // Função para obter cor da barra de estatística
+  // Função para obter cor da barra com base no percentual
   const getBarColor = (percentage: number): string => {
     if (percentage >= 30) return 'bg-red-600';
     if (percentage >= 20) return 'bg-red-500';
@@ -117,59 +99,129 @@ export function DashboardR100Display() {
     return 'bg-gray-500';
   };
   
+  // Manipulador para mudança na quantidade de ticks
+  const handleTicksChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTicks = parseInt(e.target.value);
+    setTickCount(newTicks);
+    // Limitar os dígitos existentes ao novo valor
+    setLastDigits((prev) => prev.slice(-newTicks));
+  };
+  
   return (
-    <div className="p-4 bg-slate-800 rounded-lg shadow-lg border border-slate-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-white">R_100 - Dashboard Monitor</h3>
-        <div className="flex items-center">
-          <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-xs text-slate-400">
-            {isConnected ? 'Conectado' : 'Desconectado'}
-          </span>
-        </div>
+    <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
+        <select 
+          className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
+          value={tickCount}
+          onChange={handleTicksChange}
+        >
+          <option value="10">10 Ticks</option>
+          <option value="25">25 Ticks</option>
+          <option value="50">50 Ticks</option>
+          <option value="100">100 Ticks</option>
+          <option value="250">250 Ticks</option>
+          <option value="500">500 Ticks</option>
+          <option value="1000">1000 Ticks</option>
+        </select>
       </div>
       
-      {/* Últimos dígitos */}
-      <div className="mb-4">
-        <h4 className="text-sm font-medium text-slate-300 mb-2">Últimos dígitos</h4>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {lastDigits.length > 0 ? (
-            lastDigits.map((digit, index) => (
-              <div
-                key={index}
-                className={`w-8 h-8 flex items-center justify-center rounded-full ${getDigitColor(digit)} text-white font-medium`}
-              >
-                {digit}
-              </div>
-            ))
-          ) : (
-            <div className="text-slate-500 py-2">Aguardando dados...</div>
-          )}
-        </div>
-        <div className="text-xs text-slate-500 text-right">
-          Atualizado: {lastUpdate}
-        </div>
-      </div>
-      
-      {/* Estatísticas */}
-      <div>
-        <h4 className="text-sm font-medium text-slate-300 mb-2">Estatísticas de Dígitos</h4>
-        <div className="grid grid-cols-1 gap-2">
-          {digitStats.map((stat) => (
-            <div key={stat.digit} className="flex items-center">
-              <div className="w-6 text-xs text-slate-400">{stat.digit}</div>
-              <div className="flex-1 h-5 bg-slate-900 rounded-sm overflow-hidden">
-                <div
-                  className={`h-full ${getBarColor(stat.percentage)}`}
-                  style={{ width: `${stat.percentage}%` }}
-                ></div>
-              </div>
-              <div className="ml-2 text-xs text-slate-400 w-10 text-right">
-                {stat.percentage}%
-              </div>
+      <div className="relative w-full h-96 mt-4">
+        {/* Container responsivo para o gráfico */}
+        <div className="relative flex flex-col h-full">
+          {/* Eixo Y (percentuais) com posição fixa */}
+          <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2 z-10">
+            <div>50</div>
+            <div>40</div>
+            <div>30</div>
+            <div>20</div>
+            <div>10</div>
+            <div>0</div>
+          </div>
+          
+          {/* Linhas de grade horizontais */}
+          <div className="absolute left-8 right-2 top-0 bottom-6 flex flex-col justify-between z-0">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
+            ))}
+          </div>
+          
+          {/* Gráfico de barras responsivo */}
+          <div className="flex h-full pt-0 pb-6 pl-8 pr-2 overflow-x-auto">
+            <div className="flex flex-1 min-w-0 h-full justify-between">
+              {digitStats.map((stat) => (
+                <div key={stat.digit} className="flex flex-col items-center justify-end px-1">
+                  {/* Valor percentual acima da barra somente para barras com valor */}
+                  {stat.percentage > 0 && (
+                    <div className="text-xs font-medium text-white whitespace-nowrap mb-1">
+                      {stat.percentage}%
+                    </div>
+                  )}
+                  
+                  {/* Barra do gráfico com altura proporcional e responsiva */}
+                  <div 
+                    className={`w-full min-w-[20px] max-w-[40px] ${getBarColor(stat.percentage)}`}
+                    style={{ 
+                      height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(3, stat.percentage))}%` 
+                    }}
+                  ></div>
+                  
+                  {/* Número do dígito abaixo da barra */}
+                  <div className="mt-1 text-xs sm:text-sm text-white">{stat.digit}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
+      </div>
+      
+      {/* Últimos dígitos com design aprimorado */}
+      <div className="mt-4 bg-[#1d2a45] p-2 rounded">
+        <div className="flex flex-wrap justify-center gap-1">
+          {lastDigits.slice().reverse().map((digit, index) => {
+            // Cores diferentes dependendo do dígito
+            let bgColor = '';
+            let textColor = 'text-white';
+            
+            // Cores estilizadas para diferentes dígitos
+            if (digit === 0 || digit === 5) {
+              bgColor = 'bg-blue-500'; // Azul para 0 e 5
+            } else if (digit % 2 === 0) {
+              bgColor = 'bg-red-500'; // Vermelho para pares (exceto 0)
+            } else {
+              bgColor = 'bg-green-500'; // Verde para ímpares (exceto 5)
+            }
+            
+            return (
+              <div key={index} className="relative">
+                {/* Indicador de mais recente */}
+                {index === 0 && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                )}
+                
+                {/* Dígito com design hexagonal */}
+                <div 
+                  className={`${bgColor} ${textColor} w-9 h-9 flex items-center justify-center m-0.5 
+                               shadow-lg transform transition-all duration-200 
+                               clip-path-hexagon`}
+                  style={{
+                    clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
+                  }}
+                >
+                  <span className="text-lg font-bold">{digit}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Status da conexão */}
+      <div className="mt-2 flex items-center justify-end">
+        <div className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+        <span className="text-xs text-slate-400">
+          {isConnected ? 'Conectado' : 'Desconectado'}
+        </span>
       </div>
     </div>
   );
