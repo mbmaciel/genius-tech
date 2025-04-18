@@ -106,16 +106,39 @@ export function DirectAccountSwitcher() {
   const handleAccountClick = (account: Account) => {
     if (activeAccount?.loginid === account.loginid) return;
     
-    // Pedir confirmação do usuário usando alert e confirm nativos
-    alert(`ATENÇÃO: Você está prestes a trocar para a conta ${account.loginid}`);
+    console.log(`CLIQUE NA CONTA: ${account.loginid} - Iniciando processo de confirmação...`);
     
-    const confirmed = window.confirm(
-      `Deseja trocar para a conta ${account.loginid}?\n\n` +
-      "Essa ação irá recarregar a página e definir a nova conta como principal."
-    );
-    
-    if (confirmed) {
-      prepareSwitchAccount(account);
+    try {
+      // Solução extrema: usar setTimeout para garantir que os alertas sejam exibidos
+      setTimeout(() => {
+        try {
+          console.log("Tentando mostrar alertas...");
+          // Primeiro exibir um alerta simples
+          window.alert(`ATENÇÃO: Você está prestes a trocar para a conta ${account.loginid}`);
+          
+          // Depois pedir confirmação
+          const confirmed = window.confirm(
+            `Deseja trocar para a conta ${account.loginid}?\n\n` +
+            "Essa ação irá recarregar a página e definir a nova conta como principal."
+          );
+          
+          console.log(`Confirmação do usuário: ${confirmed}`);
+          
+          if (confirmed) {
+            console.log("Confirmação aceita, preparando troca de conta...");
+            prepareSwitchAccount(account);
+          }
+        } catch (e) {
+          console.error("Erro ao mostrar alertas:", e);
+        }
+      }, 100);
+    } catch (e) {
+      console.error("Erro ao configurar timer para alertas:", e);
+      
+      // Tentar uma abordagem alternativa direta em caso de falha
+      if (window.confirm(`Trocar para conta ${account.loginid}?`)) {
+        prepareSwitchAccount(account);
+      }
     }
   };
   
