@@ -85,13 +85,21 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           break;
       }
 
-      // Atualizar estado local
+      // Atualizar estado local sem notificar o componente pai
       setConfig(baseConfig);
-      
-      // Notificar componente pai
-      onChange(baseConfig);
     }
-  }, [strategy, onChange]);
+  }, [strategy]); // Removemos onChange da lista de dependências
+  
+  // Efeito separado para notificar o componente pai quando o config é atualizado
+  // Isso previne loops infinitos, pois só executará quando o config mudar por causa da estratégia
+  useEffect(() => {
+    // Certifica-se de que existe uma estratégia selecionada
+    if (strategy) {
+      // Notifica o componente pai apenas uma vez quando o config for atualizado
+      onChange(config);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy?.id]); // Apenas quando a ID da estratégia mudar
 
   // Handler para mudança de campo
   const handleChange = (field: keyof StrategyConfiguration, value: string | number) => {
