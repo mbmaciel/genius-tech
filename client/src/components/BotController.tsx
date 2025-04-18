@@ -322,6 +322,19 @@ export function BotController({
       const success = await oauthDirectService.start();
       
       if (success) {
+        // Forçar a primeira operação após iniciar o serviço
+        console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
+        
+        // Executar a primeira operação com base na estratégia e no valor de entrada
+        const entryAmount = parseFloat(entryValue);
+        const operationStarted = await oauthDirectService.executeFirstOperation(entryAmount);
+        
+        if (operationStarted) {
+          console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
+        } else {
+          console.warn('[BOT_CONTROLLER] Não foi possível iniciar a primeira operação!');
+        }
+        
         // Atualização de status ocorre via evento bot_started
         toast({
           title: "Bot iniciado",

@@ -1540,6 +1540,136 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Executa a primeira operação após o bot ser iniciado
+   * Esta função inicia o ciclo de operações do bot
+   * 
+   * @param amount Valor inicial da operação
+   * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
+   */
+  async executeFirstOperation(amount: number): Promise<boolean> {
+    try {
+      console.log('[OAUTH_DIRECT] Iniciando primeira operação do bot com valor:', amount);
+      
+      // Verificar se o WebSocket está conectado
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        console.error('[OAUTH_DIRECT] WebSocket não está conectado para executar operação');
+        this.notifyListeners({
+          type: 'error',
+          message: 'Falha na conexão. Não foi possível iniciar a operação.'
+        });
+        return false;
+      }
+      
+      // Verificar se há um token autorizado com permissões de trading
+      // Verificamos diretamente no último objeto authorize
+      const hasTrading = this.authorizeResponse && 
+                         this.authorizeResponse.scopes && 
+                         this.authorizeResponse.scopes.some((scope: string) => 
+                            ['trade', 'trading', 'trading_information'].includes(scope));
+                            
+      if (!this.activeToken || !hasTrading) {
+        console.error('[OAUTH_DIRECT] Token não tem permissões para trading');
+        this.notifyListeners({
+          type: 'error',
+          message: 'Conta sem permissões de trading. Por favor, reautorize com permissões adequadas.'
+        });
+        return false;
+      }
+      
+      // Solicitar compra (API Deriv)
+      // Para opções digitais (Digits):
+      // https://api.deriv.com/api-explorer/#contract_for
+      
+      let symbolCode = 'R_100';  // Índice volatilidade 100
+      let contractType = 'DIGITDIFF';  // Tipo de contrato (dígito diferente)
+      let duration = '1';  // Duração em ticks
+      let durationUnit = 't';  // Unidade de duração (t para ticks)
+      let prediction = '0';  // Previsão do dígito (para contratos Digit)
+      
+      // Construir a requisição de compra
+      // Usaremos configurações padrão simplificadas para iniciar
+      console.log('[OAUTH_DIRECT] Usando configurações padrão para primeira operação');
+      
+      // Se a estratégia tiver sido carregada de um objeto e não só uma string de nome
+      if (typeof this.activeStrategy === 'object' && this.activeStrategy) {
+        try {
+          console.log('[OAUTH_DIRECT] Usando parâmetros da estratégia:', this.activeStrategy);
+          
+          // Verificar se o objeto tem a estrutura esperada
+          if (this.activeStrategy.config) {
+            if (this.activeStrategy.config.prediction !== undefined) {
+              prediction = this.activeStrategy.config.prediction.toString();
+              console.log('[OAUTH_DIRECT] Usando previsão da estratégia:', prediction);
+            }
+            
+            if (this.activeStrategy.config.contractType) {
+              contractType = this.activeStrategy.config.contractType;
+              console.log('[OAUTH_DIRECT] Usando tipo de contrato da estratégia:', contractType);
+            }
+            
+            if (this.activeStrategy.config.symbol) {
+              symbolCode = this.activeStrategy.config.symbol;
+              console.log('[OAUTH_DIRECT] Usando símbolo da estratégia:', symbolCode);
+            }
+            
+            if (this.activeStrategy.config.duration) {
+              duration = this.activeStrategy.config.duration.toString();
+              durationUnit = this.activeStrategy.config.durationUnit || 't';
+              console.log('[OAUTH_DIRECT] Usando duração da estratégia:', duration, durationUnit);
+            }
+          }
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao processar parâmetros da estratégia:', error);
+        }
+      }
+      
+      // Construir parâmetros básicos
+      const parameters: any = {
+        amount: amount,
+        basis: 'stake',
+        contract_type: contractType,
+        currency: 'USD',
+        duration: duration,
+        duration_unit: durationUnit,
+        symbol: symbolCode
+      };
+      
+      // Adicionar previsão para contratos de dígitos
+      if (contractType.startsWith('DIGIT')) {
+        parameters.barrier = prediction;
+      }
+      
+      // Requisição de compra de contrato completa
+      const buyRequest = {
+        buy: 1,
+        price: amount,
+        parameters: parameters,
+        subscribe: 1
+      };
+      
+      console.log('[OAUTH_DIRECT] Enviando solicitação de compra:', buyRequest);
+      
+      // Enviar solicitação
+      this.webSocket.send(JSON.stringify(buyRequest));
+      
+      // Notificar sobre a tentativa de compra
+      this.notifyListeners({
+        type: 'operation_started',
+        message: `Iniciando operação: ${contractType} em ${symbolCode}, valor: ${amount}`
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao executar primeira operação:', error);
+      this.notifyListeners({
+        type: 'error',
+        message: `Erro ao iniciar operação: ${error}`
+      });
+      return false;
+    }
+  }
+  
+  /**
    * Autoriza o token ativo para obter informações da conta mais recentes
    * Este método será chamado pelo BotController para atualizar os dados da conta
    * 
