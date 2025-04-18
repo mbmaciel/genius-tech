@@ -143,11 +143,36 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       this.tokens = []; // Resetar lista de tokens
       
+      // 0. Verificar conta ativa definida na UI
+      let activeAccountInfo = null;
+      try {
+        const activeAccountStr = localStorage.getItem('deriv_active_account');
+        if (activeAccountStr) {
+          activeAccountInfo = JSON.parse(activeAccountStr);
+          
+          // Verificar se os dados são recentes (menos de 10 minutos)
+          if (activeAccountInfo && activeAccountInfo.timestamp && 
+              (Date.now() - activeAccountInfo.timestamp < 10 * 60 * 1000)) {
+            
+            // Esta conta será definida como a primária
+            if (activeAccountInfo.token) {
+              this.addToken(activeAccountInfo.token, true, activeAccountInfo.loginid);
+              console.log(`[OAUTH_DIRECT] Conta ativa encontrada no localStorage: ${activeAccountInfo.loginid}`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[OAUTH_DIRECT] Erro ao processar conta ativa:', e);
+      }
+      
       // 1. Tentar obter token principal do localStorage
       const mainToken = localStorage.getItem('deriv_oauth_token');
       if (mainToken) {
-        this.addToken(mainToken, true);
-        console.log('[OAUTH_DIRECT] Token OAuth principal encontrado no localStorage');
+        // Adicionar apenas se ainda não foi adicionado como conta ativa
+        if (!this.tokens.some(t => t.token === mainToken)) {
+          this.addToken(mainToken, !activeAccountInfo);
+          console.log('[OAUTH_DIRECT] Token OAuth principal encontrado no localStorage');
+        }
       }
       
       // 2. Tentar obter tokens adicionais das contas salvas
@@ -157,8 +182,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           const accounts = JSON.parse(accountsStr);
           if (accounts && Array.isArray(accounts) && accounts.length > 0) {
             accounts.forEach((acc: any) => {
-              if (acc.token && (!mainToken || acc.token !== mainToken)) {
-                this.addToken(acc.token, false, acc.loginid);
+              if (acc.token && !this.tokens.some(t => t.token === acc.token)) {
+                // Verificar se a conta é a conta ativa do sistema
+                const isActiveAccount = acc.loginid === localStorage.getItem('deriv_active_loginid');
+                
+                // Adicionar token com flag primary baseada se é conta ativa
+                // e se já não temos uma conta marcada como primária
+                const shouldBePrimary = isActiveAccount && !this.tokens.some(t => t.primary);
+                
+                // Adicionar o token
+                this.addToken(acc.token, shouldBePrimary, acc.loginid);
               }
             });
             console.log(`[OAUTH_DIRECT] ${accounts.length} contas encontradas no localStorage`);
@@ -168,10 +201,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // Se encontramos pelo menos um token, usar o primeiro como ativo
+      // 3. Verificar conta ativa no formato tradicional (deriv_active_loginid)
+      if (!this.tokens.some(t => t.primary)) {
+        const activeLoginID = localStorage.getItem('deriv_active_loginid');
+        if (activeLoginID) {
+          // Procurar token correspondente 
+          const tokenForActiveAccount = this.tokens.find(t => t.loginid === activeLoginID);
+          if (tokenForActiveAccount) {
+            tokenForActiveAccount.primary = true;
+            console.log(`[OAUTH_DIRECT] Definindo conta ${activeLoginID} como primária baseado em deriv_active_loginid`);
+          }
+        }
+      }
+      
+      // Se encontramos pelo menos um token, usar o marcado como primário ou o primeiro
       if (this.tokens.length > 0) {
         const primaryToken = this.tokens.find(t => t.primary) || this.tokens[0];
         this.activeToken = primaryToken.token;
+        
+        // Se nenhum token estiver marcado como primário, marcar o primeiro
+        if (!primaryToken.primary) {
+          primaryToken.primary = true;
+        }
+        
         console.log(`[OAUTH_DIRECT] Total de ${this.tokens.length} tokens carregados. Token ativo: ${primaryToken.loginid || 'desconhecido'}`);
       } else {
         console.warn('[OAUTH_DIRECT] Nenhum token encontrado em qualquer fonte!');
@@ -791,6 +843,54 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       console.log('[OAUTH_DIRECT] Iniciando serviço de trading...');
       
+      // Verificar se já estamos executando
+      if (this.isRunning) {
+        console.log('[OAUTH_DIRECT] Serviço já está em execução');
+        return true;
+      }
+      
+      this.isRunning = true;
+      
+      // Recarregar tokens para garantir que temos a conta mais atualizada
+      this.loadAllTokens();
+      
+      // Verificar se temos uma conta ativa explicitamente definida
+      const activeLoginID = localStorage.getItem('deriv_active_loginid');
+      if (activeLoginID) {
+        // Verificar se temos um token para esta conta
+        let tokenForActiveAccount = null;
+        
+        // Primeiro verificar deriv_active_account
+        try {
+          const activeAccountStr = localStorage.getItem('deriv_active_account');
+          if (activeAccountStr) {
+            const activeAccount = JSON.parse(activeAccountStr);
+            if (activeAccount && activeAccount.loginid === activeLoginID && activeAccount.token) {
+              tokenForActiveAccount = activeAccount.token;
+            }
+          }
+        } catch (e) {
+          console.warn('[OAUTH_DIRECT] Erro ao processar conta ativa:', e);
+        }
+        
+        // Se não encontramos, procurar nos tokens carregados
+        if (!tokenForActiveAccount) {
+          const existingToken = this.tokens.find(t => t.loginid === activeLoginID);
+          if (existingToken) {
+            tokenForActiveAccount = existingToken.token;
+          }
+        }
+        
+        // Se encontramos um token para a conta ativa, garantir que seja usado
+        if (tokenForActiveAccount) {
+          console.log(`[OAUTH_DIRECT] Usando conta ativa ${activeLoginID} como principal`);
+          
+          // Definir como conta ativa
+          this.tokens.forEach(t => t.primary = (t.loginid === activeLoginID));
+          this.activeToken = tokenForActiveAccount;
+        }
+      }
+      
       // Verificar se temos tokens disponíveis
       if (this.tokens.length === 0) {
         // Tentar carregar novamente os tokens
@@ -802,6 +902,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             type: 'error',
             message: 'Nenhum token OAuth encontrado. Faça login novamente.'
           });
+          this.isRunning = false;
           return false;
         }
       }

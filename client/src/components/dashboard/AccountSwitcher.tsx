@@ -133,17 +133,65 @@ export function AccountSwitcher() {
         currency: account.currency
       });
       
-      // Set reconnection flag and store new token para WebSocket do frontend
-      localStorage.setItem('force_reconnect', 'true');
-      localStorage.setItem('deriv_api_token', token);
+      // Mostrar mensagem de mudança de conta
+      toast({
+        title: "Alterando conta principal",
+        description: `Mudando para a conta ${account.loginid}...`,
+        variant: "default",
+      });
       
-      // Disconnect current connection
+      // Salvar a conta como ativa no formato usado pela aplicação - IMPORTANTE
+      // Essas mudanças garantem que o sistema reconheça a nova conta
+      localStorage.setItem('deriv_active_loginid', account.loginid);
+      localStorage.setItem('deriv_api_token', token);
+      localStorage.setItem('deriv_oauth_token', token);
+      
+      // Criar flag que indica que houve mudança de conta
+      const switchTimestamp = Date.now();
+      localStorage.setItem('account_switch_timestamp', String(switchTimestamp));
+      
+      // Criar objeto com informações da conta ativa
+      const activeAccountData = {
+        loginid: account.loginid,
+        token: token,
+        is_virtual: account.isVirtual,
+        currency: account.currency,
+        timestamp: switchTimestamp,
+        active: true
+      };
+      
+      // Armazenar como conta ativa
+      localStorage.setItem('deriv_active_account', JSON.stringify(activeAccountData));
+      
+      // Forçar flag de reconexão em todo o sistema
+      localStorage.setItem('force_reconnect', 'true');
+      
+      // Desconectar WebSocket atual para garantir reconexão
       derivAPI.disconnect(true);
       
-      // Reload page to apply new account
+      // Disparar evento para que outros componentes saibam da troca
+      const event = new CustomEvent('deriv:account_switched', { 
+        detail: activeAccountData
+      });
+      document.dispatchEvent(event);
+      
+      // Mostrar mensagem de sucesso
+      toast({
+        title: "Troca de conta iniciada",
+        description: `Aplicando conta ${account.loginid} como principal...`,
+        variant: "success",
+      });
+      
+      // Atualizar interface imediatamente
+      setActiveAccount(account);
+      
+      console.log('[AccountSwitcher] 🔄 Recarregando página para aplicar nova conta ativa');
+      
+      // Forçar recarregamento da página após breve atraso
+      // Isso garante que todos os serviços do sistema reconheçam a nova conta
       setTimeout(() => {
         window.location.reload();
-      }, 1000); // Pequeno atraso para garantir que o evento foi processado
+      }, 1000);
     } catch (error) {
       console.error('Error switching account:', error);
       toast({
