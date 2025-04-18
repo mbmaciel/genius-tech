@@ -966,7 +966,7 @@ export function BotPage() {
                     <span className={`${realTimeBalance.balance > realTimeBalance.previousBalance ? 'text-green-500' : realTimeBalance.balance < realTimeBalance.previousBalance ? 'text-red-500' : 'text-white'}`}>
                       {typeof accountInfo.balance === 'number' 
                         ? accountInfo.balance.toFixed(2) 
-                        : parseFloat(String(accountInfo.balance)).toFixed(2)} {accountInfo.currency}
+                        : parseFloat(String(accountInfo.balance || 0)).toFixed(2)} {accountInfo.currency}
                     </span>
                   </div>
                 </div>
@@ -1004,7 +1004,7 @@ export function BotPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Saldo:</span>
-                    <span className="font-medium text-white">{realTimeBalance.balance.toFixed(2)} {selectedAccount.currency}</span>
+                    <span className="font-medium text-white">{typeof realTimeBalance.balance === 'number' ? realTimeBalance.balance.toFixed(2) : '0.00'} {selectedAccount.currency}</span>
                   </div>
                   <div className="text-xs mt-3 text-gray-400">
                     <p>Operando com a conta selecionada na Dashboard.</p>

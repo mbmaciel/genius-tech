@@ -370,20 +370,7 @@ export function BotController({
     }
   };
 
-  // Auxiliar para formatar valor monetário
-  const formatCurrency = (value: number | string, currency: string) => {
-    // Garantir que valor é um número
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    
-    // Usar formatação manual para evitar bugs com o currency
-    const formatted = new Intl.NumberFormat('pt-BR', {
-      style: 'decimal',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(numValue);
-    
-    return `${formatted} ${currency}`;
-  };
+  // Não precisamos mais dessa função formatCurrency, já que usamos template string diretamente
   
   // Renderizar botão de início/pausa e informações da conta
   return (
@@ -432,7 +419,7 @@ export function BotController({
               <span className="text-xs text-gray-400">Saldo:</span>
               <span className="text-sm font-bold ml-1.5 text-white">
                 {accountInfo.balance !== undefined && accountInfo.currency 
-                  ? formatCurrency(accountInfo.balance, accountInfo.currency)
+                  ? `${accountInfo.balance.toFixed(2)} ${accountInfo.currency}`
                   : '...'}
               </span>
               {/* Indicador de mudança de saldo */}
