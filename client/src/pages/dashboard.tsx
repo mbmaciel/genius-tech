@@ -4,7 +4,7 @@ import { DerivConnectButton } from "@/components/DerivConnectButton";
 import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
-import { RefreshCw, AlertCircle, Users } from "lucide-react";
+import { RefreshCw, AlertCircle, Users, ChevronDown, Bot } from "lucide-react";
 // Importar o novo componente isolado para o dashboard
 import { DashboardR100Display } from "@/dashboard_exclusive/R100Display";
 import { Button } from "@/components/ui/button";
@@ -361,7 +361,7 @@ export default function Dashboard() {
         {/* Barra superior com seletor de contas e links */}
         <div className="w-full bg-[#13203a] flex justify-between items-center p-2 px-4 space-x-4">
           {/* Seletor de contas - Lado esquerdo */}
-          {isAuthenticated && accountInfo && accounts.length > 0 && (
+          {isAuthenticated && accountInfo && (
             <div className="relative">
               <button
                 onClick={() => setShowAccountOptions(!showAccountOptions)}
@@ -379,7 +379,11 @@ export default function Dashboard() {
                     <h3 className="text-sm text-gray-300">Selecionar Conta</h3>
                   </div>
                   <div className="max-h-60 overflow-y-auto">
-                    {accounts.map((account) => (
+                    {(() => {
+                      // Obter contas do localStorage
+                      const accountsStr = localStorage.getItem('deriv_accounts');
+                      const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+                      return accounts.map((account: any) => (
                       <button
                         key={account.loginid}
                         onClick={() => {
@@ -405,7 +409,8 @@ export default function Dashboard() {
                           {account.balance?.toFixed(2)} {account.currency}
                         </span>
                       </button>
-                    ))}
+                    ));
+                    })()}
                   </div>
                 </div>
               )}
