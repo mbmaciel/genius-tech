@@ -17,12 +17,17 @@ interface DigitData {
   percentage: number;
 }
 
-export function DashboardR100Display() {
+interface DashboardR100DisplayProps {
+  onUpdateDigits?: (digit: number) => void;
+  tickCount?: number;
+}
+
+export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: DashboardR100DisplayProps = {}) {
   // Estado local para este componente apenas
   const [lastDigits, setLastDigits] = useState<number[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [digitStats, setDigitStats] = useState<DigitData[]>([]);
-  const [tickCount, setTickCount] = useState<number>(10);
+  const [localTickCount, setLocalTickCount] = useState<number>(tickCount);
   
   // Efeito para gerenciar a conexão WebSocket
   useEffect(() => {
@@ -40,7 +45,7 @@ export function DashboardR100Display() {
         setLastDigits(prev => {
           const newDigits = [...prev, lastDigit];
           // Manter apenas os últimos N dígitos
-          return newDigits.slice(-parseInt(tickCount.toString()));
+          return newDigits.slice(-parseInt(localTickCount.toString()));
         });
       }
     };
@@ -63,7 +68,7 @@ export function DashboardR100Display() {
       dashboardWebSocket.unsubscribeTicks('R_100');
       clearInterval(connectionCheck);
     };
-  }, [tickCount]);
+  }, [localTickCount]);
   
   // Efeito para calcular estatísticas dos dígitos
   useEffect(() => {
@@ -102,7 +107,7 @@ export function DashboardR100Display() {
   // Manipulador para mudança na quantidade de ticks
   const handleTicksChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newTicks = parseInt(e.target.value);
-    setTickCount(newTicks);
+    setLocalTickCount(newTicks);
     // Limitar os dígitos existentes ao novo valor
     setLastDigits((prev) => prev.slice(-newTicks));
   };
@@ -113,7 +118,7 @@ export function DashboardR100Display() {
         <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
         <select 
           className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
-          value={tickCount}
+          value={localTickCount}
           onChange={handleTicksChange}
         >
           <option value="10">10 Ticks</option>

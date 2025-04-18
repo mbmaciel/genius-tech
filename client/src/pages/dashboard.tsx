@@ -4,7 +4,7 @@ import { DerivConnectButton } from "@/components/DerivConnectButton";
 import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, Users } from "lucide-react";
 // Importar o novo componente isolado para o dashboard
 import { DashboardR100Display } from "@/dashboard_exclusive/R100Display";
 import { Button } from "@/components/ui/button";
