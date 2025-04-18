@@ -101,36 +101,118 @@ export default function Dashboard() {
     }
   }, [toast]);
   
-  // Efeito para verificar se já existe uma sessão autenticada - executado quando startBalanceSubscription muda
+  // Efeito para verificar se já existe uma sessão autenticada e carregar a conta ativa atual
+  // Este efeito é CRÍTICO para garantir que a interface mostre a conta correta após a troca
   useEffect(() => {
-    const storedToken = localStorage.getItem('deriv_token');
-    const storedAccountInfo = localStorage.getItem('deriv_account_info');
-    const storedOAuthToken = localStorage.getItem('deriv_oauth_token');
-    
-    if (storedToken && storedAccountInfo) {
+    // Função para carregar a conta ativa atual
+    const loadActiveAccount = () => {
       try {
-        const parsedAccountInfo = JSON.parse(storedAccountInfo);
-        setIsAuthenticated(true);
-        setAccountInfo(parsedAccountInfo);
+        console.log('[DASHBOARD] Obtendo informações atualizadas da conta ativa...');
         
-        // Verificar e registrar a presença do token OAuth para debug
+        // 1. Verificar se temos um token OAuth primeiro (autenticação principal)
+        const storedOAuthToken = localStorage.getItem('deriv_oauth_token');
+        
         if (storedOAuthToken) {
           console.log('[DASHBOARD] Token OAuth encontrado:', storedOAuthToken.substring(0, 10) + '...');
+          setIsAuthenticated(true);
+          
+          // 2. Obter o ID da conta ativa do localStorage (definido durante a troca de conta)
+          const activeLoginId = localStorage.getItem('deriv_active_loginid');
+          console.log('[DASHBOARD] ID da conta ativa no localStorage:', activeLoginId);
+          
+          if (activeLoginId) {
+            // 3. Obter as contas disponíveis
+            const storedAccounts = localStorage.getItem('deriv_accounts');
+            
+            if (storedAccounts) {
+              const accounts = JSON.parse(storedAccounts);
+              console.log('[DASHBOARD] Contas disponíveis:', accounts.map((acc: any) => acc.loginid));
+              
+              // Procurar a conta ativa pelo ID
+              const activeAccount = accounts.find((acc: any) => acc.loginid === activeLoginId);
+              
+              if (activeAccount) {
+                console.log(`[DASHBOARD] Conta ativa encontrada: ${activeAccount.loginid} (${activeAccount.currency})`);
+                
+                // IMPORTANTE: Atualizar as informações da conta no estado
+                setAccountInfo({
+                  ...activeAccount,
+                  // Garantir que os campos obrigatórios estejam presentes
+                  isVirtual: activeAccount.is_virtual || activeAccount.isVirtual,
+                  balance: activeAccount.balance || 0
+                });
+                
+                // Iniciar a assinatura de saldo para a conta ativa
+                startBalanceSubscription(activeLoginId);
+                return; // Saímos depois de lidar com sucesso
+              } else {
+                console.warn(`[DASHBOARD] Conta ativa ${activeLoginId} não encontrada nas contas armazenadas`);
+              }
+            }
+          }
+          
+          // 4. Fallback: Tentar usar informações de conta armazenadas diretamente
+          const storedAccountInfo = localStorage.getItem('deriv_account_info');
+          if (storedAccountInfo) {
+            try {
+              const parsedAccountInfo = JSON.parse(storedAccountInfo);
+              console.log('[DASHBOARD] Usando dados da conta armazenados diretamente');
+              setAccountInfo(parsedAccountInfo);
+              
+              // Iniciar a assinatura de saldo
+              if (parsedAccountInfo && parsedAccountInfo.loginid) {
+                startBalanceSubscription(parsedAccountInfo.loginid);
+              }
+            } catch (error) {
+              console.error('[DASHBOARD] Erro ao processar dados de conta armazenados:', error);
+            }
+          }
         } else {
           console.log('[DASHBOARD] Alerta: Token OAuth não encontrado. Operações de trading não funcionarão.');
-        }
-        
-        // Iniciar a assinatura de saldo em tempo real
-        if (parsedAccountInfo && parsedAccountInfo.loginid) {
-          // Sem efetuar nova chamada se já foi montado uma vez
-          if (!balanceUpdateRef.current) {
-            startBalanceSubscription(parsedAccountInfo.loginid);
+          
+          // Verificar token tradicional como fallback
+          const storedToken = localStorage.getItem('deriv_token');
+          const storedAccountInfo = localStorage.getItem('deriv_account_info');
+          
+          if (storedToken && storedAccountInfo) {
+            try {
+              const parsedAccountInfo = JSON.parse(storedAccountInfo);
+              setIsAuthenticated(true);
+              setAccountInfo(parsedAccountInfo);
+              
+              // Iniciar a assinatura de saldo em tempo real
+              if (parsedAccountInfo && parsedAccountInfo.loginid) {
+                startBalanceSubscription(parsedAccountInfo.loginid);
+              }
+            } catch (error) {
+              console.error('[DASHBOARD] Erro ao processar dados de conta armazenados:', error);
+            }
           }
         }
       } catch (error) {
-        console.error('Erro ao processar dados de conta armazenados:', error);
+        console.error('[DASHBOARD] Erro ao carregar informações da conta:', error);
       }
-    }
+    };
+    
+    // Carregar a conta ativa
+    loadActiveAccount();
+    
+    // Adicionar detector de evento para mudanças forçadas de conta
+    const handleForceUpdate = () => {
+      console.log('[DASHBOARD] Evento de atualização forçada detectado');
+      loadActiveAccount();
+    };
+    
+    // Registrar listener para eventos de atualização forçada
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'deriv_active_loginid' || event.key === 'account_switch_timestamp') {
+        handleForceUpdate();
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('storage', handleForceUpdate);
+    };
   }, [startBalanceSubscription]); // Depende da função de assinatura
 
   // Iniciar a conexão WebSocket quando o componente for montado
@@ -255,6 +337,13 @@ export default function Dashboard() {
       localStorage.setItem('account_switch_timestamp', Date.now().toString());
       localStorage.setItem('force_reconnect', 'true');
       
+      // CRÍTICO: Atualizar as informações da conta no estado do componente
+      // Isso garante que se o recarregamento não funcionar, a interface mostrará a conta correta
+      setAccountInfo({
+        ...account,
+        token: token
+      });
+      
       // Criar objeto com informações da conta ativa
       const activeAccountData = {
         loginid: account.loginid,
@@ -267,6 +356,15 @@ export default function Dashboard() {
       
       // Salvar como conta ativa
       localStorage.setItem('deriv_active_account', JSON.stringify(activeAccountData));
+      
+      // Disparar evento personalizado para notificar o sistema da troca de conta
+      const switchEvent = new CustomEvent('deriv:account_switched', {
+        detail: {
+          loginid: account.loginid,
+          timestamp: Date.now()
+        }
+      });
+      document.dispatchEvent(switchEvent);
       
       // Mostrar tela de carregamento ao trocar conta
       const loadingElement = document.createElement('div');

@@ -88,9 +88,60 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                   console.error(`[OAUTH_DIRECT] Falha ao validar token da conta ${accountId}`);
                 }
               })
-              .catch(error => {
-                console.error('[OAUTH_DIRECT] Erro ao reconectar após troca de conta:', error);
-              });
+          }
+        }
+      }
+    };
+    
+    // Handler para o evento personalizado de troca de conta
+    const handleAccountSwitchedEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.loginid) {
+        const loginid = customEvent.detail.loginid;
+        console.log(`[OAUTH_DIRECT] Evento personalizado de troca de conta detectado: ${loginid}`);
+        
+        // Forçar recarregamento de tokens
+        this.loadAllTokens();
+        
+        // Verificar se a conta ativa foi atualizada
+        const activeLoginId = localStorage.getItem('deriv_active_loginid');
+        if (activeLoginId === loginid) {
+          console.log(`[OAUTH_DIRECT] Verificada troca para conta ${loginid} no localStorage`);
+          
+          // Obter novo token
+          const oauthToken = localStorage.getItem('deriv_oauth_token');
+          if (oauthToken) {
+            // Atualizar token ativo
+            this.activeToken = oauthToken;
+            
+            // Procurar na lista de tokens
+            const tokenInfo = this.tokens.find(t => t.loginid === loginid);
+            if (tokenInfo) {
+              // Marcar como primário
+              tokenInfo.primary = true;
+              
+              // Forçar reconexão com o novo token
+              if (this.isRunning) {
+                console.log(`[OAUTH_DIRECT] Reconectando com novo token após troca de conta...`);
+                this.reconnect()
+                  .then(success => {
+                    if (success) {
+                      console.log(`[OAUTH_DIRECT] Reconexão após troca de conta bem-sucedida`);
+                      // Notificar listeners
+                      this.notifyListeners({
+                        type: 'account_changed',
+                        message: `Conta alterada para ${loginid}`,
+                        loginid: loginid
+                      });
+                    } else {
+                      console.error(`[OAUTH_DIRECT] Falha na reconexão após troca de conta`);
+                    }
+                  })
+                  .catch(error => {
+                    console.error(`[OAUTH_DIRECT] Erro na reconexão após troca de conta:`, error);
+                  });
+              }
+            }
           }
         }
       }
@@ -182,7 +233,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // Registrar handlers para os eventos customizados
     document.addEventListener('deriv:oauth_account_switch', handleAccountSwitch as EventListener);
-    document.addEventListener('deriv:account_switched', handleAccountSwitch as EventListener);
+    document.addEventListener('deriv:account_switched', handleAccountSwitchedEvent as EventListener);
     document.addEventListener('deriv:force_token_update', handleForceTokenUpdate as EventListener);
   }
   
