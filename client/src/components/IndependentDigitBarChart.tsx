@@ -134,7 +134,7 @@ export function IndependentDigitBarChart({
   // Atualizar dados periodicamente
   useEffect(() => {
     // Intervalo rápido para melhor sensação de tempo real
-    const REFRESH_INTERVAL = 500; // ms - aumentado para reduzir carga
+    const REFRESH_INTERVAL = 200; // ms - mais rápido para melhor responsividade
     let interval: NodeJS.Timeout;
     
     // Referência para verificar se componente ainda está montado
@@ -143,38 +143,51 @@ export function IndependentDigitBarChart({
     // Função que força atualização completa dos dados e re-renderização
     const forceRender = () => {
       try {
-        if (!symbol || loading || !isMounted.current) return;
+        if (!symbol || !isMounted.current) return;
         
         // Obter os dados mais recentes do serviço WebSocket
         const currentData = independentDerivService.getDigitHistory(symbol);
         
         if (currentData && currentData.stats && currentData.stats.length > 0) {
-          // IMPORTANTE: Forçar incremento do contador de versão para substituir completamente os componentes
-          // NÃO devemos usar renderVersion diretamente no log pois causa loop infinito
-          const nextVersion = renderVersion + 1;
-          setRenderVersion(nextVersion);
+          // Incrementar contador de versão para forçar re-renderização completa
+          // A cada 100 atualizações, resetamos para 1 para evitar números muito grandes
+          const nextVersion = renderVersion >= 10000 ? 1 : Math.max(renderVersion, 0) + 1;
           
-          // Criar novos objetos para cada estatística para evitar referências compartilhadas
+          // Forçar criação de novos objetos com estrutura idêntica
+          // Isso garante que o React detecte as mudanças e atualize a UI
           const freshStats = currentData.stats.map(stat => ({
             digit: stat.digit,
             count: stat.count,
             percentage: stat.percentage
           }));
           
-          // Atualizar estado com objetos completamente novos
-          setDigitHistory({
-            ...currentData, 
+          // Sempre atualizar se temos estatísticas (para garantir que o gráfico esteja atualizado)
+          // Criar um objeto completamente novo sem referências ao anterior
+          const newHistory = {
+            symbol: currentData.symbol,
             stats: freshStats,
             lastDigits: [...currentData.lastDigits],
+            totalSamples: currentData.totalSamples,
             lastUpdated: new Date()
-          });
+          };
           
-          // Atualizar sequência de dígitos
+          // Define os novos estados (cada um separadamente para garantir a atualização)
+          setDigitHistory(newHistory);
           setLastDigits([...currentData.lastDigits].slice(-10).reverse());
           
-          // Log detalhado dos percentuais para debug - usar nextVersion para evitar dependência circular
-          console.log(`[DigitBarChart] Atualização v${nextVersion}:`, 
-            freshStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+          // Forçar a re-renderização completa
+          setRenderVersion(nextVersion);
+          
+          // Log mais visível para debug (a cada 10 atualizações para não poluir o console)
+          if (nextVersion % 10 === 0) {
+            console.log(`[DigitBarChart] ▶▶▶ Atualização v${nextVersion}:`, 
+              freshStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+          }
+          
+          // Atualizar o estado de carregamento se necessário
+          if (loading) {
+            setLoading(false);
+          }
         }
       } catch (err) {
         console.error('[DigitBarChart] Erro ao atualizar:', err);
@@ -192,7 +205,7 @@ export function IndependentDigitBarChart({
       isMounted.current = false;
       if (interval) clearInterval(interval);
     };
-  }, [symbol, loading]); // Removido renderVersion da lista de dependências para evitar loop infinito
+  }, [symbol, selectedCount]); // Adicionado selectedCount para reagir a mudanças neste valor
   
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
   const getBarColor = (digit: number): string => {
@@ -273,32 +286,55 @@ export function IndependentDigitBarChart({
             {renderVersion && digitHistory?.stats ? 
               // Mapear cada estatística para uma barra - key baseada no renderVersion para recriação completa
               digitHistory.stats.map((stat) => {
-                // Calcular a altura visual baseada no percentual - usando escala fixa para melhor visualização
-                const barHeight = Math.max(5, (stat.percentage / 7) * 100); // Divisor 7 para fazer barras de ~10% mais visíveis
-                const barColor = stat.digit % 2 === 0 ? '#00e5b3' : '#ff444f';
+                // Determinar se o dígito tem uma frequência alta ou baixa para destacar visualmente
+                const isHighFrequency = stat.percentage >= 15;
+                const isLowFrequency = stat.percentage <= 5;
+                
+                // Calcular a altura visual baseada no percentual (com um mínimo visual)
+                // Usamos um divisor menor para barras maiores, mais visíveis
+                const barHeight = Math.max(5, (stat.percentage / 6) * 100); 
+                
+                // Determinar a cor da barra baseada em características do dígito
+                let barColor;
+                if (isHighFrequency) {
+                  barColor = '#ff444f'; // Vermelho para alta frequência
+                } else if (isLowFrequency) {
+                  barColor = '#00e5b3'; // Verde para baixa frequência
+                } else {
+                  barColor = stat.digit % 2 === 0 ? '#3a96dd' : '#f87537'; // Azul para pares, laranja para ímpares
+                }
+                
+                // Texto destacado para valores extremos
+                const percentText = isHighFrequency ? 'text-[#ff444f] font-bold' : 
+                                   isLowFrequency ? 'text-[#00e5b3] font-bold' : 'text-white';
                 
                 return (
                   <div 
-                    key={`bar-${stat.digit}-v${renderVersion}`} 
+                    // Força recriação do componente a cada versão
+                    key={`bar-${stat.digit}-v${renderVersion}-${stat.percentage}`} 
                     className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]"
                   >
                     {/* Percentual acima da barra */}
-                    <div className="text-xs font-bold text-white mb-1">
+                    <div className={`text-xs font-bold ${percentText} mb-1`}>
                       {stat.percentage}%
                     </div>
                     
-                    {/* Barra com altura dinâmica */}
+                    {/* Barra com altura dinâmica e efeitos visuais */}
                     <div style={{
                       height: `${barHeight}%`,
                       backgroundColor: barColor,
                       width: '100%',
                       minHeight: '15px',
-                      transition: 'none', // Sem transição para garantir a mudança imediata
-                      borderRadius: '2px 2px 0 0'
+                      transition: 'height 0.1s ease-out', // Transição suave mas rápida
+                      borderRadius: '2px 2px 0 0',
+                      boxShadow: isHighFrequency || isLowFrequency ? '0 0 5px 0 rgba(255,255,255,0.2)' : 'none'
                     }}></div>
                     
                     {/* Dígito abaixo da barra */}
-                    <div className="mt-2 text-center text-sm font-medium text-white">
+                    <div className={`mt-2 text-center text-sm font-medium ${
+                      isHighFrequency ? 'text-[#ff444f]' : 
+                      isLowFrequency ? 'text-[#00e5b3]' : 'text-white'
+                    }`}>
                       {stat.digit}
                     </div>
                   </div>
