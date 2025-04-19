@@ -875,14 +875,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     if (symbol && symbol !== this.activeSymbol) {
       this.activeSymbol = symbol;
       console.log(`[OAUTH_DIRECT] Símbolo ativo atualizado para: ${symbol}`);
+      
+      // Somente notificar outros componentes se o símbolo realmente mudou
+      this.notifyListeners({
+        type: 'symbol_update',
+        symbol: this.activeSymbol,
+        message: `Símbolo ativo: ${this.activeSymbol}`
+      });
     }
-    
-    // Também notificar outros componentes sobre o símbolo atual via evento
-    this.notifyListeners({
-      type: 'symbol_update',
-      symbol: this.activeSymbol,
-      message: `Símbolo ativo: ${this.activeSymbol}`
-    });
     
     // Verificar se o WebSocket está disponível
     if (!this.webSocket) {

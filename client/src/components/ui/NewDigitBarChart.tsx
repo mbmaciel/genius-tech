@@ -207,9 +207,10 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
         // Se não conseguir do derivHistoryService, tente obter diretamente do oauthDirectService
         console.log(`[NewDigitBarChart] Solicitando ticks direto do oauthDirectService para ${symbol}`);
         
-        // Garantir que estamos inscritos nos ticks
-        if (oauthDirectService) {
+        // Garantir que estamos inscritos nos ticks (apenas uma vez)
+        if (oauthDirectService && !hasSubscribed.current) {
           oauthDirectService.subscribeToTicks(symbol);
+          hasSubscribed.current = true;
         }
         
         setError("Obtendo novos dados de mercado...");
