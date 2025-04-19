@@ -322,11 +322,15 @@ class IndependentDerivService {
     
     if (!history) {
       // Criar histórico vazio para o símbolo se não existir
-      const stats = Array.from({ length: 10 }, (_, digit) => ({
-        digit,
-        count: digit === lastDigit ? 1 : 0,
-        percentage: digit === lastDigit ? 100 : 0
-      }));
+      // Garantir que temos estatísticas para todos os dígitos (0-9)
+      const stats = [];
+      for (let i = 0; i <= 9; i++) {
+        stats.push({
+          digit: i,
+          count: i === lastDigit ? 1 : 0,
+          percentage: i === lastDigit ? 100 : 0
+        });
+      }
       
       this.digitHistories.set(symbol, {
         stats,

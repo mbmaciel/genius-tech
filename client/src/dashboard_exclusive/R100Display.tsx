@@ -30,6 +30,11 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   const [digitStats, setDigitStats] = useState<DigitData[]>([]);
   const [localTickCount, setLocalTickCount] = useState<string>(tickCount.toString());
   
+  // DEBUG - mostrar valores no console
+  useEffect(() => {
+    console.log("[DashboardR100Display] Componente inicializado com tickCount:", tickCount);
+  }, []);
+  
   // Efeito para gerenciar a conexão WebSocket
   useEffect(() => {
     // Função para processar ticks do R_100
