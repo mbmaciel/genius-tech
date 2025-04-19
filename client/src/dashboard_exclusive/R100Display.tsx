@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { dashboardWebSocket, DashboardTickEvent } from "./dashboardWebSocket";
+import { RealtimeDigitBarChart } from "../components/RealtimeDigitBarChart";
 
 // Dados estruturados para estatística de dígitos
 interface DigitData {

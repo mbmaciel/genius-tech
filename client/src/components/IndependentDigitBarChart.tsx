@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   Select, 
   SelectContent, 
@@ -6,7 +6,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { independentDerivService, DigitHistory } from '../services/independent-deriv-service';
 
 interface IndependentDigitBarChartProps {
@@ -42,9 +42,29 @@ export function IndependentDigitBarChart({
         console.log('[IndependentDigitBarChart] Recebido atualização do histórico com', 
                     data.lastDigits.length, 'dígitos e', 
                     data.stats?.length || 0, 'estatísticas');
+        
+        // Log detalhado dos percentuais para debug        
+        console.log('[IndependentDigitBarChart] DADOS ATUALIZADOS:', 
+          data.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
                     
-        // Converter em novo objeto para forçar re-render
-        setDigitHistory({...data});
+        // IMPORTANTE: Forçar incremento do renderVersion para garantir re-renderização
+        setRenderVersion(prev => prev + 1);
+        
+        // Criar novos objetos para forçar re-render
+        const newStats = data.stats.map(stat => ({
+          digit: stat.digit,
+          count: stat.count,
+          percentage: stat.percentage
+        }));
+        
+        // Converter em novo objeto para forçar re-render (usando cópia profunda)
+        setDigitHistory({
+          symbol: data.symbol,
+          stats: newStats,
+          lastDigits: [...data.lastDigits],
+          totalSamples: data.totalSamples,
+          lastUpdated: new Date()
+        });
         
         // Atualizar últimos dígitos (mostrar apenas os 10 mais recentes)
         const digits = [...data.lastDigits];
@@ -215,8 +235,19 @@ export function IndependentDigitBarChart({
       : 'bg-[#ff444f]';   // Dígitos ímpares em vermelho (usando o tom exato da imagem)
   };
   
+  // Função para criar a versão de renderização única do componente (para forçar re-render)
+  const renderKey = `${symbol}-v${renderVersion}-${digitHistory?.lastUpdated?.getTime() || 0}`;
+  
+  // Para debug
+  React.useEffect(() => {
+    console.log(`[IndependentDigitBarChart] Renderizando com chave: ${renderKey}`);
+  }, [renderKey]);
+  
   return (
-    <div className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}>
+    <div 
+      key={renderKey}
+      className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}
+    >
       {/* Header com título e controles */}
       <div className="p-3 bg-[#0e1a2e] border-b border-[#232e47] flex justify-between items-center">
         <div className="flex items-center">
@@ -236,7 +267,15 @@ export function IndependentDigitBarChart({
         {/* Controles de seleção (opcional) */}
         {showControls && (
           <div className="flex items-center ml-2">
-            <Select value={selectedCount} onValueChange={setSelectedCount}>
+            <Select 
+              value={selectedCount} 
+              onValueChange={(value) => {
+                console.log(`[IndependentDigitBarChart] Alterando seleção para: ${value}`);
+                setSelectedCount(value);
+                // Forçar atualização completa ao alterar o número de ticks
+                setRenderVersion(prev => prev + 1);
+              }}
+            >
               <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
                 <SelectValue placeholder="100" />
               </SelectTrigger>
