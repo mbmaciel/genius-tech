@@ -1,442 +1,230 @@
-import React, { useEffect, useState } from 'react';
-import { oauthDirectService } from '@/services/oauthDirectService';
-import { derivHistoryService } from '@/services/deriv-history-service';
-import { Loader2 } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import React, { useState, useEffect, useRef } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { oauthDirectService } from "@/services/oauthDirectService";
 
 interface DigitBarChartProps {
   symbol?: string;
   className?: string;
 }
 
-interface DigitStat {
-  digit: number;
-  count: number;
-  percentage: number;
-}
-
-export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChartProps) {
-  // Estados
+export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChartProps) {
+  // Estado para armazenar os dígitos históricos (até 500)
   const [digits, setDigits] = useState<number[]>([]);
-  const [digitStats, setDigitStats] = useState<DigitStat[]>(
-    Array.from({ length: 10 }, (_, i) => ({ digit: i, count: 0, percentage: 0 }))
-  );
-  const [selectedCount, setSelectedCount] = useState<string>("500");
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [renderKey, setRenderKey] = useState<number>(0);
-  const [lastDigit, setLastDigit] = useState<number | null>(null); // Guardar o último dígito recebido
-  const [showLastDigit, setShowLastDigit] = useState<boolean>(true); // Controlar exibição
+  
+  // Estado para armazenar a contagem e porcentagem de cada dígito
+  const [digitStats, setDigitStats] = useState<{
+    digit: number;
+    count: number;
+    percentage: number;
+    color: string;
+  }[]>(Array.from({ length: 10 }, (_, i) => ({
+    digit: i,
+    count: 0,
+    percentage: 0,
+    color: getDigitColor(i)
+  })));
+  
+  // Quantidade de ticks a serem considerados para o cálculo (25, 50, 100, 200, 250, 500)
+  const [ticksCount, setTicksCount] = useState<string>("50");
+  
+  // Referência para verificar se o componente está montado
+  const isMounted = useRef(true);
 
-  // Buscar histórico de ticks no carregamento
+  // Últimos dígitos mostrados na sequência abaixo do gráfico
+  const [lastSequence, setLastSequence] = useState<number[]>([]);
+
+  // Função para determinar a cor do dígito
+  function getDigitColor(digit: number): string {
+    // Vermelho para dígitos ímpares (1, 3, 5, 7, 9)
+    if (digit % 2 !== 0) {
+      return '#F43F5E'; // Vermelho
+    }
+    // Verde para dígitos pares (0, 2, 4, 6, 8)
+    return '#10B981'; // Verde
+  }
+  
+  // Função para buscar o histórico dos últimos 500 ticks
   const fetchTicksHistory = async () => {
     try {
-      setLoading(true);
-      // O método getFullTicksHistory não existe, então vamos começar com array vazio
-      // e construir histórico a partir de ticks recebidos em tempo real
-      setDigits([]);
+      console.log('[DigitBarChart] Solicitando histórico de 500 ticks para', symbol);
       
-      // Inicializar com estatísticas vazias
-      const emptyStats = Array.from({ length: 10 }, (_, i) => ({ 
-        digit: i, count: 0, percentage: 0 
-      }));
-      setDigitStats(emptyStats);
+      // Usar o serviço OAuth direto para solicitar o histórico de ticks
+      const history = await oauthDirectService.getTicksHistory(symbol, 500);
       
-      console.log(`[DigitBarChart] Iniciando coleta de ticks em tempo real para ${symbol}`);
-      // Permitir que o componente inicie mesmo sem histórico inicial
-      setLoading(false);
-    } catch (err) {
-      console.error("[DigitBarChart] Erro ao inicializar:", err);
-      setError("Erro ao inicializar componente");
-      setLoading(false);
+      if (history && history.history && Array.isArray(history.history.prices)) {
+        // Extrair apenas o último dígito de cada preço
+        const historyDigits = history.history.prices.map(price => {
+          // Converter para string, pegar o último caractere e converter de volta para número
+          const priceStr = price.toString();
+          return parseInt(priceStr.charAt(priceStr.length - 1));
+        });
+        
+        console.log(`[DigitBarChart] Histórico recebido com ${historyDigits.length} ticks para ${symbol}`);
+        
+        if (isMounted.current) {
+          setDigits(historyDigits);
+          updateDigitStats(historyDigits, parseInt(ticksCount));
+          // Atualizar a sequência de dígitos (últimos 15 dígitos, do mais recente para o mais antigo)
+          setLastSequence(historyDigits.slice(0, 15).reverse());
+        }
+      } else {
+        console.error('[DigitBarChart] Formato de histórico inválido:', history);
+      }
+    } catch (error) {
+      console.error('[DigitBarChart] Erro ao buscar histórico de ticks:', error);
     }
   };
 
-  // Função para calcular estatísticas dos dígitos
-  const calculateStats = (historyDigits: number[]) => {
-    const limit = parseInt(selectedCount);
-    const digitsToAnalyze = historyDigits.slice(0, limit);
-    const counts = Array(10).fill(0);
+  // Função para atualizar as estatísticas dos dígitos
+  const updateDigitStats = (allDigits: number[], count: number) => {
+    // Pegar apenas a quantidade de dígitos selecionada
+    const selectedDigits = allDigits.slice(0, count);
     
-    digitsToAnalyze.forEach(digit => {
+    // Inicializar contagens para cada dígito (0-9)
+    const digitCounts = Array(10).fill(0);
+    
+    // Contar a frequência de cada dígito
+    selectedDigits.forEach(digit => {
       if (digit >= 0 && digit <= 9) {
-        counts[digit]++;
+        digitCounts[digit]++;
       }
     });
     
-    const total = digitsToAnalyze.length;
+    // Total de dígitos analisados
+    const totalDigits = selectedDigits.length;
     
-    const newStats = counts.map((count, digit) => {
-      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-      return { digit, count, percentage };
+    // Atualizar as estatísticas
+    const updatedStats = digitCounts.map((count, digit) => {
+      const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
+      return {
+        digit,
+        count,
+        percentage,
+        color: getDigitColor(digit)
+      };
     });
     
-    setDigitStats(newStats);
-    // Forçar renderização com nova chave
-    setRenderKey(prev => prev + 1);
+    setDigitStats(updatedStats);
   };
-
-  // Adicionar novo dígito recebido em tempo real
-  const addNewDigit = (newDigit: number) => {
-    setDigits(prev => {
-      const updated = [newDigit, ...prev].slice(0, 500);
-      calculateStats(updated);
-      return updated;
-    });
-  };
-
-  // Recalcular quando a seleção mudar
+  
+  // Efeito para buscar o histórico de ticks quando o componente montar
   useEffect(() => {
-    if (digits.length > 0) {
-      calculateStats(digits);
-    }
-  }, [selectedCount]);
-
-  // Inicializar dados e configurar listener para ticks em tempo real
-  useEffect(() => {
-    // Buscar histórico inicial
     fetchTicksHistory();
     
-    // Função para atualizar os dados
-    const updateDigitData = () => {
-      console.log('[DigitBarChart] Atualizando dados de dígitos...');
-      
-      try {
-        // Obter dados do serviço de histórico
-        const historyData = derivHistoryService.getDigitStats(symbol);
-        
-        if (historyData && historyData.lastDigits) {
-          // Obter array de dígitos
-          const tickHistory = historyData.lastDigits;
-          const count = parseInt(selectedCount);
-          
-          // Pegar apenas os dígitos mais recentes conforme a quantidade selecionada
-          const recentDigits = tickHistory.slice(0, count);
-          
-          if (recentDigits.length > 0) {
-            console.log(`[DigitBarChart] Recebidos ${recentDigits.length} dígitos para ${symbol}`);
-            
-            // Atualizar histórico completo
-            setDigits(recentDigits);
-            
-            // Calcular estatísticas a partir do histórico
-            calculateStats(recentDigits);
-            setLoading(false);
-          } else {
-            console.log('[DigitBarChart] Sem dígitos recentes disponíveis');
-          }
-        } else {
-          console.log(`[DigitBarChart] Sem dados de histórico para ${symbol}`);
-        }
-      } catch (err) {
-        console.error('[DigitBarChart] Erro ao atualizar dados:', err);
-      }
-    };
-    
-    // Garantir que estamos inscritos para os ticks via OAuth
-    if (oauthDirectService && typeof oauthDirectService.subscribeToTicks === 'function') {
-      console.log(`[DigitBarChart] Inscrevendo-se para ticks de ${symbol} via OAuth`);
-      oauthDirectService.subscribeToTicks(symbol);
-    }
-    
-    // Adicionar listener para o serviço de histórico
-    const historyListener = (data: any) => {
-      if (data && data.lastDigits && data.lastDigits.length > 0) {
-        // Guardar o último dígito para destacar na UI
-        if (data.lastDigits[0] !== undefined) {
-          setLastDigit(data.lastDigits[0]);
-          
-          // Resetar a exibição do dígito após 3 segundos
-          setShowLastDigit(true);
-          setTimeout(() => {
-            setShowLastDigit(false);
-          }, 3000);
-        }
-        
-        setDigits(data.lastDigits);
-        calculateStats(data.lastDigits.slice(0, parseInt(selectedCount)));
-      }
-    };
-    
-    // Adicionar listener para ticks do OAuth diretamente
-    const tickListener = (event: CustomEvent) => {
-      try {
-        // Acessar diretamente a mensagem recebida
-        const message = event.detail?.tick || event.detail;
-        
-        // Extrair o último dígito
-        let lastDigitValue = null;
-        
-        // Verificar se temos o formato de log da aplicação (OAUTH_DIRECT com último dígito)
-        if (message && typeof message === 'string' && message.includes('Último dígito:')) {
-          const match = message.match(/Último dígito: (\d)/);
-          if (match && match[1]) {
-            lastDigitValue = parseInt(match[1]);
-            console.log(`[DigitBarChart] Dígito extraído dos logs: ${lastDigitValue}`);
-          }
-        }
-        // Verificar formato normal da API
-        else if (message && message.quote) {
-          // Verificar se é o formato esperado
-          const quote = message.quote.toString();
-          const lastChar = quote.charAt(quote.length - 1);
-          lastDigitValue = parseInt(lastChar);
-          console.log(`[DigitBarChart] Dígito extraído da cotação: ${lastDigitValue}`);
-        } 
-        // Verificar formato da API quando vem dentro de tick
-        else if (message && message.tick && message.tick.quote) {
-          const quote = message.tick.quote.toString();
-          const lastChar = quote.charAt(quote.length - 1);
-          lastDigitValue = parseInt(lastChar);
-          console.log(`[DigitBarChart] Dígito extraído do tick.quote: ${lastDigitValue}`);
-        }
-        // Para depuração: mostrar formato do tick recebido
-        else if (message) {
-          console.log('[DigitBarChart] Formato de tick recebido:', typeof message === 'object' ? JSON.stringify(message) : message);
-        }
-        
-        // Se conseguimos extrair um dígito válido
-        if (lastDigitValue !== null && !isNaN(lastDigitValue) && lastDigitValue >= 0 && lastDigitValue <= 9) {
-          // Atualizar o estado do componente
-          setLastDigit(lastDigitValue);
-          setShowLastDigit(true);
-          
-          // Resetar o estado após 3 segundos
-          setTimeout(() => {
-            setShowLastDigit(false);
-          }, 3000);
-        }
-      } catch (err) {
-        console.error('[DigitBarChart] Erro ao processar tick:', err);
-      }
-    };
-    
-    // Registrar para todos os eventos possíveis que possam conter ticks
-    window.addEventListener('oauthTick', tickListener as EventListener);
-    
-    // Registro personalizado para capturar eventos diretamente do módulo OAuth
-    document.addEventListener('tick', tickListener as EventListener);
-    
-    // Criar um método de acesso direto ao serviço através de uma função personalizada
-    console.log('[DigitBarChart] Configurando monitoramento direto de ticks');
-    
-    // Configurar um evento personalizado para capturar ticks
-    const tickEventName = 'digitBarChartTick';
-    
-    // Adicionar listener para ticks diretos da API
-    window.addEventListener(tickEventName, ((event: CustomEvent) => {
-      if (event.detail && event.detail.digit !== undefined) {
-        const digit = event.detail.digit;
-        console.log(`[DigitBarChart] Novo tick personalizado capturado: ${digit}`);
-        setLastDigit(digit);
-        setShowLastDigit(true);
-        setTimeout(() => setShowLastDigit(false), 3000);
-      }
-    }) as EventListener);
-    
-    // Criar um proxy para capturar as chamadas WebSocket
-    if (window.WebSocket) {
-      console.log('[DigitBarChart] Configurando proxy WebSocket para monitorar ticks');
-      
-      // Função para analisar mensagens da API Deriv
-      const parseDerivMessage = (data: string) => {
-        try {
-          const message = JSON.parse(data);
-          if (message && message.tick && message.tick.quote) {
-            const quote = message.tick.quote.toString();
-            const lastChar = quote.charAt(quote.length - 1);
-            const digit = parseInt(lastChar);
-            
-            if (!isNaN(digit) && digit >= 0 && digit <= 9) {
-              // Disparar evento personalizado com o dígito
-              window.dispatchEvent(new CustomEvent(tickEventName, { 
-                detail: { digit, symbol: message.tick.symbol } 
-              }));
-            }
-          }
-        } catch (e) {
-          // Ignorar erros de parsing
-        }
-      };
-    }
-    
-    // Registrar no serviço de histórico
-    derivHistoryService.addListener(historyListener, symbol);
-    
-    // Configurar atualização periódica dos ticks
-    const tickUpdateInterval = setInterval(updateDigitData, 1000);
-    
-    // Reforçar atualização periódica da interface
-    const forceUpdateInterval = setInterval(() => {
-      setRenderKey(prev => prev + 1);
-    }, 1000);
-    
-    // Método específico para exibir o dígito mais recente a partir dos dados armazenados
-    const manualForceDigitUpdate = () => {
-      // Buscar o último dígito dos dados disponíveis
-      if (digits.length > 0) {
-        const lastDigitFromHistory = digits[0];
-        console.log(`[DigitBarChart] Atualizando último dígito manualmente: ${lastDigitFromHistory}`);
-        setLastDigit(lastDigitFromHistory);
-        setShowLastDigit(true);
-        setTimeout(() => setShowLastDigit(false), 3000);
-      }
-    };
-    
-    // Programar para acionar a cada 2 segundos para garantir a atualização
-    const manualCheckInterval = setInterval(manualForceDigitUpdate, 2000);
-    
+    // Limpar quando o componente desmontar
     return () => {
-      // Limpar intervalos e desregistrar listeners
-      derivHistoryService.removeListener(historyListener);
-      window.removeEventListener('oauthTick', tickListener as EventListener);
-      document.removeEventListener('tick', tickListener as EventListener);
-      
-      // Remover eventos personalizados
-      window.removeEventListener('digitBarChartTick', ((event) => {}) as EventListener);
-      
-      clearInterval(tickUpdateInterval);
-      clearInterval(forceUpdateInterval);
-      clearInterval(manualCheckInterval);
+      isMounted.current = false;
     };
-  }, [symbol, selectedCount]);
-
-  return (
-    <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
-      <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg">
-        <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-red-600 mr-1.5 rounded-sm"></div>
-            <h3 className="font-medium text-white flex items-center">
-              Gráfico de Dígitos do {symbol}
-              {loading && (
-                <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
-              )}
-            </h3>
-          </div>
-          
-          <div className="flex items-center">
-            <Select value={selectedCount} onValueChange={setSelectedCount}>
-              <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
-                <SelectValue placeholder="500" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="25">25 Ticks</SelectItem>
-                <SelectItem value="50">50 Ticks</SelectItem>
-                <SelectItem value="100">100 Ticks</SelectItem>
-                <SelectItem value="200">200 Ticks</SelectItem>
-                <SelectItem value="250">250 Ticks</SelectItem>
-                <SelectItem value="500">500 Ticks</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+  }, [symbol]);
+  
+  // Atualizar as estatísticas quando a quantidade de ticks mudar
+  useEffect(() => {
+    if (digits.length > 0) {
+      updateDigitStats(digits, parseInt(ticksCount));
+    }
+  }, [ticksCount, digits]);
+  
+  // Efeito para assinar eventos de ticks em tempo real
+  useEffect(() => {
+    // Função para tratar novos ticks
+    const handleTick = (event: CustomEvent) => {
+      const tickData = event.detail;
+      
+      // Verificar se o tick é para o símbolo que estamos monitorando
+      if (tickData && tickData.symbol === symbol) {
+        // Extrair o último dígito do preço
+        const price = tickData.quote.toString();
+        const lastDigit = parseInt(price.charAt(price.length - 1));
         
-        {error ? (
-          <div className="text-red-500 text-sm p-4">{error}</div>
-        ) : (
-          <div className="p-4">
-            {/* Área do gráfico */}
-            <div className="relative h-[250px] flex items-end justify-between px-2">
-              {/* Linhas de grade horizontais */}
-              <div className="absolute w-full h-full flex flex-col justify-between">
-                {[0, 10, 20, 30, 40, 50].map(value => (
-                  <div 
-                    key={`grid-line-${value}-${renderKey}`}
-                    className="w-full border-t border-gray-800 relative"
-                    style={{ bottom: `${(value / 50) * 100}%` }}
-                  >
-                    <span className="absolute -top-3 -left-8 text-gray-500 text-xs">
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Barras para cada dígito */}
-              {digitStats.map(stat => {
-                // Determinar a cor baseada na frequência
-                let barColor = stat.percentage >= 20 
-                  ? "#ff3232" // Vermelho para 20% ou mais
-                  : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
-                
-                return (
-                  <div 
-                    key={`bar-${stat.digit}-${stat.percentage}-${renderKey}`} 
-                    className="flex flex-col items-center w-9 z-10"
-                  >
-                    {/* Barra com altura proporcional à porcentagem */}
-                    <div 
-                      className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
-                      style={{ 
-                        height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
-                        backgroundColor: barColor
-                      }}
-                    >
-                      {/* Mostrar percentual acima da barra */}
-                      {stat.percentage > 0 && (
-                        <div className="absolute -top-6 w-full text-center">
-                          <span className="text-white text-xs font-bold">
-                            {stat.percentage}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Dígito abaixo da barra */}
-                    <div className="mt-2 w-full text-center text-white font-semibold">
-                      {stat.digit}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        // Adicionar o novo dígito ao início do array
+        setDigits(prevDigits => {
+          const newDigits = [lastDigit, ...prevDigits].slice(0, 500);
+          updateDigitStats(newDigits, parseInt(ticksCount));
+          
+          // Atualizar a sequência de dígitos
+          setLastSequence(newDigits.slice(0, 15).reverse());
+          
+          return newDigits;
+        });
+      }
+    };
+    
+    // Registrar listener para ticks
+    window.addEventListener('tick', handleTick as EventListener);
+    
+    // Assinar para receber ticks
+    oauthDirectService.subscribeToTicks(symbol);
+    
+    // Limpar listener quando o componente desmontar
+    return () => {
+      window.removeEventListener('tick', handleTick as EventListener);
+    };
+  }, [symbol, ticksCount]);
+  
+  return (
+    <div className={`rounded-lg p-4 ${className}`}>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold text-white">Gráfico de barras</h2>
+        <Select value={ticksCount} onValueChange={setTicksCount}>
+          <SelectTrigger className="bg-[#1d2a45] border-[#3a4b6b] text-white h-8 text-xs w-24">
+            <SelectValue>{ticksCount} Ticks</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
+            <SelectItem value="25">25 Ticks</SelectItem>
+            <SelectItem value="50">50 Ticks</SelectItem>
+            <SelectItem value="100">100 Ticks</SelectItem>
+            <SelectItem value="200">200 Ticks</SelectItem>
+            <SelectItem value="250">250 Ticks</SelectItem>
+            <SelectItem value="500">500 Ticks</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      {/* Legenda */}
+      <div className="flex items-center mb-3">
+        <div className="h-2 w-8 bg-[#10B981] mr-2"></div>
+        <span className="text-xs text-white mr-4">Últimos {ticksCount} Dígitos (%)</span>
+      </div>
+      
+      {/* Gráfico de barras */}
+      <div className="relative h-56">
+        {digitStats.map((stat) => (
+          <div key={stat.digit} className="flex flex-col items-center absolute" style={{ 
+            left: `${stat.digit * 10}%`, 
+            width: '10%', 
+            bottom: 0, 
+            height: '100%' 
+          }}>
+            {/* Valor percentual sobre a barra */}
+            <div className="text-white text-xs mb-1">{stat.percentage > 0 ? `${stat.percentage}%` : ''}</div>
             
-            {/* Sequência de dígitos mais recentes */}
-            <div className="mt-6 border-t border-gray-800 pt-4">
-              <div className="flex justify-center">
-                <div className="grid grid-cols-10 gap-1 text-white text-sm font-mono">
-                  {digits.slice(0, 10).map((digit, index) => (
-                    <div 
-                      key={`recent-digit-${index}-${renderKey}`} 
-                      className={`w-7 h-7 flex items-center justify-center border rounded
-                        ${index === 0 
-                          ? 'bg-primary text-white border-primary font-bold' 
-                          : 'border-gray-700 text-white'}`}
-                    >
-                      {digit}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* Barra */}
+            <div 
+              className="w-full rounded-t"
+              style={{ 
+                height: `${Math.max(5, stat.percentage)}%`, 
+                backgroundColor: stat.color,
+                maxHeight: '85%' // Limitar altura máxima
+              }}
+            />
             
-            {/* Mostrar último dígito recebido de forma destacada */}
-            {showLastDigit && lastDigit !== null && (
-              <div className="mt-4 flex justify-center items-center">
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center animate-pulse">
-                    <span className="text-2xl font-bold text-white">{lastDigit}</span>
-                  </div>
-                  <div className="absolute -top-2 -right-2 bg-black text-white text-xs px-2 py-1 rounded-full">
-                    Novo!
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Contador de dígitos */}
-            <div className="mt-4 text-xs text-gray-400 text-center">
-              Analisando {selectedCount} de {Math.min(digits.length, 500)} dígitos disponíveis
-            </div>
+            {/* Dígito abaixo da barra */}
+            <div className="text-white mt-2">{stat.digit}</div>
           </div>
-        )}
+        ))}
+      </div>
+      
+      {/* Sequência de últimos dígitos */}
+      <div className="mt-6 p-2 border border-[#3a4b6b] rounded flex justify-center overflow-x-auto">
+        {lastSequence.map((digit, index) => (
+          <div 
+            key={index} 
+            className="w-8 h-8 flex items-center justify-center text-white mx-1 rounded"
+            style={{ backgroundColor: getDigitColor(digit) }}
+          >
+            {digit}
+          </div>
+        ))}
       </div>
     </div>
   );
