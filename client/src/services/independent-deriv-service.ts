@@ -231,14 +231,12 @@ class IndependentDerivService {
       const symbol = data.tick.symbol;
       const quote = data.tick.quote;
       
-      // Método mais seguro para extrair o último dígito
-      // Formatar com 1 casa decimal e depois pegar o último caractere
-      const priceStr = parseFloat(quote).toFixed(1);
-      const lastChar = priceStr.charAt(priceStr.length - 1);
-      const lastDigit = parseInt(lastChar);
+      // VOLTAR AO MÉTODO ORIGINAL:
+      // Extrair o último dígito como a API Deriv faz
+      const lastDigit = Math.floor(parseFloat(quote.toString()) * 10) % 10;
       
       // Log detalhado para diagnóstico
-      console.log(`[INDEPENDENT_DERIV] Processando ${quote} -> formatado como ${priceStr} -> último dígito ${lastDigit}`);
+      console.log(`[INDEPENDENT_DERIV] Processando ${quote} -> último dígito ${lastDigit}`);
       
       // Log para diagnóstico
       console.log(`[INDEPENDENT_DERIV] Novo tick para ${symbol}: ${quote} (último dígito: ${lastDigit})`);
@@ -454,11 +452,8 @@ class IndependentDerivService {
           // Extrair todos os dígitos (até 500) e inicializar o histórico
           const prices = response.history.prices;
           const lastDigits = prices.map((price: number) => {
-            // Método mais seguro para extrair o último dígito usando string
-            // Formatar com 1 casa decimal para garantir consistência
-            const priceStr = parseFloat(price.toString()).toFixed(1);
-            const lastChar = priceStr.charAt(priceStr.length - 1);
-            return parseInt(lastChar);
+            // Usar o mesmo método que usamos para processar ticks em tempo real
+            return Math.floor(parseFloat(price.toString()) * 10) % 10;
           });
           
           console.log(`[INDEPENDENT_DERIV] Histórico recebido com ${lastDigits.length} ticks`);
