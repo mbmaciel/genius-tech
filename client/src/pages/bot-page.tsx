@@ -9,7 +9,6 @@ import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
 import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
-import { FullHistoryDigitDisplay } from "@/components/FullHistoryDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
@@ -1755,65 +1754,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               />
             </div>
             
-            {/* Painel de Visualização Principal - Movido para baixo */}
-            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-semibold text-white">Movimentação do Mercado</h2>
-                
-                <div className="flex space-x-2">
-                  <Select
-                    value={ticks}
-                    onValueChange={setTicks}
-                  >
-                    <SelectTrigger className="h-8 w-[100px] bg-[#0e1a2e] border-[#2c3e5d] text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
-                      <SelectItem value="10">10 ticks</SelectItem>
-                      <SelectItem value="25">25 ticks</SelectItem>
-                      <SelectItem value="50">50 ticks</SelectItem>
-                      <SelectItem value="100">100 ticks</SelectItem>
-                      <SelectItem value="150">150 ticks</SelectItem>
-                      <SelectItem value="200">200 ticks</SelectItem>
-                      <SelectItem value="300">300 ticks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              {/* Novo componente de estatísticas percentuais */}
-              <div className="mb-4">
-                <div className="mb-2">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-white text-md font-medium">Análise Estatística <span className="text-xs text-blue-400">(atualização em tempo real)</span></h3>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <span className="text-xs text-gray-400">Dados Deriv diretamente via OAuth</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">Estatísticas percentuais de frequência de dígitos com captura direta da Deriv</p>
-                </div>
-                {/* Espaço para novo componente de estatísticas percentuais */}
-                <div className="p-4 bg-[#0d1729] rounded-md">
-                  <div className="flex justify-center items-center h-32">
-                    <span className="text-gray-400">Componente removido para recriação</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Espaço para visualização completa de dígitos históricos */}
-              <div>
-                <h3 className="text-white text-md font-medium mb-2">
-                  Histórico Completo de Dígitos
-                  <span className="text-xs text-gray-400 ml-2">(500 ticks da Deriv)</span>
-                </h3>
-                <div className="p-4 bg-[#0d1729] rounded-md">
-                  <div className="flex justify-center items-center h-32">
-                    <span className="text-gray-400">Componente removido para recriação</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Seção de Movimentação do Mercado removida */}
           </div>
         </div>
       </div>
