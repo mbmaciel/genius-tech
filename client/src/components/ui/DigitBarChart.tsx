@@ -33,11 +33,11 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
   // Últimos dígitos mostrados na sequência abaixo do gráfico
   const [lastSequence, setLastSequence] = useState<number[]>([]);
 
-  // Função para determinar a cor do dígito
+  // Função para determinar a cor do dígito (exatamente como na imagem de referência)
   function getDigitColor(digit: number): string {
     // Vermelho para dígitos ímpares (1, 3, 5, 7, 9)
     if (digit % 2 !== 0) {
-      return '#F43F5E'; // Vermelho
+      return '#EF4444'; // Vermelho
     }
     // Verde para dígitos pares (0, 2, 4, 6, 8)
     return '#10B981'; // Verde
@@ -214,17 +214,17 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
         ))}
       </div>
       
-      {/* Sequência de últimos dígitos */}
-      <div className="mt-6 p-2 border border-[#3a4b6b] rounded flex justify-center overflow-x-auto">
-        {lastSequence.map((digit, index) => (
-          <div 
-            key={index} 
-            className="w-8 h-8 flex items-center justify-center text-white mx-1 rounded"
-            style={{ backgroundColor: getDigitColor(digit) }}
-          >
-            {digit}
-          </div>
-        ))}
+      {/* Sequência de dígitos exatamente como na imagem de referência */}
+      <div className="mt-6 border border-[#3a4b6b] rounded overflow-hidden">
+        {/* Aqui vamos colocar uma sequência de números exata como na imagem 3|0|4|4|1|4|2|0|6|5|4|0|8|3|8|5|2|0|4|9 */}
+        <div className="flex justify-center bg-[#1d2a45] py-2 text-white text-base tracking-widest">
+          {Array.from({ length: 20 }, (_, i) => 
+            <span key={i} className="mx-[1px]">
+              {i < lastSequence.length ? lastSequence[i] : 0}
+              {i < 19 && <span className="mx-[1px] text-[#3a4b6b]">|</span>}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
