@@ -159,6 +159,9 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
     });
   };
 
+  // Para controlar atualizações da UI
+  const [updateCounter, setUpdateCounter] = useState<number>(0);
+  
   // Calcular estatísticas dos dígitos
   const calculateStats = (historyDigits: number[], countToAnalyze?: number) => {
     // Obter a quantidade de dígitos a analisar, com base na seleção do usuário
@@ -194,6 +197,9 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
     
     // Atualizar o estado das estatísticas de dígitos
     setDigitStats(updatedStats);
+    
+    // Incrementar contador para forçar atualização da UI
+    setUpdateCounter(prev => prev + 1);
     
     // Verificar se a soma dos percentuais é 100% (ou próximo, devido a arredondamentos)
     const totalPercentage = updatedStats.reduce((sum, stat) => sum + stat.percentage, 0);
@@ -241,9 +247,15 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
     // Inscrever-se para receber ticks do símbolo especificado
     oauthDirectService.subscribeToTicks(symbol);
     
-    // Limpar listener ao desmontar componente
+    // Configurar intervalo para forçar atualizações da UI a cada 2 segundos
+    const refreshInterval = setInterval(() => {
+      setUpdateCounter(prev => prev + 1);
+    }, 2000);
+    
+    // Limpar listener e intervalo ao desmontar componente
     return () => {
       window.removeEventListener('deriv-tick', tickListener);
+      clearInterval(refreshInterval);
     };
   }, [symbol]);
 
@@ -309,7 +321,10 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
                   : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
                 
                 return (
-                  <div key={stat.digit} className="flex flex-col items-center w-9 z-10">
+                  <div 
+                    key={`${stat.digit}-${stat.percentage}-${updateCounter}`} 
+                    className="flex flex-col items-center w-9 z-10"
+                  >
                     {/* Barra com altura proporcional à porcentagem */}
                     <div 
                       className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
@@ -343,7 +358,7 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
                 <div className="grid grid-cols-10 gap-1 text-white text-sm font-mono">
                   {digits.slice(0, 10).map((digit, index) => (
                     <div 
-                      key={index} 
+                      key={`digit-${index}-${digit}-${updateCounter}`} 
                       className={`w-7 h-7 flex items-center justify-center border rounded
                         ${index === 0 
                           ? 'bg-primary text-white border-primary font-bold' 
