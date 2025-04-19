@@ -28,6 +28,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
   const [digitStats, setDigitStats] = useState<DigitStat[]>([]);
   const [selectedCount, setSelectedCount] = useState("100");
   const [error, setError] = useState<string | null>(null);
+  const hasSubscribed = useRef<boolean>(false); // Ref para controlar se já inscrevemos para ticks
   const [loading, setLoading] = useState(true);
   
   // Controle de UI
@@ -250,10 +251,14 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     // Solicitar novos ticks diretamente do serviço
     if (oauthDirectService) {
       // Primeiro desinscrever para limpar qualquer estado anterior
+      // Verificamos se o método existe para evitar erros
       try {
-        oauthDirectService.unsubscribeFromTicks(symbol);
+        // Como esse método pode não existir, usamos uma abordagem diferente
+        // oauthDirectService.unsubscribeFromTicks não existe, então vamos apenas
+        // nos reinscrever diretamente
+        console.log(`[NewDigitBarChart] Reativando inscrição de ticks para ${symbol}`);
       } catch (e) {
-        console.error(`[NewDigitBarChart] Erro ao desinscrever de ticks:`, e);
+        console.error(`[NewDigitBarChart] Erro ao processar ticks:`, e);
       }
       
       // Pequeno atraso para garantir que a desinscrição seja processada

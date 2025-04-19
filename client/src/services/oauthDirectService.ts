@@ -870,6 +870,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * 
    * @param symbol Símbolo para receber ticks (R_100 por padrão)
    */
+  private lastSymbolUpdateTime: number = 0;
+  private readonly SYMBOL_UPDATE_THROTTLE_MS: number = 5000; // 5 segundos
+
   public subscribeToTicks(symbol: string = 'R_100'): void {
     // Atualizar o símbolo ativo para uso em reconexões
     if (symbol && symbol !== this.activeSymbol) {
@@ -877,11 +880,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       console.log(`[OAUTH_DIRECT] Símbolo ativo atualizado para: ${symbol}`);
       
       // Somente notificar outros componentes se o símbolo realmente mudou
-      this.notifyListeners({
-        type: 'symbol_update',
-        symbol: this.activeSymbol,
-        message: `Símbolo ativo: ${this.activeSymbol}`
-      });
+      // E se não enviamos uma atualização recentemente
+      const now = Date.now();
+      if (now - this.lastSymbolUpdateTime > this.SYMBOL_UPDATE_THROTTLE_MS) {
+        this.lastSymbolUpdateTime = now;
+        
+        this.notifyListeners({
+          type: 'symbol_update',
+          symbol: this.activeSymbol,
+          message: `Símbolo ativo: ${this.activeSymbol}`
+        });
+      }
     }
     
     // Verificar se o WebSocket está disponível
