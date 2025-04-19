@@ -167,6 +167,9 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
   useEffect(() => {
     console.log(`[FixedDigitBarChart] Inicializando para símbolo ${symbol}`);
     
+    // Referência para controlar se o componente está montado
+    const isMounted = { current: true };
+    
     // Carregar histórico do localStorage
     try {
       const storedHistory = localStorage.getItem(`fixed_digitHistory_${symbol}`);
@@ -175,6 +178,8 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
         if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
           console.log(`[FixedDigitBarChart] Carregados ${parsedHistory.length} dígitos do localStorage`);
           setDigits(parsedHistory);
+          // Forçar atualização da UI
+          setRenderKey(prev => prev + 1);
         }
       }
     } catch (e) {
@@ -183,6 +188,8 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
     
     // Função para manipular novos ticks
     const handleTick = (event: any) => {
+      if (!isMounted.current) return;
+      
       try {
         // Extrair dados relevantes do evento
         let tickData = null;
@@ -219,6 +226,9 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
                 if (!isNaN(digit)) {
                   console.log(`[FixedDigitBarChart] Novo tick para ${symbol}: ${quote} (dígito ${digit})`);
                   processNewDigit(digit, quote);
+                  
+                  // Forçar atualização da UI imediatamente após receber um novo dígito
+                  setRenderKey(prev => prev + 1);
                 }
               }
             }
@@ -241,25 +251,58 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
       
       console.log(`[FixedDigitBarChart] Registrado para receber ticks do símbolo ${symbol}`);
       
-      // Definir intervalo para forçar atualização de UI
+      // Definir intervalo para forçar atualização de UI mais frequente
       const refreshInterval = setInterval(() => {
+        if (!isMounted.current) return;
+        
+        // Forçar recálculo das estatísticas a cada intervalo
+        const currentSelectedCount = parseInt(selectedCount);
+        if (digits.length > 0 && currentSelectedCount > 0) {
+          // Limitar a contagem ao número de dígitos disponíveis
+          const countToUse = Math.min(currentSelectedCount, digits.length);
+          calculateStats(digits.slice(0, countToUse));
+        }
+        
+        // Forçar atualização da UI
         setRenderKey(prev => prev + 1);
-      }, 500);
+      }, 250); // Intervalo menor para atualizações mais frequentes
+      
+      // Intervalo secundário para verificações mais completas
+      const fullRefreshInterval = setInterval(() => {
+        if (!isMounted.current) return;
+        
+        // Criar cópias profundas dos estados para forçar atualizações
+        if (digits.length > 0) {
+          setDigits([...digits]);
+          
+          // Forçar atualização das estatísticas também
+          setDigitStats(prevStats => 
+            prevStats.map(stat => ({ ...stat }))
+          );
+        }
+        
+        // Também forçar atualização visual
+        setRenderKey(prev => prev + 1);
+      }, 1000);
       
       // Verificar conexão periodicamente
       const checkConnectionInterval = setInterval(() => {
-        if (oauthDirectService) {
+        if (isMounted.current && oauthDirectService) {
           oauthDirectService.subscribeToTicks(symbol);
         }
       }, 15000);
       
       // Definir como carregado após um segundo
       setTimeout(() => {
-        setLoading(false);
+        if (isMounted.current) {
+          setLoading(false);
+        }
       }, 1000);
       
       // Limpeza ao desmontar
       return () => {
+        isMounted.current = false;
+        
         // Remover listener
         if (oauthDirectService) {
           oauthDirectService.removeEventListener(handleTick);
@@ -267,6 +310,7 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
         
         // Limpar intervalos
         clearInterval(refreshInterval);
+        clearInterval(fullRefreshInterval);
         clearInterval(checkConnectionInterval);
         
         // Limpar timeout se existir
@@ -278,7 +322,7 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
       setError("Serviço de conexão não disponível");
       setLoading(false);
     }
-  }, [symbol]);
+  }, [symbol, selectedCount]);
   
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
