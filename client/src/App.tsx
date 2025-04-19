@@ -13,6 +13,7 @@ import DigitDisplay from "@/pages/digit-display";
 import DigitDisplayFixed from "@/pages/digit-display-fixed";
 import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
+import DigitStatsPage from "@/pages/digit-stats-page";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -151,6 +152,7 @@ function App() {
         <Route path="/simplechart" component={SimpleChart} />
         <Route path="/realtime" component={RealtimeDigits} />
         <Route path="/digits" component={DigitsFixed} />
+        <Route path="/digit-stats" component={DigitStatsPage} />
       </Switch>
     </div>
   );
