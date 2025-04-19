@@ -225,15 +225,15 @@ export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDispl
         </div>
       </div>
       
-      {/* Exibição grande e destacada do último dígito */}
+      {/* Exibição grande e destacada do último dígito (que está no final do array) */}
       {!isLoading && historyData?.lastDigits && historyData.lastDigits.length > 0 && (
         <div className="mb-4 flex items-center justify-center">
           <div className="text-center">
             <div className="text-xs text-white font-bold mb-1">ÚLTIMO DÍGITO:</div>
             <div 
-              className={`${getDigitColor(historyData.lastDigits[0])} w-16 h-16 flex items-center justify-center rounded-md font-bold text-2xl shadow-md animate-pulse border-2 border-white mx-auto`}
+              className={`${getDigitColor(historyData.lastDigits[historyData.lastDigits.length - 1])} w-16 h-16 flex items-center justify-center rounded-md font-bold text-2xl shadow-md animate-pulse border-2 border-white mx-auto`}
             >
-              {historyData.lastDigits[0]}
+              {historyData.lastDigits[historyData.lastDigits.length - 1]}
             </div>
           </div>
         </div>
@@ -241,7 +241,7 @@ export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDispl
       
       {/* Sequência de dígitos atual - apresentados 1 a 1 em múltiplas linhas */}
       <div className="mb-4">
-        <div className="text-xs text-gray-400 mb-2 font-medium">Histórico de dígitos: <span className="text-xs text-red-400 font-bold">(ordem da direita para esquerda - o mais recente é o primeiro à esquerda!)</span></div>
+        <div className="text-xs text-gray-400 mb-2 font-medium">Histórico de dígitos: <span className="text-xs text-red-400 font-bold">(ordem da esquerda para direita - o mais recente é o primeiro à direita!)</span></div>
         {isLoading ? (
           <div className="grid grid-cols-10 gap-1.5 mb-2">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -262,7 +262,7 @@ export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDispl
                   return (
                     <div 
                       key={`digit-${index}-${updateCounter}`}
-                      className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md transform ${index === 0 ? 'scale-125 border-2 border-white animate-pulse' : ''}`}
+                      className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md transform ${index === 9 ? 'scale-125 border-2 border-white animate-pulse' : ''}`}
                     >
                       {digit}
                     </div>
