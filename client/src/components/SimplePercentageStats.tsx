@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { oauthDirectService } from '@/services/oauthDirectService';
 
 interface DigitStat {
   digit: number;
@@ -25,35 +26,20 @@ export function SimplePercentageStats({ symbol }: SimplePercentageStatsProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
 
-  // Função para buscar histórico diretamente da API Deriv
+  // Função para buscar histórico usando o serviço WebSocket
   useEffect(() => {
-    async function fetchHistory() {
+    console.log('[SimplePercentageStats] Iniciando componente para', symbol);
+    
+    // Função de callback para receber histórico
+    const processHistory = (history: any) => {
       try {
-        console.log('[SimplePercentageStats] Solicitando histórico de ticks para', symbol);
-        
-        const response = await fetch('https://blue.binaryws.com/api/v3/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ticks_history: symbol,
-            adjust_start_time: 1,
-            count: 500,
-            end: 'latest',
-            start: 1,
-            style: 'ticks',
-            req_id: Date.now()
-          })
-        });
-
-        const data = await response.json();
-        
-        if (data && data.history && data.history.prices) {
+        if (history && history.history && history.history.prices) {
           // Extrair últimos dígitos e inverter para ter os mais recentes primeiro
-          const digits = data.history.prices.map((price: number) => {
+          const digits = history.history.prices.map((price: number) => {
             return parseInt(price.toString().slice(-1));
           }).reverse();
           
-          console.log(`[SimplePercentageStats] Recebidos ${digits.length} ticks`);
+          console.log(`[SimplePercentageStats] Recebidos ${digits.length} ticks via WebSocket`);
           
           // Atualizar estado
           setRecentTicks(digits);
@@ -63,26 +49,88 @@ export function SimplePercentageStats({ symbol }: SimplePercentageStatsProps) {
           
           // Remover estado de carregamento
           setIsLoading(false);
+          
+          // Atualizar timestamp
+          setLastUpdate(Date.now());
         } else {
-          console.error('[SimplePercentageStats] Resposta da API inválida');
+          console.error('[SimplePercentageStats] Dados de histórico inválidos:', history);
         }
       } catch (error) {
-        console.error('[SimplePercentageStats] Erro ao buscar histórico:', error);
+        console.error('[SimplePercentageStats] Erro ao processar histórico:', error);
       }
-    }
-
-    // Buscar dados na inicialização
-    fetchHistory();
+    };
     
-    // Configurar timer para atualizar dados a cada 10 segundos
+    // Função para receber ticks em tempo real
+    const processTick = (tick: any) => {
+      try {
+        if (tick && (tick.quote || tick.ask)) {
+          const price = tick.quote || tick.ask;
+          const lastDigit = parseInt(price.toString().slice(-1));
+          
+          console.log(`[SimplePercentageStats] Novo tick: ${price}, último dígito: ${lastDigit}`);
+          
+          // Adicionar novo dígito ao estado
+          setRecentTicks(prev => {
+            const updated = [lastDigit, ...prev].slice(0, 500);
+            updateStats(updated, parseInt(tickCount));
+            return updated;
+          });
+          
+          // Atualizar timestamp
+          setLastUpdate(Date.now());
+        }
+      } catch (error) {
+        console.error('[SimplePercentageStats] Erro ao processar tick:', error);
+      }
+    };
+    
+    // Inicializar conexão e solicitar histórico
+    const initConnection = async () => {
+      try {
+        // Garantir que o serviço esteja conectado
+        const connected = await oauthDirectService.initializeConnection();
+        
+        if (connected) {
+          console.log('[SimplePercentageStats] Conexão WebSocket inicializada com sucesso');
+          
+          // Solicitar histórico de ticks
+          oauthDirectService.requestTicksHistory(symbol, 500, processHistory);
+          
+          // Inscrever para ticks em tempo real
+          oauthDirectService.subscribeToTicks(symbol);
+        } else {
+          console.error('[SimplePercentageStats] Falha ao inicializar conexão WebSocket');
+        }
+      } catch (error) {
+        console.error('[SimplePercentageStats] Erro ao inicializar conexão:', error);
+      }
+    };
+    
+    // Iniciar conexão
+    initConnection();
+    
+    // Configurar handler de eventos para ticks em tempo real
+    const tickHandler = (event: any) => {
+      if (event.type === 'tick' && event.tick) {
+        processTick(event.tick);
+      }
+    };
+    
+    // Registrar handler
+    oauthDirectService.addEventListener(tickHandler);
+    
+    // Configurar timer para solicitar histórico novamente a cada 30 segundos
     const intervalId = setInterval(() => {
-      fetchHistory();
-      setLastUpdate(Date.now());
-    }, 10000);
+      console.log('[SimplePercentageStats] Solicitando atualização do histórico');
+      oauthDirectService.requestTicksHistory(symbol, 500, processHistory);
+    }, 30000);
     
-    // Limpar intervalo ao desmontar
-    return () => clearInterval(intervalId);
-  }, [symbol]);
+    // Limpar ao desmontar
+    return () => {
+      clearInterval(intervalId);
+      oauthDirectService.removeEventListener(tickHandler);
+    };
+  }, [symbol, tickCount]);
 
   // Função para calcular estatísticas quando ticks ou quantidade mudar
   const updateStats = (ticks: number[], count: number) => {
