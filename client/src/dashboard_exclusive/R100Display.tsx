@@ -143,13 +143,56 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
         </div>
       </div>
       
-      {/* Novo componente otimizado de gráfico em tempo real */}
-      <RealtimeDigitBarChart 
-        symbol="R_100" 
-        className="w-full mb-6"
-        initialTickCount={parseInt(localTickCount.toString())}
-        showControls={true}
-      />
+      {/* Gráfico de barras para cada dígito - implementação direta */}
+      <div className="w-full mb-6 bg-[#1d2a45] p-4 rounded-md">
+        <div className="flex justify-between items-end h-52 mb-6 relative">
+          {/* Eixo Y (percentuais) */}
+          <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 pr-2">
+            <div>100%</div>
+            <div>80%</div>
+            <div>60%</div>
+            <div>40%</div>
+            <div>20%</div>
+            <div>0%</div>
+          </div>
+          
+          {/* Barras para cada dígito */}
+          <div className="flex justify-between items-end w-full pl-8 gap-1 pt-4">
+            {digitStats.map((stat) => {
+              // Altura visual da barra
+              const barHeight = Math.max(10, Math.min(100, stat.percentage * 2));
+              // Cores diferentes para pares e ímpares
+              const barColor = stat.digit % 2 === 0 ? '#00e5b3' : '#ff444f';
+              
+              return (
+                <div key={`bar-${stat.digit}`} className="flex flex-col items-center flex-1">
+                  {/* Percentual */}
+                  <div className="text-xs font-medium mb-1 text-white">
+                    {stat.percentage}%
+                  </div>
+                  
+                  {/* Barra */}
+                  <div
+                    className="w-full rounded-t"
+                    style={{
+                      height: `${barHeight}%`,
+                      backgroundColor: barColor,
+                      minHeight: '10px',
+                      maxWidth: '30px',
+                      margin: '0 auto'
+                    }}
+                  ></div>
+                  
+                  {/* Dígito */}
+                  <div className="mt-2 text-center text-sm font-medium text-white">
+                    {stat.digit}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
       
       {/* Últimos dígitos com design aprimorado */}
       <div className="mt-4 bg-[#1d2a45] p-2 rounded">
