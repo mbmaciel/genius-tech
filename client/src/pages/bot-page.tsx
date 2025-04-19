@@ -56,7 +56,7 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
 // Importar o novo componente de histórico de dígitos
-import { DigitHistoryDisplay } from "@/components/DigitHistoryDisplay";
+import { DigitsFixedDisplay } from "@/components/DigitsFixedDisplay";
 
 export function BotPage() {
   const { toast } = useToast();
@@ -1760,7 +1760,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               <h2 className="text-lg font-semibold text-white mb-4">Histórico de Mercado</h2>
               
               {/* Componente que exibe os últimos 500 ticks do mercado */}
-              <DigitHistoryDisplay symbol="R_100" />
+              <DigitsFixedDisplay symbol="R_100" />
             </div>
           </div>
         </div>
