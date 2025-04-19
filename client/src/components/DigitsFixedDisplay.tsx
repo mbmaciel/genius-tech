@@ -77,30 +77,38 @@ export function DigitsFixedDisplay({ symbol = 'R_100' }: { symbol?: string }) {
     // Obter histórico de dígitos existente
     let historyDigits: number[] = [];
     try {
-      // Tentar obter a partir do serviço ou extrair dos últimos ticks
-      if (typeof derivHistoryService.getTicksHistory === 'function') {
-        const ticksHistory = derivHistoryService.getTicksHistory(symbol);
-        if (ticksHistory && ticksHistory.prices) {
-          historyDigits = ticksHistory.prices.map((price: number) => getLastDigit(price)).reverse();
-        }
+      // Verificar se o serviço está disponível e usar o método correto
+      if (derivHistoryService) {
+        // O método getTicksHistory retorna Promise<DigitHistoryData>
+        derivHistoryService.getTicksHistory(symbol, 500, false)
+          .then(historyData => {
+            if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+              // lastDigits já contém os dígitos extraídos e processados
+              historyDigits = historyData.lastDigits;
+              
+              // Atualizar o estado com os dígitos encontrados
+              setDigits(historyDigits);
+              setIsLoading(false);
+              setLastDigit(historyDigits[0]);
+              
+              // RESUMO DOS DADOS
+              const latestDigits = historyDigits.slice(0, 20).join(', ');
+              setRawData(latestDigits);
+              
+              // Calcular estatísticas iniciais
+              calculateStats(historyDigits, currentSampleSize);
+              setUpdateTime(new Date());
+            }
+          })
+          .catch(error => {
+            console.error("[DIGIT_DISPLAY] Erro ao obter histórico:", error);
+          });
       }
     } catch (err) {
       console.warn("[DIGIT_DISPLAY] Não foi possível obter histórico de ticks:", err);
     }
     
-    if (historyDigits.length > 0) {
-      setDigits(historyDigits);
-      setIsLoading(false);
-      setLastDigit(historyDigits[0]);
-      
-      // RESUMO DOS DADOS
-      const latestDigits = historyDigits.slice(0, 20).join(', ');
-      setRawData(latestDigits);
-      
-      // Calcular estatísticas iniciais
-      calculateStats(historyDigits, currentSampleSize);
-      setUpdateTime(new Date());
-    }
+    // Inicializa com array vazio, dados chegam pela Promise
     
     // Inscrever-se para atualizações de ticks usando o evento custom do serviço existente
     const tickHandler = (event: CustomEvent) => {
