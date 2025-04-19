@@ -79,8 +79,10 @@ export function useDerivTicks(symbol: string = 'R_100') {
       }
     };
 
-    // Registrar para o evento oauthTick
+    // Registrar para os eventos 'oauthTick', 'tick' e 'tick-update'
     document.addEventListener('oauthTick', processTickHandler);
+    document.addEventListener('tick', processTickHandler);
+    document.addEventListener('tick-update', processTickHandler);
     
     // Garantir que estamos inscritos nos ticks do símbolo solicitado
     if (oauthDirectService) {
@@ -91,7 +93,8 @@ export function useDerivTicks(symbol: string = 'R_100') {
     // Cleanup function
     return () => {
       document.removeEventListener('oauthTick', processTickHandler);
-      console.log(`[useDerivTicks] Desregistrando listener para ${symbol}`);
+      document.removeEventListener('tick', processTickHandler);
+      console.log(`[useDerivTicks] Desregistrando listeners para ${symbol}`);
     };
   }, [symbol]);
 

@@ -73,10 +73,8 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
   const fetchDigitHistory = async () => {
     try {
       setLoading(true);
-      // Obter dados de histórico diretamente do serviço
-      // O serviço derivHistoryService tem um método para obter últimos dígitos
-      // mas não um método getHistory, então vamos usar a propriedade historyData
-      const historyData = derivHistoryService.historyData?.[symbol];
+      // Obter dados de histórico diretamente do serviço usando o método público
+      const historyData = derivHistoryService.getDigitStats(symbol);
       
       if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
         setDigits(historyData.lastDigits);
@@ -137,10 +135,20 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
         setShowLastDigit(false);
       }, 3000);
       
+      // Criar um evento personalizado para sinalizar novo dígito
+      const tickEvent = new CustomEvent('tick-update', { 
+        detail: { 
+          digit: lastDigit, 
+          quote: lastQuote, 
+          symbol 
+        } 
+      });
+      document.dispatchEvent(tickEvent);
+      
       // Atualizar o histórico
       fetchDigitHistory();
     }
-  }, [lastDigit, lastQuote]);
+  }, [lastDigit, lastQuote, symbol]);
 
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
