@@ -631,9 +631,8 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
       <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg">
         <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
           <div className="flex items-center">
-            <div className="w-3 h-3 bg-red-600 mr-1.5 rounded-sm"></div>
             <h3 className="font-medium text-white flex items-center">
-              Gráfico de Dígitos do {symbol}
+              Gráfico de barras
               {(loading || isLoading) && (
                 <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
               )}
@@ -657,6 +656,13 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
           </div>
         </div>
         
+        <div className="py-1 px-3 flex items-center">
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-green-500 mr-1.5 rounded-full"></div>
+            <span className="text-xs text-gray-300">(Últimos 10 Dígitos: 0%)</span>
+          </div>
+        </div>
+        
         {error ? (
           <div className="text-red-500 text-sm p-4">{error}</div>
         ) : (
@@ -671,7 +677,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                     className="w-full border-t border-gray-800 relative"
                     style={{ bottom: `${(value / 50) * 100}%` }}
                   >
-                    <span className="absolute -top-3 -left-8 text-gray-500 text-xs">
+                    <span className="absolute -top-3 -left-8 text-gray-400 text-xs">
                       {value}
                     </span>
                   </div>
@@ -680,14 +686,14 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
               
               {/* Barras para cada dígito */}
               {digitStats.map(stat => {
-                // Determinar a cor baseada na frequência
-                let barColor = stat.percentage >= 20 
-                  ? "#ff3232" // Vermelho para 20% ou mais
-                  : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
-                
-                // Destacar o último dígito recebido
-                if (lastDigit !== null && stat.digit === lastDigit) {
-                  barColor = "#00c48c"; // Verde para o último dígito
+                // Determinar a cor baseada na frequência conforme a imagem
+                let barColor;
+                if (stat.percentage >= 20) {
+                  barColor = "#ff3232"; // Vermelho para 20% ou mais
+                } else if (stat.percentage >= 10) {
+                  barColor = "#dd2222"; // Vermelho médio para 10-19%
+                } else {
+                  barColor = "#00c972"; // Verde para menores percentuais
                 }
                 
                 return (
@@ -697,7 +703,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                   >
                     {/* Barra com altura proporcional à porcentagem */}
                     <div 
-                      className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
+                      className="w-7 transition-all duration-300 ease-in-out flex justify-center relative"
                       style={{ 
                         height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
                         backgroundColor: barColor
@@ -722,28 +728,24 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
               })}
             </div>
             
-            {/* Sequência de dígitos mais recentes */}
-            <div className="mt-6 border-t border-gray-800 pt-4">
+            {/* Sequência de dígitos mais recentes na parte inferior (exato igual à imagem) */}
+            <div className="mt-4 border border-gray-800 rounded py-2 bg-[#0a1525]">
               <div className="flex justify-center">
-                <div className="grid grid-cols-10 gap-1 text-white text-sm font-mono">
-                  {digits.slice(0, 10).map((digit, index) => (
-                    <div 
-                      key={`recent-digit-${index}-${renderKey}`} 
-                      className={`w-7 h-7 flex items-center justify-center border rounded
-                        ${index === 0 
-                          ? 'bg-primary text-white border-primary font-bold' 
-                          : 'border-gray-700 text-white'}`}
-                    >
-                      {digit.toString()}
-                    </div>
-                  ))}
+                <div className="flex space-x-1 text-white text-sm font-mono">
+                  {[...Array(20)].map((_, index) => {
+                    // Assegurar que temos dígitos suficientes antes de tentar acessá-los
+                    const digit = index < digits.length ? digits[index] : null;
+                    return (
+                      <div 
+                        key={`recent-digit-${index}-${renderKey}`} 
+                        className="w-6 h-6 flex items-center justify-center border border-gray-700 rounded-sm"
+                      >
+                        {digit !== null ? digit.toString() : ""}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-            
-            {/* Contador de dígitos */}
-            <div className="mt-4 text-xs text-gray-400 text-center">
-              Analisando {selectedCount} de {Math.min(digits.length, 500)} dígitos disponíveis
             </div>
             
             {/* Exibir a última cotação */}

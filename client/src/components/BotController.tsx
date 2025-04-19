@@ -189,13 +189,14 @@ export function BotController({
   useEffect(() => {
     // Função para lidar com eventos do serviço de trading
     const handleTradingEvent = (event: any) => {
-      // Ignorar eventos symbol_update para evitar recarregamentos desnecessários
+      // Registrar o evento apenas para fins de log, mas não fazer nada com symbol_update
+      // para evitar problemas com fechamento de menus
+      console.log('[BOT_CONTROLLER] Evento recebido:', event.type);
+      
+      // Ignorar todo processamento adicional para symbol_update
       if (event.type === 'symbol_update') {
-        // Evitar qualquer processamento desse evento
         return;
       }
-      
-      console.log('[BOT_CONTROLLER] Evento recebido:', event.type);
       
       if (event.type === 'error') {
         // Mostrar erro para o usuário
