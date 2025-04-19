@@ -639,7 +639,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
           <div className="flex items-center">
             <Select value={selectedCount} onValueChange={setSelectedCount}>
               <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
-                <SelectValue placeholder="100" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="25">25 Ticks</SelectItem>
