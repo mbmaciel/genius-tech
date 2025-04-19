@@ -1,123 +1,181 @@
-import { useEffect, useState } from 'react';
-import { independentDerivService } from '@/services/independent-deriv-service';
-
-interface SimpleDigitBarChartProps {
-  symbol?: string;
-  className?: string;
-}
-
-interface DigitStat {
-  digit: number;
-  count: number;
-  percentage: number;
-}
+import React, { useEffect, useState } from 'react';
 
 /**
- * Versão simplificada do gráfico de barras de dígitos
- * Implementação mais direta para garantir funcionamento visual correto
+ * Componente extremamente simplificado para mostrar estatísticas de dígitos
+ * Esta implementação não depende de serviços externos, apenas recebe dados via WebSocket diretamente
  */
-export function SimpleDigitBarChart({ symbol = 'R_100', className = '' }: SimpleDigitBarChartProps) {
-  const [stats, setStats] = useState<DigitStat[]>([]);
+export function BasicDigitBarChart({ className = '' }: { className?: string }) {
+  // Estados básicos
+  const [stats, setStats] = useState<Array<{digit: number, count: number, percentage: number}>>([]);
   const [lastDigits, setLastDigits] = useState<number[]>([]);
-  const [totalSamples, setTotalSamples] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalSamples, setTotalSamples] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  // Efeito para inicializar conexão e dados
+  // Símbolo fixo
+  const symbol = 'R_100';
+  
+  // Função para criar WebSocket e processar dados
   useEffect(() => {
-    console.log('SimpleDigitBarChart: Inicializando...');
-    let mounted = true;
-    let updateInterval: NodeJS.Timeout;
+    console.log('BasicDigitBarChart: Inicializando conexão WebSocket direta');
     
-    // Função para atualizar dados periodicamente
-    const updateData = () => {
-      if (!mounted) return;
+    // Flag de montagem para evitar atualizações após desmontagem
+    let isMounted = true;
+    
+    // Armazenamento local de dados
+    const ticksHistory: number[] = [];
+    const maxTicks = 500;
+    
+    // Conexão WebSocket
+    const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3');
+    
+    // Calcular estatísticas de dígitos
+    const calculateStats = () => {
+      if (!isMounted) return;
       
+      // Contagem de dígitos
+      const digitCounts: Record<number, number> = {
+        0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0
+      };
+      
+      // Contar ocorrências
+      ticksHistory.forEach(lastDigit => {
+        digitCounts[lastDigit]++;
+      });
+      
+      // Calcular percentuais e formatar
+      const total = ticksHistory.length;
+      const newStats = Object.keys(digitCounts).map(digit => {
+        const count = digitCounts[parseInt(digit)];
+        return {
+          digit: parseInt(digit),
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0
+        };
+      });
+      
+      // Atualizar estados apenas se componente ainda montado
+      if (isMounted) {
+        setStats(newStats);
+        setLastDigits(ticksHistory.slice(-10).reverse());
+        setTotalSamples(total);
+        setIsLoading(false);
+        
+        // Forçar atualização visual 
+        setRefreshTrigger(prev => prev + 1);
+      }
+    };
+    
+    // Processar mensagens recebidas
+    ws.onmessage = (event) => {
       try {
-        if (!independentDerivService.isConnected()) {
-          console.log('SimpleDigitBarChart: Serviço não está conectado, tentando conectar...');
-          return; // Não fazer nada se não estiver conectado
+        const data = JSON.parse(event.data);
+        
+        // Resposta a ticks_history
+        if (data.msg_type === 'history' && data.echo_req.ticks_history === symbol) {
+          // Processar histórico inicial
+          console.log(`BasicDigitBarChart: Recebido histórico com ${data.history.prices.length} ticks`);
+          
+          // Extrair últimos dígitos
+          const digits = data.history.prices.map((price: string) => {
+            const lastChar = price.toString().slice(-1);
+            return parseInt(lastChar);
+          });
+          
+          // Limpar histórico e adicionar novos dados
+          ticksHistory.length = 0;
+          digits.forEach(digit => {
+            ticksHistory.push(digit);
+            if (ticksHistory.length > maxTicks) {
+              ticksHistory.shift();
+            }
+          });
+          
+          // Atualizar estatísticas
+          calculateStats();
         }
         
-        const currentData = independentDerivService.getDigitHistory(symbol);
-        if (currentData && currentData.stats && currentData.stats.length > 0) {
-          console.log('SimpleDigitBarChart: Dados recebidos com', currentData.stats.length, 'estatísticas');
+        // Resposta a tick_stream
+        if (data.msg_type === 'tick' && data.tick && data.tick.symbol === symbol) {
+          // Extrair último dígito do preço
+          const price = data.tick.quote;
+          const lastDigit = parseInt(price.toString().slice(-1));
           
-          // Clonamos os dados para garantir que são novos objetos
-          const newStats = currentData.stats.map(stat => ({...stat}));
-          const newDigits = [...currentData.lastDigits].slice(-10).reverse();
+          // Adicionar ao histórico
+          ticksHistory.push(lastDigit);
+          if (ticksHistory.length > maxTicks) {
+            ticksHistory.shift();
+          }
           
-          // Atualizamos o estado
-          setStats(newStats);
-          setLastDigits(newDigits);
-          setTotalSamples(currentData.totalSamples);
-          
-          // Sinal de processamento completo
-          setLoading(false);
-        } else {
-          console.log('SimpleDigitBarChart: Sem dados disponíveis ainda');
+          // Atualizar estatísticas
+          calculateStats();
         }
+        
       } catch (err) {
-        console.error('Erro ao atualizar dados do gráfico:', err);
+        console.error('Erro ao processar mensagem:', err);
       }
     };
     
-    // Inicializar conexão
-    let connectAndSubscribe = async () => {
-      try {
-        if (!independentDerivService.isConnected()) {
-          await independentDerivService.connect();
-          console.log('SimpleDigitBarChart: Conexão estabelecida');
-        }
-        
-        console.log('SimpleDigitBarChart: Buscando histórico inicial...');
-        await independentDerivService.fetchTicksHistory(symbol, 500);
-        
-        console.log('SimpleDigitBarChart: Assinando ticks...');
-        await independentDerivService.subscribeTicks(symbol);
-        
-        // Chama updateData imediatamente após a assinatura
-        updateData();
-        
-      } catch (error) {
-        console.error('SimpleDigitBarChart: Erro ao conectar:', error);
-        setError('Não foi possível conectar ao serviço Deriv. Tente recarregar a página.');
-        
-        // Tenta novamente após 3 segundos
-        if (mounted) {
-          setTimeout(connectAndSubscribe, 3000);
-        }
-      }
-    };
-    
-    // Iniciar processo de conexão
-    connectAndSubscribe();
-    
-    // Configurar intervalo para atualização periódica
-    updateInterval = setInterval(updateData, 300);
-    
-    // Cleanup ao desmontar
-    return () => {
-      console.log('SimpleDigitBarChart: Desmontando componente');
-      mounted = false;
-      clearInterval(updateInterval);
+    // Eventos de conexão
+    ws.onopen = () => {
+      console.log('BasicDigitBarChart: WebSocket conectado');
       
-      // Cancela assinatura, se necessário
-      if (independentDerivService.isConnected()) {
-        independentDerivService.unsubscribeTicks(symbol)
-          .catch(e => console.error('Erro ao cancelar assinatura:', e));
+      // Solicitar histórico de ticks
+      ws.send(JSON.stringify({
+        ticks_history: symbol,
+        adjust_start_time: 1,
+        count: 500,
+        end: 'latest',
+        start: 1,
+        style: 'ticks'
+      }));
+      
+      // Subscrever ticks em tempo real
+      ws.send(JSON.stringify({
+        ticks: symbol,
+        subscribe: 1
+      }));
+    };
+    
+    ws.onerror = (error) => {
+      console.error('BasicDigitBarChart: Erro na conexão WebSocket', error);
+      if (isMounted) {
+        setError('Erro ao conectar à API Deriv. Tente recarregar a página.');
+        setIsLoading(false);
       }
     };
-  }, [symbol]);
+    
+    ws.onclose = () => {
+      console.log('BasicDigitBarChart: Conexão WebSocket fechada');
+      if (isMounted) {
+        setError('A conexão com a API Deriv foi fechada. Recarregue a página para tentar novamente.');
+        setIsLoading(false);
+      }
+    };
+    
+    // Limpar ao desmontar
+    return () => {
+      isMounted = false;
+      
+      // Cancelar subscrição e fechar conexão
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          forget_all: 'ticks'
+        }));
+        ws.close();
+      }
+    };
+  }, []);
   
-  // Renderiza o gráfico
+  // Renderização do componente
   return (
     <div className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}>
       {/* Cabeçalho */}
       <div className="p-3 bg-[#0e1a2e] border-b border-[#232e47] flex justify-between items-center">
         <h3 className="font-medium text-white">
           <span className="text-[#3a96dd]">{symbol}:</span> Análise de Dígitos
-          {loading && <span className="ml-2 text-xs text-gray-400">Carregando...</span>}
+          {isLoading && <span className="ml-2 text-xs text-gray-400">Carregando...</span>}
         </h3>
         <div className="bg-[#ff3e50] px-2 py-0.5 text-xs text-white font-medium rounded-sm">
           Últimos 10 Dígitos (%)
@@ -161,7 +219,7 @@ export function SimpleDigitBarChart({ symbol = 'R_100', className = '' }: Simple
                 
                 return (
                   <div 
-                    key={`digit-bar-${stat.digit}-${Date.now()}`} 
+                    key={`bar-${stat.digit}-${refreshTrigger}`} 
                     className="flex flex-col items-center w-full"
                   >
                     {/* Percentual acima da barra */}
@@ -214,7 +272,7 @@ export function SimpleDigitBarChart({ symbol = 'R_100', className = '' }: Simple
           <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2">
             {lastDigits.map((digit, index) => (
               <div 
-                key={`recent-${index}-${digit}-${Date.now()}`}
+                key={`recent-${index}-${digit}-${refreshTrigger}`}
                 className={`w-6 h-6 flex items-center justify-center ${
                   digit % 2 === 0 ? 'text-[#00e5b3]' : 'text-[#ff444f]'
                 } font-medium text-base`}
@@ -239,7 +297,7 @@ export function SimpleDigitBarChart({ symbol = 'R_100', className = '' }: Simple
       {/* Rodapé */}
       <div className="px-4 py-2 bg-[#0c1625] text-xs text-gray-400 border-t border-[#232e47]">
         <div className="flex justify-between items-center">
-          <div>Baseado em {totalSamples} ticks</div>
+          <div>Baseado em {totalSamples} ticks (v{refreshTrigger})</div>
           <div className="text-[#3a96dd] font-medium">{symbol}</div>
         </div>
       </div>
