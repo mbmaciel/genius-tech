@@ -128,18 +128,30 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
-  // Atualizar dados periodicamente (a cada meio segundo)
+  // Atualizar dados periodicamente (a cada 250ms para maior fluidez)
   useEffect(() => {
     const refreshTimer = setInterval(() => {
       if (symbol && !loading) {
-        // Forçar atualização dos dados
+        // Forçar atualização dos dados - criando um novo objeto para garantir re-renderização
         const currentHistory = independentDerivService.getDigitHistory(symbol);
         if (currentHistory && currentHistory.lastDigits.length > 0) {
-          setDigitHistory({...currentHistory});
+          // Criar cópias profundas para garantir que React detecte as mudanças
+          const newHistory = {
+            ...currentHistory,
+            stats: [...currentHistory.stats.map(stat => ({...stat}))],
+            lastDigits: [...currentHistory.lastDigits],
+            lastUpdated: new Date() // Forçar atualização sempre
+          };
+          
+          setDigitHistory(newHistory);
           setLastDigits([...currentHistory.lastDigits].slice(-10).reverse());
+          
+          // Log para debug - verificar se os percentuais estão atualizando
+          console.log('[IndependentDigitBarChart] Atualizando barras com percentuais:', 
+            newHistory.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
         }
       }
-    }, 500);
+    }, 250); // Mais frequente para melhor responsividade
     
     return () => clearInterval(refreshTimer);
   }, [symbol, loading]);
@@ -223,7 +235,10 @@ export function IndependentDigitBarChart({
             {digitHistory?.stats ? (
               // Mapear cada estatística para uma barra
               digitHistory.stats.map((stat) => (
-                <div key={stat.digit} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
+                <div 
+                  key={`digit-${stat.digit}-${stat.percentage}-${Math.random()}`} 
+                  className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]"
+                >
                   {/* Percentual acima da barra - sempre exibir */}
                   <div className="text-xs font-medium text-white mb-1">
                     {stat.percentage}%
@@ -233,9 +248,10 @@ export function IndependentDigitBarChart({
                   <div 
                     className={`w-full ${getBarColor(stat.digit)}`}
                     style={{ 
-                      height: `${Math.max(4, (stat.percentage / 50) * 100)}%`,
-                      minHeight: '4px', // Garantir altura mínima
-                      transition: 'height 0.3s ease-in-out'
+                      height: `${Math.max(10, (stat.percentage / 12) * 100)}%`, // Aumentando ainda mais para barras grandes
+                      minHeight: '10px', // Mínimo visível
+                      transition: 'height 0.15s ease-in-out',
+                      borderRadius: '2px 2px 0 0' // Adicionar bordas arredondadas no topo
                     }}
                   ></div>
                   
