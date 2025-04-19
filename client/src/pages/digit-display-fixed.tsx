@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 type Digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 // Componente principal
-export default function DigitDisplay() {
+export default function DigitDisplayFixed() {
   // Estados
   const [digits, setDigits] = useState<Digit[]>([]);
   const [lastDigit, setLastDigit] = useState<Digit | null>(null);
@@ -20,6 +20,7 @@ export default function DigitDisplay() {
   );
   const [sampleSize, setSampleSize] = useState(100);
   const [updateTime, setUpdateTime] = useState(new Date());
+  const [latestTicks, setLatestTicks] = useState<string>("");
   
   // Referências
   const wsRef = useRef<WebSocket | null>(null);
@@ -60,6 +61,14 @@ export default function DigitDisplay() {
     );
     
     return result.sort((a, b) => a.digit - b.digit);
+  };
+
+  // Formatação de ticks para display
+  const formatTicks = (ticks: number[]) => {
+    return ticks.map(tick => {
+      const tickStr = tick.toFixed(2);
+      return tickStr.charAt(tickStr.length - 1);
+    }).join(' ');
   };
 
   // Conectar ao WebSocket da Deriv
@@ -115,10 +124,11 @@ export default function DigitDisplay() {
             const historyDigits = prices.map((price: number) => {
               const priceStr = price.toFixed(2);
               return parseInt(priceStr.charAt(priceStr.length - 1)) as Digit;
-            });
+            }).reverse(); // Inverter para mostrar do mais recente para o mais antigo
             
             if (historyDigits.length > 0) {
               console.log(`[DIGIT-DISPLAY] Primeiros 10 dígitos: ${historyDigits.slice(0, 10).join(', ')}`);
+              setLatestTicks(formatTicks(prices.slice(-20)));
               setDigits(historyDigits);
               setLastDigit(historyDigits[0]);
               const newStats = calculateStats(historyDigits);
@@ -144,6 +154,13 @@ export default function DigitDisplay() {
               setStats(newStats);
               return updated;
             });
+            
+            // Atualizar display de ticks
+            setLatestTicks(prev => {
+              const newDisplay = digit + ' ' + prev.trim().substring(0, 36);
+              return newDisplay;
+            });
+            
             setUpdateTime(new Date());
           }
           
@@ -202,13 +219,6 @@ export default function DigitDisplay() {
     }
   }, [sampleSize]);
   
-  // Função para colorir baseado na frequência
-  const getBarColor = (percentage: number, isEven: boolean) => {
-    if (percentage >= 25) return 'bg-red-600';
-    if (percentage >= 20) return 'bg-yellow-600';
-    return isEven ? 'bg-blue-700' : 'bg-purple-700';
-  };
-  
   return (
     <div className="min-h-screen bg-[#0e1a2e] text-white p-4">
       <div className="max-w-5xl mx-auto">
@@ -262,110 +272,104 @@ export default function DigitDisplay() {
           </div>
         ) : (
           <>
-            {/* Gráfico de barras */}
-            <div className="bg-[#0f2444] rounded-lg border border-gray-800 p-6 mb-8">
-              <h2 className="text-xl font-semibold mb-4">Distribuição de Dígitos ({sampleSize} ticks)</h2>
-              
-              {/* Grade de fundo */}
-              <div className="relative h-80 mb-4 bg-[#0d1c34] border border-gray-800 rounded">
-                {/* Linhas de grade horizontais */}
-                <div className="absolute inset-0 flex flex-col justify-between">
-                  {[0, 5, 10, 15, 20, 25, 30].map((value) => (
-                    <div 
-                      key={`grid-${value}`} 
-                      className="w-full border-t border-gray-800 relative" 
-                      style={{ 
-                        bottom: `${(value / 30) * 100}%`,
-                        height: "1px",
-                        marginTop: value === 0 ? "-1px" : "0"
-                      }}
-                    >
-                      <span className="absolute -top-2 -left-6 text-xs text-gray-500">{value}%</span>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Barras verticais */}
-                <div className="flex h-full px-4 pt-8 pb-8 justify-between items-end relative z-10">
-                  {stats.map((stat) => {
-                    // Cor da barra
-                    let barColor = "bg-blue-600";
-                    if (stat.percentage >= 30) barColor = "bg-red-600";
-                    else if (stat.percentage >= 20) barColor = "bg-red-600";
-                    else if (stat.percentage >= 10) barColor = "bg-blue-600";
-                    
-                    return (
-                      <div 
-                        key={`stat-${stat.digit}`}
-                        className="h-full flex flex-col items-center justify-end"
-                        style={{ width: "8%" }}
-                      >
-                        {/* Porcentagem acima da barra */}
-                        <div className="absolute top-2 text-sm font-semibold">
-                          {stat.percentage > 0 && `${stat.percentage}%`}
-                        </div>
-                        
-                        {/* Barra vertical */}
-                        <div 
-                          className={`w-full ${barColor} transition-all duration-300`}
-                          style={{ 
-                            height: `${Math.max(2, (stat.percentage / 30) * 100)}%`,
-                          }}
-                        />
-                        
-                        {/* Dígito abaixo da barra */}
-                        <div className="absolute bottom-2 font-medium">
-                          {stat.digit}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              {/* Dígitos recentes */}
-              <div className="bg-[#0d1c34] border border-gray-800 rounded p-2 mb-4 flex justify-center">
-                <div className="tracking-widest">
-                  {digits.slice(0, 20).map((digit, i) => (
-                    <span key={`recent-${i}`} className="px-1">{digit}</span>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Legenda */}
-              <div className="flex justify-center gap-4 text-sm text-gray-400">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-sm mr-1"></div>
-                  <span>≥ 20%</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-blue-600 rounded-sm mr-1"></div>
-                  <span>≥ 10%</span>
-                </div>
-              </div>
+            {/* Título com estilo da referência */}
+            <div className="mb-6 text-center">
+              <h2 className="text-xl font-semibold mb-2">Gráfico de barras</h2>
             </div>
-            
-            {/* Últimos 20 dígitos */}
-            <div className="bg-[#0f2444] rounded-lg border border-gray-800 p-6">
-              <h2 className="text-xl font-semibold mb-4">Últimos 20 Dígitos</h2>
-              
-              <div className="grid grid-cols-10 gap-2">
-                {digits.slice(0, 20).map((digit, index) => (
+
+            {/* Grade de fundo */}
+            <div className="relative h-80 mb-4 bg-[#0d1c34] border border-gray-800 rounded">
+              {/* Linhas de grade horizontais */}
+              <div className="absolute inset-0 flex flex-col justify-between">
+                {[0, 5, 10, 15, 20, 25, 30].map((value) => (
                   <div 
-                    key={`digit-${index}`}
-                    className={`
-                      h-10 flex items-center justify-center rounded-md font-bold
-                      ${index === 0 ? 'bg-blue-600' : 'bg-[#1a2e4c]'}
-                    `}
+                    key={`grid-${value}`} 
+                    className="w-full border-t border-gray-800 relative" 
+                    style={{ 
+                      bottom: `${(value / 30) * 100}%`,
+                      height: "1px",
+                      marginTop: value === 0 ? "-1px" : "0"
+                    }}
                   >
-                    {digit}
+                    <span className="absolute -top-2 -left-8 text-xs text-gray-500">{value}</span>
                   </div>
                 ))}
               </div>
               
-              <div className="mt-4 text-center text-sm text-gray-500">
-                Total disponível: {digits.length} dígitos
+              {/* Barras verticais */}
+              <div className="flex h-full px-4 pt-8 pb-8 justify-between items-end relative z-10">
+                {stats.map((stat) => {
+                  // Cor da barra baseada no percentual
+                  let barColor = "bg-blue-600";
+                  if (stat.percentage >= 20) barColor = "bg-red-600";
+                  
+                  return (
+                    <div 
+                      key={`stat-${stat.digit}`}
+                      className="h-full flex flex-col items-center justify-end"
+                      style={{ width: "8%" }}
+                    >
+                      {/* Porcentagem acima da barra */}
+                      <div className="absolute top-2 text-sm font-semibold">
+                        {stat.percentage > 0 && `${stat.percentage}%`}
+                      </div>
+                      
+                      {/* Barra vertical */}
+                      <div 
+                        className={`w-full ${barColor} transition-all duration-300`}
+                        style={{ 
+                          height: `${Math.max(2, (stat.percentage / 30) * 100)}%`,
+                        }}
+                      />
+                      
+                      {/* Dígito abaixo da barra */}
+                      <div className="absolute bottom-2 font-medium">
+                        {stat.digit}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+            
+            {/* Sequência de dígitos (estilo da referência) */}
+            <div className="bg-[#0d1c34] border border-gray-800 rounded p-2 mb-8 flex justify-center">
+              <div className="tracking-widest text-lg font-mono">
+                {digits.slice(0, 20).map((digit, i) => (
+                  <span key={`recent-${i}`} className={`inline-block mx-1 ${i === 0 ? 'text-yellow-400' : ''}`}>{digit}</span>
+                ))}
+              </div>
+            </div>
+            
+            {/* Legenda */}
+            <div className="flex justify-center gap-4 text-sm text-gray-400 mb-8">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-red-600 rounded-sm mr-1"></div>
+                <span>≥ 20%</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-blue-600 rounded-sm mr-1"></div>
+                <span>≥ 10%</span>
+              </div>
+            </div>
+            
+            {/* Grid de dígitos (como na referência) */}
+            <div className="grid grid-cols-10 gap-1 mb-8">
+              {digits.slice(0, 30).map((digit, index) => (
+                <div 
+                  key={`digit-grid-${index}`}
+                  className={`h-8 flex items-center justify-center rounded font-mono font-bold
+                    ${index === 0 ? 'bg-blue-600' : 'bg-[#1a2e4c]'}`}
+                >
+                  {digit}
+                </div>
+              ))}
+            </div>
+            
+            {/* Info adicional */}
+            <div className="text-center text-sm text-gray-500">
+              <p>Total de dígitos disponíveis: {digits.length}</p>
+              <p className="mt-1">Dados em tempo real do R_100 da Deriv</p>
             </div>
           </>
         )}
