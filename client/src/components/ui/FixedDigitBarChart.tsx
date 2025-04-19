@@ -326,12 +326,12 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
   
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
-      <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg">
+      <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg border border-gray-800">
         <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
           <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-600 mr-1.5 rounded-sm"></div>
+            <div className="w-3 h-3 bg-green-600 mr-1.5 rounded-sm animate-pulse"></div>
             <h3 className="font-medium text-white flex items-center">
-              Gráfico de Dígitos do {symbol}
+              Análise de Dígitos <span className="ml-1 text-primary font-bold">{symbol}</span>
               {loading && (
                 <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
               )}
@@ -356,7 +356,10 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
         </div>
         
         {error ? (
-          <div className="text-red-500 text-sm p-4">{error}</div>
+          <div className="text-red-500 text-sm p-4 bg-red-500/10 m-4 rounded-md border border-red-500/30">
+            <p className="font-medium">{error}</p>
+            <p className="text-xs mt-1">Por favor, verifique sua conexão e tente novamente.</p>
+          </div>
         ) : (
           <div className="p-4">
             {/* Área do gráfico */}
@@ -379,40 +382,66 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
               {/* Barras para cada dígito */}
               {digitStats.map(stat => {
                 // Determinar a cor baseada na frequência
-                let barColor = stat.percentage >= 20 
-                  ? "#ff3232" // Vermelho para 20% ou mais
-                  : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
+                const isHighFrequency = stat.percentage >= 20;
+                const isLowFrequency = stat.percentage <= 8;
+                
+                // Esquema de cores mais vivo e contrastante
+                let barColor = isHighFrequency 
+                  ? "#ff3232" // Vermelho para alta frequência
+                  : isLowFrequency
+                    ? "#00e5b3" // Verde para baixa frequência
+                    : (stat.digit % 2 === 0 ? "#2a85ca" : "#ca662a"); // Azul para pares, Laranja para ímpares
                 
                 // Destacar o último dígito recebido
-                if (lastDigit !== null && stat.digit === lastDigit) {
+                const isLastDigit = lastDigit !== null && stat.digit === lastDigit;
+                if (isLastDigit) {
                   barColor = "#00c48c"; // Verde para o último dígito
                 }
+                
+                // Calcular altura mínima visível para barras vazias ou muito pequenas
+                const barHeight = Math.max(2, (stat.percentage / 50) * 100);
                 
                 return (
                   <div 
                     key={`bar-${stat.digit}-${stat.percentage}-${renderKey}`} 
                     className="flex flex-col items-center w-9 z-10"
                   >
-                    {/* Barra com altura proporcional à porcentagem */}
+                    {/* Mostrar percentual acima da barra */}
+                    {stat.percentage > 0 && (
+                      <div className="h-6 flex items-center justify-center">
+                        <span className={`text-white text-xs font-bold ${isHighFrequency ? 'text-red-400' : isLowFrequency ? 'text-green-400' : ''}`}>
+                          {stat.percentage}%
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Barra com altura proporcional à porcentagem e efeito de brilho */}
                     <div 
-                      className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
+                      className={`w-full transition-all duration-300 ease-in-out flex justify-center relative 
+                        ${isLastDigit ? 'animate-pulse shadow-lg shadow-primary/30' : ''}
+                        ${isHighFrequency ? 'shadow-md shadow-red-500/30' : ''}
+                        ${isLowFrequency ? 'shadow-md shadow-green-500/30' : ''}`}
                       style={{ 
-                        height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
+                        height: `${barHeight}%`,
                         backgroundColor: barColor
                       }}
                     >
-                      {/* Mostrar percentual acima da barra */}
-                      {stat.percentage > 0 && (
-                        <div className="absolute -top-6 w-full text-center">
-                          <span className="text-white text-xs font-bold">
-                            {stat.percentage}%
-                          </span>
-                        </div>
-                      )}
+                      {/* Efeito de brilho no topo da barra */}
+                      <div 
+                        className="absolute top-0 left-0 right-0 h-1 bg-white/30 rounded-t-sm"
+                      ></div>
                     </div>
                     
                     {/* Dígito abaixo da barra */}
-                    <div className="mt-2 w-full text-center text-white font-semibold">
+                    <div className={`mt-2 w-full text-center font-semibold rounded-full w-6 h-6 flex items-center justify-center mx-auto
+                      ${isLastDigit 
+                        ? 'bg-primary text-white' 
+                        : isHighFrequency 
+                          ? 'bg-red-900/30 text-red-200'
+                          : isLowFrequency
+                            ? 'bg-green-900/30 text-green-200'
+                            : 'text-white'}`}
+                    >
                       {stat.digit}
                     </div>
                   </div>
@@ -429,7 +458,7 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
                       key={`recent-digit-${index}-${renderKey}`} 
                       className={`w-7 h-7 flex items-center justify-center border rounded
                         ${index === 0 
-                          ? 'bg-primary text-white border-primary font-bold' 
+                          ? 'bg-primary text-white border-primary font-bold animate-pulse shadow-md shadow-primary/30' 
                           : 'border-gray-700 text-white'}`}
                     >
                       {digit}
@@ -443,29 +472,36 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
             {showLastDigit && lastDigit !== null && (
               <div className="mt-4 flex justify-center items-center">
                 <div className="relative">
-                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center animate-pulse">
-                    <span className="text-2xl font-bold text-white">{lastDigit}</span>
+                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center animate-pulse shadow-lg shadow-primary/50">
+                    <span className="text-3xl font-bold text-white">{lastDigit}</span>
                   </div>
-                  <div className="absolute -top-2 -right-2 bg-black text-white text-xs px-2 py-1 rounded-full">
+                  <div className="absolute -top-2 -right-2 bg-black text-white text-xs px-2 py-1 rounded-full border border-primary/50">
                     Novo!
                   </div>
                 </div>
               </div>
             )}
             
-            {/* Contador de dígitos */}
-            <div className="mt-4 text-xs text-gray-400 text-center">
-              Analisando {selectedCount} de {Math.min(digits.length, 500)} dígitos disponíveis
-            </div>
-            
-            {/* Exibir a última cotação */}
-            {lastQuote && (
-              <div className="mt-1 text-xs text-gray-300 text-center">
-                Último valor: {lastQuote}
+            {/* Contador de dígitos e informações */}
+            <div className="mt-4 flex flex-col items-center justify-center">
+              <div className="text-xs text-gray-400 border border-gray-700 bg-gray-900/30 rounded-full px-3 py-1">
+                Analisando <span className="text-primary font-medium">{selectedCount}</span> de <span className="text-white">{Math.min(digits.length, 500)}</span> ticks
               </div>
-            )}
+              
+              {/* Exibir a última cotação */}
+              {lastQuote && (
+                <div className="mt-2 text-xs text-gray-300 bg-gray-800/50 rounded-full px-3 py-1">
+                  Último valor: <span className="text-white font-medium">{lastQuote}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
+      </div>
+      
+      {/* Versão do componente - útil para depuração */}
+      <div className="text-right text-[9px] text-gray-600 mt-1 mr-1">
+        v{renderKey}
       </div>
     </div>
   );
