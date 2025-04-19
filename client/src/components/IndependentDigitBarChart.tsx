@@ -40,9 +40,10 @@ export function IndependentDigitBarChart({
       if (data.symbol === symbol) {
         setDigitHistory(data);
         
-        // Atualizar últimos dígitos (inverter para mostrar mais recentes primeiro)
+        // Atualizar últimos dígitos (mostrar apenas os 10 mais recentes)
         const digits = [...data.lastDigits];
-        setLastDigits(digits.slice(-parseInt(selectedCount)).reverse());
+        // Pegamos apenas os 10 últimos dígitos conforme solicitado
+        setLastDigits(digits.slice(-10).reverse());
         
         setLoading(false);
       }
@@ -98,23 +99,18 @@ export function IndependentDigitBarChart({
   // Atualizar exibição quando o número de ticks mudar
   useEffect(() => {
     if (digitHistory && digitHistory.lastDigits.length > 0) {
-      const count = parseInt(selectedCount);
+      // Independente do selectedCount, sempre mostrar apenas 10 dígitos na sequência
       const digits = [...digitHistory.lastDigits];
-      setLastDigits(digits.slice(-count).reverse());
+      setLastDigits(digits.slice(-10).reverse());
     }
   }, [selectedCount, digitHistory]);
   
-  // Determinar a cor da barra com base na frequência do dígito
-  const getBarColor = (percentage: number, digit: number): string => {
-    // Cores diferentes para dígitos com frequência acima de 20%
-    if (percentage >= 20) {
-      return 'bg-red-500'; // Alta frequência em vermelho
-    }
-    
-    // Cores diferentes para dígitos pares e ímpares
+  // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
+  const getBarColor = (digit: number): string => {
+    // Dígitos pares em verde, ímpares em vermelho
     return digit % 2 === 0 
       ? 'bg-green-500'  // Dígitos pares em verde
-      : 'bg-blue-500';  // Dígitos ímpares em azul
+      : 'bg-red-500';   // Dígitos ímpares em vermelho
   };
   
   return (
@@ -130,9 +126,14 @@ export function IndependentDigitBarChart({
           </h3>
         </div>
         
+        {/* Box com indicação de "Últimos 10 Dígitos" (como na imagem) */}
+        <div className="bg-red-600 px-2 py-0.5 text-xs text-white font-medium rounded">
+          Últimos 10 Dígitos (%)
+        </div>
+        
         {/* Controles de seleção (opcional) */}
         {showControls && (
-          <div className="flex items-center">
+          <div className="flex items-center ml-2">
             <Select value={selectedCount} onValueChange={setSelectedCount}>
               <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
                 <SelectValue placeholder="100" />
@@ -190,7 +191,7 @@ export function IndependentDigitBarChart({
                 
                 {/* Barra com altura proporcional */}
                 <div 
-                  className={`w-full ${getBarColor(stat.percentage, stat.digit)}`}
+                  className={`w-full ${getBarColor(stat.digit)}`}
                   style={{ 
                     height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
                     transition: 'height 0.3s ease-in-out'
@@ -206,22 +207,20 @@ export function IndependentDigitBarChart({
           </div>
         </div>
         
-        {/* Sequência dos últimos dígitos */}
-        <div className="mt-4">
-          <div className="text-xs text-gray-400 mb-2">Últimos {lastDigits.length} dígitos:</div>
-          <div className="flex flex-wrap gap-1">
-            {lastDigits.map((digit, index) => (
-              <div 
-                key={index} 
-                className={`w-7 h-7 flex items-center justify-center rounded ${
-                  index === 0 
-                    ? 'bg-primary text-white' 
-                    : 'bg-[#1d2a45] text-white border border-[#2a3756]'
-                }`}
-              >
-                {digit}
-              </div>
-            ))}
+        {/* Sequência dos últimos dígitos no formato da imagem de referência */}
+        <div className="mt-6">
+          <div className="flex justify-center">
+            {/* Container para a sequência de dígitos no estilo da imagem */}
+            <div className="bg-[#0c1625] border border-[#2a3756] rounded flex items-center px-1 py-1 space-x-2">
+              {lastDigits.map((digit, index) => (
+                <div 
+                  key={index} 
+                  className="w-7 h-7 flex items-center justify-center text-white font-medium"
+                >
+                  {digit}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
