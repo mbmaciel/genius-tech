@@ -116,70 +116,33 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   return (
     <div className="bg-[#13203a] rounded-lg p-6 shadow-md">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg text-white font-medium">Gráfico de barras</h2>
-        <select 
-          className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
-          value={localTickCount}
-          onChange={handleTicksChange}
-        >
-          <option value="10">10 Ticks</option>
-          <option value="25">25 Ticks</option>
-          <option value="50">50 Ticks</option>
-          <option value="100">100 Ticks</option>
-          <option value="250">250 Ticks</option>
-          <option value="500">500 Ticks</option>
-          <option value="1000">1000 Ticks</option>
-        </select>
-      </div>
-      
-      <div className="relative w-full h-96 mt-4">
-        {/* Container responsivo para o gráfico */}
-        <div className="relative flex flex-col h-full">
-          {/* Eixo Y (percentuais) com posição fixa */}
-          <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-gray-400 pr-2 z-10">
-            <div>50</div>
-            <div>40</div>
-            <div>30</div>
-            <div>20</div>
-            <div>10</div>
-            <div>0</div>
-          </div>
+        <h2 className="text-lg text-white font-medium">R_100 Digit Analysis</h2>
+        <div className="flex items-center">
+          <div className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-xs text-slate-400 mr-3">
+            {isConnected ? 'Conectado' : 'Desconectado'}
+          </span>
           
-          {/* Linhas de grade horizontais */}
-          <div className="absolute left-8 right-2 top-0 bottom-6 flex flex-col justify-between z-0">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
-            ))}
-          </div>
-          
-          {/* Gráfico de barras responsivo */}
-          <div className="flex h-full pt-0 pb-6 pl-8 pr-2 overflow-x-auto">
-            <div className="flex flex-1 min-w-0 h-full justify-between">
-              {digitStats.map((stat) => (
-                <div key={stat.digit} className="flex flex-col items-center justify-end px-1">
-                  {/* Valor percentual acima da barra somente para barras com valor */}
-                  {stat.percentage > 0 && (
-                    <div className="text-xs font-medium text-white whitespace-nowrap mb-1">
-                      {stat.percentage}%
-                    </div>
-                  )}
-                  
-                  {/* Barra do gráfico com altura proporcional e responsiva */}
-                  <div 
-                    className={`w-full min-w-[20px] max-w-[40px] ${getBarColor(stat.percentage)}`}
-                    style={{ 
-                      height: stat.percentage === 0 ? '0px' : `${Math.min(50, Math.max(3, stat.percentage))}%` 
-                    }}
-                  ></div>
-                  
-                  {/* Número do dígito abaixo da barra */}
-                  <div className="mt-1 text-xs sm:text-sm text-white">{stat.digit}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <select 
+            className="bg-[#1d2a45] text-white text-sm rounded px-2 py-1 border border-[#3a4b6b]"
+            value={localTickCount}
+            onChange={handleTicksChange}
+          >
+            <option value="10">10 Ticks</option>
+            <option value="25">25 Ticks</option>
+            <option value="50">50 Ticks</option>
+            <option value="100">100 Ticks</option>
+            <option value="250">250 Ticks</option>
+            <option value="500">500 Ticks</option>
+          </select>
         </div>
       </div>
+      
+      {/* Novo componente otimizado de gráfico em tempo real */}
+      <RealtimeDigitBarChart 
+        symbol="R_100" 
+        className="w-full mb-6" 
+      />
       
       {/* Últimos dígitos com design aprimorado */}
       <div className="mt-4 bg-[#1d2a45] p-2 rounded">
@@ -206,14 +169,6 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
             );
           })}
         </div>
-      </div>
-      
-      {/* Status da conexão */}
-      <div className="mt-2 flex items-center justify-end">
-        <div className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-        <span className="text-xs text-slate-400">
-          {isConnected ? 'Conectado' : 'Desconectado'}
-        </span>
       </div>
     </div>
   );
