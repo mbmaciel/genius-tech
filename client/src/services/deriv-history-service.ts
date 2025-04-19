@@ -224,19 +224,14 @@ class DerivHistoryService {
       // Solicitar histórico de ticks (500 ticks é o padrão conforme solicitado)
       console.log(`[DerivHistoryService] Solicitando exatamente ${count} ticks mais recentes do mercado para ${symbol}`);
       
-      // Criar a solicitação exatamente conforme o schema JSON fornecido
+      // Criar a solicitação simplificada conforme a documentação API v3 da Deriv
+      // Simplificando para garantir máxima compatibilidade
       const ticksHistoryRequest = {
         ticks_history: symbol,
-        count: 500, // Forçar exatamente 500 ticks históricos conforme solicitado
-        end: "latest", // Usar 'latest' para obter os dados mais recentes
-        style: "ticks", // Formato de série temporal simples (não candles)
-        adjust_start_time: 1, // Ajustar se o mercado estiver fechado
-        subscribe: subscribe ? 1 : undefined, // Se devemos nos inscrever para atualizações
-        passthrough: {
-          forceRefresh: forceRefresh,
-          init: true
-        },
-        req_id: Math.floor(Date.now() / 1000) // Identificador único para esta requisição
+        count: 500, // Exatos 500 ticks
+        end: "latest",
+        style: "ticks",
+        subscribe: subscribe ? 1 : 0
       };
       
       console.log(`[DerivHistoryService] Enviando solicitação EXATA de ticks_history:`, JSON.stringify(ticksHistoryRequest));

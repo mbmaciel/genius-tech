@@ -14,7 +14,7 @@ import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 
-import { NewDigitBarChart } from "@/components/ui/NewDigitBarChart";
+// Importação de NewDigitBarChart removida
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";
@@ -1754,15 +1754,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               />
             </div>
             
-            {/* Nova seção de histórico de dígitos */}
-            <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
-              <h2 className="text-lg font-semibold text-white mb-4">Histórico de Mercado</h2>
-              
-              <div className="grid grid-cols-1 gap-4">
-                {/* Componente de gráfico de barras para visualizar distribuição dos dígitos */}
-                <NewDigitBarChart symbol="R_100" className="h-full" />
-              </div>
-            </div>
+            {/* A seção de Histórico do Mercado foi removida aqui */}
           </div>
         </div>
       </div>
