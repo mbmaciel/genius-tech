@@ -43,18 +43,26 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
       const tickData = customEvent.detail.tick as DashboardTickEvent;
       
       if (tickData && tickData.symbol === 'R_100') {
-        // Calcular último dígito
-        const price = tickData.quote;
-        // Método seguro para extrair o último dígito, 
-        // garantindo que 0 também seja detectado corretamente
-        const lastDigit = Math.floor(price * 10) % 10;
+        // Usar o dígito calculado anteriormente, ou calculá-lo se não estiver disponível
+        let lastDigit;
+        
+        if ('lastDigit' in tickData) {
+          // Usar o dígito pré-calculado
+          lastDigit = tickData.lastDigit;
+        } else {
+          // Método de fallback, apenas por segurança
+          const price = tickData.quote;
+          lastDigit = Math.floor(price * 10) % 10;
+        }
         
         // Log para debug do digito recebido
-        console.log(`[R100Display] Recebido tick - Valor: ${price}, Último dígito: ${lastDigit}`);
+        console.log(`[R100Display] Recebido tick - Valor: ${tickData.quote}, Último dígito: ${lastDigit}`);
         
         // Atualizar lista de dígitos
         setLastDigits(prev => {
-          const newDigits = [...prev, lastDigit];
+          // Garantir que lastDigit é um número
+          const numericDigit = typeof lastDigit === 'number' ? lastDigit : 0;
+          const newDigits = [...prev, numericDigit];
           // Manter apenas os últimos N dígitos
           return newDigits.slice(-parseInt(localTickCount.toString()));
         });
