@@ -239,7 +239,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
 
   // Função para forçar carregamento limpo dos ticks iniciais
   const forceInitialTicksLoad = () => {
-    console.log(`[NewDigitBarChart] Inicializando histórico de dígitos do zero`);
+    console.log(`[NewDigitBarChart] REINICIALIZANDO histórico de dígitos do zero para ${symbol}`);
     
     // Limpar o sessionStorage para este símbolo para garantir dados limpos
     sessionStorage.removeItem(`digitHistory_${symbol}`);
@@ -250,34 +250,43 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     // Resetar o estado do componente
     setDigits([]);
     setDigitStats([]);
+    setError(null);
+    setLoading(true);
     
     // Solicitar novos ticks diretamente do serviço
     if (oauthDirectService) {
-      // Primeiro desinscrever para limpar qualquer estado anterior
-      // Verificamos se o método existe para evitar erros
       try {
-        // Como esse método pode não existir, usamos uma abordagem diferente
-        // oauthDirectService.unsubscribeFromTicks não existe, então vamos apenas
-        // nos reinscrever diretamente
+        // Reinscrever diretamente no símbolo atual
         console.log(`[NewDigitBarChart] Reativando inscrição de ticks para ${symbol}`);
+        oauthDirectService.subscribeToTicks(symbol);
       } catch (e) {
         console.error(`[NewDigitBarChart] Erro ao processar ticks:`, e);
       }
       
-      // Pequeno atraso para garantir que a desinscrição seja processada
-      setTimeout(() => {
-        // Agora inscrever para obter novos ticks
-        oauthDirectService.subscribeToTicks(symbol);
-        console.log(`[NewDigitBarChart] Solicitação explícita de ticks enviada para ${symbol}`);
-        
-        // Forçar uma chamada direta para buscar histórico fresco
-        setTimeout(() => {
-          console.log(`[NewDigitBarChart] Solicitando histórico completo diretamente do serviço`);
-          derivHistoryService.getTicksHistory(symbol, 500, true, true)
-            .then(() => fetchDigitHistory())
-            .catch(e => console.error(`[NewDigitBarChart] Erro ao buscar histórico inicial:`, e));
-        }, 300);
-      }, 100);
+      // Agora faremos uma solicitação direta para obter o histórico de 500 ticks
+      console.log(`[NewDigitBarChart] Solicitando 500 ticks históricos diretamente do serviço`);
+      
+      // Forçar a solicitação de histórico completo, com flag forceRefresh=true para ignorar cache
+      derivHistoryService.getTicksHistory(symbol, 500, true, true)
+        .then((historyData) => {
+          console.log(`[NewDigitBarChart] Resposta recebida do histórico: ${historyData.lastDigits.length} dígitos`);
+          // Se recebemos dados, atualizaremos o estado
+          if (historyData.lastDigits.length > 0) {
+            setDigits([...historyData.lastDigits]);
+            calculateStats(historyData.lastDigits.slice(0, parseInt(selectedCount)));
+            setError(null);
+          } else {
+            // Se não recebemos dados, tentaremos novamente
+            console.log(`[NewDigitBarChart] Não recebemos dígitos, solicitando novamente...`);
+            fetchDigitHistory();
+          }
+          setLoading(false);
+        })
+        .catch(e => {
+          console.error(`[NewDigitBarChart] Erro ao buscar histórico inicial:`, e);
+          setError("Erro ao obter histórico de ticks. Tentando novamente...");
+          setLoading(false);
+        });
     }
   };
 
@@ -514,6 +523,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
         console.log(`[NewDigitBarChart] Removido listener direto do oauthDirectService para ${symbol}`);
       }
     };
+  // A dependência [symbol] garante que o componente seja reinicializado completamente quando o símbolo mudar
   }, [symbol, selectedCount]);
   
   // Para rastrear o último dígito processado e evitar duplicações

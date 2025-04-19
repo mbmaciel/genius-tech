@@ -224,17 +224,22 @@ class DerivHistoryService {
       // Solicitar histórico de ticks (500 ticks é o padrão conforme solicitado)
       console.log(`[DerivHistoryService] Solicitando exatamente ${count} ticks mais recentes do mercado para ${symbol}`);
       
-      // Criar a solicitação conforme o schema fornecido
+      // Criar a solicitação exatamente conforme o schema JSON fornecido
       const ticksHistoryRequest = {
         ticks_history: symbol,
-        count: count > 0 ? count : 500, // Garantir que solicitamos pelo menos 500 ticks
-        end: 'latest', // Usar 'latest' para obter os dados mais recentes
-        style: 'ticks', // Formato de série temporal simples (não candles)
+        count: 500, // Forçar exatamente 500 ticks históricos conforme solicitado
+        end: "latest", // Usar 'latest' para obter os dados mais recentes
+        style: "ticks", // Formato de série temporal simples (não candles)
         adjust_start_time: 1, // Ajustar se o mercado estiver fechado
-        subscribe: subscribe ? 1 : undefined // Se devemos nos inscrever para atualizações
+        subscribe: subscribe ? 1 : undefined, // Se devemos nos inscrever para atualizações
+        passthrough: {
+          forceRefresh: forceRefresh,
+          init: true
+        },
+        req_id: Math.floor(Date.now() / 1000) // Identificador único para esta requisição
       };
       
-      console.log(`[DerivHistoryService] Enviando solicitação de histórico:`, JSON.stringify(ticksHistoryRequest));
+      console.log(`[DerivHistoryService] Enviando solicitação EXATA de ticks_history:`, JSON.stringify(ticksHistoryRequest));
       this.websocket.send(JSON.stringify(ticksHistoryRequest));
       
       // Retornar os dados vazios enquanto aguardamos os ticks mais recentes
@@ -257,11 +262,19 @@ class DerivHistoryService {
     // Resposta de histórico
     if (data.history) {
       const symbol = data.echo_req.ticks_history as string;
-      console.log(`[DerivHistoryService] Histórico completo recebido para ${symbol} com ${data.history.prices.length} ticks`);
+      const numTicks = data.history.prices.length;
+      console.log(`[DerivHistoryService] HISTÓRICO COMPLETO recebido para ${symbol} com ${numTicks} ticks`);
       
       // Processar ticks recebidos de uma forma mais eficiente
       const prices = data.history.prices;
       const times = data.history.times;
+      
+      // Verificar se temos todos os dados recebidos
+      if (numTicks < 100) {
+        console.warn(`[DerivHistoryService] ALERTA: Recebido apenas ${numTicks} ticks em vez dos 500 solicitados!`);
+      } else if (numTicks >= 500) {
+        console.log(`[DerivHistoryService] SUCESSO: Recebido histórico completo de ${numTicks} ticks!`);
+      }
       
       // Extrair todos os dígitos de uma vez - usando uma abordagem mais precisa
       // Inverter a ordem do array para ter o dígito mais recente primeiro
@@ -275,6 +288,8 @@ class DerivHistoryService {
         const lastChar = priceStr.charAt(priceStr.length - 1);
         digits.push(parseInt(lastChar, 10));
       }
+      
+      console.log(`[DerivHistoryService] Processados ${digits.length} dígitos a partir do histórico de preços`);
       
       // Inicializar contadores para estatísticas
       const counts: Record<number, number> = {};
