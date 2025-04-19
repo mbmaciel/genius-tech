@@ -18,7 +18,8 @@ interface PercentageStatsDisplayProps {
  * Componente dedicado apenas às estatísticas percentuais
  * Captura ticks diretamente da Deriv, totalmente independente dos componentes de exibição de dígitos
  */
-export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplayInner({
+// Removendo o React.memo que pode estar causando problema na atualização
+export function PercentageStatsDisplay({
   symbol = 'R_100'
 }: PercentageStatsDisplayProps) {
   // Estado para armazenar estatísticas de dígitos (0-9)
@@ -304,4 +305,4 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
       )}
     </div>
   );
-});
+}

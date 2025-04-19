@@ -57,7 +57,7 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
 // Importar o novo componente de estatísticas percentuais
-import { PercentageStatsDisplay } from "@/components/PercentageStatsDisplay";
+import { SimplePercentageStats } from "@/components/SimplePercentageStats";
 
 export function BotPage() {
   const { toast } = useToast();
@@ -1795,7 +1795,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   <p className="text-xs text-gray-400 mt-1">Estatísticas percentuais de frequência de dígitos com captura direta da Deriv</p>
                 </div>
                 {/* Componente dedicado para estatísticas percentuais */}
-                <PercentageStatsDisplay symbol="R_100" />
+                <SimplePercentageStats symbol="R_100" />
               </div>
               
               {/* Visualização completa de 500 dígitos históricos */}
