@@ -49,52 +49,8 @@ function saveDigitToBackend(
   return true;
 }
 
-/**
- * Função para atualizar as estatísticas de dígitos
- * Versão segura que não persiste dados
- */
-function updateDigitStats(symbol: string, newDigit: number) {
-  // Atualizar estado local
-  setLastDigits(prev => {
-    // Adicionar novo dígito ao início e manter apenas 500
-    const updatedDigits = [newDigit, ...prev].slice(0, 500);
-    
-    // Gerar estatísticas atualizadas
-    const counts: Record<number, number> = {};
-    
-    // Inicializar contagens
-    for (let i = 0; i < 10; i++) {
-      counts[i] = 0;
-    }
-    
-    // Contar ocorrências
-    updatedDigits.forEach(digit => {
-      counts[digit]++;
-    });
-    
-    // Calcular percentuais
-    const total = updatedDigits.length;
-    const updatedStats = Object.keys(counts).map(digit => {
-      const digitNumber = parseInt(digit);
-      const count = counts[digitNumber];
-      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-      
-      return {
-        digit: digitNumber,
-        count,
-        percentage
-      };
-    });
-    
-    // Atualizar estatísticas
-    setDigitStats(updatedStats);
-    
-    // Apenas log, sem persistência
-    console.log(`[BOT_PAGE] DIGIT UPDATE ONLY (não persistindo): ${symbol}, novo dígito: ${newDigit}`);
-    
-    return updatedDigits;
-  });
-}
+// Log para indicar uso da nova versão com OAuth dedicado
+console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
@@ -231,6 +187,65 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
 
   // Estado para controlar se o usuário está autenticado
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  
+  /**
+   * Função para atualizar as estatísticas de dígitos
+   * Versão que usa ticks diretamente da Deriv e permite escolher quantidade de ticks para análise
+   */
+  const updateDigitStats = (newDigit: number) => {
+    // Símbolo fixo para este componente
+    const symbol = "R_100";
+    
+    // 1. Atualizar estado local apenas para exibição dos últimos dígitos
+    setLastDigits((prev: number[]) => {
+      // Adicionar novo dígito ao início e manter apenas 50 para exibição
+      return [newDigit, ...prev].slice(0, 50);
+    });
+    
+    // 2. Buscar os dados do histórico diretamente do serviço DerivHistoryService
+    // que já tem os dados atualizados em tempo real vindos da Deriv
+    const historyData = derivHistoryService.getDigitStats(symbol);
+    
+    if (historyData && historyData.lastDigits) {
+      // 3. Usar apenas a quantidade de ticks selecionada pelo usuário para análise
+      const selectedTicksCount = parseInt(ticks);
+      
+      // 4. Garantir que apenas estamos considerando os ticks mais recentes
+      // (slice(0, X) porque lastDigits já está com o mais recente primeiro)
+      const ticksToAnalyze = historyData.lastDigits.slice(0, selectedTicksCount);
+      
+      // 5. Inicializar contagens
+      const counts: Record<number, number> = {};
+      for (let i = 0; i < 10; i++) {
+        counts[i] = 0;
+      }
+      
+      // 6. Contar ocorrências apenas nos ticks selecionados
+      ticksToAnalyze.forEach(digit => {
+        counts[digit]++;
+      });
+      
+      // 7. Calcular percentuais com base apenas nos ticks selecionados
+      const total = ticksToAnalyze.length;
+      const updatedStats = Array.from({ length: 10 }, (_, i) => {
+        const count = counts[i] || 0;
+        const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+        
+        return {
+          digit: i,
+          count,
+          percentage
+        };
+      });
+      
+      // 8. Atualizar estatísticas na interface
+      setDigitStats(updatedStats);
+      
+      // 9. Log para depuração
+      console.log(`[BOT_PAGE] Novas estatísticas calculadas:`, `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
+      console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, `Digit ${newDigit} - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
+    }
+  };
   
   // Estado para histórico de operações
   const [operationHistory, setOperationHistory] = useState<Array<{
@@ -910,56 +925,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     };
   }, [ticks]);
   
-  // Atualizar estatísticas de dígitos - VERSÃO SEM PERSISTÊNCIA
-  const updateDigitStats = (newDigit: number) => {
-    console.log("[BOT_PAGE] Atualizando estatísticas com novo dígito:", newDigit);
-    
-    // Calcular lastDigits fora do setState para evitar dependências cíclicas
-    const updatedLastDigits = [newDigit, ...lastDigits].slice(0, parseInt(ticks));
-    setLastDigits(updatedLastDigits);
-    
-    // Contagem de dígitos
-    const counts: number[] = Array(10).fill(0);
-    updatedLastDigits.forEach(d => {
-      if (d >= 0 && d <= 9) counts[d]++;
-    });
-    
-    // Cálculo de percentuais
-    const total = updatedLastDigits.length;
-    
-    // Criar um novo array com todos os dígitos (0-9), mesmo os que não têm ocorrências
-    const newStats = Array(10).fill(0).map((_, i) => ({
-      digit: i,
-      count: counts[i],
-      percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
-    }));
-    
-    // Garantir que os dígitos estão na ordem correta (0-9)
-    newStats.sort((a, b) => a.digit - b.digit);
-    
-    console.log("[BOT_PAGE] Novas estatísticas calculadas:", 
-      newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", "));
-    
-    // Atualizar estado em uma única operação
-    setDigitStats(newStats);
-    
-    // REQUISITO CRÍTICO: Nunca utilizar dados persistidos de sessões anteriores
-    // Apenas para fins de depuração, é útil ver os dígitos no console, mas não vamos salvar em nenhum lugar
-    console.log('[BOT_PAGE] APENAS LOG (sem persistência):', 
-      `Digit ${newDigit} - Stats: ${newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", ")}`);
-    
-    // IMPORTANTE: Retornamos aqui, sem enviar dados ao backend ou localStorage
-    return;
-    
-    /*
-    try {
-      // Função desativada - não salvar no banco
-      // saveDigitToBackend('R_100', newDigit, updatedLastDigits, newStats);
-    } catch (error) {
-      console.error('[BOT_PAGE] Erro ao atualizar histórico de dígitos:', error);
-    }
-    */
-  };
+  // Esta função anterior foi substituída pela versão acima
+  // que usa dados diretamente da Deriv via DerivHistoryService
   
   // Iniciar o bot usando o serviço OAuth Direct
   const handleStartBot = () => {
@@ -1747,13 +1714,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                     onStatusChange={(status) => setBotStatus(status)}
                     onStatsChange={(newStats) => setStats(newStats)}
                     onTickReceived={(price, lastDigit) => {
-                      // Atualizar últimos dígitos
-                      setLastDigits(prev => {
-                        const updated = [lastDigit, ...prev].slice(0, 20);
-                        return updated;
-                      });
-                      
-                      // Atualizar estatísticas
+                      // Usar a função updateDigitStats que já atualiza tanto os últimos dígitos
+                      // quanto as estatísticas com base nos dados da Deriv
                       updateDigitStats(lastDigit);
                     }}
                   />
