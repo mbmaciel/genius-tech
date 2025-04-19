@@ -241,7 +241,7 @@ export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDispl
       
       {/* Sequência de dígitos atual - apresentados 1 a 1 em múltiplas linhas */}
       <div className="mb-4">
-        <div className="text-xs text-gray-400 mb-2 font-medium">Histórico de dígitos: <span className="text-xs text-white font-bold">(ordem da esquerda para direita, de cima para baixo)</span></div>
+        <div className="text-xs text-gray-400 mb-2 font-medium">Histórico de dígitos: <span className="text-xs text-red-400 font-bold">(ordem da direita para esquerda - o mais recente é o primeiro à esquerda!)</span></div>
         {isLoading ? (
           <div className="grid grid-cols-10 gap-1.5 mb-2">
             {Array.from({ length: 10 }).map((_, i) => (
