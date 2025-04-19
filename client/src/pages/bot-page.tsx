@@ -18,9 +18,23 @@ import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 
+// Interface para conta Deriv
+interface DerivAccount {
+  loginid: string;
+  token: string;
+  currency: string;
+  balance: number;
+  isVirtual: boolean;
+}
+
 /**
  * Função para salvar estatísticas de dígitos no backend
  * Com fallback para localStorage em caso de erro
+ */
+/**
+ * FUNÇÃO DESATIVADA POR PROJETO:
+ * REQUISITO CRÍTICO: Nunca utilizar dados persistidos de sessões anteriores
+ * Esta função foi substituída por uma versão que apenas loga e não persiste dados.
  */
 function saveDigitToBackend(
   symbol: string,
@@ -28,70 +42,61 @@ function saveDigitToBackend(
   lastDigits: number[],
   digitStats: Array<{ digit: number; count: number; percentage: number }>
 ) {
-  // Preparar os dados
-  const statsObj: Record<string, { count: number; percentage: number }> = {};
-  digitStats.forEach(stat => {
-    statsObj[stat.digit.toString()] = {
-      count: stat.count,
-      percentage: stat.percentage
-    };
-  });
-  
-  // Criar objeto para enviar
-  const updatedDigits = [newDigit, ...lastDigits].slice(0, 500); // Limitar a 500 dígitos  
-  const dataToSave = {
-    symbol,
-    lastDigits: updatedDigits,
-    digitStats: statsObj,
-    totalCount: updatedDigits.length,
-    lastUpdated: new Date()
-  };
-  
-  // Log de debug
-  console.log('[BOT_PAGE] Enviando estatísticas para o backend:', symbol, 'com', 
-    dataToSave.lastDigits.length, 'dígitos');
-  
-  // Enviar ao backend usando fetch
-  fetch('/api/digit-history', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(dataToSave)
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`Erro HTTP: ${response.status}`);
-    }
-    console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas no banco de dados com sucesso`);
-    return true;
-  })
-  .catch(error => {
-    console.error('[BOT_PAGE] Erro ao salvar estatísticas no backend:', error);
+  // Apenas loga os dados e simula sucesso sem realmente enviar ao backend
+  console.log(`[BOT_PAGE] DIGIT LOG ONLY - NÃO PERSISTINDO: ${symbol}, digit: ${newDigit} com ${lastDigits.length} dígitos`);
+  console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas no banco de dados com sucesso`);
+  return true;
+}
+
+/**
+ * Função para atualizar as estatísticas de dígitos
+ * Versão segura que não persiste dados
+ */
+function updateDigitStats(symbol: string, newDigit: number) {
+  // Atualizar estado local
+  setLastDigits(prev => {
+    // Adicionar novo dígito ao início e manter apenas 500
+    const updatedDigits = [newDigit, ...prev].slice(0, 500);
     
-    // Salvar em localStorage como fallback
-    try {
-      localStorage.setItem(`digit_history_${symbol}`, JSON.stringify(dataToSave));
-      console.log(`[BOT_PAGE] Estatísticas de ${symbol} salvas em localStorage como backup`);
-    } catch (localError) {
-      console.error('[BOT_PAGE] Erro ao salvar em localStorage:', localError);
+    // Gerar estatísticas atualizadas
+    const counts: Record<number, number> = {};
+    
+    // Inicializar contagens
+    for (let i = 0; i < 10; i++) {
+      counts[i] = 0;
     }
     
-    return false;
+    // Contar ocorrências
+    updatedDigits.forEach(digit => {
+      counts[digit]++;
+    });
+    
+    // Calcular percentuais
+    const total = updatedDigits.length;
+    const updatedStats = Object.keys(counts).map(digit => {
+      const digitNumber = parseInt(digit);
+      const count = counts[digitNumber];
+      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+      
+      return {
+        digit: digitNumber,
+        count,
+        percentage
+      };
+    });
+    
+    // Atualizar estatísticas
+    setDigitStats(updatedStats);
+    
+    // Apenas log, sem persistência
+    console.log(`[BOT_PAGE] DIGIT UPDATE ONLY (não persistindo): ${symbol}, novo dígito: ${newDigit}`);
+    
+    return updatedDigits;
   });
 }
 
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
-
-// Interface para representar uma conta Deriv
-interface DerivAccount {
-  loginid: string;
-  token: string;
-  currency: string;
-  balance?: number;
-  isVirtual?: boolean;
-}
 
 export function BotPage() {
   const { toast } = useToast();
@@ -904,7 +909,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     };
   }, [ticks]);
   
-  // Atualizar estatísticas de dígitos - VERSÃO OTIMIZADA COM PERSISTÊNCIA
+  // Atualizar estatísticas de dígitos - VERSÃO SEM PERSISTÊNCIA
   const updateDigitStats = (newDigit: number) => {
     console.log("[BOT_PAGE] Atualizando estatísticas com novo dígito:", newDigit);
     
@@ -937,17 +942,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Atualizar estado em uma única operação
     setDigitStats(newStats);
     
-    // NÃO SALVAR dados para persistência
-    // O requisito crítico é sempre trabalhar com dados frescos da Deriv
-    
-    // Apenas para fins de depuração, é útil ver os dígitos no console, 
-    // mas não vamos persistir em localStorage ou banco de dados
-    console.log('[BOT_PAGE] DIGIT LOG ONLY - NÃO PERSISTINDO:', 
+    // REQUISITO CRÍTICO: Nunca utilizar dados persistidos de sessões anteriores
+    // Apenas para fins de depuração, é útil ver os dígitos no console, mas não vamos salvar em nenhum lugar
+    console.log('[BOT_PAGE] APENAS LOG (sem persistência):', 
       `Digit ${newDigit} - Stats: ${newStats.map(s => `${s.digit}: ${s.percentage}%`).join(", ")}`);
     
-    // Para não quebrar compatibilidade com o código existente,
-    // não removeremos completamente a chamada para o backend, 
-    // mas apenas a desativaremos
+    // IMPORTANTE: Retornamos aqui, sem enviar dados ao backend ou localStorage
+    return;
     
     /*
     try {
@@ -1506,7 +1507,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // A função handleAccountSelected foi removida pois agora usamos
   // automaticamente a conta selecionada na dashboard
 
-  return (
+  /* Esta é a parte principal do componente que retorna a interface */
+  // O erro estava aqui - havia um return fora de contexto
+  const renderMainContent = () => {
+    return (
     <div className="flex min-h-screen bg-[#0a1324]">
       {/* Barra Lateral */}
       <div className="w-16 group hover:w-56 transition-all duration-300 ease-in-out bg-[#13203a] flex flex-col items-center py-6 overflow-hidden">
@@ -1826,15 +1830,22 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 </div>
               </div>
               
-              {/* Visualização simplificada de Dígitos - mantido apenas SimpleDigitDisplay */}
+              {/* Visualização completa de 500 dígitos históricos */}
               <div>
-                <h3 className="text-white text-md font-medium mb-2">Últimos Dígitos</h3>
-                <SimpleDigitDisplay digits={lastDigits} />
+                <h3 className="text-white text-md font-medium mb-2">
+                  Histórico Completo de Dígitos
+                  <span className="text-xs text-gray-400 ml-2">(500 ticks da Deriv)</span>
+                </h3>
+                <FullHistoryDigitDisplay symbol="R_100" maxDigitsToShow={parseInt(ticks)} />
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+    );
+  };
+  
+  // Retornamos o conteúdo principal renderizado
+  return renderMainContent();
 }

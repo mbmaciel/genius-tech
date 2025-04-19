@@ -251,26 +251,53 @@ class DerivHistoryService {
     // Resposta de histórico
     if (data.history) {
       const symbol = data.echo_req.ticks_history as string;
-      console.log(`[DerivHistoryService] Histórico recebido para ${symbol} com ${data.history.prices.length} ticks`);
+      console.log(`[DerivHistoryService] Histórico completo recebido para ${symbol} com ${data.history.prices.length} ticks`);
       
-      // Processar ticks recebidos
+      // Processar ticks recebidos de uma forma mais eficiente
       const prices = data.history.prices;
       const times = data.history.times;
       
-      for (let i = 0; i < prices.length; i++) {
-        const price = prices[i];
-        const time = times[i];
-        const digit = Math.floor(price * 10) % 10;
-        
-        // Adicionar ao histórico
-        this.addDigitToHistory(symbol, digit);
+      // Extrair todos os dígitos de uma vez
+      const digits: number[] = prices.map(price => Math.floor(price * 10) % 10);
+      
+      // Inicializar contadores para estatísticas
+      const counts: Record<number, number> = {};
+      for (let i = 0; i <= 9; i++) {
+        counts[i] = 0;
       }
       
-      // Notificar ouvintes
+      // Contar ocorrências de cada dígito
+      digits.forEach(digit => {
+        counts[digit]++;
+      });
+      
+      // Calcular percentuais
+      const total = digits.length;
+      const statsObj: DigitStats = {};
+      
+      for (let i = 0; i <= 9; i++) {
+        statsObj[i] = {
+          count: counts[i],
+          percentage: total > 0 ? Math.round((counts[i] / total) * 100) : 0
+        };
+      }
+      
+      // Atualizar diretamente os dados em memória (sem persistência)
+      this.tickHistories[symbol] = digits; // Armazenar os dígitos extraídos
+      this.historyData[symbol] = {
+        lastDigits: digits,
+        digitStats: statsObj,
+        lastUpdated: new Date(),
+        totalCount: total
+      };
+      
+      console.log(`[DerivHistoryService] Histórico de ${digits.length} dígitos processado em bloco para ${symbol}`);
+      
+      // Notificar ouvintes de uma vez só
       this.notifyListeners(symbol);
       
-      // Salvar em localStorage
-      this.saveToLocalStorage(symbol);
+      // NÃO salvar em localStorage - REQUISITO CRÍTICO
+      console.log(`[DerivHistoryService] Dados processados para ${symbol} sem persistência`);
     }
     
     // Tick em tempo real
@@ -280,15 +307,15 @@ class DerivHistoryService {
       const digit = Math.floor(price * 10) % 10;
       
       // Adicionar ao histórico
-      this.addDigitToHistory(symbol, digit);
+      this.addDigitToHistoryInternal(symbol, digit); // Usando a versão que não tenta persistir
       
       // Notificar ouvintes
       this.notifyListeners(symbol);
       
-      // Salvar periodicamente
+      // Log em vez de tentar salvar
       const now = Date.now();
       if (now - this.lastSaveTime > this.MIN_SAVE_INTERVAL) {
-        this.saveToLocalStorage(symbol);
+        console.log(`[DerivHistoryService] Processando tick em tempo real para ${symbol}, último dígito: ${digit}`);
         this.lastSaveTime = now;
       }
     }
@@ -341,11 +368,12 @@ class DerivHistoryService {
    */
   public addDigitToHistory(symbol: string, digit: number): void {
     try {
-      // Adicionar ao histórico local
+      // Adicionar ao histórico local (sem persistência)
       this.addDigitToHistoryInternal(symbol, digit);
       
-      // Salvar no banco de dados
-      this.saveToDB(symbol);
+      // NÃO salvar em banco de dados - REQUISITO CRÍTICO
+      // O método this.saveToDB está desativado, mas chamamos para manter logs consistentes
+      console.log(`[DerivHistoryService] Processando dígito ${digit} para ${symbol} (sem persistência)`);
       
       // Notificar ouvintes sobre a atualização
       this.notifyListeners(symbol);
