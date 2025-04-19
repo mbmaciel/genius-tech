@@ -6,7 +6,7 @@ export function DigitsFixedDisplay({ symbol = 'R_100' }: { symbol?: string }) {
   // Estados básicos
   const [digits, setDigits] = useState<number[]>([]);
   const [currentSampleSize, setCurrentSampleSize] = useState<number>(100);
-  const [connected, setConnected] = useState<boolean>(oauthDirectService.isConnected());
+  const [connected, setConnected] = useState<boolean>(Boolean(localStorage.getItem('deriv_oauth_token')));
   const [lastDigit, setLastDigit] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
