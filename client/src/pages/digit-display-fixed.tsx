@@ -27,9 +27,13 @@ export default function DigitDisplayFixed() {
   
   // Calcular estatísticas
   const calculateStats = (digitList: Digit[]): {digit: Digit, count: number, percentage: number}[] => {
-    // Usar apenas o número de dígitos da amostra selecionada
-    const sample = digitList.slice(0, sampleSize);
-    console.log(`[DIGIT-DISPLAY] Calculando estatísticas para ${sample.length} dígitos. Total disponível: ${digitList.length}`);
+    // Importante: garantir que o digitList esteja na ordem correta (mais recente primeiro)
+    // e que estamos pegando apenas o número correto de dígitos
+    const actualSampleSize = Math.min(sampleSize, digitList.length);
+    const sample = digitList.slice(0, actualSampleSize);
+    
+    console.log(`[DIGIT-DISPLAY] Calculando estatísticas para ${actualSampleSize} dígitos. Total disponível: ${digitList.length}`);
+    console.log(`[DIGIT-DISPLAY] Amostra atual: ${sample.slice(0, 10).join(', ')}...`);
     
     if (sample.length === 0) {
       return Array.from({length: 10}, (_, i) => ({
@@ -39,28 +43,38 @@ export default function DigitDisplayFixed() {
       }));
     }
     
-    // Contar ocorrências
-    const counts: {[key in Digit]?: number} = {};
-    for (let i = 0; i < 10; i++) {
-      counts[i as Digit] = 0;
+    // Contar ocorrências precisamente
+    const counts = new Array(10).fill(0);
+    
+    // Contar cada dígito na amostra
+    for (let i = 0; i < sample.length; i++) {
+      const digit = sample[i];
+      counts[digit]++;
     }
     
-    sample.forEach(digit => {
-      counts[digit] = (counts[digit] || 0) + 1;
+    // Verificar que a soma total está correta
+    const totalCounts = counts.reduce((sum, count) => sum + count, 0);
+    console.log(`[DIGIT-DISPLAY] Total de contagens: ${totalCounts} (deve ser igual a ${actualSampleSize})`);
+    
+    // Calcular percentuais com precisão
+    const result = counts.map((count, digit) => {
+      const percentage = Math.round((count / actualSampleSize) * 100);
+      return { 
+        digit: digit as Digit, 
+        count, 
+        percentage 
+      };
     });
     
-    // Converter para array e calcular percentuais
-    const result = Object.entries(counts).map(([digit, count]) => {
-      const digitNum = parseInt(digit) as Digit;
-      const percentage = Math.round((count / sample.length) * 100);
-      return { digit: digitNum, count, percentage };
-    });
+    // Calcular soma de percentuais para verificar precisão
+    const totalPercentage = result.reduce((sum, stat) => sum + stat.percentage, 0);
+    console.log(`[DIGIT-DISPLAY] Soma dos percentuais: ${totalPercentage}% (deve estar próximo de 100%)`);
     
     console.log(`[DIGIT-DISPLAY] Estatísticas calculadas:`, 
       result.map(stat => `${stat.digit}: ${stat.percentage}%`).join(', ')
     );
     
-    return result.sort((a, b) => a.digit - b.digit);
+    return result;
   };
 
   // Formatação de ticks para display
