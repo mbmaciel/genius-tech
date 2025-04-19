@@ -196,19 +196,25 @@ export function RealtimeDigitBarChart({
         
         <div className="flex items-center space-x-2">
           {showControls && (
-            <Select value={tickCount} onValueChange={handleTickCountChange}>
-              <SelectTrigger className="h-8 bg-[#1d2a45] border-[#3a4b6b] text-white text-xs w-32">
-                <SelectValue placeholder="Quantidade de ticks" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
-                <SelectItem value="25">25 ticks</SelectItem>
-                <SelectItem value="50">50 ticks</SelectItem>
-                <SelectItem value="100">100 ticks</SelectItem>
-                <SelectItem value="200">200 ticks</SelectItem>
-                <SelectItem value="300">300 ticks</SelectItem>
-                <SelectItem value="500">500 ticks</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="relative z-10">
+              <select
+                value={tickCount}
+                onChange={(e) => handleTickCountChange(e.target.value)}
+                className="h-8 bg-[#1d2a45] border border-[#3a4b6b] text-white text-xs rounded px-2 py-1 w-32 appearance-none cursor-pointer"
+              >
+                <option value="25">25 ticks</option>
+                <option value="50">50 ticks</option>
+                <option value="100">100 ticks</option>
+                <option value="200">200 ticks</option>
+                <option value="300">300 ticks</option>
+                <option value="500">500 ticks</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           )}
           
           <button 

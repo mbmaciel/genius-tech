@@ -277,20 +277,28 @@ class IndependentDerivService {
    * Inicializa o histórico de dígitos para um símbolo com dados existentes
    */
   private initializeDigitHistory(symbol: string, lastDigits: number[]): void {
+    // Inicializar array de contagem para dígitos 0-9
     const digitCounts = new Array(10).fill(0);
     
-    // Contar ocorrências de cada dígito
+    // Contar ocorrências de cada dígito, incluindo zero
     for (const digit of lastDigits) {
-      digitCounts[digit]++;
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
+      }
     }
     
     // Calcular percentuais
     const totalSamples = lastDigits.length;
-    const stats = digitCounts.map((count, digit) => ({
-      digit,
-      count,
-      percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
-    }));
+    
+    // Criar estatísticas para todos os dígitos, mesmo que não tenham ocorrências
+    const stats = [];
+    for (let digit = 0; digit <= 9; digit++) {
+      stats.push({
+        digit,
+        count: digitCounts[digit],
+        percentage: totalSamples > 0 ? Math.round((digitCounts[digit] / totalSamples) * 100) : 0
+      });
+    }
     
     // Criar ou atualizar o histórico com exatamente 500 ticks
     this.digitHistories.set(symbol, {
