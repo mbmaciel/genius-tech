@@ -34,11 +34,17 @@ export function IndependentDigitBarChart({
   // Iniciar conexão e inscrição para ticks
   useEffect(() => {
     setLoading(true);
+    console.log('[IndependentDigitBarChart] Inicializando componente para', symbol);
     
     const handleHistoryUpdate = (data: DigitHistory) => {
       // Verificar se os dados são para o mesmo símbolo
       if (data.symbol === symbol) {
-        setDigitHistory(data);
+        console.log('[IndependentDigitBarChart] Recebido atualização do histórico com', 
+                    data.lastDigits.length, 'dígitos e', 
+                    data.stats?.length || 0, 'estatísticas');
+                    
+        // Converter em novo objeto para forçar re-render
+        setDigitHistory({...data});
         
         // Atualizar últimos dígitos (mostrar apenas os 10 mais recentes)
         const digits = [...data.lastDigits];
@@ -180,30 +186,44 @@ export function IndependentDigitBarChart({
           
           {/* Barras para cada dígito */}
           <div className="flex justify-between items-end w-full pl-8">
-            {digitHistory?.stats.map((stat) => (
-              <div key={stat.digit} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
-                {/* Percentual acima da barra */}
-                {stat.percentage > 0 && (
+            {/* Verificar se temos dados de estatísticas */}
+            {digitHistory?.stats ? (
+              // Mapear cada estatística para uma barra
+              digitHistory.stats.map((stat) => (
+                <div key={stat.digit} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
+                  {/* Percentual acima da barra - sempre exibir */}
                   <div className="text-xs font-medium text-white mb-1">
                     {stat.percentage}%
                   </div>
-                )}
-                
-                {/* Barra com altura proporcional */}
-                <div 
-                  className={`w-full ${getBarColor(stat.digit)}`}
-                  style={{ 
-                    height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
-                    transition: 'height 0.3s ease-in-out'
-                  }}
-                ></div>
-                
-                {/* Dígito abaixo da barra */}
-                <div className="mt-2 text-center text-sm text-white">
-                  {stat.digit}
+                  
+                  {/* Barra com altura proporcional - mesmo com 0% tem altura mínima */}
+                  <div 
+                    className={`w-full ${getBarColor(stat.digit)}`}
+                    style={{ 
+                      height: `${Math.max(5, (stat.percentage / 50) * 100)}%`,
+                      transition: 'height 0.3s ease-in-out'
+                    }}
+                  ></div>
+                  
+                  {/* Dígito abaixo da barra */}
+                  <div className="mt-2 text-center text-sm text-white">
+                    {stat.digit}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              // Barras de placeholder durante o carregamento
+              Array.from({ length: 10 }, (_, i) => (
+                <div key={i} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
+                  <div className="text-xs font-medium text-white mb-1">0%</div>
+                  <div 
+                    className={`w-full ${getBarColor(i)}`}
+                    style={{ height: '5%', transition: 'height 0.3s ease-in-out' }}
+                  ></div>
+                  <div className="mt-2 text-center text-sm text-white">{i}</div>
+                </div>
+              ))
+            )}
           </div>
         </div>
         
