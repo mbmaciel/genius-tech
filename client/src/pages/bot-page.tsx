@@ -13,6 +13,8 @@ import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
+import { DigitsFixedDisplay } from "@/components/DigitsFixedDisplay";
+import { DigitBarChart } from "@/components/ui/DigitBarChart";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";
@@ -55,8 +57,7 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
-// Importar o novo componente de histórico de dígitos
-import { DigitsFixedDisplay } from "@/components/DigitsFixedDisplay";
+// Componente de histórico de dígitos já importado no topo do arquivo
 
 export function BotPage() {
   const { toast } = useToast();
@@ -1759,8 +1760,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <h2 className="text-lg font-semibold text-white mb-4">Histórico de Mercado</h2>
               
-              {/* Componente que exibe os últimos 500 ticks do mercado */}
-              <DigitsFixedDisplay symbol="R_100" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Componente que exibe os últimos 500 ticks do mercado */}
+                <DigitsFixedDisplay symbol="R_100" />
+                
+                {/* Componente de gráfico de barras para visualizar distribuição dos dígitos */}
+                <DigitBarChart symbol="R_100" className="h-full" />
+              </div>
             </div>
           </div>
         </div>
