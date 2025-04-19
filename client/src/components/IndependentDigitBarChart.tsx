@@ -131,46 +131,62 @@ export function IndependentDigitBarChart({
   // Contador de versão para forçar re-renderização completa
   const [renderVersion, setRenderVersion] = useState<number>(0);
   
-  // Atualizar dados periodicamente (a cada 200ms para maior fluidez)
+  // Atualizar dados periodicamente
   useEffect(() => {
+    // Intervalo rápido para melhor sensação de tempo real
+    const REFRESH_INTERVAL = 100; // ms
     let interval: NodeJS.Timeout;
     
-    const updateStatsAndRender = () => {
-      if (symbol && !loading) {
-        // Buscar histórico atual
-        const currentHistory = independentDerivService.getDigitHistory(symbol);
+    // Função que força atualização completa dos dados e re-renderização
+    const forceRender = () => {
+      try {
+        if (!symbol || loading) return;
         
-        if (currentHistory && currentHistory.lastDigits.length > 0) {
-          // Força nova renderização a cada atualização
+        // Obter os dados mais recentes do serviço WebSocket
+        const currentData = independentDerivService.getDigitHistory(symbol);
+        
+        if (currentData && currentData.stats && currentData.stats.length > 0) {
+          // IMPORTANTE: Forçar incremento do contador de versão para substituir completamente os componentes
           setRenderVersion(prev => prev + 1);
           
-          // Copia profunda para garantir que mudanças sejam detectadas
-          const newHistory = {
-            ...currentHistory,
-            stats: currentHistory.stats.map(stat => ({ ...stat })), // Copia todos os objetos de estatística
-            lastDigits: [...currentHistory.lastDigits],
-            lastUpdated: new Date() // Marca temporal de atualização
-          };
+          // Criar novos objetos para cada estatística para evitar referências compartilhadas
+          const freshStats = currentData.stats.map(stat => ({
+            digit: stat.digit,
+            count: stat.count,
+            percentage: stat.percentage
+          }));
           
-          // Atualiza o estado
-          setDigitHistory(newHistory);
-          setLastDigits([...currentHistory.lastDigits].slice(-10).reverse());
+          // Atualizar estado com objetos completamente novos
+          setDigitHistory({
+            ...currentData, 
+            stats: freshStats,
+            lastDigits: [...currentData.lastDigits],
+            lastUpdated: new Date()
+          });
           
-          // Log para debug - verificar se os percentuais estão atualizando
-          console.log('[IndependentDigitBarChart] Atualizando barras com percentuais:', 
-            newHistory.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+          // Atualizar sequência de dígitos
+          setLastDigits([...currentData.lastDigits].slice(-10).reverse());
+          
+          // Log detalhado dos percentuais para debug
+          console.log(`[DigitBarChart] Atualização v${renderVersion+1}:`, 
+            freshStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
         }
+      } catch (err) {
+        console.error('[DigitBarChart] Erro ao atualizar:', err);
       }
     };
     
-    // Chama imediatamente e depois agenda repetições
-    updateStatsAndRender();
+    // Executar imediatamente a primeira vez
+    forceRender();
     
-    // Atualização frequente
-    interval = setInterval(updateStatsAndRender, 200);
+    // Configurar intervalo de atualização
+    interval = setInterval(forceRender, REFRESH_INTERVAL);
     
-    return () => clearInterval(interval);
-  }, [symbol, loading]);
+    // Limpar intervalo ao desmontar
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [symbol, loading, renderVersion]);
   
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
   const getBarColor = (digit: number): string => {
@@ -247,41 +263,45 @@ export function IndependentDigitBarChart({
           
           {/* Barras para cada dígito */}
           <div className="flex justify-between items-end w-full pl-8">
-            {/* Verificar se temos dados de estatísticas */}
-            {digitHistory?.stats ? (
-              // Mapear cada estatística para uma barra
-              digitHistory.stats.map((stat) => (
-                <div 
-                  key={`digit-${stat.digit}-${stat.percentage}-${renderVersion}`} 
-                  className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]"
-                >
-                  {/* Percentual acima da barra - sempre exibir */}
-                  <div className="text-xs font-medium text-white mb-1">
-                    {stat.percentage}%
-                  </div>
-                  
-                  {/* Barra com altura proporcional - mesmo com 0% tem altura mínima */}
+            {/* Força a recriação completa de todas as barras */}
+            {renderVersion && digitHistory?.stats ? 
+              // Mapear cada estatística para uma barra - key baseada no renderVersion para recriação completa
+              digitHistory.stats.map((stat) => {
+                // Calcular a altura visual baseada no percentual - usando escala fixa para melhor visualização
+                const barHeight = Math.max(5, (stat.percentage / 7) * 100); // Divisor 7 para fazer barras de ~10% mais visíveis
+                const barColor = stat.digit % 2 === 0 ? '#00e5b3' : '#ff444f';
+                
+                return (
                   <div 
-                    style={{ 
-                      height: `${Math.max(15, (stat.percentage / 12) * 100)}%`, // Aumentando ainda mais para barras grandes
-                      minHeight: '15px', // Mínimo visível mais alto para melhor visualização
-                      backgroundColor: stat.digit % 2 === 0 ? '#00e5b3' : '#ff444f',
+                    key={`bar-${stat.digit}-v${renderVersion}`} 
+                    className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]"
+                  >
+                    {/* Percentual acima da barra */}
+                    <div className="text-xs font-bold text-white mb-1">
+                      {stat.percentage}%
+                    </div>
+                    
+                    {/* Barra com altura dinâmica */}
+                    <div style={{
+                      height: `${barHeight}%`,
+                      backgroundColor: barColor,
                       width: '100%',
-                      transition: 'all 0.3s ease',
-                      borderRadius: '2px 2px 0 0' // Adicionar bordas arredondadas no topo
-                    }}
-                  ></div>
-                  
-                  {/* Dígito abaixo da barra */}
-                  <div className="mt-2 text-center text-sm text-white">
-                    {stat.digit}
+                      minHeight: '15px',
+                      transition: 'none', // Sem transição para garantir a mudança imediata
+                      borderRadius: '2px 2px 0 0'
+                    }}></div>
+                    
+                    {/* Dígito abaixo da barra */}
+                    <div className="mt-2 text-center text-sm font-medium text-white">
+                      {stat.digit}
+                    </div>
                   </div>
-                </div>
-              ))
-            ) : (
+                );
+              })
+            : 
               // Barras de placeholder durante o carregamento
               Array.from({ length: 10 }, (_, i) => (
-                <div key={i} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
+                <div key={`placeholder-${i}-${renderVersion || 0}`} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
                   <div className="text-xs font-medium text-white mb-1">0%</div>
                   <div 
                     style={{ 
@@ -289,14 +309,13 @@ export function IndependentDigitBarChart({
                       backgroundColor: i % 2 === 0 ? '#00e5b3' : '#ff444f',
                       width: '100%',
                       minHeight: '15px',
-                      transition: 'all 0.3s ease',
                       borderRadius: '2px 2px 0 0'
                     }}
                   ></div>
                   <div className="mt-2 text-center text-sm text-white">{i}</div>
                 </div>
               ))
-            )}
+            }
           </div>
         </div>
         
@@ -313,7 +332,7 @@ export function IndependentDigitBarChart({
                 
                 return (
                   <div 
-                    key={index} 
+                    key={`digit-${index}-${digit}-v${renderVersion}`} 
                     className={`w-6 h-6 flex items-center justify-center ${textColor} font-medium text-base`}
                   >
                     {digit}
