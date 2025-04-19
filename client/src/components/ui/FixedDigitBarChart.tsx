@@ -191,48 +191,78 @@ export function FixedDigitBarChart({ symbol = "R_100", className = "" }: FixedDi
       if (!isMounted.current) return;
       
       try {
-        // Extrair dados relevantes do evento
-        let tickData = null;
+        // Extração dos dados baseado na estrutura do evento
+        let extractedData: any = null;
+        let tickData: any = null;
         
+        // Extrair dados baseados no tipo de evento
         if (event.type === 'tick') {
+          // Caso 1: evento de tick direto (vem do serviço oauthDirectService)
           if (event.data) {
-            tickData = event.data.tick || event.data;
-          } else if (event.tick) {
-            tickData = event.tick;
+            extractedData = event.data;
+          } else if (event.price || event.quote || event.lastDigit !== undefined) {
+            extractedData = event;
           } else if (typeof event === 'object') {
-            tickData = event;
+            extractedData = event;
+          }
+        } else if (typeof event === 'object') {
+          // Caso 2: objeto de evento não tipado
+          if (event.tick) {
+            extractedData = event.tick;
+          } else if (event.data && (event.data.tick || event.data.quote || event.data.lastDigit !== undefined)) {
+            extractedData = event.data;
+          } else {
+            extractedData = event;
+          }
+        }
+        
+        // Nenhum dado relevante encontrado
+        if (!extractedData) {
+          return;
+        }
+        
+        // Normalizar os dados
+        tickData = extractedData;
+        
+        // Verificar se é o símbolo correto ou ignorar verificação se não tivermos o símbolo no evento
+        const tickSymbol = tickData.symbol || tickData.name;
+        if (tickSymbol && tickSymbol !== symbol) {
+          // Ignorar tick de outro símbolo
+          return;
+        }
+        
+        // Extrair cotação ou usar valor direto do evento
+        let quote = 0;
+        let digit = -1;
+        
+        // Primeiro verificar se o dígito já está extraído no evento
+        if (typeof tickData.lastDigit === 'number') {
+          digit = tickData.lastDigit;
+          quote = tickData.price || tickData.quote || 0;
+        } else {
+          // Extrair cotação
+          if (typeof tickData.quote !== 'undefined') {
+            quote = Number(tickData.quote);
+          } else if (typeof tickData.value !== 'undefined') {
+            quote = Number(tickData.value);
+          } else if (typeof tickData.price !== 'undefined') {
+            quote = Number(tickData.price);
           }
           
-          if (tickData) {
-            // Verificar se é o símbolo que estamos observando
-            const tickSymbol = tickData.symbol || tickData.name || symbol;
-            
-            if (tickSymbol === symbol) {
-              // Extrair cotação
-              let quote = 0;
-              if (typeof tickData.quote !== 'undefined') {
-                quote = Number(tickData.quote);
-              } else if (typeof tickData.value !== 'undefined') {
-                quote = Number(tickData.value);
-              } else if (typeof tickData.price !== 'undefined') {
-                quote = Number(tickData.price);
-              }
-              
-              if (quote > 0) {
-                // Extrair o último dígito
-                const quoteStr = quote.toString();
-                const digit = parseInt(quoteStr.charAt(quoteStr.length - 1));
-                
-                if (!isNaN(digit)) {
-                  console.log(`[FixedDigitBarChart] Novo tick para ${symbol}: ${quote} (dígito ${digit})`);
-                  processNewDigit(digit, quote);
-                  
-                  // Forçar atualização da UI imediatamente após receber um novo dígito
-                  setRenderKey(prev => prev + 1);
-                }
-              }
-            }
+          // Extrair dígito a partir da cotação
+          if (quote > 0) {
+            const quoteStr = quote.toString();
+            digit = parseInt(quoteStr.charAt(quoteStr.length - 1));
           }
+        }
+        
+        // Processar o dígito se for válido
+        if (digit >= 0 && digit <= 9) {
+          console.log(`[FixedDigitBarChart] Novo tick processado: ${quote} (dígito ${digit})`);
+          processNewDigit(digit, quote);
+          
+          // Forçar atualização da UI imediatamente após receber um novo dígito
+          setRenderKey(prev => prev + 1);
         }
       } catch (err) {
         console.error('[FixedDigitBarChart] Erro ao processar tick:', err);

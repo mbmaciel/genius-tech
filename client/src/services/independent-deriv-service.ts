@@ -148,22 +148,12 @@ class IndependentDerivService {
           console.log('[INDEPENDENT_DERIV] Conexão WebSocket estabelecida');
           this.isConnected = true;
           this.reconnectAttempts = 0;
+          this.notifyListeners('connection', { connected: true });
           
-          // Autenticar com o token específico da dashboard
-          this.authorize().then(() => {
-            this.notifyListeners('connection', { connected: true });
-            
-            // Reativar subscrições apenas após autenticação
-            this.resubscribeAll();
-            
-            resolve(true);
-          }).catch(error => {
-            console.error('[INDEPENDENT_DERIV] Erro na autorização:', error);
-            // Mesmo com erro de autorização, manter a conexão e continuar
-            this.notifyListeners('connection', { connected: true });
-            this.resubscribeAll();
-            resolve(true);
-          });
+          // Reativar subscrições
+          this.resubscribeAll();
+          
+          resolve(true);
         };
         
         this.socket.onmessage = (event) => {

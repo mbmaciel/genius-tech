@@ -134,20 +134,25 @@ export function IndependentDigitBarChart({
   // Atualizar dados periodicamente
   useEffect(() => {
     // Intervalo rápido para melhor sensação de tempo real
-    const REFRESH_INTERVAL = 100; // ms
+    const REFRESH_INTERVAL = 500; // ms - aumentado para reduzir carga
     let interval: NodeJS.Timeout;
+    
+    // Referência para verificar se componente ainda está montado
+    const isMounted = { current: true };
     
     // Função que força atualização completa dos dados e re-renderização
     const forceRender = () => {
       try {
-        if (!symbol || loading) return;
+        if (!symbol || loading || !isMounted.current) return;
         
         // Obter os dados mais recentes do serviço WebSocket
         const currentData = independentDerivService.getDigitHistory(symbol);
         
         if (currentData && currentData.stats && currentData.stats.length > 0) {
           // IMPORTANTE: Forçar incremento do contador de versão para substituir completamente os componentes
-          setRenderVersion(prev => prev + 1);
+          // NÃO devemos usar renderVersion diretamente no log pois causa loop infinito
+          const nextVersion = renderVersion + 1;
+          setRenderVersion(nextVersion);
           
           // Criar novos objetos para cada estatística para evitar referências compartilhadas
           const freshStats = currentData.stats.map(stat => ({
@@ -167,8 +172,8 @@ export function IndependentDigitBarChart({
           // Atualizar sequência de dígitos
           setLastDigits([...currentData.lastDigits].slice(-10).reverse());
           
-          // Log detalhado dos percentuais para debug
-          console.log(`[DigitBarChart] Atualização v${renderVersion+1}:`, 
+          // Log detalhado dos percentuais para debug - usar nextVersion para evitar dependência circular
+          console.log(`[DigitBarChart] Atualização v${nextVersion}:`, 
             freshStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
         }
       } catch (err) {
@@ -184,9 +189,10 @@ export function IndependentDigitBarChart({
     
     // Limpar intervalo ao desmontar
     return () => {
+      isMounted.current = false;
       if (interval) clearInterval(interval);
     };
-  }, [symbol, loading, renderVersion]);
+  }, [symbol, loading]); // Removido renderVersion da lista de dependências para evitar loop infinito
   
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
   const getBarColor = (digit: number): string => {
