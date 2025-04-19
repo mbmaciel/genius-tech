@@ -1,0 +1,244 @@
+import React, { useEffect, useState } from 'react';
+import { oauthDirectService } from '@/services/oauthDirectService';
+import { Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface DigitBarChartProps {
+  symbol?: string;
+  className?: string;
+}
+
+interface DigitStat {
+  digit: number;
+  count: number;
+  percentage: number;
+}
+
+export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChartProps) {
+  // Estados
+  const [digits, setDigits] = useState<number[]>([]);
+  const [digitStats, setDigitStats] = useState<DigitStat[]>(
+    Array.from({ length: 10 }, (_, i) => ({ digit: i, count: 0, percentage: 0 }))
+  );
+  const [selectedCount, setSelectedCount] = useState<string>("500");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [renderKey, setRenderKey] = useState<number>(0);
+
+  // Buscar histórico de ticks no carregamento
+  const fetchTicksHistory = async () => {
+    try {
+      setLoading(true);
+      const history = await oauthDirectService.getFullTicksHistory(symbol);
+      
+      if (history && history.length > 0) {
+        setDigits(history);
+        calculateStats(history);
+        console.log(`[DigitBarChart] Recebidos ${history.length} dígitos históricos`);
+      } else {
+        setError("Não foi possível obter histórico de dígitos");
+      }
+    } catch (err) {
+      console.error("[DigitBarChart] Erro ao buscar histórico:", err);
+      setError("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para calcular estatísticas dos dígitos
+  const calculateStats = (historyDigits: number[]) => {
+    const limit = parseInt(selectedCount);
+    const digitsToAnalyze = historyDigits.slice(0, limit);
+    const counts = Array(10).fill(0);
+    
+    digitsToAnalyze.forEach(digit => {
+      if (digit >= 0 && digit <= 9) {
+        counts[digit]++;
+      }
+    });
+    
+    const total = digitsToAnalyze.length;
+    
+    const newStats = counts.map((count, digit) => {
+      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+      return { digit, count, percentage };
+    });
+    
+    setDigitStats(newStats);
+    // Forçar renderização com nova chave
+    setRenderKey(prev => prev + 1);
+  };
+
+  // Adicionar novo dígito recebido em tempo real
+  const addNewDigit = (newDigit: number) => {
+    setDigits(prev => {
+      const updated = [newDigit, ...prev].slice(0, 500);
+      calculateStats(updated);
+      return updated;
+    });
+  };
+
+  // Recalcular quando a seleção mudar
+  useEffect(() => {
+    if (digits.length > 0) {
+      calculateStats(digits);
+    }
+  }, [selectedCount]);
+
+  // Inicializar dados e configurar listener para ticks em tempo real
+  useEffect(() => {
+    // Buscar histórico inicial
+    fetchTicksHistory();
+    
+    // Configurar listener para ticks em tempo real
+    const handleTick = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.tick?.last_digit !== undefined) {
+        const digit = customEvent.detail.tick.last_digit;
+        console.log(`[DigitBarChart] Novo tick recebido com dígito: ${digit}`);
+        addNewDigit(digit);
+      }
+    };
+    
+    // Registrar ouvinte e inscever-se nos ticks
+    window.addEventListener('deriv-tick', handleTick);
+    oauthDirectService.subscribeToTicks(symbol);
+    
+    // Reforçar atualização periódica
+    const forceUpdateInterval = setInterval(() => {
+      setRenderKey(prev => prev + 1);
+    }, 1000);
+    
+    return () => {
+      window.removeEventListener('deriv-tick', handleTick);
+      clearInterval(forceUpdateInterval);
+    };
+  }, [symbol]);
+
+  return (
+    <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
+      <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg">
+        <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-red-600 mr-1.5 rounded-sm"></div>
+            <h3 className="font-medium text-white flex items-center">
+              Gráfico de Dígitos do {symbol}
+              {loading && (
+                <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
+              )}
+            </h3>
+          </div>
+          
+          <div className="flex items-center">
+            <Select value={selectedCount} onValueChange={setSelectedCount}>
+              <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
+                <SelectValue placeholder="500" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25 Ticks</SelectItem>
+                <SelectItem value="50">50 Ticks</SelectItem>
+                <SelectItem value="100">100 Ticks</SelectItem>
+                <SelectItem value="200">200 Ticks</SelectItem>
+                <SelectItem value="250">250 Ticks</SelectItem>
+                <SelectItem value="500">500 Ticks</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        {error ? (
+          <div className="text-red-500 text-sm p-4">{error}</div>
+        ) : (
+          <div className="p-4">
+            {/* Área do gráfico */}
+            <div className="relative h-[250px] flex items-end justify-between px-2">
+              {/* Linhas de grade horizontais */}
+              <div className="absolute w-full h-full flex flex-col justify-between">
+                {[0, 10, 20, 30, 40, 50].map(value => (
+                  <div 
+                    key={`grid-line-${value}-${renderKey}`}
+                    className="w-full border-t border-gray-800 relative"
+                    style={{ bottom: `${(value / 50) * 100}%` }}
+                  >
+                    <span className="absolute -top-3 -left-8 text-gray-500 text-xs">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Barras para cada dígito */}
+              {digitStats.map(stat => {
+                // Determinar a cor baseada na frequência
+                let barColor = stat.percentage >= 20 
+                  ? "#ff3232" // Vermelho para 20% ou mais
+                  : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
+                
+                return (
+                  <div 
+                    key={`bar-${stat.digit}-${stat.percentage}-${renderKey}`} 
+                    className="flex flex-col items-center w-9 z-10"
+                  >
+                    {/* Barra com altura proporcional à porcentagem */}
+                    <div 
+                      className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
+                      style={{ 
+                        height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
+                        backgroundColor: barColor
+                      }}
+                    >
+                      {/* Mostrar percentual acima da barra */}
+                      {stat.percentage > 0 && (
+                        <div className="absolute -top-6 w-full text-center">
+                          <span className="text-white text-xs font-bold">
+                            {stat.percentage}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Dígito abaixo da barra */}
+                    <div className="mt-2 w-full text-center text-white font-semibold">
+                      {stat.digit}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Sequência de dígitos mais recentes */}
+            <div className="mt-6 border-t border-gray-800 pt-4">
+              <div className="flex justify-center">
+                <div className="grid grid-cols-10 gap-1 text-white text-sm font-mono">
+                  {digits.slice(0, 10).map((digit, index) => (
+                    <div 
+                      key={`recent-digit-${index}-${renderKey}`} 
+                      className={`w-7 h-7 flex items-center justify-center border rounded
+                        ${index === 0 
+                          ? 'bg-primary text-white border-primary font-bold' 
+                          : 'border-gray-700 text-white'}`}
+                    >
+                      {digit}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Contador de dígitos */}
+            <div className="mt-4 text-xs text-gray-400 text-center">
+              Analisando {selectedCount} de {Math.min(digits.length, 500)} dígitos disponíveis
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
