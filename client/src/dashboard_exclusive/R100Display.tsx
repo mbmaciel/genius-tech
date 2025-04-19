@@ -28,7 +28,7 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   const [lastDigits, setLastDigits] = useState<number[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [digitStats, setDigitStats] = useState<DigitData[]>([]);
-  const [localTickCount, setLocalTickCount] = useState<number>(tickCount);
+  const [localTickCount, setLocalTickCount] = useState<string>(tickCount.toString());
   
   // Efeito para gerenciar a conexão WebSocket
   useEffect(() => {
@@ -107,10 +107,10 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   
   // Manipulador para mudança na quantidade de ticks
   const handleTicksChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newTicks = parseInt(e.target.value);
-    setLocalTickCount(newTicks);
+    const newTicksValue = e.target.value;
+    setLocalTickCount(newTicksValue);
     // Limitar os dígitos existentes ao novo valor
-    setLastDigits((prev) => prev.slice(-newTicks));
+    setLastDigits((prev) => prev.slice(-parseInt(newTicksValue)));
   };
   
   return (
@@ -142,7 +142,7 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
       <RealtimeDigitBarChart 
         symbol="R_100" 
         className="w-full mb-6"
-        initialTickCount={parseInt(localTickCount)}
+        initialTickCount={parseInt(localTickCount.toString())}
         showControls={true}
       />
       

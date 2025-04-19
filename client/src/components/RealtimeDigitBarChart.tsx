@@ -13,7 +13,7 @@ interface RealtimeDigitBarChartProps {
   symbol?: string;
   className?: string;
   showControls?: boolean;
-  initialTickCount?: number;
+  initialTickCount?: number | string;
 }
 
 export function RealtimeDigitBarChart({ 
@@ -36,7 +36,7 @@ export function RealtimeDigitBarChart({
 
   // Inicializar e configurar ouvintes
   useEffect(() => {
-    console.log(`[RealtimeDigitBarChart] Inicializando para símbolo ${symbol}`);
+    console.log(`[RealtimeDigitBarChart] Inicializando para símbolo ${symbol} com ${tickCount} ticks`);
     setIsLoading(true);
     setError(null);
 
@@ -45,31 +45,42 @@ export function RealtimeDigitBarChart({
       if (data && data.symbol === symbol && data.stats) {
         console.log(`[RealtimeDigitBarChart] Recebendo atualização com ${data.stats.length} estatísticas`);
         
-        // Copiar os arrays para garantir novas referências
-        const newStats = [...data.stats].map(stat => ({ ...stat }));
-        const newDigits = [...data.lastDigits].slice(-10).reverse();
+        // Garantir que temos todas as estatísticas para os dígitos 0-9
+        let allStats: {digit: number, count: number, percentage: number}[] = [];
         
-        // Verificar se temos todos os dígitos de 0 a 9
+        // Inicializar todos os dígitos com valor zero
         for (let i = 0; i <= 9; i++) {
-          if (!newStats.some(s => s.digit === i)) {
-            newStats.push({
-              digit: i,
-              count: 0,
-              percentage: 0
-            });
-          }
+          allStats.push({
+            digit: i,
+            count: 0,
+            percentage: 0
+          });
         }
         
-        // Ordenar para garantir que aparecem na ordem correta
-        newStats.sort((a, b) => a.digit - b.digit);
+        // Sobrescrever com dados reais
+        if (data.stats && Array.isArray(data.stats)) {
+          data.stats.forEach((stat: {digit: number, count: number, percentage: number}) => {
+            if (stat.digit >= 0 && stat.digit <= 9) {
+              allStats[stat.digit] = { ...stat };
+            }
+          });
+        }
         
-        setStats(newStats);
+        // Copiar os últimos dígitos
+        const newDigits = [...(data.lastDigits || [])].slice(-10).reverse();
+        
+        // Usar essa lista completa de estatísticas
+        setStats(allStats);
         setDigits(newDigits);
         setLastUpdate(Date.now());
         setIsLoading(false);
         
         // Forçar re-renderização da visualização
         setForceRender(prev => prev + 1);
+        
+        // Log de debug
+        console.log('[RealtimeDigitBarChart] Stats atualizadas:', 
+          allStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
       }
     };
 
