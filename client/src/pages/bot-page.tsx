@@ -14,7 +14,7 @@ import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 import { DigitsFixedDisplay } from "@/components/DigitsFixedDisplay";
-import { DigitBarChart } from "@/components/ui/DigitBarChart";
+import { NewDigitBarChart } from "@/components/ui/NewDigitBarChart";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";
@@ -1763,7 +1763,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <DigitsFixedDisplay symbol="R_100" />
                 
                 {/* Componente de gráfico de barras para visualizar distribuição dos dígitos */}
-                <DigitBarChart symbol="R_100" className="h-full" />
+                <NewDigitBarChart symbol="R_100" className="h-full" />
               </div>
             </div>
           </div>
