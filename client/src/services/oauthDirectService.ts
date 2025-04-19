@@ -549,12 +549,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             account: data.authorize
           });
           
-          // Após autorização bem-sucedida, inscrever-se para receber ticks
-          this.subscribeToTicks();
+          // Após autorização bem-sucedida, inscrever-se para receber ticks uma única vez
+          // sem disparar eventos de symbol_update frequentes
+          if (!this.isRunning) {
+            this.lastTickTime = Date.now(); // Inicializa o timestamp como agora para evitar notificações symbol_update desnecessárias
+            this.subscribeToTicks(this.activeSymbol);
+          }
         }
       }
       
-      // Resposta de tick - VERSÃO CORRIGIDA
+      // Resposta de tick - VERSÃO CORRIGIDA e OTIMIZADA
       if (data.msg_type === 'tick' && data.tick) {
         try {
           // Processar tick conforme esquema JSON
@@ -590,6 +594,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               subscription_id,
               timestamp: Date.now()
             };
+            
+            // Atualizar o timestamp do último tick para o controle de notificações symbol_update
+            this.lastTickTime = Date.now();
             
             // Notificar listners para atualização de interface
             this.notifyListeners(tickEvent);
@@ -871,7 +878,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @param symbol Símbolo para receber ticks (R_100 por padrão)
    */
   private lastSymbolUpdateTime: number = 0;
-  private readonly SYMBOL_UPDATE_THROTTLE_MS: number = 5000; // 5 segundos
+  private readonly SYMBOL_UPDATE_THROTTLE_MS: number = 30000; // 30 segundos - evita reconexões frequentes
+  private lastSymbol: string = 'R_100';
+  private lastTickTime: number = 0;
 
   public subscribeToTicks(symbol: string = 'R_100'): void {
     // Atualizar o símbolo ativo para uso em reconexões
@@ -882,14 +891,30 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Somente notificar outros componentes se o símbolo realmente mudou
       // E se não enviamos uma atualização recentemente
       const now = Date.now();
-      if (now - this.lastSymbolUpdateTime > this.SYMBOL_UPDATE_THROTTLE_MS) {
-        this.lastSymbolUpdateTime = now;
+      
+      // Verificação mais rigorosa para evitar notificações duplicadas:
+      // 1. O símbolo deve ter mudado em relação ao último notificado
+      // 2. Deve ter passado tempo suficiente desde a última notificação
+      // 3. Se estivermos recebendo ticks recentes, não emitir o evento
+      if (symbol !== this.lastSymbol && 
+          now - this.lastSymbolUpdateTime > this.SYMBOL_UPDATE_THROTTLE_MS &&
+          now - this.lastTickTime > 2000) {
         
-        this.notifyListeners({
-          type: 'symbol_update',
-          symbol: this.activeSymbol,
-          message: `Símbolo ativo: ${this.activeSymbol}`
-        });
+        this.lastSymbolUpdateTime = now;
+        this.lastSymbol = symbol;
+        
+        // Registramos no log, mas não notificamos listeners se tudo estiver funcionando
+        if (now - this.lastTickTime > 5000) {
+          console.log(`[OAUTH_DIRECT] Símbolo alterado para ${symbol}, enviando notificação aos listeners`);
+          
+          this.notifyListeners({
+            type: 'symbol_update',
+            symbol: this.activeSymbol,
+            message: `Símbolo ativo: ${this.activeSymbol}`
+          });
+        } else {
+          console.log(`[OAUTH_DIRECT] Símbolo alterado para ${symbol}, mas já recebendo ticks recentes (${(now - this.lastTickTime)/1000}s)`);
+        }
       }
     }
     
