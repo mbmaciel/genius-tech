@@ -1757,8 +1757,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             <div className="bg-[#13203a] rounded-lg border border-[#2a3756]">
               <div className="px-4 py-3 border-b border-[#2a3756] flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-white">Distribuição de Dígitos</h2>
+                <span className="text-sm text-gray-400">Atualização em tempo real</span>
               </div>
-              <DigitBarChart symbol="R_100" className="p-4" />
+              <div className="p-4" style={{ height: '450px' }}>
+                <DigitBarChart symbol="R_100" className="h-full w-full" />
+              </div>
             </div>
           </div>
         </div>
