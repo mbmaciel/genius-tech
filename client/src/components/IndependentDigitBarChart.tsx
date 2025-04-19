@@ -83,8 +83,25 @@ export function IndependentDigitBarChart({
         }
         
         // Solicitar histórico e assinar ticks (mesmo que tenhamos cache)
-        await independentDerivService.fetchTicksHistory(symbol, 500);
-        await independentDerivService.subscribeTicks(symbol);
+        try {
+          await independentDerivService.fetchTicksHistory(symbol, 500);
+        } catch (historyError) {
+          console.warn('[IndependentDigitBarChart] Erro ao buscar histórico, tentando apenas subscrição:', historyError);
+          setError('Usando dados recentes. Atualizando...');
+        }
+        
+        try {
+          await independentDerivService.subscribeTicks(symbol);
+        } catch (subscribeError) {
+          console.error('[IndependentDigitBarChart] Erro ao subscrever ticks:', subscribeError);
+          setError('Falha na conexão em tempo real. Tentando reconectar...');
+          
+          // Tentar novamente após 3 segundos
+          setTimeout(() => {
+            independentDerivService.subscribeTicks(symbol)
+              .catch(e => console.error('[IndependentDigitBarChart] Erro na reconexão:', e));
+          }, 3000);
+        }
       } catch (err) {
         console.error('[IndependentDigitBarChart] Erro ao buscar dados:', err);
         setError('Falha ao buscar histórico de dígitos');
@@ -111,6 +128,22 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
+  // Atualizar dados periodicamente (a cada meio segundo)
+  useEffect(() => {
+    const refreshTimer = setInterval(() => {
+      if (symbol && !loading) {
+        // Forçar atualização dos dados
+        const currentHistory = independentDerivService.getDigitHistory(symbol);
+        if (currentHistory && currentHistory.lastDigits.length > 0) {
+          setDigitHistory({...currentHistory});
+          setLastDigits([...currentHistory.lastDigits].slice(-10).reverse());
+        }
+      }
+    }, 500);
+    
+    return () => clearInterval(refreshTimer);
+  }, [symbol, loading]);
+  
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
   const getBarColor = (digit: number): string => {
     // Dígitos pares em verde, ímpares em vermelho
@@ -122,10 +155,10 @@ export function IndependentDigitBarChart({
   return (
     <div className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}>
       {/* Header com título e controles */}
-      <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
+      <div className="p-3 bg-[#0e1a2e] border-b border-[#232e47] flex justify-between items-center">
         <div className="flex items-center">
           <h3 className="font-medium text-white flex items-center">
-            Análise de Dígitos
+            <span className="text-[#3a96dd]">{symbol}:</span>&nbsp;Análise de Dígitos
             {loading && (
               <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
             )}
@@ -133,7 +166,7 @@ export function IndependentDigitBarChart({
         </div>
         
         {/* Box com indicação de "Últimos 10 Dígitos" (como na imagem) */}
-        <div className="bg-[#ff3e50] px-2 py-0.5 text-xs text-white font-medium rounded-sm">
+        <div className="bg-[#ff3e50] px-2 py-0.5 text-xs text-white font-medium rounded-sm shadow-sm">
           Últimos 10 Dígitos (%)
         </div>
         
@@ -264,8 +297,11 @@ export function IndependentDigitBarChart({
       </div>
       
       {/* Rodapé com informações */}
-      <div className="px-4 py-2 bg-[#0c1625] text-xs text-gray-400 border-t border-gray-800">
-        Análise baseada em {digitHistory?.totalSamples || 0} ticks do {symbol}
+      <div className="px-4 py-2 bg-[#0c1625] text-xs text-gray-400 border-t border-[#232e47]">
+        <div className="flex justify-between items-center">
+          <div>Análise baseada em {digitHistory?.totalSamples || 0} ticks</div>
+          <div className="text-[#3a96dd] font-medium">{symbol}</div>
+        </div>
       </div>
     </div>
   );

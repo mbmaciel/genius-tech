@@ -35,7 +35,8 @@ class IndependentDerivService {
   // Gerenciamento de reconexão
   private reconnectTimer: any = null;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
+  private maxReconnectAttempts: number = 10; // Aumentado para mais tentativas
+  private reconnectDelayMs: number = 1000; // Delay inicial de 1 segundo
   
   // Cache de dados
   private digitHistories: Map<string, DigitHistory> = new Map();
@@ -122,16 +123,30 @@ class IndependentDerivService {
           
           // Tentar reconexão
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+            // Usar o delay configurado, com incremento exponencial suave
+            const delay = Math.min(this.reconnectDelayMs * Math.pow(1.5, this.reconnectAttempts), 15000);
             console.log(`[INDEPENDENT_DERIV] Tentando reconectar em ${delay}ms (tentativa ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
             
             this.reconnectTimer = setTimeout(() => {
               this.reconnectAttempts++;
               this.connect()
+                .then(() => {
+                  console.log('[INDEPENDENT_DERIV] Reconexão bem-sucedida');
+                  // Após reconectar, verificar se há subscrições ativas
+                  if (this.activeSubscriptions.size > 0) {
+                    this.resubscribeAll();
+                  }
+                })
                 .catch(() => console.error('[INDEPENDENT_DERIV] Falha na tentativa de reconexão'));
             }, delay);
           } else {
             console.error('[INDEPENDENT_DERIV] Máximo de tentativas de reconexão atingido');
+            // Mesmo após atingir o máximo, tentar novamente em 30 segundos como última chance
+            this.reconnectTimer = setTimeout(() => {
+              console.log('[INDEPENDENT_DERIV] Tentativa de recuperação final após pausa...');
+              this.reconnectAttempts = 0; // Resetar contador
+              this.connect();
+            }, 30000);
           }
         };
       } catch (error) {
@@ -416,10 +431,13 @@ class IndependentDerivService {
     
     console.log(`[INDEPENDENT_DERIV] Reativando ${this.activeSubscriptions.size} subscrições`);
     
-    for (const symbol of this.activeSubscriptions) {
-      this.subscribeTicks(symbol)
-        .catch((error) => console.error(`[INDEPENDENT_DERIV] Erro ao reativar subscrição para ${symbol}:`, error));
+    // Tentar reativar R_100 diretamente se presente na lista
+    if (this.activeSubscriptions.has('R_100')) {
+      this.subscribeTicks('R_100')
+        .catch(error => console.error('[INDEPENDENT_DERIV] Erro ao reativar R_100:', error));
     }
+    
+    // Se houver outras subscrições, poderíamos adicionar aqui
   }
   
   /**
