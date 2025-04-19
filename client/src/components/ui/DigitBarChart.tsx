@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { oauthDirectService } from '@/services/oauthDirectService';
+import { derivHistoryService } from '@/services/deriv-history-service';
 import { Loader2 } from 'lucide-react';
 import {
   Select,
@@ -100,32 +101,39 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Buscar histórico inicial
     fetchTicksHistory();
     
-    // Configurar listener para ticks em tempo real
-    const handleTick = (event: Event) => {
-      const customEvent = event as CustomEvent;
+    // Configurar atualização periódica dos ticks a partir do serviço
+    const tickUpdateInterval = setInterval(() => {
+      // Usar diretamente o valor mais recente do serviço
+      const tickHistory = derivHistoryService.getDigitsHistory(symbol, parseInt(selectedCount));
       
-      // Log completo para debug
-      console.log('[DigitBarChart] Evento recebido:', customEvent.type, customEvent.detail);
-      
-      if (customEvent.detail?.tick?.quote) {
-        // Extrair o último dígito do preço
-        const price = parseFloat(customEvent.detail.tick.quote);
-        const priceStr = price.toFixed(2);
-        const digit = parseInt(priceStr.charAt(priceStr.length - 1));
+      if (tickHistory && tickHistory.length > 0) {
+        // Atualizar histórico completo
+        setDigits(tickHistory);
         
-        console.log(`[DigitBarChart] Novo tick recebido com preço ${price}, último dígito: ${digit}`);
-        addNewDigit(digit);
+        // Calcular estatísticas a partir do histórico
+        const digitCounts = Array(10).fill(0);
+        
+        tickHistory.forEach(digit => {
+          if (digit >= 0 && digit <= 9) {
+            digitCounts[digit]++;
+          }
+        });
+        
+        const totalDigits = tickHistory.length;
+        
+        const updatedStats = digitCounts.map((count, digit) => {
+          const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
+          return { digit, count, percentage };
+        });
+        
+        setDigitStats(updatedStats);
+        setLoading(false);
       }
-    };
+    }, 1000);
     
-    // Registrar como ouvinte DIRETAMENTE no oauthDirectService
-    oauthDirectService.addEventListener('tick', handleTick as EventListener);
-    
-    // Também registrar no documento para capturar eventos de ambas as fontes
-    document.addEventListener('oauthTick', handleTick as EventListener);
-    
-    // Garantir que estamos inscritos para os ticks
+    // Garantir que estamos inscritos para os ticks (tanto via OAuth quanto derivHistoryService)
     oauthDirectService.subscribeToTicks(symbol);
+    derivHistoryService.subscribeToTicks(symbol);
     
     // Reforçar atualização periódica
     const forceUpdateInterval = setInterval(() => {
@@ -133,9 +141,8 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     }, 1000);
     
     return () => {
-      // Corrigindo a limpeza para remover todos os listeners
-      document.removeEventListener('oauthTick', handleTick as EventListener);
-      oauthDirectService.removeEventListener('tick', handleTick as EventListener);
+      // Limpar intervalos
+      clearInterval(tickUpdateInterval);
       clearInterval(forceUpdateInterval);
     };
   }, [symbol]);
