@@ -68,17 +68,45 @@ class IndependentDerivService {
   private loadSavedHistoriesFromLocalStorage(): void {
     try {
       // Carregar histórico para o símbolo padrão R_100
+      // Tentar várias chaves possíveis para compatibilidade
+      let lastDigits: number[] = [];
+      
+      // Tentar nossa própria chave primeiro
       const savedHistoryKey = 'deriv_digits_history_R_100';
       const savedHistoryJson = localStorage.getItem(savedHistoryKey);
       
       if (savedHistoryJson) {
         const savedData = JSON.parse(savedHistoryJson);
-        const lastDigits = savedData.lastDigits || [];
-        
-        if (lastDigits.length > 0) {
-          console.log(`[INDEPENDENT_DERIV] Carregado histórico salvo de ${lastDigits.length} ticks para R_100`);
-          this.initializeDigitHistory('R_100', lastDigits);
+        if (savedData.lastDigits && savedData.lastDigits.length > 0) {
+          lastDigits = savedData.lastDigits;
+          console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave principal`);
         }
+      }
+      
+      // Se não encontrou na primeira chave, tenta a chave usada pelo componente do Bot
+      if (lastDigits.length === 0) {
+        const botHistoryKey = 'fixed_digitHistory_R_100';
+        const botHistoryJson = localStorage.getItem(botHistoryKey);
+        
+        if (botHistoryJson) {
+          try {
+            const botData = JSON.parse(botHistoryJson);
+            if (Array.isArray(botData) && botData.length > 0) {
+              lastDigits = botData;
+              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave do Bot`);
+            }
+          } catch (e) {
+            console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados do Bot:', e);
+          }
+        }
+      }
+      
+      // Inicializar com os dígitos encontrados (se houver)
+      if (lastDigits.length > 0) {
+        console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} ticks carregados do localStorage`);
+        this.initializeDigitHistory('R_100', lastDigits);
+      } else {
+        console.log('[INDEPENDENT_DERIV] Nenhum histórico salvo encontrado, começando do zero');
       }
     } catch (e) {
       console.warn('[INDEPENDENT_DERIV] Erro ao carregar histórico do localStorage:', e);
@@ -341,6 +369,28 @@ class IndependentDerivService {
   }
   
   /**
+   * Salva os dados do histórico de dígitos no localStorage para persistência
+   */
+  private saveHistoryToLocalStorage(symbol: string): void {
+    try {
+      const history = this.digitHistories.get(symbol);
+      if (!history) return;
+      
+      const data = {
+        lastDigits: history.lastDigits,
+        stats: history.stats,
+        totalSamples: history.totalSamples,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      localStorage.setItem(`deriv_digits_history_${symbol}`, JSON.stringify(data));
+      console.log(`[INDEPENDENT_DERIV] Histórico de ${history.lastDigits.length} ticks salvo no localStorage para ${symbol}`);
+    } catch (e) {
+      console.warn('[INDEPENDENT_DERIV] Não foi possível salvar o histórico no localStorage:', e);
+    }
+  }
+
+  /**
    * Obtém histórico de ticks para um símbolo
    * Este método busca os últimos 500 ticks e os armazena, para que eles estejam
    * disponíveis mesmo após atualizar a página
@@ -375,17 +425,7 @@ class IndependentDerivService {
           this.initializeDigitHistory(symbol, lastDigits);
           
           // Salvar no localStorage para persistir entre recarregamentos
-          try {
-            localStorage.setItem(`deriv_digits_history_${symbol}`, 
-              JSON.stringify({
-                lastDigits: this.digitHistories.get(symbol)?.lastDigits || [],
-                lastUpdated: new Date().toISOString()
-              })
-            );
-            console.log(`[INDEPENDENT_DERIV] Histórico de ${lastDigits.length} ticks salvo no localStorage`);
-          } catch (e) {
-            console.warn('[INDEPENDENT_DERIV] Não foi possível salvar o histórico no localStorage:', e);
-          }
+          this.saveHistoryToLocalStorage(symbol);
           
           // Obter histórico depois de atualizado
           const history = this.getDigitHistory(symbol);
