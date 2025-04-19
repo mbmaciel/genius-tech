@@ -223,13 +223,19 @@ class DerivHistoryService {
       
       // Solicitar histórico de ticks (500 ticks é o padrão conforme solicitado)
       console.log(`[DerivHistoryService] Solicitando exatamente ${count} ticks mais recentes do mercado para ${symbol}`);
-      this.websocket.send(JSON.stringify({
+      
+      // Criar a solicitação conforme o schema fornecido
+      const ticksHistoryRequest = {
         ticks_history: symbol,
         count: count > 0 ? count : 500, // Garantir que solicitamos pelo menos 500 ticks
-        end: 'latest',
-        style: 'ticks',
-        subscribe: subscribe ? 1 : undefined
-      }));
+        end: 'latest', // Usar 'latest' para obter os dados mais recentes
+        style: 'ticks', // Formato de série temporal simples (não candles)
+        adjust_start_time: 1, // Ajustar se o mercado estiver fechado
+        subscribe: subscribe ? 1 : undefined // Se devemos nos inscrever para atualizações
+      };
+      
+      console.log(`[DerivHistoryService] Enviando solicitação de histórico:`, JSON.stringify(ticksHistoryRequest));
+      this.websocket.send(JSON.stringify(ticksHistoryRequest));
       
       // Retornar os dados vazios enquanto aguardamos os ticks mais recentes
       return this.historyData[symbol];

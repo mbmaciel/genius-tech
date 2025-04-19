@@ -127,11 +127,14 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     try {
       // Forçar uma solicitação atualizada para garantir dados frescos
       if (oauthDirectService) {
+        console.log(`[NewDigitBarChart] Inscrevendo-se para receber ticks do símbolo ${symbol}`);
         oauthDirectService.subscribeToTicks(symbol);
       }
       
       // Solicitar novos dados explicitamente do serviço de histórico
-      await derivHistoryService.getTicksHistory(symbol, 500, true, false);
+      // Forçar atualização (true) e solicitar 500 ticks históricos
+      console.log(`[NewDigitBarChart] Solicitando 500 ticks históricos para ${symbol}`);
+      await derivHistoryService.getTicksHistory(symbol, 500, true, true);
       
       // Obter os dados mais recentes após a solicitação
       const historyData = derivHistoryService.getDigitStats(symbol);
