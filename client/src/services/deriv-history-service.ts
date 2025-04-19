@@ -258,12 +258,17 @@ class DerivHistoryService {
       const times = data.history.times;
       
       // Extrair todos os dígitos de uma vez - usando uma abordagem mais precisa
-      const digits: number[] = prices.map(price => {
+      // Inverter a ordem do array para ter o dígito mais recente primeiro
+      let digits: number[] = [];
+      
+      // Vamos processar do mais recente para o mais antigo (array invertido)
+      for (let i = prices.length - 1; i >= 0; i--) {
+        const price = prices[i];
         // Converter para string e pegar o último dígito após o ponto decimal
         const priceStr = price.toFixed(2); // Formato padrão da Deriv é com 2 casas decimais
         const lastChar = priceStr.charAt(priceStr.length - 1);
-        return parseInt(lastChar, 10);
-      });
+        digits.push(parseInt(lastChar, 10));
+      }
       
       // Inicializar contadores para estatísticas
       const counts: Record<number, number> = {};
@@ -271,13 +276,17 @@ class DerivHistoryService {
         counts[i] = 0;
       }
       
+      // Para estatísticas, vamos usar os dígitos na ordem original (do mais antigo para o mais recente)
+      // Isso mantém a coerência com o método addDigitToHistoryInternal
+      const digitsForStats = [...digits].reverse();
+      
       // Contar ocorrências de cada dígito
-      digits.forEach(digit => {
+      digitsForStats.forEach(digit => {
         counts[digit]++;
       });
       
       // Calcular percentuais
-      const total = digits.length;
+      const total = digitsForStats.length;
       const statsObj: DigitStats = {};
       
       for (let i = 0; i <= 9; i++) {
@@ -340,18 +349,19 @@ class DerivHistoryService {
       this.initializeDigitStats(symbol);
     }
     
-    // Adicionar dígito ao array
-    this.historyData[symbol].lastDigits.push(digit);
+    // Adicionar dígito no INÍCIO do array (inverter a ordem)
+    this.historyData[symbol].lastDigits.unshift(digit);
     
     // Inicializar array de histórico se necessário
     if (!this.tickHistories[symbol]) {
       this.tickHistories[symbol] = [];
     }
+    // Manter a mesma ordem para cálculos estatísticos
     this.tickHistories[symbol].push(digit);
     
-    // Limitar a 100 últimos dígitos para exibição
+    // Limitar a 100 últimos dígitos para exibição, removendo o último (mais antigo)
     if (this.historyData[symbol].lastDigits.length > 100) {
-      this.historyData[symbol].lastDigits.shift();
+      this.historyData[symbol].lastDigits.pop();
     }
     
     // Manter histórico completo para estatísticas (limitado a 1000)
