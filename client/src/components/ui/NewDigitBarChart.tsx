@@ -9,6 +9,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useDerivTicks } from '@/hooks/use-deriv-ticks';
 import { derivHistoryService } from '@/services/deriv-history-service';
+import { oauthDirectService } from '@/services/oauthDirectService';
 
 interface DigitBarChartProps {
   symbol?: string;
@@ -69,34 +70,96 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     setDigitStats(stats);
   };
 
-  // Função para buscar histórico de dígitos
+  // Função para buscar histórico de dígitos com mecanismo de fallback
   const fetchDigitHistory = async () => {
     try {
       setLoading(true);
-      // Obter dados de histórico diretamente do serviço usando o método público
-      const historyData = derivHistoryService.getDigitStats(symbol);
       
-      if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
-        setDigits(historyData.lastDigits);
-        calculateStats(historyData.lastDigits.slice(0, parseInt(selectedCount)));
-        setError(null);
-      } else {
-        setError("Não foi possível obter o histórico de dígitos");
+      // Tente obter do sessionStorage primeiro para ter uma resposta imediata
+      const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
+      const storedStats = sessionStorage.getItem(`digitStats_${symbol}`);
+      
+      if (storedDigits && storedStats) {
+        try {
+          const parsedDigits = JSON.parse(storedDigits);
+          const parsedStats = JSON.parse(storedStats);
+          
+          if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
+            console.log(`[NewDigitBarChart] Usando ${parsedDigits.length} dígitos do sessionStorage`);
+            setDigits(parsedDigits);
+            calculateStats(parsedDigits.slice(0, parseInt(selectedCount)));
+            setError(null);
+            setLoading(false);
+            
+            // Continue buscando em segundo plano para atualizar os dados
+            setTimeout(() => fetchFromServices(), 500);
+            return;
+          }
+        } catch (e) {
+          console.error('[NewDigitBarChart] Erro ao ler do sessionStorage:', e);
+        }
       }
+      
+      // Se não tiver dados no sessionStorage, busque normalmente
+      await fetchFromServices();
+      
     } catch (err) {
       console.error(`[NewDigitBarChart] Erro ao buscar histórico: ${err}`);
       setError("Erro ao obter dados históricos");
+      setLoading(false);
+    }
+  };
+  
+  // Função para buscar dados dos serviços e atualizar o sessionStorage
+  const fetchFromServices = async () => {
+    try {
+      // Tentar obter do derivHistoryService primeiro
+      const historyData = derivHistoryService.getDigitStats(symbol);
+      
+      if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+        console.log(`[NewDigitBarChart] Atualizado com ${historyData.lastDigits.length} dígitos do derivHistoryService`);
+        setDigits(historyData.lastDigits);
+        calculateStats(historyData.lastDigits.slice(0, parseInt(selectedCount)));
+        
+        // Salvar no sessionStorage para acesso rápido
+        sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(historyData.lastDigits));
+        sessionStorage.setItem(`digitStats_${symbol}`, JSON.stringify(historyData.digitStats));
+        
+        setError(null);
+      } else {
+        // Se não conseguir do derivHistoryService, tente obter diretamente do oauthDirectService
+        console.log(`[NewDigitBarChart] Solicitando ticks direto do oauthDirectService para ${symbol}`);
+        
+        // Solicitar ticks novamente para garantir atualização
+        if (oauthDirectService) {
+          oauthDirectService.subscribeToTicks(symbol);
+        }
+        
+        setError("Obtendo novos dados de mercado...");
+      }
+    } catch (err) {
+      console.error(`[NewDigitBarChart] Erro ao buscar dos serviços: ${err}`);
+      setError("Erro ao obter dados. Tentando reconectar...");
+      
+      // Tentar novamente em caso de erro
+      if (oauthDirectService) {
+        oauthDirectService.reconnect()
+          .then(() => oauthDirectService.subscribeToTicks(symbol))
+          .catch(e => console.error('[NewDigitBarChart] Erro na reconexão:', e));
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Efeito para carregar os dados iniciais
+  // Efeito para carregar os dados iniciais e lidar com ticks diretos do oauthDirectService
   useEffect(() => {
     console.log(`[NewDigitBarChart] Inicializando componente para ${symbol}`);
+    
+    // Carregar histórico inicial
     fetchDigitHistory();
     
-    // Configurar atualização periódica
+    // Configurar atualização periódica do histórico
     const updateInterval = setInterval(() => {
       fetchDigitHistory();
     }, 2000);
@@ -104,7 +167,108 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     // Forçar atualização da UI
     const renderInterval = setInterval(() => {
       setRenderKey(prev => prev + 1);
-    }, 1000);
+    }, 500); // Mais rápido para melhor capturar os novos dígitos
+    
+    // Listener direto para eventos do oauthDirectService
+    const handleDirectTick = (event: any) => {
+      try {
+        // Verificar se o evento é de tick
+        if (event && event.type === 'tick') {
+          // Extrair os dados do tick de qualquer formato possível
+          let tickData = null;
+          
+          if (event.data) {
+            tickData = event.data.tick || event.data;
+          } else if (event.tick) {
+            tickData = event.tick;
+          } else if (typeof event === 'object') {
+            tickData = event;
+          }
+          
+          if (tickData) {
+            // Verificar se é para o símbolo que estamos interessados
+            const tickSymbol = tickData.symbol || tickData.name || symbol;
+            
+            if (tickSymbol === symbol) {
+              console.log(`[NewDigitBarChart] Evento de tick direto recebido para ${symbol}`);
+              
+              // Extrair a cotação do formato adequado
+              let quote = 0;
+              if (typeof tickData.quote !== 'undefined') {
+                quote = Number(tickData.quote);
+              } else if (typeof tickData.value !== 'undefined') {
+                quote = Number(tickData.value);
+              } else if (typeof tickData.price !== 'undefined') {
+                quote = Number(tickData.price);
+              }
+              
+              if (quote > 0) {
+                const quoteStr = quote.toString();
+                const digit = parseInt(quoteStr.charAt(quoteStr.length - 1));
+                
+                if (!isNaN(digit)) {
+                  console.log(`[NewDigitBarChart] Novo dígito extraído: ${digit} (de ${quote})`);
+                  
+                  // Persistir no sessionStorage
+                  sessionStorage.setItem(`lastDigit_${symbol}`, digit.toString());
+                  sessionStorage.setItem(`lastQuote_${symbol}`, quote.toString());
+                  
+                  // Atualizar estado local
+                  setShowLastDigit(true);
+                  
+                  // Limpar timeout anterior
+                  if (lastDigitTimeoutRef.current) {
+                    clearTimeout(lastDigitTimeoutRef.current);
+                  }
+                  
+                  // Configurar novo timeout
+                  lastDigitTimeoutRef.current = setTimeout(() => {
+                    setShowLastDigit(false);
+                  }, 3000);
+                  
+                  // Atualizar o histórico
+                  const currentDigits = [...digits];
+                  currentDigits.unshift(digit); // Adicionar no início do array
+                  
+                  // Manter apenas os últimos 500 dígitos
+                  if (currentDigits.length > 500) {
+                    currentDigits.length = 500;
+                  }
+                  
+                  // Atualizar estado e sessionStorage
+                  setDigits(currentDigits);
+                  sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(currentDigits));
+                  
+                  // Recalcular estatísticas
+                  calculateStats(currentDigits.slice(0, parseInt(selectedCount)));
+                  
+                  // Emitir evento para outros componentes
+                  const tickEvent = new CustomEvent('tick-update', { 
+                    detail: { 
+                      digit, 
+                      quote, 
+                      symbol 
+                    } 
+                  });
+                  document.dispatchEvent(tickEvent);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[NewDigitBarChart] Erro ao processar tick direto:", err);
+      }
+    };
+    
+    // Registrar listener diretamente no oauthDirectService
+    if (oauthDirectService) {
+      oauthDirectService.addEventListener(handleDirectTick);
+      console.log(`[NewDigitBarChart] Registrado como listener direto do oauthDirectService para ${symbol}`);
+      
+      // Garantir que estamos inscritos nos ticks do símbolo solicitado
+      oauthDirectService.subscribeToTicks(symbol);
+    }
     
     return () => {
       clearInterval(updateInterval);
@@ -113,6 +277,12 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
       // Limpar timeout caso exista
       if (lastDigitTimeoutRef.current) {
         clearTimeout(lastDigitTimeoutRef.current);
+      }
+      
+      // Remover listener do oauthDirectService
+      if (oauthDirectService) {
+        oauthDirectService.removeEventListener(handleDirectTick);
+        console.log(`[NewDigitBarChart] Removido listener direto do oauthDirectService para ${symbol}`);
       }
     };
   }, [symbol, selectedCount]);
