@@ -170,8 +170,11 @@ export function IndependentDigitBarChart({
       try {
         if (!symbol || !isMounted.current) return;
         
-        // Obter os dados mais recentes do serviço WebSocket
-        const currentData = independentDerivService.getDigitHistory(symbol);
+        // Obter a quantidade de ticks selecionada
+        const tickCount = parseInt(selectedCount, 10);
+        
+        // Obter os dados mais recentes do serviço WebSocket com a quantidade selecionada
+        const currentData = independentDerivService.getDigitHistory(symbol, tickCount);
         
         if (currentData && currentData.stats && currentData.stats.length > 0) {
           // Incrementar contador de versão para forçar re-renderização completa
@@ -257,7 +260,7 @@ export function IndependentDigitBarChart({
       <div className="p-3 bg-[#0e1a2e] border-b border-[#232e47] flex justify-between items-center">
         <div className="flex items-center">
           <h3 className="font-medium text-white flex items-center">
-            <span className="text-[#3a96dd]">{symbol}:</span>&nbsp;Análise de Dígitos
+            <span className="text-[#3a96dd]">{symbol}:</span>&nbsp;Análise de <span className="text-amber-500">{selectedCount}</span> Dígitos
             {loading && (
               <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
             )}
@@ -443,7 +446,11 @@ export function IndependentDigitBarChart({
       {/* Rodapé com informações */}
       <div className="px-4 py-2 bg-[#0c1625] text-xs text-gray-400 border-t border-[#232e47]">
         <div className="flex justify-between items-center">
-          <div>Análise baseada em {digitHistory?.totalSamples || 0} ticks</div>
+          <div>
+            Mostrando <span className="text-amber-400 font-medium">{selectedCount}</span> 
+            <span> de </span>
+            <span className="text-blue-400">{digitHistory?.lastDigits.length || 0}</span> ticks disponíveis
+          </div>
           <div className="text-[#3a96dd] font-medium">{symbol}</div>
         </div>
       </div>
