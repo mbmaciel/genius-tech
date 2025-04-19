@@ -103,6 +103,10 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Configurar listener para ticks em tempo real
     const handleTick = (event: Event) => {
       const customEvent = event as CustomEvent;
+      
+      // Log completo para debug
+      console.log('[DigitBarChart] Evento recebido:', customEvent.type, customEvent.detail);
+      
       if (customEvent.detail?.tick?.quote) {
         // Extrair o último dígito do preço
         const price = parseFloat(customEvent.detail.tick.quote);
@@ -114,8 +118,13 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
       }
     };
     
-    // Registrar ouvinte e inscever-se nos ticks - CORRIGINDO NOME DO EVENTO
+    // Registrar como ouvinte DIRETAMENTE no oauthDirectService
+    oauthDirectService.addEventListener('tick', handleTick as EventListener);
+    
+    // Também registrar no documento para capturar eventos de ambas as fontes
     document.addEventListener('oauthTick', handleTick as EventListener);
+    
+    // Garantir que estamos inscritos para os ticks
     oauthDirectService.subscribeToTicks(symbol);
     
     // Reforçar atualização periódica
@@ -124,8 +133,9 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     }, 1000);
     
     return () => {
-      // Corrigindo a limpeza para remover o listener correto
+      // Corrigindo a limpeza para remover todos os listeners
       document.removeEventListener('oauthTick', handleTick as EventListener);
+      oauthDirectService.removeEventListener('tick', handleTick as EventListener);
       clearInterval(forceUpdateInterval);
     };
   }, [symbol]);

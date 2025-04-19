@@ -57,8 +57,6 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
-// Componente de histórico de dígitos já importado no topo do arquivo
-
 export function BotPage() {
   const { toast } = useToast();
   
