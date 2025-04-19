@@ -28,6 +28,7 @@ class IndependentDerivService {
   private requestId: number = 1;
   private callbacks: Map<number, (response: any) => void> = new Map();
   private readonly appId: string = '1089'; // App ID público para dados de mercado
+  private readonly dashboardToken: string = 'jybcQm0FbKr7evp'; // Token específico para a dashboard
   
   // Gerenciamento de eventos
   private eventListeners: Map<string, Set<EventCallback>> = new Map();
@@ -147,12 +148,22 @@ class IndependentDerivService {
           console.log('[INDEPENDENT_DERIV] Conexão WebSocket estabelecida');
           this.isConnected = true;
           this.reconnectAttempts = 0;
-          this.notifyListeners('connection', { connected: true });
           
-          // Reativar subscrições
-          this.resubscribeAll();
-          
-          resolve(true);
+          // Autenticar com o token específico da dashboard
+          this.authorize().then(() => {
+            this.notifyListeners('connection', { connected: true });
+            
+            // Reativar subscrições apenas após autenticação
+            this.resubscribeAll();
+            
+            resolve(true);
+          }).catch(error => {
+            console.error('[INDEPENDENT_DERIV] Erro na autorização:', error);
+            // Mesmo com erro de autorização, manter a conexão e continuar
+            this.notifyListeners('connection', { connected: true });
+            this.resubscribeAll();
+            resolve(true);
+          });
         };
         
         this.socket.onmessage = (event) => {
