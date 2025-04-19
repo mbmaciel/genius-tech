@@ -250,29 +250,31 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
   // Renderizar apenas o gráfico de barras
   return (
     <div className={`w-full ${className}`}>
-      <div className="bg-[#0e1a2e] rounded-md overflow-hidden">
+      <div className="bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg">
         <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
-          <h3 className="font-medium text-white flex items-center">
-            Gráfico de barras
-            {loading && (
-              <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
-            )}
-          </h3>
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-red-600 mr-1.5 rounded-sm"></div>
+            <h3 className="font-medium text-white flex items-center">
+              Gráfico de barras
+              {loading && (
+                <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
+              )}
+            </h3>
+          </div>
           
           {/* Menu de seleção para quantidade de dígitos a analisar */}
           <div className="flex items-center">
-            <span className="text-xs text-gray-400 mr-2">Últimos:</span>
             <Select value={selectedCount} onValueChange={(value) => setSelectedCount(value)}>
-              <SelectTrigger className="h-8 w-[80px] bg-[#0e1a2e] border-none">
+              <SelectTrigger className="h-8 w-[90px] bg-[#0c1625] border border-gray-700 text-xs">
                 <SelectValue placeholder="500" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="250">250</SelectItem>
-                <SelectItem value="500">500</SelectItem>
+                <SelectItem value="25">25 Ticks</SelectItem>
+                <SelectItem value="50">50 Ticks</SelectItem>
+                <SelectItem value="100">100 Ticks</SelectItem>
+                <SelectItem value="200">200 Ticks</SelectItem>
+                <SelectItem value="250">250 Ticks</SelectItem>
+                <SelectItem value="500">500 Ticks</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -283,7 +285,7 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
         ) : (
           <div className="p-4">
             {/* Área do gráfico */}
-            <div className="relative h-[200px] flex items-end justify-between px-2">
+            <div className="relative h-[250px] flex items-end justify-between px-2">
               {/* Linhas de grade horizontais */}
               <div className="absolute w-full h-full flex flex-col justify-between">
                 {[0, 10, 20, 30, 40, 50].map(value => (
@@ -307,25 +309,27 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
                   : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
                 
                 return (
-                  <div key={stat.digit} className="flex flex-col items-center w-8 z-10">
+                  <div key={stat.digit} className="flex flex-col items-center w-9 z-10">
                     {/* Barra com altura proporcional à porcentagem */}
                     <div 
-                      className="w-full rounded-t transition-all duration-300 ease-in-out flex justify-center"
+                      className="w-full transition-all duration-300 ease-in-out flex justify-center relative"
                       style={{ 
-                        height: `${(stat.percentage / 50) * 100}%`,
+                        height: `${Math.max(1, (stat.percentage / 50) * 100)}%`,
                         backgroundColor: barColor
                       }}
                     >
-                      {/* Mostrar percentual acima da barra se for significativo */}
+                      {/* Mostrar percentual acima da barra */}
                       {stat.percentage > 0 && (
-                        <span className="text-white text-xs font-bold -mt-5">
-                          {stat.percentage}%
-                        </span>
+                        <div className="absolute -top-6 w-full text-center">
+                          <span className="text-white text-xs font-bold">
+                            {stat.percentage}%
+                          </span>
+                        </div>
                       )}
                     </div>
                     
                     {/* Dígito abaixo da barra */}
-                    <div className="mt-2 w-full text-center text-white">
+                    <div className="mt-2 w-full text-center text-white font-semibold">
                       {stat.digit}
                     </div>
                   </div>
@@ -334,14 +338,16 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
             </div>
             
             {/* Sequência de dígitos mais recentes */}
-            <div className="mt-4 border-t border-gray-800 pt-4">
+            <div className="mt-6 border-t border-gray-800 pt-4">
               <div className="flex justify-center">
-                <div className="flex space-x-1 overflow-x-auto text-white text-sm font-mono">
+                <div className="grid grid-cols-10 gap-1 text-white text-sm font-mono">
                   {digits.slice(0, 10).map((digit, index) => (
                     <div 
                       key={index} 
-                      className={`w-7 h-7 flex items-center justify-center border border-gray-700 rounded
-                        ${index === 0 ? 'bg-primary border-primary' : ''}`}
+                      className={`w-7 h-7 flex items-center justify-center border rounded
+                        ${index === 0 
+                          ? 'bg-primary text-white border-primary font-bold' 
+                          : 'border-gray-700 text-white'}`}
                     >
                       {digit}
                     </div>
