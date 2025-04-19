@@ -102,7 +102,7 @@ export default function DigitsFixed() {
               const rawDataStr = updatedDigits.slice(0, Math.min(20, updatedDigits.length)).join(', ');
               setRawData(rawDataStr);
               
-              // Calcular estatísticas
+              // Calcular estatísticas - recalculamos explicitamente com o tamanho correto
               calculateStats(updatedDigits, currentSampleSize);
               
               return updatedDigits;
@@ -204,7 +204,7 @@ export default function DigitsFixed() {
       console.log(`[APP] Tamanho da amostra alterado para ${currentSampleSize}`);
       calculateStats(digits, currentSampleSize);
     }
-  }, [currentSampleSize]);
+  }, [currentSampleSize, digits]);
   
   return (
     <div className="min-h-screen bg-[#0e1a2e] text-white p-4">
