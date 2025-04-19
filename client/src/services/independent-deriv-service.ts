@@ -161,6 +161,9 @@ class IndependentDerivService {
       const quote = data.tick.quote;
       const lastDigit = parseInt(quote.toString().slice(-1));
       
+      // Log para diagnóstico
+      console.log(`[INDEPENDENT_DERIV] Novo tick para ${symbol}: ${quote} (último dígito: ${lastDigit})`);
+      
       // Notificar sobre o tick
       this.notifyListeners('tick', {
         symbol, 
@@ -234,6 +237,8 @@ class IndependentDerivService {
    * Atualiza o histórico de dígitos com um novo tick
    */
   private updateDigitHistory(symbol: string, lastDigit: number): void {
+    console.log(`[INDEPENDENT_DERIV] Atualizando histórico para ${symbol} com dígito ${lastDigit}`);
+    
     const history = this.digitHistories.get(symbol);
     
     if (!history) {
@@ -252,6 +257,8 @@ class IndependentDerivService {
         lastUpdated: new Date()
       });
       
+      // Notificar sobre a primeira atualização
+      this.notifyListeners('history', this.getDigitHistory(symbol));
       return;
     }
     
@@ -274,6 +281,15 @@ class IndependentDerivService {
       count,
       percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
     }));
+    
+    // Adicionar log para diagnóstico
+    if (totalSamples % 10 === 0) { // Logar a cada 10 ticks para não sobrecarregar
+      console.log(`[INDEPENDENT_DERIV] Estatísticas atualizadas para ${symbol}: 
+        Total: ${totalSamples} ticks
+        Dígitos recentes: ${history.lastDigits.slice(-10).reverse().join(', ')}
+        Distribuição: ${history.stats.map(s => `${s.digit}:${s.percentage}%`).join(', ')}
+      `);
+    }
     
     history.totalSamples = totalSamples;
     history.lastUpdated = new Date();
@@ -474,6 +490,14 @@ class IndependentDerivService {
     
     const listeners = this.eventListeners.get(event);
     if (listeners && listeners.size > 0) {
+      // Adicionar log para rastrear eventos e dados repassados
+      if (event === 'history') {
+        console.log(`[INDEPENDENT_DERIV] Notificando ${listeners.size} ouvintes sobre atualização de histórico:`, 
+          `Symbol: ${data.symbol}, ` +
+          `Stats: ${data.stats?.length || 0}, ` +
+          `Digits: ${data.lastDigits?.length || 0}`);
+      }
+      
       listeners.forEach((callback) => {
         try {
           callback(data);

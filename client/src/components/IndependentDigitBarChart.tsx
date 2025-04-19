@@ -115,8 +115,8 @@ export function IndependentDigitBarChart({
   const getBarColor = (digit: number): string => {
     // Dígitos pares em verde, ímpares em vermelho
     return digit % 2 === 0 
-      ? 'bg-green-500'  // Dígitos pares em verde
-      : 'bg-red-500';   // Dígitos ímpares em vermelho
+      ? 'bg-[#00e5b3]'  // Dígitos pares em verde (usando o tom exato da imagem)
+      : 'bg-[#ff444f]';   // Dígitos ímpares em vermelho (usando o tom exato da imagem)
   };
   
   return (
@@ -125,7 +125,7 @@ export function IndependentDigitBarChart({
       <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
         <div className="flex items-center">
           <h3 className="font-medium text-white flex items-center">
-            Gráfico de barras
+            Análise de Dígitos
             {loading && (
               <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
             )}
@@ -133,7 +133,7 @@ export function IndependentDigitBarChart({
         </div>
         
         {/* Box com indicação de "Últimos 10 Dígitos" (como na imagem) */}
-        <div className="bg-red-600 px-2 py-0.5 text-xs text-white font-medium rounded">
+        <div className="bg-[#ff3e50] px-2 py-0.5 text-xs text-white font-medium rounded-sm">
           Últimos 10 Dígitos (%)
         </div>
         
@@ -200,7 +200,8 @@ export function IndependentDigitBarChart({
                   <div 
                     className={`w-full ${getBarColor(stat.digit)}`}
                     style={{ 
-                      height: `${Math.max(5, (stat.percentage / 50) * 100)}%`,
+                      height: `${Math.max(4, (stat.percentage / 50) * 100)}%`,
+                      minHeight: '4px', // Garantir altura mínima
                       transition: 'height 0.3s ease-in-out'
                     }}
                   ></div>
@@ -231,13 +232,30 @@ export function IndependentDigitBarChart({
         <div className="mt-6">
           <div className="flex justify-center">
             {/* Container para a sequência de dígitos no estilo da imagem */}
-            <div className="bg-[#0c1625] border border-[#2a3756] rounded flex items-center px-1 py-1 space-x-2">
-              {lastDigits.map((digit, index) => (
+            <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2">
+              {lastDigits.map((digit, index) => {
+                // Determinar a cor baseada no dígito, igual às barras
+                const textColor = digit % 2 === 0 
+                  ? 'text-[#00e5b3]' // Verde para pares
+                  : 'text-[#ff444f]'; // Vermelho para ímpares
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`w-6 h-6 flex items-center justify-center ${textColor} font-medium text-base`}
+                  >
+                    {digit}
+                  </div>
+                );
+              })}
+              
+              {/* Preencher com espaços vazios se não tivermos 10 dígitos ainda */}
+              {Array.from({ length: Math.max(0, 10 - lastDigits.length) }, (_, i) => (
                 <div 
-                  key={index} 
-                  className="w-7 h-7 flex items-center justify-center text-white font-medium"
+                  key={`empty-${i}`} 
+                  className="w-6 h-6 flex items-center justify-center text-transparent"
                 >
-                  {digit}
+                  0
                 </div>
               ))}
             </div>
