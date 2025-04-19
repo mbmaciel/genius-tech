@@ -118,14 +118,28 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
       
       if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
         console.log(`[NewDigitBarChart] Atualizado com ${historyData.lastDigits.length} dígitos do derivHistoryService`);
-        setDigits(historyData.lastDigits);
-        calculateStats(historyData.lastDigits.slice(0, parseInt(selectedCount)));
         
-        // Salvar no sessionStorage para acesso rápido
-        sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(historyData.lastDigits));
-        sessionStorage.setItem(`digitStats_${symbol}`, JSON.stringify(historyData.digitStats));
+        // Verificar se os dados são válidos antes de usar
+        const validDigits = historyData.lastDigits.filter(d => typeof d === 'number' && d >= 0 && d <= 9);
         
-        setError(null);
+        if (validDigits.length > 0) {
+          // Usar apenas dígitos válidos
+          setDigits(validDigits);
+          calculateStats(validDigits.slice(0, parseInt(selectedCount)));
+          
+          // Salvar no sessionStorage para acesso rápido - APENAS se tiver dados válidos
+          console.log(`[NewDigitBarChart] Salvando ${validDigits.length} dígitos válidos no sessionStorage`);
+          sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(validDigits));
+          
+          // Salvar estatísticas se disponíveis
+          if (historyData.digitStats) {
+            sessionStorage.setItem(`digitStats_${symbol}`, JSON.stringify(historyData.digitStats));
+          }
+          
+          setError(null);
+        } else {
+          console.warn(`[NewDigitBarChart] Nenhum dígito válido encontrado nos dados recebidos`);
+        }
       } else {
         // Se não conseguir do derivHistoryService, tente obter diretamente do oauthDirectService
         console.log(`[NewDigitBarChart] Solicitando ticks direto do oauthDirectService para ${symbol}`);
@@ -197,6 +211,28 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
   // Efeito para carregar os dados iniciais e lidar com ticks diretos do oauthDirectService
   useEffect(() => {
     console.log(`[NewDigitBarChart] Inicializando componente para ${symbol}`);
+    
+    // Limpar qualquer cache inconsistente se necessário
+    try {
+      // Verificar se temos dados válidos no localStorage
+      const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
+      if (storedDigits) {
+        try {
+          const parsedDigits = JSON.parse(storedDigits);
+          if (!Array.isArray(parsedDigits) || parsedDigits.some(d => typeof d !== 'number' || d < 0 || d > 9)) {
+            console.warn(`[NewDigitBarChart] Dados de histórico inválidos no sessionStorage, limpando...`);
+            sessionStorage.removeItem(`digitHistory_${symbol}`);
+          } else {
+            console.log(`[NewDigitBarChart] Verificado: ${parsedDigits.length} dígitos válidos no sessionStorage`);
+          }
+        } catch (e) {
+          console.error(`[NewDigitBarChart] Erro ao verificar dados do sessionStorage:`, e);
+          sessionStorage.removeItem(`digitHistory_${symbol}`);
+        }
+      }
+    } catch (e) {
+      console.error(`[NewDigitBarChart] Erro ao verificar sessionStorage:`, e);
+    }
     
     // Forçar carregamento imediato na inicialização
     forceInitialTicksLoad();
@@ -276,21 +312,60 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                     setShowLastDigit(false);
                   }, 3000);
                   
-                  // Atualizar o histórico
-                  const currentDigits = [...digits];
-                  currentDigits.unshift(digit); // Adicionar no início do array
-                  
-                  // Manter apenas os últimos 500 dígitos
-                  if (currentDigits.length > 500) {
-                    currentDigits.length = 500;
+                  // Atualizar o histórico de forma segura
+                  // Verificar se temos um array de dígitos válido
+                  if (Array.isArray(digits)) {
+                    const currentDigits = [...digits];
+                    
+                    // Garantir que o dígito é válido antes de adicionar (0-9)
+                    if (digit >= 0 && digit <= 9) {
+                      currentDigits.unshift(digit); // Adicionar no início do array
+                      
+                      // Manter apenas os últimos 500 dígitos
+                      if (currentDigits.length > 500) {
+                        currentDigits.length = 500;
+                      }
+                      
+                      // Atualizar estado
+                      setDigits(currentDigits);
+                      
+                      // Persistir em sessionStorage de forma segura
+                      try {
+                        console.log(`[NewDigitBarChart] Atualizando histórico com novo dígito ${digit}, total agora: ${currentDigits.length}`);
+                        sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(currentDigits));
+                      } catch (storageError) {
+                        console.error('[NewDigitBarChart] Erro ao salvar no sessionStorage:', storageError);
+                      }
+                    } else {
+                      console.warn(`[NewDigitBarChart] Dígito inválido ignorado: ${digit}`);
+                    }
+                  } else {
+                    // Se não temos um array válido, criar um novo com apenas este dígito
+                    console.warn('[NewDigitBarChart] Histórico de dígitos inválido, criando novo');
+                    if (digit >= 0 && digit <= 9) {
+                      setDigits([digit]);
+                      sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify([digit]));
+                    }
                   }
                   
-                  // Atualizar estado e sessionStorage
-                  setDigits(currentDigits);
-                  sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(currentDigits));
-                  
-                  // Recalcular estatísticas
-                  calculateStats(currentDigits.slice(0, parseInt(selectedCount)));
+                  // Recalcular estatísticas apenas quando temos dígitos válidos
+                  if (Array.isArray(digits)) {
+                    // Criar uma cópia do array de dígitos atual
+                    const digitsArray = [...digits];
+                    
+                    // Adicionar o novo dígito se ainda não estiver adicionado
+                    if (digitsArray.length === 0 || digitsArray[0] !== digit) {
+                      digitsArray.unshift(digit);
+                      
+                      // Manter apenas os últimos 500 dígitos
+                      if (digitsArray.length > 500) {
+                        digitsArray.length = 500;
+                      }
+                    }
+                    
+                    // Calcular estatísticas com o número selecionado de dígitos
+                    calculateStats(digitsArray.slice(0, parseInt(selectedCount)));
+                  }
                   
                   // Emitir evento para outros componentes
                   const tickEvent = new CustomEvent('tick-update', { 
