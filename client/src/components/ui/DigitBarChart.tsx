@@ -31,6 +31,8 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [renderKey, setRenderKey] = useState<number>(0);
+  const [lastDigit, setLastDigit] = useState<number | null>(null); // Guardar o último dígito recebido
+  const [showLastDigit, setShowLastDigit] = useState<boolean>(true); // Controlar exibição
 
   // Buscar histórico de ticks no carregamento
   const fetchTicksHistory = async () => {
@@ -146,10 +148,47 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Adicionar listener para o serviço de histórico
     const historyListener = (data: any) => {
       if (data && data.lastDigits && data.lastDigits.length > 0) {
+        // Guardar o último dígito para destacar na UI
+        if (data.lastDigits[0] !== undefined) {
+          setLastDigit(data.lastDigits[0]);
+          
+          // Resetar a exibição do dígito após 3 segundos
+          setShowLastDigit(true);
+          setTimeout(() => {
+            setShowLastDigit(false);
+          }, 3000);
+        }
+        
         setDigits(data.lastDigits);
         calculateStats(data.lastDigits.slice(0, parseInt(selectedCount)));
       }
     };
+    
+    // Adicionar listener para ticks do OAuth diretamente
+    const tickListener = (event: CustomEvent) => {
+      try {
+        const tickData = event.detail;
+        if (tickData && tickData.quote) {
+          const quote = tickData.quote.toString();
+          const lastChar = quote.charAt(quote.length - 1);
+          const digit = parseInt(lastChar);
+          
+          if (!isNaN(digit) && digit >= 0 && digit <= 9) {
+            console.log(`[DigitBarChart] Novo tick recebido: ${digit}`);
+            setLastDigit(digit);
+            setShowLastDigit(true);
+            setTimeout(() => {
+              setShowLastDigit(false);
+            }, 3000);
+          }
+        }
+      } catch (err) {
+        console.error('[DigitBarChart] Erro ao processar tick:', err);
+      }
+    };
+    
+    // Registrar para eventos oauthTick
+    window.addEventListener('oauthTick', tickListener as EventListener);
     
     // Registrar no serviço de histórico
     derivHistoryService.addListener(historyListener, symbol);
@@ -163,8 +202,9 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     }, 1000);
     
     return () => {
-      // Limpar intervalos e desregistrar listener
+      // Limpar intervalos e desregistrar listeners
       derivHistoryService.removeListener(historyListener);
+      window.removeEventListener('oauthTick', tickListener as EventListener);
       clearInterval(tickUpdateInterval);
       clearInterval(forceUpdateInterval);
     };
@@ -279,6 +319,20 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
                 </div>
               </div>
             </div>
+            
+            {/* Mostrar último dígito recebido de forma destacada */}
+            {showLastDigit && lastDigit !== null && (
+              <div className="mt-4 flex justify-center items-center">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center animate-pulse">
+                    <span className="text-2xl font-bold text-white">{lastDigit}</span>
+                  </div>
+                  <div className="absolute -top-2 -right-2 bg-black text-white text-xs px-2 py-1 rounded-full">
+                    Novo!
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Contador de dígitos */}
             <div className="mt-4 text-xs text-gray-400 text-center">
