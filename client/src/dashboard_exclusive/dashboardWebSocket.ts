@@ -208,27 +208,19 @@ class DashboardWebSocket {
         // Extrair o preço e calcular o último dígito com segurança
         const price = parseFloat(tick.quote);
         
-        // Calcular o último dígito explicitamente
-        // Método original que pode estar pulando os zeros 
-        const lastDigit = Math.floor(price * 10) % 10;
-        
-        // Vamos calcular também por outro método
+        // APENAS usar o método string que é mais confiável para dígitos 0
+        // Formatamos o número com exatamente 1 casa decimal
         const priceStr = price.toFixed(1);
+        // Pegamos o último caractere, que é o dígito após o ponto
         const lastChar = priceStr.charAt(priceStr.length - 1);
-        const alternativeLastDigit = parseInt(lastChar);
-        
-        // Registrar diferenças para diagnóstico
-        if (lastDigit !== alternativeLastDigit) {
-          console.log(`[DASHBOARD_WS] ALERTA! Diferença nos métodos de cálculo: ${price}`);
-          console.log(`[DASHBOARD_WS] Método 1 (Math.floor): ${lastDigit}`);
-          console.log(`[DASHBOARD_WS] Método 2 (String): ${alternativeLastDigit}`);
-        }
+        // Convertemos para número
+        const finalLastDigit = parseInt(lastChar);
         
         // Log explícito para diagnóstico
-        console.log(`[DASHBOARD_WS] Recebido tick do ${tick.symbol}: ${price}, último dígito pelo método 1: ${lastDigit}, pelo método 2: ${alternativeLastDigit}`);
+        console.log(`[DASHBOARD_WS] Recebido tick do ${tick.symbol}: ${price}, último dígito calculado: ${finalLastDigit}, valor original: ${tick.quote}`);
         
-        // Usar o método alternativo que funciona com zeros
-        const finalDigit = alternativeLastDigit;
+        // Usar o dígito final calculado pelo método string
+        const finalDigit = finalLastDigit;
         
         // Criar objeto de evento de tick
         const tickEvent: DashboardTickEvent = {
