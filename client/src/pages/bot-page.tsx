@@ -9,6 +9,7 @@ import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";
 import { PureWebSocketDigits } from "@/components/PureWebSocketDigits";
 import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
+import { FullHistoryDigitDisplay } from "@/components/FullHistoryDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
