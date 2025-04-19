@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { oauthDirectService } from '@/services/oauthDirectService';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
-import { Loader2 } from 'lucide-react';
 
 interface DigitStat {
   digit: number;
@@ -26,23 +20,19 @@ interface PercentageStatsDisplayProps {
 export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplayInner({
   symbol = 'R_100'
 }: PercentageStatsDisplayProps) {
-  // Estado para armazenar estatísticas de dígitos
+  // Estado para armazenar estatísticas de dígitos (0-9)
   const [digitStats, setDigitStats] = useState<DigitStat[]>(
-    Array.from({ length: 10 }, (_, i) => ({ 
-      digit: i, 
-      count: 0, 
-      percentage: 0 
-    }))
+    Array.from({ length: 10 }, (_, i) => ({ digit: i, count: 0, percentage: 0 }))
   );
-
-  // Estado para armazenar os últimos 500 ticks (para análise)
+  
+  // Estado para armazenar os ticks recentes (mais recentes primeiro)
   const [recentTicks, setRecentTicks] = useState<number[]>([]);
   
   // Estado para configurar quantos ticks analisar
   const [tickCount, setTickCount] = useState<string>("50");
   
-  // Estado para controlar carregamento inicial - começar com false para mostrar dados mais rapidamente
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  // Estado para controlar carregamento inicial
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Função para calcular cores das barras com base no percentual
   const getBarColor = (percentage: number): string => {
@@ -77,19 +67,73 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
     });
   }, []);
 
-  // Conectar ao serviço OAuth ao montar o componente
+  // Função para buscar o histórico direto da Deriv
+  const fetchDerivHistory = useCallback(async () => {
+    try {
+      console.log('[PercentageStatsDisplay] Solicitando histórico direto da Deriv para', symbol);
+      
+      // Fazer a solicitação direta para a API da Deriv
+      const response = await fetch('https://blue.binaryws.com/api/v3/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticks_history: symbol,
+          adjust_start_time: 1,
+          count: 500,
+          end: 'latest',
+          start: 1,
+          style: 'ticks',
+          req_id: Date.now(),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data && data.history && data.history.prices) {
+        console.log(`[PercentageStatsDisplay] Histórico recebido com ${data.history.prices.length} ticks`);
+        
+        // Processar ticks e obter os últimos dígitos
+        const historyDigits = data.history.prices.map((price: number) => 
+          parseInt(price.toString().slice(-1))
+        ).reverse(); // Mais recente primeiro
+        
+        // Atualizar estado
+        setRecentTicks(historyDigits);
+        
+        // Calcular estatísticas
+        const stats = calculateDigitStats(historyDigits, parseInt(tickCount));
+        setDigitStats(stats);
+        
+        // Desativar carregamento
+        setIsLoading(false);
+        
+        return historyDigits;
+      }
+      
+      console.warn('[PercentageStatsDisplay] Resposta inválida da API Deriv');
+      setIsLoading(false);
+      return [];
+    } catch (error) {
+      console.error('[PercentageStatsDisplay] Erro ao buscar histórico da Deriv:', error);
+      setIsLoading(false);
+      return [];
+    }
+  }, [symbol, tickCount, calculateDigitStats]);
+
+  // Conectar ao serviço OAuth e configurar atualizações em tempo real
   useEffect(() => {
     console.log('[PercentageStatsDisplay] Inicializando componente para', symbol);
     
-    // Verificar estado do WebSocket da conexão OAuth
-    console.log('[PercentageStatsDisplay] Verificando estado da conexão OAuth');
+    // Buscar histórico inicial diretamente da Deriv (sem dados fictícios)
+    fetchDerivHistory();
     
-    // Sempre tentar inicializar e subscrever, independente do estado
+    // Inicializar conexão OAuth para dados em tempo real
     oauthDirectService.initializeConnection()
       .then((success) => {
         if (success) {
           console.log('[PercentageStatsDisplay] Conexão OAuth inicializada com sucesso');
-          // Subscrever para ticks do símbolo especificado
           oauthDirectService.subscribeToTicks(symbol);
         } else {
           console.error('[PercentageStatsDisplay] Falha ao inicializar conexão OAuth');
@@ -98,84 +142,46 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
       .catch(error => {
         console.error('[PercentageStatsDisplay] Erro ao inicializar conexão OAuth:', error);
       });
-
-    // Handler para processar novos ticks
+      
+    // Handler para processar ticks em tempo real
     const handleTickEvent = (event: any) => {
       if (event.type === 'tick' && event.tick) {
         // Extrair o último dígito do valor do tick
         const tickValue = event.tick.quote || event.tick.ask;
         const lastDigit = parseInt(tickValue.toString().slice(-1));
         
-        // Atualizar lista de ticks recentes
-        setRecentTicks(prev => {
-          const newTicks = [lastDigit, ...prev].slice(0, 500); // Manter até 500 ticks
+        console.log(`[PercentageStatsDisplay] Tick em tempo real: ${tickValue}, dígito: ${lastDigit}`);
+        
+        // Atualizar ticks e estatísticas
+        setRecentTicks(prevTicks => {
+          const newTicks = [lastDigit, ...prevTicks].slice(0, 500);
           
-          // Calcular estatísticas com base nos ticks selecionados
+          // Calcular novas estatísticas
           const stats = calculateDigitStats(newTicks, parseInt(tickCount));
           setDigitStats(stats);
-          
-          // Marcar como carregado após receber o primeiro conjunto de ticks
-          if (isLoading) setIsLoading(false);
           
           return newTicks;
         });
       }
     };
 
-    // Registrar handler no serviço OAuth
+    // Registrar o handler
     oauthDirectService.addEventListener(handleTickEvent);
     
-    // Solicitar histórico de ticks para inicialização rápida
-    // Iniciar com valores padrão e preencher com dados reais
-    
-    // Criar alguns dados iniciais fictícios para não mostrar tela vazia
-    const initialDigitStats = Array.from({ length: 10 }, (_, i) => ({ 
-      digit: i, 
-      count: 10, 
-      percentage: 10 
-    }));
-    setDigitStats(initialDigitStats);
-    
-    // Importar o derivHistoryService e solicitar dados reais
-    import('@/services/deriv-history-service').then(module => {
-      const derivHistoryService = module.derivHistoryService;
-      
-      console.log('[PercentageStatsDisplay] Solicitando histórico de ticks via derivHistoryService');
-      
-      // Usar o método fetchTicksHistory que sabemos que existe
-      derivHistoryService.fetchTicksHistory(symbol, 500)
-        .then(response => {
-          // Verifica se a resposta foi bem-sucedida
-          if (response && response.history && response.history.prices) {
-            // Extrair os últimos dígitos do histórico
-            const historyDigits = response.history.prices.map((price: number) => 
-              parseInt(price.toString().slice(-1))
-            );
-            
-            console.log('[PercentageStatsDisplay] Histórico carregado com', historyDigits.length, 'ticks');
-            
-            // Atualizar lista de ticks recentes
-            setRecentTicks(historyDigits);
-            
-            // Calcular estatísticas iniciais
-            const stats = calculateDigitStats(historyDigits, parseInt(tickCount));
-            setDigitStats(stats);
-          } else {
-            console.warn('[PercentageStatsDisplay] Resposta inválida do histórico de ticks');
-          }
-        })
-        .catch(error => {
-          console.error('[PercentageStatsDisplay] Erro ao carregar histórico:', error);
-        });
-    });
-
-    // Limpar assinatura ao desmontar
+    // Limpar inscrições ao desmontar
     return () => {
       oauthDirectService.removeEventListener(handleTickEvent);
     };
-  }, [symbol, calculateDigitStats, tickCount, isLoading]);
+  }, [symbol, calculateDigitStats, tickCount, fetchDerivHistory]);
 
-  // Renderizar estatísticas visuais
+  // Atualizar estatísticas quando a quantidade de ticks mudar
+  useEffect(() => {
+    if (recentTicks.length > 0) {
+      const stats = calculateDigitStats(recentTicks, parseInt(tickCount));
+      setDigitStats(stats);
+    }
+  }, [tickCount, recentTicks, calculateDigitStats]);
+
   return (
     <div className="w-full">
       {/* Seletor de quantidade de ticks */}
@@ -202,7 +208,7 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
       {isLoading ? (
         <div className="flex justify-center items-center h-32">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-400">Carregando estatísticas...</span>
+          <span className="ml-3 text-gray-400">Carregando dados em tempo real...</span>
         </div>
       ) : (
         <>
@@ -283,7 +289,7 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
             <div className="bg-[#0e1a2e] p-2 rounded-md text-center">
               <div className="text-xs text-gray-400">Total</div>
               <div className="text-lg font-bold text-white">
-                {recentTicks.length}/500
+                {recentTicks.length > 0 ? recentTicks.length : 0}/500
               </div>
             </div>
           </div>
