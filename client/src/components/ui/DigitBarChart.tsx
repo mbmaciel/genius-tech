@@ -101,41 +101,67 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Buscar histórico inicial
     fetchTicksHistory();
     
-    // Configurar atualização periódica dos ticks a partir do serviço
-    const tickUpdateInterval = setInterval(() => {
-      // Usar diretamente o valor mais recente do serviço
-      const tickHistory = derivHistoryService.getDigitsHistory(symbol, parseInt(selectedCount));
+    // Função para atualizar os dados
+    const updateDigitData = () => {
+      console.log('[DigitBarChart] Tentando atualizar dados de dígitos...');
       
-      if (tickHistory && tickHistory.length > 0) {
-        // Atualizar histórico completo
-        setDigits(tickHistory);
-        
-        // Calcular estatísticas a partir do histórico
-        const digitCounts = Array(10).fill(0);
-        
-        tickHistory.forEach(digit => {
-          if (digit >= 0 && digit <= 9) {
-            digitCounts[digit]++;
+      try {
+        // Obter dígitos do serviço de histórico
+        if (typeof derivHistoryService.getDigitsHistory === 'function') {
+          const count = parseInt(selectedCount);
+          const tickHistory = derivHistoryService.getDigitsHistory(symbol, count);
+          
+          if (tickHistory && tickHistory.length > 0) {
+            console.log(`[DigitBarChart] Recebidos ${tickHistory.length} dígitos do serviço de histórico`);
+            
+            // Atualizar histórico completo
+            setDigits(tickHistory);
+            
+            // Calcular estatísticas a partir do histórico
+            const digitCounts = Array(10).fill(0);
+            
+            tickHistory.forEach((digit: number) => {
+              if (digit >= 0 && digit <= 9) {
+                digitCounts[digit]++;
+              }
+            });
+            
+            const totalDigits = tickHistory.length;
+            
+            const updatedStats = digitCounts.map((count, digit) => {
+              const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
+              return { digit, count, percentage };
+            });
+            
+            setDigitStats(updatedStats);
+            setLoading(false);
+          } else {
+            console.log('[DigitBarChart] Sem dados de histórico disponíveis');
           }
-        });
-        
-        const totalDigits = tickHistory.length;
-        
-        const updatedStats = digitCounts.map((count, digit) => {
-          const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
-          return { digit, count, percentage };
-        });
-        
-        setDigitStats(updatedStats);
-        setLoading(false);
+        } else {
+          console.error('[DigitBarChart] Método getDigitsHistory não disponível no serviço');
+        }
+      } catch (err) {
+        console.error('[DigitBarChart] Erro ao atualizar dados:', err);
       }
-    }, 1000);
+    };
     
-    // Garantir que estamos inscritos para os ticks (tanto via OAuth quanto derivHistoryService)
-    oauthDirectService.subscribeToTicks(symbol);
-    derivHistoryService.subscribeToTicks(symbol);
+    // Garantir que estamos inscritos para os ticks via OAuth
+    if (oauthDirectService && typeof oauthDirectService.subscribeToTicks === 'function') {
+      console.log(`[DigitBarChart] Inscrevendo-se para ticks de ${symbol} via OAuth`);
+      oauthDirectService.subscribeToTicks(symbol);
+    }
     
-    // Reforçar atualização periódica
+    // Também inscrever via serviço de histórico
+    if (derivHistoryService && typeof derivHistoryService.subscribeToTicks === 'function') {
+      console.log(`[DigitBarChart] Inscrevendo-se para ticks de ${symbol} via serviço de histórico`);
+      derivHistoryService.subscribeToTicks(symbol);
+    }
+    
+    // Configurar atualização periódica dos ticks
+    const tickUpdateInterval = setInterval(updateDigitData, 1000);
+    
+    // Reforçar atualização periódica da interface
     const forceUpdateInterval = setInterval(() => {
       setRenderKey(prev => prev + 1);
     }, 1000);
