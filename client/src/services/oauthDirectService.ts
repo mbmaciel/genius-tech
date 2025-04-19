@@ -871,9 +871,33 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @param symbol Símbolo para receber ticks (R_100 por padrão)
    */
   public subscribeToTicks(symbol: string = 'R_100'): void {
+    // Atualizar o símbolo ativo para uso em reconexões
+    if (symbol && symbol !== this.activeSymbol) {
+      this.activeSymbol = symbol;
+      console.log(`[OAUTH_DIRECT] Símbolo ativo atualizado para: ${symbol}`);
+    }
+    
+    // Também notificar outros componentes sobre o símbolo atual via evento
+    this.notifyListeners({
+      type: 'symbol_update',
+      symbol: this.activeSymbol,
+      message: `Símbolo ativo: ${this.activeSymbol}`
+    });
+    
+    // Verificar se o WebSocket está disponível
     if (!this.webSocket) {
       console.error('[OAUTH_DIRECT] WebSocket não está inicializado!');
-      this.reconnect().catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
+      
+      // Tentar reconexão e depois inscrever nos ticks
+      this.reconnect()
+        .then(success => {
+          if (success) {
+            console.log(`[OAUTH_DIRECT] Reconexão bem-sucedida, inscrevendo para ticks do ${this.activeSymbol}`);
+            // Chamar novamente após reconexão bem-sucedida
+            setTimeout(() => this.subscribeToTicks(), 500);
+          }
+        })
+        .catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
       return;
     }
     
@@ -883,7 +907,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Tentar reconectar se não estiver em estado CONNECTING
       if (this.webSocket.readyState !== WebSocket.CONNECTING) {
         console.log('[OAUTH_DIRECT] Tentando reconectar antes de inscrever para ticks...');
-        this.reconnect().catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
+        this.reconnect()
+          .then(success => {
+            if (success) {
+              // Tentar inscrever novamente após reconexão bem-sucedida
+              setTimeout(() => this.subscribeToTicks(), 500);
+            }
+          })
+          .catch(err => console.error('[OAUTH_DIRECT] Erro na reconexão durante inscrição de ticks:', err));
       }
       return;
     }

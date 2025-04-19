@@ -152,22 +152,72 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     }
   };
 
+  // Função para forçar carregamento imediato dos ticks iniciais
+  const forceInitialTicksLoad = () => {
+    // Verificar se temos dígitos no sessionStorage
+    const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
+    
+    if (storedDigits) {
+      try {
+        const parsedDigits = JSON.parse(storedDigits);
+        if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
+          console.log(`[NewDigitBarChart] Dados iniciais carregados do sessionStorage: ${parsedDigits.length} dígitos`);
+          setDigits(parsedDigits);
+          calculateStats(parsedDigits.slice(0, parseInt(selectedCount)));
+          
+          // Exibir o dígito mais recente como animação
+          const lastDigitFromStorage = parsedDigits[0];
+          if (lastDigitFromStorage !== undefined) {
+            setShowLastDigit(true);
+            
+            // Configurar timeout para esconder
+            if (lastDigitTimeoutRef.current) {
+              clearTimeout(lastDigitTimeoutRef.current);
+            }
+            lastDigitTimeoutRef.current = setTimeout(() => {
+              setShowLastDigit(false);
+            }, 3000);
+          }
+        }
+      } catch (e) {
+        console.error('[NewDigitBarChart] Erro ao parsear dígitos do sessionStorage:', e);
+      }
+    }
+    
+    // Imediatamente fazer uma solicitação de inscrição aos ticks
+    if (oauthDirectService) {
+      oauthDirectService.subscribeToTicks(symbol);
+      console.log(`[NewDigitBarChart] Solicitação explícita de ticks enviada para ${symbol}`);
+      
+      // Forçar uma chamada direta para buscar histórico completo
+      setTimeout(() => fetchDigitHistory(), 200);
+    }
+  };
+
   // Efeito para carregar os dados iniciais e lidar com ticks diretos do oauthDirectService
   useEffect(() => {
     console.log(`[NewDigitBarChart] Inicializando componente para ${symbol}`);
     
-    // Carregar histórico inicial
-    fetchDigitHistory();
+    // Forçar carregamento imediato na inicialização
+    forceInitialTicksLoad();
     
     // Configurar atualização periódica do histórico
     const updateInterval = setInterval(() => {
       fetchDigitHistory();
     }, 2000);
     
-    // Forçar atualização da UI
+    // Forçar atualização da UI mais frequentemente
     const renderInterval = setInterval(() => {
       setRenderKey(prev => prev + 1);
     }, 500); // Mais rápido para melhor capturar os novos dígitos
+    
+    // Setup de reconexão de backup a cada 15 segundos se não receber ticks
+    const reconnectInterval = setInterval(() => {
+      if (oauthDirectService) {
+        oauthDirectService.subscribeToTicks(symbol);
+        console.log(`[NewDigitBarChart] Verificação periódica: reenviando solicitação de ticks para ${symbol}`);
+      }
+    }, 15000);
     
     // Listener direto para eventos do oauthDirectService
     const handleDirectTick = (event: any) => {
@@ -273,6 +323,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     return () => {
       clearInterval(updateInterval);
       clearInterval(renderInterval);
+      clearInterval(reconnectInterval);
       
       // Limpar timeout caso exista
       if (lastDigitTimeoutRef.current) {
