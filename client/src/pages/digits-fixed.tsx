@@ -269,17 +269,17 @@ export default function DigitsFixed() {
             <div className="relative h-80 mb-6 bg-[#0d1c34] border border-gray-800 rounded">
               {/* Linhas de grade horizontais */}
               <div className="absolute inset-0 flex flex-col justify-between">
-                {[0, 5, 10, 15, 20, 25, 30].map((value) => (
+                {[0, 5, 10, 15, 20, 25, 30, 35].map((value) => (
                   <div 
                     key={`grid-${value}`} 
                     className="w-full border-t border-gray-800 relative" 
                     style={{ 
-                      bottom: `${(value / 30) * 100}%`,
+                      bottom: `${(value / 35) * 100}%`,
                       height: "1px",
                       marginTop: value === 0 ? "-1px" : "0"
                     }}
                   >
-                    <span className="absolute -top-2 -left-8 text-xs text-gray-500">{value}</span>
+                    <span className="absolute -top-2 -left-8 text-xs text-gray-500">{value}%</span>
                   </div>
                 ))}
               </div>
@@ -289,7 +289,13 @@ export default function DigitsFixed() {
                 {digitPercentages.map((percentage, index) => {
                   // Cor da barra baseada no percentual
                   let barColor = "bg-blue-600";
-                  if (percentage >= 20) barColor = "bg-red-600";
+                  
+                  // Percentuais elevados ficam em vermelho para destacar
+                  if (percentage > 13) barColor = "bg-amber-500";
+                  if (percentage > 16) barColor = "bg-red-600";
+                  
+                  // Percentuais baixos ficam em verde
+                  if (percentage < 7) barColor = "bg-green-500";
                   
                   return (
                     <div 
@@ -302,11 +308,12 @@ export default function DigitsFixed() {
                         {percentage > 0 && `${percentage}%`}
                       </div>
                       
-                      {/* Barra vertical */}
+                      {/* Barra vertical - Definindo altura exata baseada no percentual */}
                       <div 
                         className={`w-full ${barColor} transition-all duration-300`}
                         style={{ 
-                          height: `${Math.max(2, (percentage / 30) * 100)}%`,
+                          // Regra de 3: Máximo 100% = 100% de altura, então percentage% = (percentage/100) * 100% altura
+                          height: `${Math.max(1, percentage)}%`,
                         }}
                       />
                       
@@ -344,11 +351,19 @@ export default function DigitsFixed() {
             <div className="flex justify-center gap-4 text-sm text-gray-400 mb-6">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-red-600 rounded-sm mr-1"></div>
-                <span>≥ 20%</span>
+                <span>≥ 16%</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-amber-500 rounded-sm mr-1"></div>
+                <span>≥ 13%</span>
               </div>
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-blue-600 rounded-sm mr-1"></div>
-                <span>≥ 10%</span>
+                <span>7-13%</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-sm mr-1"></div>
+                <span>&lt; 7%</span>
               </div>
             </div>
             
