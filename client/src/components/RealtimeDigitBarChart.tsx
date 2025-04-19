@@ -7,7 +7,7 @@ import {
   SelectItem, 
   SelectTrigger, 
   SelectValue 
-} from '@/components/ui/select';
+} from './ui/select';
 
 interface RealtimeDigitBarChartProps {
   symbol?: string;

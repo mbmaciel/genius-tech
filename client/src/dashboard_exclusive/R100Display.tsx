@@ -141,7 +141,9 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
       {/* Novo componente otimizado de gráfico em tempo real */}
       <RealtimeDigitBarChart 
         symbol="R_100" 
-        className="w-full mb-6" 
+        className="w-full mb-6"
+        initialTickCount={parseInt(localTickCount)}
+        showControls={true}
       />
       
       {/* Últimos dígitos com design aprimorado */}
