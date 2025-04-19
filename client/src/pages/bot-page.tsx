@@ -1786,12 +1786,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               
               {/* Visualização Estatística de Dígitos com Indicador de Persistência */}
               <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-white text-md font-medium">Estatísticas de Dígitos <span className="text-xs text-blue-400">(últimos {ticks} ticks)</span></h3>
-                  <div className="flex items-center space-x-2">
-                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                    <span className="text-xs text-gray-400">Atualização em tempo real</span>
+                <div className="mb-2">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-white text-md font-medium">Análise Estatística <span className="text-xs text-blue-400">(últimos {ticks} ticks mais recentes)</span></h3>
+                    <div className="flex items-center space-x-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                      <span className="text-xs text-gray-400">Atualização em tempo real</span>
+                    </div>
                   </div>
+                  <p className="text-xs text-gray-400 mt-1">Mostra a frequência percentual de cada dígito considerando apenas os últimos {ticks} ticks</p>
                 </div>
                 <div className="grid grid-cols-10 gap-1 mt-2">
                   {digitStats.map(stat => (
@@ -1815,7 +1818,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   Histórico Completo de Dígitos
                   <span className="text-xs text-gray-400 ml-2">(500 ticks da Deriv)</span>
                 </h3>
-                <FullHistoryDigitDisplay symbol="R_100" maxDigitsToShow={parseInt(ticks)} />
+                <FullHistoryDigitDisplay symbol="R_100" maxDigitsToShow={500} />
               </div>
             </div>
           </div>
