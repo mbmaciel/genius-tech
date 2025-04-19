@@ -12,6 +12,7 @@ import { SimpleDigitDisplay } from "@/components/SimpleDigitDisplay";
 import { FullHistoryDigitDisplay } from "@/components/FullHistoryDigitDisplay";
 import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
+import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
