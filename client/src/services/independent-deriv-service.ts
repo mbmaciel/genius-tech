@@ -315,6 +315,8 @@ class IndependentDerivService {
   
   /**
    * Obtém histórico de ticks para um símbolo
+   * Este método busca os últimos 500 ticks e os armazena, para que eles estejam
+   * disponíveis mesmo após atualizar a página
    */
   public fetchTicksHistory(symbol: string, count: number = 500): Promise<DigitHistory> {
     if (!this.isConnected) {
@@ -334,6 +336,30 @@ class IndependentDerivService {
         }
         
         if (response.history && response.history.prices) {
+          // Extrair todos os dígitos (até 500) e inicializar o histórico
+          const prices = response.history.prices;
+          const lastDigits = prices.map((price: number) => 
+            parseInt(price.toString().slice(-1))
+          );
+          
+          console.log(`[INDEPENDENT_DERIV] Histórico recebido com ${lastDigits.length} ticks`);
+          
+          // Atualizar histórico com os dados recebidos
+          this.initializeDigitHistory(symbol, lastDigits);
+          
+          // Salvar no localStorage para persistir entre recarregamentos
+          try {
+            localStorage.setItem(`deriv_digits_history_${symbol}`, 
+              JSON.stringify({
+                lastDigits: this.digitHistories.get(symbol)?.lastDigits || [],
+                lastUpdated: new Date().toISOString()
+              })
+            );
+            console.log(`[INDEPENDENT_DERIV] Histórico de ${lastDigits.length} ticks salvo no localStorage`);
+          } catch (e) {
+            console.warn('[INDEPENDENT_DERIV] Não foi possível salvar o histórico no localStorage:', e);
+          }
+          
           // Obter histórico depois de atualizado
           const history = this.getDigitHistory(symbol);
           resolve(history);
