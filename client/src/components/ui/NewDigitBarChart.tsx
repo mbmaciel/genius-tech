@@ -301,23 +301,22 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     // Forçar carregamento imediato na inicialização
     forceInitialTicksLoad();
     
-    // Configurar atualização periódica do histórico
-    const updateInterval = setInterval(() => {
-      fetchDigitHistory();
-    }, 2000);
-    
-    // Forçar atualização da UI mais frequentemente
+    // Forçar atualização da UI mais frequentemente sem solicitar novos ticks
     const renderInterval = setInterval(() => {
       setRenderKey(prev => prev + 1);
     }, 500); // Mais rápido para melhor capturar os novos dígitos
     
-    // Setup de reconexão de backup a cada 15 segundos se não receber ticks
-    const reconnectInterval = setInterval(() => {
-      if (oauthDirectService) {
-        oauthDirectService.subscribeToTicks(symbol);
-        console.log(`[NewDigitBarChart] Verificação periódica: reenviando solicitação de ticks para ${symbol}`);
+    // Verificação leve para atualização de estatísticas sem reconexão
+    const updateInterval = setInterval(() => {
+      // Apenas recalcular estatísticas com dados já carregados, sem solicitar novos
+      try {
+        if (digits.length > 0) {
+          calculateStats(digits.slice(0, parseInt(selectedCount)));
+        }
+      } catch (e) {
+        console.error(`[NewDigitBarChart] Erro ao atualizar estatísticas:`, e);
       }
-    }, 15000);
+    }, 2000);
     
     // Listener direto para eventos do oauthDirectService
     const handleDirectTick = (event: any) => {
@@ -494,7 +493,6 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     return () => {
       clearInterval(updateInterval);
       clearInterval(renderInterval);
-      clearInterval(reconnectInterval);
       
       // Limpar timeout caso exista
       if (lastDigitTimeoutRef.current) {
