@@ -527,6 +527,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Manipula mensagens recebidas do WebSocket
    */
+  // Flag para controlar se devemos permitir eventos de symbol_update
+  private allowSymbolUpdateEvents: boolean = false;
+  
+  /**
+   * Habilita eventos de symbol_update quando realmente necessário
+   * Por exemplo, quando o usuário muda o símbolo na interface
+   */
+  public enableSymbolUpdateEvents(): void {
+    this.allowSymbolUpdateEvents = true;
+    this.symbolUpdateBlocked = false;
+    
+    // Auto-disable depois de 10 segundos
+    setTimeout(() => {
+      this.allowSymbolUpdateEvents = false;
+    }, 10000);
+  }
+  
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
@@ -553,7 +570,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           // sem disparar eventos de symbol_update frequentes
           if (!this.isRunning) {
             this.lastTickTime = Date.now(); // Inicializa o timestamp como agora para evitar notificações symbol_update desnecessárias
-            this.subscribeToTicks(this.activeSymbol);
+            
+            // Temporariamente bloqueia eventos de symbol_update
+            this.symbolUpdateBlocked = true;
+            setTimeout(() => {
+              this.subscribeToTicks(this.activeSymbol);
+              
+              // Continuamos bloqueados por 60 segundos
+              setTimeout(() => {
+                this.symbolUpdateBlocked = false;
+              }, 60000);
+            }, 100);
           }
         }
       }
@@ -881,6 +908,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private readonly SYMBOL_UPDATE_THROTTLE_MS: number = 30000; // 30 segundos - evita reconexões frequentes
   private lastSymbol: string = 'R_100';
   private lastTickTime: number = 0;
+  private symbolUpdateBlocked: boolean = false; // Nova flag para bloquear atualizações por um período
+  private symbolUpdateBlockTimeout: any = null;
 
   public subscribeToTicks(symbol: string = 'R_100'): void {
     // Atualizar o símbolo ativo para uso em reconexões
@@ -896,12 +925,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // 1. O símbolo deve ter mudado em relação ao último notificado
       // 2. Deve ter passado tempo suficiente desde a última notificação
       // 3. Se estivermos recebendo ticks recentes, não emitir o evento
+      // 4. Flag de bloqueio não está ativa
       if (symbol !== this.lastSymbol && 
           now - this.lastSymbolUpdateTime > this.SYMBOL_UPDATE_THROTTLE_MS &&
-          now - this.lastTickTime > 2000) {
+          now - this.lastTickTime > 2000 &&
+          !this.symbolUpdateBlocked) {
         
         this.lastSymbolUpdateTime = now;
         this.lastSymbol = symbol;
+        
+        // Bloquear eventos de symbol_update por 60 segundos após qualquer atualização
+        this.symbolUpdateBlocked = true;
+        
+        // Limpar bloqueio anterior, se existir
+        if (this.symbolUpdateBlockTimeout) {
+          clearTimeout(this.symbolUpdateBlockTimeout);
+        }
+        
+        // Desbloquear após 60 segundos
+        this.symbolUpdateBlockTimeout = setTimeout(() => {
+          this.symbolUpdateBlocked = false;
+        }, 60000);
         
         // Registramos no log, mas não notificamos listeners se tudo estiver funcionando
         if (now - this.lastTickTime > 5000) {
@@ -915,6 +959,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         } else {
           console.log(`[OAUTH_DIRECT] Símbolo alterado para ${symbol}, mas já recebendo ticks recentes (${(now - this.lastTickTime)/1000}s)`);
         }
+      } else {
+        // Registramos o motivo pelo qual não enviamos a notificação
+        const timeSinceLastUpdate = now - this.lastSymbolUpdateTime;
+        const timeSinceLastTick = now - this.lastTickTime;
+        console.log(`[OAUTH_DIRECT] Notificação de símbolo ${symbol} suprimida:`, 
+                   `mesmo símbolo anterior: ${symbol === this.lastSymbol},`,
+                   `tempo desde última atualização: ${timeSinceLastUpdate/1000}s,`,
+                   `tempo desde último tick: ${timeSinceLastTick/1000}s,`,
+                   `bloqueado: ${this.symbolUpdateBlocked}`);
       }
     }
     
