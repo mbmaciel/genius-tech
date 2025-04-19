@@ -711,7 +711,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                     
                     {/* Dígito abaixo da barra */}
                     <div className="mt-2 w-full text-center text-white font-semibold">
-                      {stat.digit}
+                      {stat.digit.toString()}
                     </div>
                   </div>
                 );
@@ -730,7 +730,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                           ? 'bg-primary text-white border-primary font-bold' 
                           : 'border-gray-700 text-white'}`}
                     >
-                      {digit}
+                      {digit.toString()}
                     </div>
                   ))}
                 </div>
@@ -742,7 +742,7 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
               <div className="mt-4 flex justify-center items-center">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center animate-pulse">
-                    <span className="text-2xl font-bold text-white">{lastDigit}</span>
+                    <span className="text-2xl font-bold text-white">{lastDigit.toString()}</span>
                   </div>
                   <div className="absolute -top-2 -right-2 bg-black text-white text-xs px-2 py-1 rounded-full">
                     Novo!
