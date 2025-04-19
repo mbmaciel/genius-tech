@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { oauthDirectService } from '../services/oauthDirectService';
 
 /**
@@ -21,6 +21,8 @@ export function useDerivTicks(symbol: string = 'R_100') {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   // Estado para armazenar erros
   const [error, setError] = useState<string | null>(null);
+  // Ref para rastrear se já fizemos a inscrição inicial (evitar reconexões)
+  const hasSubscribed = useRef<boolean>(false);
 
   useEffect(() => {
     console.log(`[useDerivTicks] Inicializando hook para símbolo ${symbol}`);
@@ -101,9 +103,11 @@ export function useDerivTicks(symbol: string = 'R_100') {
     document.addEventListener('tick-update', processTickHandler);
     
     // Garantir que estamos inscritos nos ticks do símbolo solicitado
-    if (oauthDirectService) {
+    // APENAS uma vez para evitar reconexões desnecessárias a cada atualização
+    if (oauthDirectService && !hasSubscribed.current) {
       oauthDirectService.subscribeToTicks(symbol);
-      console.log(`[useDerivTicks] Inscrito nos ticks de ${symbol}`);
+      console.log(`[useDerivTicks] Inscrito nos ticks de ${symbol} (inscrição única)`);
+      hasSubscribed.current = true;
     }
 
     // Cleanup function
