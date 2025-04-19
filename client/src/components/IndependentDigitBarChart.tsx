@@ -128,21 +128,31 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
-  // Atualizar dados periodicamente (a cada 250ms para maior fluidez)
+  // Contador de versão para forçar re-renderização completa
+  const [renderVersion, setRenderVersion] = useState<number>(0);
+  
+  // Atualizar dados periodicamente (a cada 200ms para maior fluidez)
   useEffect(() => {
-    const refreshTimer = setInterval(() => {
+    let interval: NodeJS.Timeout;
+    
+    const updateStatsAndRender = () => {
       if (symbol && !loading) {
-        // Forçar atualização dos dados - criando um novo objeto para garantir re-renderização
+        // Buscar histórico atual
         const currentHistory = independentDerivService.getDigitHistory(symbol);
+        
         if (currentHistory && currentHistory.lastDigits.length > 0) {
-          // Criar cópias profundas para garantir que React detecte as mudanças
+          // Força nova renderização a cada atualização
+          setRenderVersion(prev => prev + 1);
+          
+          // Copia profunda para garantir que mudanças sejam detectadas
           const newHistory = {
             ...currentHistory,
-            stats: [...currentHistory.stats.map(stat => ({...stat}))],
+            stats: currentHistory.stats.map(stat => ({ ...stat })), // Copia todos os objetos de estatística
             lastDigits: [...currentHistory.lastDigits],
-            lastUpdated: new Date() // Forçar atualização sempre
+            lastUpdated: new Date() // Marca temporal de atualização
           };
           
+          // Atualiza o estado
           setDigitHistory(newHistory);
           setLastDigits([...currentHistory.lastDigits].slice(-10).reverse());
           
@@ -151,9 +161,15 @@ export function IndependentDigitBarChart({
             newHistory.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
         }
       }
-    }, 250); // Mais frequente para melhor responsividade
+    };
     
-    return () => clearInterval(refreshTimer);
+    // Chama imediatamente e depois agenda repetições
+    updateStatsAndRender();
+    
+    // Atualização frequente
+    interval = setInterval(updateStatsAndRender, 200);
+    
+    return () => clearInterval(interval);
   }, [symbol, loading]);
   
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
@@ -236,7 +252,7 @@ export function IndependentDigitBarChart({
               // Mapear cada estatística para uma barra
               digitHistory.stats.map((stat) => (
                 <div 
-                  key={`digit-${stat.digit}-${stat.percentage}-${Math.random()}`} 
+                  key={`digit-${stat.digit}-${stat.percentage}-${renderVersion}`} 
                   className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]"
                 >
                   {/* Percentual acima da barra - sempre exibir */}
@@ -246,11 +262,12 @@ export function IndependentDigitBarChart({
                   
                   {/* Barra com altura proporcional - mesmo com 0% tem altura mínima */}
                   <div 
-                    className={`w-full ${getBarColor(stat.digit)}`}
                     style={{ 
-                      height: `${Math.max(10, (stat.percentage / 12) * 100)}%`, // Aumentando ainda mais para barras grandes
-                      minHeight: '10px', // Mínimo visível
-                      transition: 'height 0.15s ease-in-out',
+                      height: `${Math.max(15, (stat.percentage / 12) * 100)}%`, // Aumentando ainda mais para barras grandes
+                      minHeight: '15px', // Mínimo visível mais alto para melhor visualização
+                      backgroundColor: stat.digit % 2 === 0 ? '#00e5b3' : '#ff444f',
+                      width: '100%',
+                      transition: 'all 0.3s ease',
                       borderRadius: '2px 2px 0 0' // Adicionar bordas arredondadas no topo
                     }}
                   ></div>
@@ -267,8 +284,14 @@ export function IndependentDigitBarChart({
                 <div key={i} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
                   <div className="text-xs font-medium text-white mb-1">0%</div>
                   <div 
-                    className={`w-full ${getBarColor(i)}`}
-                    style={{ height: '5%', transition: 'height 0.3s ease-in-out' }}
+                    style={{ 
+                      height: '15%',
+                      backgroundColor: i % 2 === 0 ? '#00e5b3' : '#ff444f',
+                      width: '100%',
+                      minHeight: '15px',
+                      transition: 'all 0.3s ease',
+                      borderRadius: '2px 2px 0 0'
+                    }}
                   ></div>
                   <div className="mt-2 text-center text-sm text-white">{i}</div>
                 </div>
