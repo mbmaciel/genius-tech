@@ -103,43 +103,34 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     
     // Função para atualizar os dados
     const updateDigitData = () => {
-      console.log('[DigitBarChart] Tentando atualizar dados de dígitos...');
+      console.log('[DigitBarChart] Atualizando dados de dígitos...');
       
       try {
-        // Obter dígitos do serviço de histórico
-        if (typeof derivHistoryService.getDigitsHistory === 'function') {
+        // Obter dados do serviço de histórico
+        const historyData = derivHistoryService.getDigitStats(symbol);
+        
+        if (historyData && historyData.lastDigits) {
+          // Obter array de dígitos
+          const tickHistory = historyData.lastDigits;
           const count = parseInt(selectedCount);
-          const tickHistory = derivHistoryService.getDigitsHistory(symbol, count);
           
-          if (tickHistory && tickHistory.length > 0) {
-            console.log(`[DigitBarChart] Recebidos ${tickHistory.length} dígitos do serviço de histórico`);
+          // Pegar apenas os dígitos mais recentes conforme a quantidade selecionada
+          const recentDigits = tickHistory.slice(0, count);
+          
+          if (recentDigits.length > 0) {
+            console.log(`[DigitBarChart] Recebidos ${recentDigits.length} dígitos para ${symbol}`);
             
             // Atualizar histórico completo
-            setDigits(tickHistory);
+            setDigits(recentDigits);
             
             // Calcular estatísticas a partir do histórico
-            const digitCounts = Array(10).fill(0);
-            
-            tickHistory.forEach((digit: number) => {
-              if (digit >= 0 && digit <= 9) {
-                digitCounts[digit]++;
-              }
-            });
-            
-            const totalDigits = tickHistory.length;
-            
-            const updatedStats = digitCounts.map((count, digit) => {
-              const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
-              return { digit, count, percentage };
-            });
-            
-            setDigitStats(updatedStats);
+            calculateStats(recentDigits);
             setLoading(false);
           } else {
-            console.log('[DigitBarChart] Sem dados de histórico disponíveis');
+            console.log('[DigitBarChart] Sem dígitos recentes disponíveis');
           }
         } else {
-          console.error('[DigitBarChart] Método getDigitsHistory não disponível no serviço');
+          console.log(`[DigitBarChart] Sem dados de histórico para ${symbol}`);
         }
       } catch (err) {
         console.error('[DigitBarChart] Erro ao atualizar dados:', err);
@@ -152,11 +143,16 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
       oauthDirectService.subscribeToTicks(symbol);
     }
     
-    // Também inscrever via serviço de histórico
-    if (derivHistoryService && typeof derivHistoryService.subscribeToTicks === 'function') {
-      console.log(`[DigitBarChart] Inscrevendo-se para ticks de ${symbol} via serviço de histórico`);
-      derivHistoryService.subscribeToTicks(symbol);
-    }
+    // Adicionar listener para o serviço de histórico
+    const historyListener = (data: any) => {
+      if (data && data.lastDigits && data.lastDigits.length > 0) {
+        setDigits(data.lastDigits);
+        calculateStats(data.lastDigits.slice(0, parseInt(selectedCount)));
+      }
+    };
+    
+    // Registrar no serviço de histórico
+    derivHistoryService.addListener(historyListener, symbol);
     
     // Configurar atualização periódica dos ticks
     const tickUpdateInterval = setInterval(updateDigitData, 1000);
@@ -167,11 +163,12 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     }, 1000);
     
     return () => {
-      // Limpar intervalos
+      // Limpar intervalos e desregistrar listener
+      derivHistoryService.removeListener(historyListener);
       clearInterval(tickUpdateInterval);
       clearInterval(forceUpdateInterval);
     };
-  }, [symbol]);
+  }, [symbol, selectedCount]);
 
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
