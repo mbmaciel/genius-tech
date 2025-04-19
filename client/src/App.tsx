@@ -11,6 +11,7 @@ import SimpleChart from "@/pages/simple-chart";
 import RealtimeDigits from "@/pages/realtime-digits";
 import DigitDisplay from "@/pages/digit-display";
 import DigitDisplayFixed from "@/pages/digit-display-fixed";
+import DigitDisplayStats from "@/pages/digit-display-stats";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -148,7 +149,7 @@ function App() {
         <Route path="/chart" component={(props: any) => <ProtectedRoute component={ChartPage} {...props} />} />
         <Route path="/simplechart" component={SimpleChart} />
         <Route path="/realtime" component={RealtimeDigits} />
-        <Route path="/digits" component={DigitDisplayFixed} />
+        <Route path="/digits" component={DigitDisplayStats} />
       </Switch>
     </div>
   );
