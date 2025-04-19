@@ -232,9 +232,9 @@ class IndependentDerivService {
       const quote = data.tick.quote;
       
       // Usar o método CORRETO para R_100
-      // O último dígito é a primeira casa decimal, não a segunda
+      // O último dígito é a SEGUNDA casa decimal (o último caractere do número formatado)
       const priceStr = parseFloat(quote.toString()).toFixed(2); // Formatar com 2 casas decimais
-      const lastChar = priceStr.charAt(priceStr.length - 2); // Pegar a PRIMEIRA casa decimal
+      const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
       const lastDigit = parseInt(lastChar, 10);
       
       // Log detalhado para diagnóstico
@@ -456,7 +456,7 @@ class IndependentDerivService {
           const lastDigits = prices.map((price: number) => {
             // Usar o método CORRETO para R_100 (mesma estratégia de processamento do tick em tempo real)
             const priceStr = parseFloat(price.toString()).toFixed(2); // Formatar com 2 casas decimais
-            const lastChar = priceStr.charAt(priceStr.length - 2); // Pegar a PRIMEIRA casa decimal
+            const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
             return parseInt(lastChar, 10);
           });
           
