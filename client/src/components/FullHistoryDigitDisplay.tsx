@@ -17,7 +17,7 @@ interface FullHistoryDigitDisplayProps {
  */
 export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDisplayInner({
   symbol = "R_100",
-  maxDigitsToShow = 20
+  maxDigitsToShow = 200
 }: FullHistoryDigitDisplayProps) {
   // Estados
   const [historyData, setHistoryData] = useState<DigitHistoryData | null>(null);
@@ -225,32 +225,41 @@ export const FullHistoryDigitDisplay = React.memo(function FullHistoryDigitDispl
         </div>
       </div>
       
-      {/* Sequência de dígitos atual */}
+      {/* Sequência de dígitos atual - apresentados 1 a 1 em múltiplas linhas */}
       <div className="mb-4">
         <div className="text-xs text-gray-400 mb-2 font-medium">Últimos dígitos:</div>
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {isLoading ? (
-            <div className="flex gap-1.5">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div 
-                  key={`loading-${i}`}
-                  className="w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md bg-gray-700 animate-pulse"
-                />
-              ))}
-            </div>
-          ) : historyData?.lastDigits && historyData.lastDigits.length > 0 ? (
-            historyData.lastDigits.slice(0, maxDigitsToShow).map((digit, index) => (
+        {isLoading ? (
+          <div className="grid grid-cols-10 gap-1.5 mb-2">
+            {Array.from({ length: 10 }).map((_, i) => (
               <div 
-                key={`digit-${index}-${updateCounter}`}
-                className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md transform ${index === 0 ? 'scale-110 border-2 border-white' : ''}`}
-              >
-                {digit}
+                key={`loading-${i}`}
+                className="w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md bg-gray-700 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : historyData?.lastDigits && historyData.lastDigits.length > 0 ? (
+          // Agrupar os dígitos em linhas de 10 para melhor visualização
+          <div className="space-y-1.5">
+            {Array.from({ length: Math.ceil(Math.min(maxDigitsToShow, historyData.lastDigits.length) / 10) }).map((_, rowIndex) => (
+              <div key={`row-${rowIndex}`} className="grid grid-cols-10 gap-1.5">
+                {historyData.lastDigits.slice(rowIndex * 10, (rowIndex + 1) * 10).map((digit, colIndex) => {
+                  const index = (rowIndex * 10) + colIndex;
+                  if (index >= maxDigitsToShow) return null;
+                  return (
+                    <div 
+                      key={`digit-${index}-${updateCounter}`}
+                      className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center rounded-md font-bold text-sm shadow-md transform ${index === 0 ? 'scale-105 border-2 border-white' : ''}`}
+                    >
+                      {digit}
+                    </div>
+                  );
+                })}
               </div>
-            ))
-          ) : (
-            <div className="text-gray-400">Aguardando dados...</div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-400">Aguardando dados...</div>
+        )}
         
         {/* Legendas */}
         <div className="flex gap-3 mt-2 text-xs">
