@@ -1798,9 +1798,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                     </SelectTrigger>
                     <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
                       <SelectItem value="10">10 ticks</SelectItem>
-                      <SelectItem value="20">20 ticks</SelectItem>
+                      <SelectItem value="25">25 ticks</SelectItem>
                       <SelectItem value="50">50 ticks</SelectItem>
                       <SelectItem value="100">100 ticks</SelectItem>
+                      <SelectItem value="150">150 ticks</SelectItem>
+                      <SelectItem value="200">200 ticks</SelectItem>
+                      <SelectItem value="300">300 ticks</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
