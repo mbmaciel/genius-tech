@@ -212,7 +212,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       
       // 4. Garantir que apenas estamos considerando os ticks mais recentes
       // Pegamos exatamente a quantidade selecionada pelo usuário - isso é crítico para percentuais corretos
-      const recentDigits = historyData.lastDigits.slice(0, selectedTicksCount);
+      // Verificar se temos dados suficientes e limitar à quantidade escolhida
+      const recentDigits = Array.isArray(historyData.lastDigits) 
+        ? historyData.lastDigits.slice(0, selectedTicksCount)
+        : [];
       
       // 5. Inicializar contagens para cada dígito (0-9)
       const digitCounts = Array(10).fill(0);
@@ -243,8 +246,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       setDigitStats(updatedStats);
       
       // 10. Log para depuração
-      console.log(`[BOT_PAGE] Novas estatísticas calculadas para ${selectedTicksCount} ticks:`, 
+      console.log(`[BOT_PAGE] Novas estatísticas calculadas para últimos ${selectedTicksCount} ticks:`, 
         `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
+      
+      // Verificar se a soma dos percentuais é 100% (ou próximo, devido a arredondamentos)
+      const totalPercentage = updatedStats.reduce((sum, stat) => sum + stat.percentage, 0);
+      if (Math.abs(totalPercentage - 100) > 5) {
+        console.warn(`[BOT_PAGE] Alerta: Total de percentuais (${totalPercentage}%) não está próximo de 100%. Verificar cálculos.`);
+      }
+      
       console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, 
         `Digit ${newDigit} (últimos ${selectedTicksCount} ticks) - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
     }
