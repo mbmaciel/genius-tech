@@ -211,39 +211,42 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       const selectedTicksCount = parseInt(ticks);
       
       // 4. Garantir que apenas estamos considerando os ticks mais recentes
-      // (slice(0, X) porque lastDigits já está com o mais recente primeiro)
-      const ticksToAnalyze = historyData.lastDigits.slice(0, selectedTicksCount);
+      // Pegamos exatamente a quantidade selecionada pelo usuário - isso é crítico para percentuais corretos
+      const recentDigits = historyData.lastDigits.slice(0, selectedTicksCount);
       
-      // 5. Inicializar contagens
-      const counts: Record<number, number> = {};
-      for (let i = 0; i < 10; i++) {
-        counts[i] = 0;
-      }
+      // 5. Inicializar contagens para cada dígito (0-9)
+      const digitCounts = Array(10).fill(0);
       
-      // 6. Contar ocorrências apenas nos ticks selecionados
-      ticksToAnalyze.forEach(digit => {
-        counts[digit]++;
+      // 6. Contar a frequência de cada dígito nos ticks selecionados
+      recentDigits.forEach(digit => {
+        if (digit >= 0 && digit <= 9) {
+          digitCounts[digit]++;
+        }
       });
       
-      // 7. Calcular percentuais com base apenas nos ticks selecionados
-      const total = ticksToAnalyze.length;
-      const updatedStats = Array.from({ length: 10 }, (_, i) => {
-        const count = counts[i] || 0;
-        const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+      // 7. Total de dígitos analisados (para calcular percentuais)
+      const totalDigits = recentDigits.length;
+      
+      // 8. Criar o array de estatísticas com contagens e percentuais
+      const updatedStats = digitCounts.map((count, digit) => {
+        // Calcular o percentual com precisão, arredondando para o inteiro mais próximo
+        const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
         
         return {
-          digit: i,
+          digit,
           count,
           percentage
         };
       });
       
-      // 8. Atualizar estatísticas na interface
+      // 9. Atualizar o estado das estatísticas de dígitos na interface
       setDigitStats(updatedStats);
       
-      // 9. Log para depuração
-      console.log(`[BOT_PAGE] Novas estatísticas calculadas:`, `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
-      console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, `Digit ${newDigit} - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
+      // 10. Log para depuração
+      console.log(`[BOT_PAGE] Novas estatísticas calculadas para ${selectedTicksCount} ticks:`, 
+        `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
+      console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, 
+        `Digit ${newDigit} (últimos ${selectedTicksCount} ticks) - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
     }
   };
   
@@ -1774,10 +1777,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               {/* Visualização Estatística de Dígitos com Indicador de Persistência */}
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-white text-md font-medium">Estatísticas de Dígitos</h3>
+                  <h3 className="text-white text-md font-medium">Estatísticas de Dígitos <span className="text-xs text-blue-400">(últimos {ticks} ticks)</span></h3>
                   <div className="flex items-center space-x-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                    <span className="text-xs text-gray-400">Dados persistentes</span>
+                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                    <span className="text-xs text-gray-400">Atualização em tempo real</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-10 gap-1 mt-2">
