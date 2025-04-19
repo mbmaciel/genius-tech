@@ -74,39 +74,10 @@ export function DigitsFixedDisplay({ symbol = 'R_100' }: { symbol?: string }) {
     const oauthConnected = Boolean(localStorage.getItem('deriv_oauth_token'));
     setConnected(oauthConnected);
     
-    // Obter histórico de dígitos existente
-    let historyDigits: number[] = [];
-    try {
-      // Verificar se o serviço está disponível e usar o método correto
-      if (derivHistoryService) {
-        // O método getTicksHistory retorna Promise<DigitHistoryData>
-        derivHistoryService.getTicksHistory(symbol, 500, false)
-          .then(historyData => {
-            if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
-              // lastDigits já contém os dígitos extraídos e processados
-              historyDigits = historyData.lastDigits;
-              
-              // Atualizar o estado com os dígitos encontrados
-              setDigits(historyDigits);
-              setIsLoading(false);
-              setLastDigit(historyDigits[0]);
-              
-              // RESUMO DOS DADOS
-              const latestDigits = historyDigits.slice(0, 20).join(', ');
-              setRawData(latestDigits);
-              
-              // Calcular estatísticas iniciais
-              calculateStats(historyDigits, currentSampleSize);
-              setUpdateTime(new Date());
-            }
-          })
-          .catch(error => {
-            console.error("[DIGIT_DISPLAY] Erro ao obter histórico:", error);
-          });
-      }
-    } catch (err) {
-      console.warn("[DIGIT_DISPLAY] Não foi possível obter histórico de ticks:", err);
-    }
+    // Não vamos tentar obter histórico inicial via derivHistoryService.getTicksHistory
+    // porque isso está causando erros. Em vez disso, construiremos o histórico
+    // a partir dos ticks recebidos em tempo real através do evento oauthTick.
+    console.log("[DIGIT_DISPLAY] Aguardando ticks em tempo real para construir histórico...")
     
     // Inicializa com array vazio, dados chegam pela Promise
     

@@ -35,19 +35,22 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
   const fetchTicksHistory = async () => {
     try {
       setLoading(true);
-      const history = await oauthDirectService.getFullTicksHistory(symbol);
+      // O método getFullTicksHistory não existe, então vamos começar com array vazio
+      // e construir histórico a partir de ticks recebidos em tempo real
+      setDigits([]);
       
-      if (history && history.length > 0) {
-        setDigits(history);
-        calculateStats(history);
-        console.log(`[DigitBarChart] Recebidos ${history.length} dígitos históricos`);
-      } else {
-        setError("Não foi possível obter histórico de dígitos");
-      }
+      // Inicializar com estatísticas vazias
+      const emptyStats = Array.from({ length: 10 }, (_, i) => ({ 
+        digit: i, count: 0, percentage: 0 
+      }));
+      setDigitStats(emptyStats);
+      
+      console.log(`[DigitBarChart] Iniciando coleta de ticks em tempo real para ${symbol}`);
+      // Permitir que o componente inicie mesmo sem histórico inicial
+      setLoading(false);
     } catch (err) {
-      console.error("[DigitBarChart] Erro ao buscar histórico:", err);
-      setError("Erro ao carregar dados");
-    } finally {
+      console.error("[DigitBarChart] Erro ao inicializar:", err);
+      setError("Erro ao inicializar componente");
       setLoading(false);
     }
   };
@@ -100,15 +103,19 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Configurar listener para ticks em tempo real
     const handleTick = (event: Event) => {
       const customEvent = event as CustomEvent;
-      if (customEvent.detail?.tick?.last_digit !== undefined) {
-        const digit = customEvent.detail.tick.last_digit;
-        console.log(`[DigitBarChart] Novo tick recebido com dígito: ${digit}`);
+      if (customEvent.detail?.tick?.quote) {
+        // Extrair o último dígito do preço
+        const price = parseFloat(customEvent.detail.tick.quote);
+        const priceStr = price.toFixed(2);
+        const digit = parseInt(priceStr.charAt(priceStr.length - 1));
+        
+        console.log(`[DigitBarChart] Novo tick recebido com preço ${price}, último dígito: ${digit}`);
         addNewDigit(digit);
       }
     };
     
-    // Registrar ouvinte e inscever-se nos ticks
-    window.addEventListener('deriv-tick', handleTick);
+    // Registrar ouvinte e inscever-se nos ticks - CORRIGINDO NOME DO EVENTO
+    document.addEventListener('oauthTick', handleTick as EventListener);
     oauthDirectService.subscribeToTicks(symbol);
     
     // Reforçar atualização periódica
@@ -117,7 +124,8 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     }, 1000);
     
     return () => {
-      window.removeEventListener('deriv-tick', handleTick);
+      // Corrigindo a limpeza para remover o listener correto
+      document.removeEventListener('oauthTick', handleTick as EventListener);
       clearInterval(forceUpdateInterval);
     };
   }, [symbol]);
