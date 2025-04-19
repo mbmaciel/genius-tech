@@ -204,10 +204,13 @@ class DashboardWebSocket {
       if (data.msg_type === 'tick' && data.tick) {
         const tick = data.tick;
         
+        // Extrair o preço e calcular o último dígito com segurança
+        const price = parseFloat(tick.quote);
+        
         // Criar objeto de evento de tick
         const tickEvent: DashboardTickEvent = {
           symbol: tick.symbol,
-          quote: parseFloat(tick.quote),
+          quote: price,
           epoch: tick.epoch,
           pipSize: tick.pip_size || 0
         };

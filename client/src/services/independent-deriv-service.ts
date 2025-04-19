@@ -445,9 +445,11 @@ class IndependentDerivService {
         if (response.history && response.history.prices) {
           // Extrair todos os dígitos (até 500) e inicializar o histórico
           const prices = response.history.prices;
-          const lastDigits = prices.map((price: number) => 
-            parseInt(price.toString().slice(-1))
-          );
+          const lastDigits = prices.map((price: number) => {
+            // Usar Math.floor para extrair o último dígito corretamente
+            // Esta abordagem funciona melhor para o dígito 0 do que usar slice(-1)
+            return Math.floor(price * 10) % 10;
+          });
           
           console.log(`[INDEPENDENT_DERIV] Histórico recebido com ${lastDigits.length} ticks`);
           

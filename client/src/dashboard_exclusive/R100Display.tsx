@@ -45,7 +45,12 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
       if (tickData && tickData.symbol === 'R_100') {
         // Calcular último dígito
         const price = tickData.quote;
+        // Método seguro para extrair o último dígito, 
+        // garantindo que 0 também seja detectado corretamente
         const lastDigit = Math.floor(price * 10) % 10;
+        
+        // Log para debug do digito recebido
+        console.log(`[R100Display] Recebido tick - Valor: ${price}, Último dígito: ${lastDigit}`);
         
         // Atualizar lista de dígitos
         setLastDigits(prev => {
@@ -78,28 +83,39 @@ export function DashboardR100Display({ onUpdateDigits, tickCount = 10 }: Dashboa
   
   // Efeito para calcular estatísticas dos dígitos
   useEffect(() => {
+    // Inicializar contagem para cada dígito (0-9), mesmo sem dados
+    const digitCounts = Array(10).fill(0);
+    
+    // Contar ocorrências de cada dígito se tivermos dados
     if (lastDigits.length > 0) {
-      // Inicializar contagem para cada dígito (0-9)
-      const digitCounts = Array(10).fill(0);
-      
-      // Contar ocorrências de cada dígito
       lastDigits.forEach(digit => {
-        digitCounts[digit]++;
+        // Garantir que o dígito está no intervalo válido
+        if (digit >= 0 && digit <= 9) {
+          digitCounts[digit]++;
+        }
       });
-      
-      // Calcular estatísticas
-      const stats = digitCounts.map((count, digit) => {
-        const percentage = (count / lastDigits.length) * 100;
-        return { 
-          digit, 
-          count, 
-          percentage: Math.round(percentage) 
-        };
-      });
-      
-      // Atualizar estatísticas
-      setDigitStats(stats);
     }
+    
+    // Calcular estatísticas para todos os dígitos de 0-9
+    const totalDigits = lastDigits.length || 1; // Evitar divisão por zero
+    const stats = [];
+    
+    for (let digit = 0; digit <= 9; digit++) {
+      const count = digitCounts[digit];
+      const percentage = (count / totalDigits) * 100;
+      stats.push({ 
+        digit, 
+        count, 
+        percentage: Math.round(percentage) 
+      });
+    }
+    
+    // Log para debug dos dígitos
+    console.log(`[R100Display] Processando ${lastDigits.length} dígitos. Último dígito: ${lastDigits[lastDigits.length-1]}`);
+    console.log(`[R100Display] Estatísticas: ${stats.map(s => `${s.digit}:${s.percentage}%`).join(', ')}`);
+    
+    // Atualizar estatísticas
+    setDigitStats(stats);
   }, [lastDigits]);
   
   // Função para obter cor da barra com base no percentual
