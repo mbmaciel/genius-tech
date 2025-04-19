@@ -13,8 +13,7 @@ import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
-
-// Importação de NewDigitBarChart removida
+import { DigitBarChart } from "@/components/ui/DigitBarChart";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";

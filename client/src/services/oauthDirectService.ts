@@ -1089,6 +1089,92 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this._requestBalance();
     }
   }
+  
+  /**
+   * Busca o histórico de ticks para um símbolo específico
+   * @param symbol Símbolo para buscar o histórico (ex: R_100)
+   * @param count Quantidade de ticks para buscar (máximo 500)
+   * @returns Promise com o resultado do histórico
+   */
+  public getTicksHistory(symbol: string, count: number = 500): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        console.error('[OAUTH_DIRECT] Erro ao solicitar histórico: WebSocket não está conectado');
+        this.reconnect().then(success => {
+          if (success) {
+            // Tentar novamente após reconexão
+            this.getTicksHistory(symbol, count).then(resolve).catch(reject);
+          } else {
+            reject(new Error('Falha ao reconectar WebSocket'));
+          }
+        });
+        return;
+      }
+
+      // ID único para esta solicitação
+      const requestId = `ticks_history_${Date.now()}`;
+      
+      // Função para lidar com a resposta
+      const handleHistoryResponse = (event: MessageEvent) => {
+        try {
+          const response = JSON.parse(event.data);
+          
+          // Verificar se é a resposta para a nossa solicitação
+          if (response && response.req_id === requestId) {
+            // Remover o listener após receber a resposta
+            this.webSocket?.removeEventListener('message', handleHistoryResponse);
+            
+            if (response.error) {
+              console.error('[OAUTH_DIRECT] Erro ao obter histórico:', response.error);
+              reject(response.error);
+            } else {
+              console.log(`[OAUTH_DIRECT] Histórico recebido para ${symbol} com ${response.history?.prices?.length || 0} ticks`);
+              resolve(response);
+            }
+          }
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao processar resposta de histórico:', error);
+        }
+      };
+      
+      // Adicionar listener temporário para esta solicitação específica
+      this.webSocket.addEventListener('message', handleHistoryResponse);
+      
+      // Configurar a data de término (agora) e início (baseado na granularidade de 1 segundo)
+      const end = Math.floor(Date.now() / 1000);
+      const start = end - count * 2; // Pegar um intervalo maior para garantir que tenhamos ticks suficientes
+      
+      // Enviar a solicitação de histórico
+      const request = {
+        ticks_history: symbol,
+        req_id: requestId,
+        end: end,
+        start: start,
+        style: 'ticks',
+        count: count,
+        adjust_start_time: 1
+      };
+      
+      console.log(`[OAUTH_DIRECT] Solicitando ${count} ticks históricos para ${symbol}`);
+      
+      // Enviar a solicitação para o WebSocket
+      try {
+        this.webSocket.send(JSON.stringify(request));
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao enviar solicitação de histórico:', error);
+        this.webSocket.removeEventListener('message', handleHistoryResponse);
+        reject(error);
+      }
+      
+      // Configurar timeout para rejeitar a promessa após 10 segundos
+      setTimeout(() => {
+        if (this.webSocket) {
+          this.webSocket.removeEventListener('message', handleHistoryResponse);
+          reject(new Error('Timeout ao esperar resposta do histórico de ticks'));
+        }
+      }, 10000);
+    });
+  }
 
   /**
    * Solicita o saldo atual sem criar uma assinatura

@@ -67,6 +67,7 @@ export interface OAuthDirectServiceInterface {
   // Métodos para obter informações da conta
   getAccountBalance(): void; // Método para solicitar saldo atual da conta
   authorizeActiveToken(): Promise<boolean>; // Método para autorizar o token ativo
+  getTicksHistory(symbol: string, count?: number): Promise<any>; // Método para obter histórico de ticks
   
   // Métodos para eventos
   addEventListener(listener: (event: TradingEvent) => void): void;
