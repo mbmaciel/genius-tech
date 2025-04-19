@@ -1,5 +1,6 @@
 import React from 'react';
-import { IndependentDigitBarChart } from '@/components/IndependentDigitBarChart';
+// Usando o novo componente simplificado que implementamos
+import { SimpleDigitBarChart } from '@/components/SimpleDigitBarChart';
 
 /**
  * Página dedicada para exibição de estatísticas de dígitos
@@ -24,11 +25,10 @@ export default function DigitStatsPage() {
               Estatísticas dos últimos dígitos com atualização em tempo real
             </p>
             
-            {/* Componente de gráfico com conexão independente */}
-            <IndependentDigitBarChart 
+            {/* Componente de gráfico simplificado com nova implementação */}
+            <SimpleDigitBarChart 
               symbol="R_100" 
-              className="w-full" 
-              showControls={true}
+              className="w-full"
             />
           </div>
           
