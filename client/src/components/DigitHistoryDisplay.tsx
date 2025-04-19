@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DigitBarChart } from './DigitBarChart';
 
 interface DigitHistoryDisplayProps {
   symbol?: string;
@@ -249,88 +250,170 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
   // Renderizar visualização de dígitos com estatísticas
   return (
     <div className={`w-full ${className}`}>
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-white text-md font-medium flex items-center">
-            Histórico de Dígitos
-            {loading && (
-              <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
-            )}
-          </h3>
-          
-          {/* Menu de seleção para quantidade de dígitos a analisar */}
-          <div className="flex items-center">
-            <span className="text-xs text-gray-400 mr-2">Analisar últimos:</span>
-            <Select value={selectedCount} onValueChange={(value) => setSelectedCount(value)}>
-              <SelectTrigger className="h-8 w-[80px] bg-[#0e1a2e] border-none">
-                <SelectValue placeholder="500" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="250">250</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Coluna do gráfico de barras */}
+        <div className="bg-[#0e1a2e] rounded-md overflow-hidden">
+          <div className="p-3 bg-[#0e1a2e] border-b border-gray-800 flex justify-between items-center">
+            <h3 className="font-medium text-white flex items-center">
+              Gráfico de barras
+              {loading && (
+                <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
+              )}
+            </h3>
+            
+            {/* Menu de seleção para quantidade de dígitos a analisar */}
+            <div className="flex items-center">
+              <span className="text-xs text-gray-400 mr-2">Últimos:</span>
+              <Select value={selectedCount} onValueChange={(value) => setSelectedCount(value)}>
+                <SelectTrigger className="h-8 w-[80px] bg-[#0e1a2e] border-none">
+                  <SelectValue placeholder="500" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="250">250</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          
+          {error ? (
+            <div className="text-red-500 text-sm p-4">{error}</div>
+          ) : (
+            <div className="p-4">
+              {/* Área do gráfico */}
+              <div className="relative h-[200px] flex items-end justify-between px-2">
+                {/* Linhas de grade horizontais */}
+                <div className="absolute w-full h-full flex flex-col justify-between">
+                  {[0, 10, 20, 30, 40, 50].map(value => (
+                    <div 
+                      key={value}
+                      className="w-full border-t border-gray-800 relative"
+                      style={{ bottom: `${(value / 50) * 100}%` }}
+                    >
+                      <span className="absolute -top-3 -left-8 text-gray-500 text-xs">
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Barras para cada dígito */}
+                {digitStats.map(stat => {
+                  // Determinar a cor baseada na frequência
+                  let barColor = stat.percentage >= 20 
+                    ? "#ff3232" // Vermelho para 20% ou mais
+                    : (stat.digit % 2 === 0 ? "#2a405a" : "#896746"); // Azul escuro para pares, marrom para ímpares
+                  
+                  return (
+                    <div key={stat.digit} className="flex flex-col items-center w-8 z-10">
+                      {/* Barra com altura proporcional à porcentagem */}
+                      <div 
+                        className="w-full rounded-t transition-all duration-300 ease-in-out flex justify-center"
+                        style={{ 
+                          height: `${(stat.percentage / 50) * 100}%`,
+                          backgroundColor: barColor
+                        }}
+                      >
+                        {/* Mostrar percentual acima da barra se for significativo */}
+                        {stat.percentage > 0 && (
+                          <span className="text-white text-xs font-bold -mt-5">
+                            {stat.percentage}%
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Dígito abaixo da barra */}
+                      <div className="mt-2 w-full text-center text-white">
+                        {stat.digit}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Sequência de dígitos mais recentes */}
+              <div className="mt-4 flex flex-wrap justify-center">
+                <div className="flex space-x-1 overflow-x-auto text-white text-sm font-mono">
+                  {digits.slice(0, 10).map((digit, index) => (
+                    <div 
+                      key={index} 
+                      className={`w-7 h-7 flex items-center justify-center border border-gray-700 rounded
+                        ${index === 0 ? 'bg-primary border-primary' : ''}`}
+                    >
+                      {digit}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
-        {error ? (
-          <div className="text-red-500 text-sm">{error}</div>
-        ) : (
-          <>
-            {/* Estatísticas de frequência dos dígitos */}
-            <div className="grid grid-cols-5 md:grid-cols-10 gap-2 mb-4">
-              {digitStats.map((stat) => (
-                <div 
-                  key={stat.digit} 
-                  className="bg-[#0e1a2e] rounded-md p-2 text-center"
-                >
-                  <div className="text-xl md:text-2xl font-bold">
-                    {stat.digit}
-                  </div>
+        {/* Coluna da tabela de estatísticas */}
+        <div className="bg-[#0e1a2e] rounded-md overflow-hidden">
+          <div className="p-3 bg-[#0e1a2e] border-b border-gray-800">
+            <h3 className="font-medium text-white">Estatísticas de Dígitos</h3>
+          </div>
+          
+          {error ? (
+            <div className="text-red-500 text-sm p-4">{error}</div>
+          ) : (
+            <div className="p-4">
+              {/* Tabela de estatísticas */}
+              <div className="grid grid-cols-5 md:grid-cols-5 gap-2 mb-4">
+                {digitStats.map((stat) => (
                   <div 
-                    className={`text-xs ${
-                      stat.percentage > 12 ? 'text-green-400' : 
-                      stat.percentage < 8 ? 'text-red-400' : 'text-gray-400'
-                    }`}
+                    key={stat.digit} 
+                    className="bg-[#0c1625] rounded-md p-2 text-center"
                   >
-                    {stat.percentage}%
+                    <div className="text-xl font-bold">
+                      {stat.digit}
+                    </div>
+                    <div 
+                      className={`text-xs ${
+                        stat.percentage >= 20 ? 'text-red-400' : 
+                        stat.percentage < 8 ? 'text-blue-400' : 'text-gray-400'
+                      }`}
+                    >
+                      {stat.percentage}%
+                    </div>
+                    <div className="text-[10px] text-gray-500">
+                      {stat.count}x
+                    </div>
                   </div>
-                  <div className="text-[10px] text-gray-500">
-                    {stat.count}x
-                  </div>
+                ))}
+              </div>
+              
+              {/* Visualização dos dígitos mais recentes */}
+              <div className="flex flex-wrap gap-1 text-xs font-mono">
+                {digits.slice(0, 100).map((digit, index) => (
+                  <span
+                    key={index}
+                    className={`inline-block w-7 h-7 flex items-center justify-center rounded
+                      ${index === 0 ? 'bg-primary text-white font-bold' : 
+                        digit % 2 === 0 ? 'bg-blue-900/40 text-blue-200' : 'bg-pink-900/40 text-pink-200'}`}
+                  >
+                    {digit}
+                  </span>
+                ))}
+              </div>
+              
+              {/* Indicador de total */}
+              <div className="mt-4 text-xs text-gray-400 flex justify-between">
+                <div>
+                  <span className="font-medium text-primary">{selectedCount}</span> dígitos analisados
                 </div>
-              ))}
-            </div>
-            
-            {/* Visualização dos dígitos mais recentes (primeiros 100) */}
-            <div className="flex flex-wrap gap-1 text-xs font-mono">
-              {digits.slice(0, 100).map((digit, index) => (
-                <span
-                  key={index}
-                  className={`inline-block w-7 h-7 flex items-center justify-center rounded
-                    ${index === 0 ? 'bg-primary text-white font-bold' : 
-                      digit % 2 === 0 ? 'bg-blue-900/40 text-blue-200' : 'bg-pink-900/40 text-pink-200'}`}
-                >
-                  {digit}
-                </span>
-              ))}
-            </div>
-            
-            {/* Indicador de total */}
-            <div className="mt-2 text-xs text-gray-400 flex justify-between">
-              <div>
-                <span className="font-medium text-primary">{selectedCount}</span> dígitos analisados
-              </div>
-              <div>
-                Total disponível: {digits.length}/500 dígitos
+                <div>
+                  Total disponível: {digits.length}/500 dígitos
+                </div>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
