@@ -9,10 +9,14 @@ import { oauthDirectService } from '../services/oauthDirectService';
  * @returns Um objeto com o último dígito e a cotação completa
  */
 export function useDerivTicks(symbol: string = 'R_100') {
+  // Recuperar valores do sessionStorage para persistência entre recargas
+  const storedLastDigit = sessionStorage.getItem(`lastDigit_${symbol}`);
+  const storedLastQuote = sessionStorage.getItem(`lastQuote_${symbol}`);
+  
   // Estado para armazenar o último dígito
-  const [lastDigit, setLastDigit] = useState<number | null>(null);
+  const [lastDigit, setLastDigit] = useState<number | null>(storedLastDigit ? parseInt(storedLastDigit) : null);
   // Estado para armazenar a última cotação completa
-  const [lastQuote, setLastQuote] = useState<number | null>(null);
+  const [lastQuote, setLastQuote] = useState<number | null>(storedLastQuote ? parseFloat(storedLastQuote) : null);
   // Estado para controlar se está carregando
   const [isLoading, setIsLoading] = useState<boolean>(true);
   // Estado para armazenar erros
@@ -43,6 +47,10 @@ export function useDerivTicks(symbol: string = 'R_100') {
             const quoteStr = quote.toString();
             const digit = parseInt(quoteStr.charAt(quoteStr.length - 1));
             if (!isNaN(digit)) {
+              // Salvar no sessionStorage para persistência
+              sessionStorage.setItem(`lastDigit_${symbol}`, digit.toString());
+              sessionStorage.setItem(`lastQuote_${symbol}`, quote.toString());
+              
               setLastDigit(digit);
               setIsLoading(false);
               console.log(`[useDerivTicks] Novo tick capturado: ${quote}, último dígito: ${digit}`);
@@ -53,6 +61,10 @@ export function useDerivTicks(symbol: string = 'R_100') {
             const match = tickData.match(/Último dígito: (\d)/);
             if (match && match[1]) {
               const digit = parseInt(match[1]);
+              
+              // Salvar no sessionStorage para persistência
+              sessionStorage.setItem(`lastDigit_${symbol}`, digit.toString());
+              
               setLastDigit(digit);
               setIsLoading(false);
               console.log(`[useDerivTicks] Dígito extraído do log: ${digit}`);
@@ -67,6 +79,10 @@ export function useDerivTicks(symbol: string = 'R_100') {
             const quoteStr = quote.toString();
             const digit = parseInt(quoteStr.charAt(quoteStr.length - 1));
             if (!isNaN(digit)) {
+              // Salvar no sessionStorage para persistência
+              sessionStorage.setItem(`lastDigit_${symbol}`, digit.toString());
+              sessionStorage.setItem(`lastQuote_${symbol}`, quote.toString());
+              
               setLastDigit(digit);
               setIsLoading(false);
               console.log(`[useDerivTicks] Novo tick da API capturado: ${quote}, último dígito: ${digit}`);
@@ -94,6 +110,7 @@ export function useDerivTicks(symbol: string = 'R_100') {
     return () => {
       document.removeEventListener('oauthTick', processTickHandler);
       document.removeEventListener('tick', processTickHandler);
+      document.removeEventListener('tick-update', processTickHandler);
       console.log(`[useDerivTicks] Desregistrando listeners para ${symbol}`);
     };
   }, [symbol]);
