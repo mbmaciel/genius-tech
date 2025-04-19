@@ -9,8 +9,9 @@ interface DigitStat {
   percentage: number;
 }
 
+// Definindo a interface de props com prop symbol
 interface PercentageStatsDisplayProps {
-  symbol?: string;
+  symbol: string;
 }
 
 /**
@@ -109,6 +110,9 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
         // Desativar carregamento
         setIsLoading(false);
         
+        // Log para debugging
+        console.log(`[PercentageStatsDisplay] ESTATÍSTICAS ATUALIZADAS: ${stats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
+        
         return historyDigits;
       }
       
@@ -150,7 +154,7 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
         const tickValue = event.tick.quote || event.tick.ask;
         const lastDigit = parseInt(tickValue.toString().slice(-1));
         
-        console.log(`[PercentageStatsDisplay] Tick em tempo real: ${tickValue}, dígito: ${lastDigit}`);
+        console.log(`[PercentageStatsDisplay] NOVO TICK RECEBIDO EM TEMPO REAL: ${tickValue}, dígito: ${lastDigit}`);
         
         // Atualizar ticks e estatísticas
         setRecentTicks(prevTicks => {
@@ -159,6 +163,9 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
           // Calcular novas estatísticas
           const stats = calculateDigitStats(newTicks, parseInt(tickCount));
           setDigitStats(stats);
+          
+          // Mostrar estatísticas atualizadas no console
+          console.log(`[PercentageStatsDisplay] ★★★ ATUALIZANDO ESTATÍSTICAS: ${stats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
           
           return newTicks;
         });
