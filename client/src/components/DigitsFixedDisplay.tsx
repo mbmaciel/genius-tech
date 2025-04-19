@@ -190,8 +190,7 @@ export function DigitsFixedDisplay({ symbol = 'R_100' }: { symbol?: string }) {
         
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-40">
-            <div className="w-10 h-10 border-4 border-t-blue-500 border-gray-600 rounded-full animate-spin mb-4"></div>
-            <p>Carregando dados do mercado...</p>
+            <div className="w-10 h-10 border-4 border-t-blue-500 border-gray-600 rounded-full animate-spin"></div>
           </div>
         ) : (
           <>
