@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { independentDerivService } from '../services/independent-deriv-service';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 
 interface RealtimeDigitBarChartProps {
   symbol?: string;
   className?: string;
+  showControls?: boolean;
+  initialTickCount?: number;
 }
 
 export function RealtimeDigitBarChart({ 
   symbol = 'R_100',
-  className = ''
+  className = '',
+  showControls = true,
+  initialTickCount = 100
 }: RealtimeDigitBarChartProps) {
   // Estados
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +29,7 @@ export function RealtimeDigitBarChart({
   const [stats, setStats] = useState<{digit: number, count: number, percentage: number}[]>([]);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [tickCount, setTickCount] = useState<string>(initialTickCount.toString());
 
   // Força re-renderização a cada atualização
   const [forceRender, setForceRender] = useState(0);
@@ -36,6 +48,20 @@ export function RealtimeDigitBarChart({
         // Copiar os arrays para garantir novas referências
         const newStats = [...data.stats].map(stat => ({ ...stat }));
         const newDigits = [...data.lastDigits].slice(-10).reverse();
+        
+        // Verificar se temos todos os dígitos de 0 a 9
+        for (let i = 0; i <= 9; i++) {
+          if (!newStats.some(s => s.digit === i)) {
+            newStats.push({
+              digit: i,
+              count: 0,
+              percentage: 0
+            });
+          }
+        }
+        
+        // Ordenar para garantir que aparecem na ordem correta
+        newStats.sort((a, b) => a.digit - b.digit);
         
         setStats(newStats);
         setDigits(newDigits);
@@ -78,7 +104,7 @@ export function RealtimeDigitBarChart({
 
         // Buscar o histórico mais recente
         try {
-          await independentDerivService.fetchTicksHistory(symbol, 500);
+          await independentDerivService.fetchTicksHistory(symbol, parseInt(tickCount));
         } catch (e) {
           console.warn('[RealtimeDigitBarChart] Erro ao buscar histórico:', e);
         }
@@ -104,7 +130,7 @@ export function RealtimeDigitBarChart({
       independentDerivService.removeListener('error', handleError);
       independentDerivService.removeListener('connection', handleConnection);
     };
-  }, [symbol]);
+  }, [symbol, tickCount]);
 
   // Atualizar a cada 5 segundos
   useEffect(() => {
@@ -119,13 +145,28 @@ export function RealtimeDigitBarChart({
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true);
-      await independentDerivService.fetchTicksHistory(symbol, 500);
+      await independentDerivService.fetchTicksHistory(symbol, parseInt(tickCount));
       setTimeout(() => setIsRefreshing(false), 500);
     } catch (e) {
       console.error('[RealtimeDigitBarChart] Erro ao atualizar:', e);
       setError('Falha ao atualizar dados');
       setIsRefreshing(false);
     }
+  };
+  
+  // Função para atualizar a quantidade de ticks analisados
+  const handleTickCountChange = (value: string) => {
+    setTickCount(value);
+    setIsRefreshing(true);
+    
+    // Buscar dados com a nova quantidade
+    independentDerivService.fetchTicksHistory(symbol, parseInt(value))
+      .then(() => setTimeout(() => setIsRefreshing(false), 500))
+      .catch((e) => {
+        console.error('[RealtimeDigitBarChart] Erro ao atualizar tick count:', e);
+        setError('Falha ao atualizar quantidade de ticks');
+        setIsRefreshing(false);
+      });
   };
 
   return (
@@ -143,9 +184,21 @@ export function RealtimeDigitBarChart({
         </div>
         
         <div className="flex items-center space-x-2">
-          <div className="bg-[#ff3e50] px-2 py-0.5 text-xs text-white font-medium rounded">
-            Últimos 10 Dígitos
-          </div>
+          {showControls && (
+            <Select value={tickCount} onValueChange={handleTickCountChange}>
+              <SelectTrigger className="h-8 bg-[#1d2a45] border-[#3a4b6b] text-white text-xs w-32">
+                <SelectValue placeholder="Quantidade de ticks" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
+                <SelectItem value="25">25 ticks</SelectItem>
+                <SelectItem value="50">50 ticks</SelectItem>
+                <SelectItem value="100">100 ticks</SelectItem>
+                <SelectItem value="200">200 ticks</SelectItem>
+                <SelectItem value="300">300 ticks</SelectItem>
+                <SelectItem value="500">500 ticks</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           
           <button 
             onClick={handleRefresh} 
@@ -289,7 +342,7 @@ export function RealtimeDigitBarChart({
       {/* Rodapé com informações */}
       <div className="px-4 py-2 bg-[#0c1625] text-xs text-gray-400 border-t border-[#232e47]">
         <div className="flex justify-between items-center">
-          <div>Análise baseada em {stats.reduce((sum, s) => sum + s.count, 0)} ticks</div>
+          <div>Análise baseada em {parseInt(tickCount)} ticks</div>
           <div className="text-[#3a96dd] font-medium">{symbol}</div>
         </div>
       </div>

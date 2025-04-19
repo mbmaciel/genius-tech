@@ -342,7 +342,10 @@ class IndependentDerivService {
     // Recontar dígitos (abordagem simples e confiável)
     const digitCounts = new Array(10).fill(0);
     for (const digit of history.lastDigits) {
-      digitCounts[digit]++;
+      // Verificar se o dígito é um número válido antes de contar
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
+      }
     }
     
     // Recalcular percentuais
@@ -352,6 +355,20 @@ class IndependentDerivService {
       count,
       percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
     }));
+    
+    // Certificar que temos todos os dígitos representados (0-9), mesmo que com contagem zero
+    for (let digit = 0; digit <= 9; digit++) {
+      if (!history.stats.some(s => s.digit === digit)) {
+        history.stats.push({
+          digit,
+          count: 0,
+          percentage: 0
+        });
+      }
+    }
+    
+    // Ordenar por dígito para garantir a ordem correta (0-9)
+    history.stats.sort((a, b) => a.digit - b.digit);
     
     // Adicionar log para diagnóstico
     if (totalSamples % 10 === 0) { // Logar a cada 10 ticks para não sobrecarregar
