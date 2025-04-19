@@ -76,11 +76,24 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
       setLoading(true);
       
       // Sempre buscar do serviço para garantir dados atualizados
-      await fetchFromServices();
+      const historyData = await fetchFromServices();
       
-      // Após buscar do serviço, adicionar uma verificação secundária
-      if (digits.length === 0) {
-        // Se ainda não temos dígitos do serviço, tente recuperar do sessionStorage como backup
+      // Se o serviço retornou dados válidos, temos que forçar a atualização do estado
+      if (historyData && Array.isArray(historyData.lastDigits) && historyData.lastDigits.length > 0) {
+        // Usar dados frescos diretamente do serviço
+        console.log(`[NewDigitBarChart] Atualizando estado com ${historyData.lastDigits.length} dígitos do serviço`);
+        
+        // IMPORTANTE: Usar spread para criar uma nova referência e forçar re-renderização
+        setDigits([...historyData.lastDigits]);
+        calculateStats(historyData.lastDigits.slice(0, parseInt(selectedCount)));
+        setError(null);
+        
+        // Também atualizar o sessionStorage para ter dados consistentes
+        sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(historyData.lastDigits));
+      } 
+      // Após buscar do serviço, adicionar uma verificação secundária apenas se necessário
+      else if (digits.length === 0) {
+        // Se ainda não temos dígitos do serviço, tente recuperar do sessionStorage como último recurso
         const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
         
         if (storedDigits) {
@@ -88,13 +101,13 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
             const parsedDigits = JSON.parse(storedDigits);
             
             if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
-              console.log(`[NewDigitBarChart] Usando ${parsedDigits.length} dígitos do sessionStorage como fallback`);
+              console.log(`[NewDigitBarChart] Usando ${parsedDigits.length} dígitos do sessionStorage como último recurso`);
               setDigits(parsedDigits);
               calculateStats(parsedDigits.slice(0, parseInt(selectedCount)));
               setError(null);
             }
           } catch (e) {
-            console.error('[NewDigitBarChart] Erro ao ler do sessionStorage como fallback:', e);
+            console.error('[NewDigitBarChart] Erro ao ler do sessionStorage como último recurso:', e);
           }
         }
       }
@@ -108,26 +121,40 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     }
   };
   
-  // Função para buscar dados dos serviços e atualizar o sessionStorage
+  // Função para buscar dados dos serviços e atualizar o estado imediatamente
   const fetchFromServices = async () => {
     try {
-      // Tentar obter do derivHistoryService primeiro
+      // Forçar uma solicitação atualizada para garantir dados frescos
+      if (oauthDirectService) {
+        oauthDirectService.subscribeToTicks(symbol);
+      }
+      
+      // Solicitar novos dados explicitamente do serviço de histórico
+      await derivHistoryService.getTicksHistory(symbol, 500, true, false);
+      
+      // Obter os dados mais recentes após a solicitação
       const historyData = derivHistoryService.getDigitStats(symbol);
       
       if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+        // Log mais preciso sobre a fonte e quantidade de dados
         console.log(`[NewDigitBarChart] Atualizado com ${historyData.lastDigits.length} dígitos do derivHistoryService`);
         
         // Verificar se os dados são válidos antes de usar
         const validDigits = historyData.lastDigits.filter(d => typeof d === 'number' && d >= 0 && d <= 9);
         
         if (validDigits.length > 0) {
-          // Usar apenas dígitos válidos
-          setDigits(validDigits);
-          calculateStats(validDigits.slice(0, parseInt(selectedCount)));
+          // IMPORTANTE: Criar uma NOVA instância do array para forçar re-renderização
+          const freshDigits = [...validDigits];
+          
+          // Usar apenas dígitos válidos - IMPORTANTE: Atribuição direta para atualização imediata
+          setDigits(freshDigits);
+          
+          // Recalcular estatísticas com dados frescos
+          calculateStats(freshDigits.slice(0, parseInt(selectedCount)));
           
           // Salvar no sessionStorage para acesso rápido - APENAS se tiver dados válidos
-          console.log(`[NewDigitBarChart] Salvando ${validDigits.length} dígitos válidos no sessionStorage`);
-          sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(validDigits));
+          console.log(`[NewDigitBarChart] Salvando ${freshDigits.length} dígitos válidos no sessionStorage`);
+          sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(freshDigits));
           
           // Salvar estatísticas se disponíveis
           if (historyData.digitStats) {
@@ -135,14 +162,22 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
           }
           
           setError(null);
+          
+          // Retornar o objeto historyData completo para uso posterior
+          return {
+            lastDigits: freshDigits,
+            digitStats: historyData.digitStats,
+            totalCount: historyData.totalCount,
+            lastUpdated: historyData.lastUpdated
+          };
         } else {
-          console.warn(`[NewDigitBarChart] Nenhum dígito válido encontrado nos dados recebidos`);
+          console.warn(`[NewDigitBarChart] Nenhum dígito válido encontrado nos dados recebidos do serviço`);
         }
       } else {
         // Se não conseguir do derivHistoryService, tente obter diretamente do oauthDirectService
         console.log(`[NewDigitBarChart] Solicitando ticks direto do oauthDirectService para ${symbol}`);
         
-        // Solicitar ticks novamente para garantir atualização
+        // Garantir que estamos inscritos nos ticks
         if (oauthDirectService) {
           oauthDirectService.subscribeToTicks(symbol);
         }
@@ -162,6 +197,9 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     } finally {
       setLoading(false);
     }
+    
+    // Se chegou aqui, retornar null para indicar que não conseguiu obter dados
+    return null;
   };
 
   // Função para forçar carregamento imediato dos ticks iniciais
@@ -443,10 +481,10 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     };
   }, [symbol, selectedCount]);
   
-  // Efeito para processar novos dígitos
+  // Efeito para processar novos dígitos recebidos do hook useDerivTicks
   useEffect(() => {
     if (lastDigit !== null) {
-      console.log(`[NewDigitBarChart] Novo dígito recebido: ${lastDigit}`);
+      console.log(`[NewDigitBarChart] Novo dígito recebido do hook: ${lastDigit}`);
       
       // Mostrar o dígito no indicador
       setShowLastDigit(true);
@@ -472,35 +510,49 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
       });
       document.dispatchEvent(tickEvent);
       
-      // Recuperar dados de sessionStorage
+      // Atualizar o histórico IMEDIATAMENTE com o novo dígito
       try {
-        const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
-        if (storedDigits) {
-          const parsedDigits = JSON.parse(storedDigits);
-          if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
-            // Verificar se este dígito já está no início do array
-            if (parsedDigits[0] !== lastDigit) {
-              // Adicionar dígito no início e manter apenas os 500 mais recentes
-              const updatedDigits = [lastDigit, ...parsedDigits].slice(0, 500);
-              // Atualizar estado e sessionStorage
-              setDigits(updatedDigits);
-              sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(updatedDigits));
-              
-              // Recalcular estatísticas
-              calculateStats(updatedDigits.slice(0, parseInt(selectedCount)));
-              
-              console.log(`[NewDigitBarChart] Histórico atualizado diretamente no useEffect de lastDigit`);
-            }
+        // 1. Obter o histórico atual diretamente do estado para garantir atualização imediata
+        const currentDigits = [...digits]; // Criar uma cópia independente
+        
+        // 2. Adicionar o novo dígito NO INÍCIO (posição mais recente)
+        if (currentDigits[0] !== lastDigit) { // Verificar se não estamos duplicando
+          currentDigits.unshift(lastDigit);
+          
+          // 3. Limitar tamanho
+          if (currentDigits.length > 500) {
+            currentDigits.length = 500; 
           }
+          
+          // 4. Atualizar o estado primeiro (isso força renderização)
+          setDigits([...currentDigits]); // Usar nova referência para garantir atualização
+          
+          // 5. Recalcular estatísticas
+          calculateStats(currentDigits.slice(0, parseInt(selectedCount)));
+          
+          // 6. Atualizar sessionStorage
+          sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(currentDigits));
+          
+          console.log(`[NewDigitBarChart] Histórico atualizado IMEDIATAMENTE no useEffect (${currentDigits.length} dígitos)`);
         }
       } catch (e) {
-        console.error(`[NewDigitBarChart] Erro ao atualizar histórico diretamente no useEffect:`, e);
+        console.error(`[NewDigitBarChart] Erro ao atualizar histórico imediatamente:`, e);
       }
       
-      // Atualizar o histórico completo
-      fetchDigitHistory();
+      // 7. Também atualizar o serviço de histórico para manter consistência
+      // Isso é importante porque outros componentes podem depender desse serviço
+      try {
+        derivHistoryService.addDigitToHistory(symbol, lastDigit);
+      } catch (e) {
+        console.error(`[NewDigitBarChart] Erro ao atualizar serviço de histórico:`, e);
+      }
+      
+      // 8. Atualizar o histórico completo em segundo plano (não bloqueante)
+      setTimeout(() => {
+        fetchDigitHistory();
+      }, 100);
     }
-  }, [lastDigit, lastQuote, symbol, selectedCount]);
+  }, [lastDigit, lastQuote, symbol, selectedCount, digits]);
 
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
