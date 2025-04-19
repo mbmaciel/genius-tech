@@ -55,6 +55,9 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
+// Importar o novo componente de estatísticas percentuais
+import { PercentageStatsDisplay } from "@/components/PercentageStatsDisplay";
+
 export function BotPage() {
   const { toast } = useToast();
   
@@ -196,68 +199,62 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Símbolo fixo para este componente
     const symbol = "R_100";
     
-    // 1. Atualizar estado local apenas para exibição dos últimos dígitos
+    // 1. Atualizar o histórico local de dígitos recebidos diretamente do mercado
     setLastDigits((prev: number[]) => {
-      // Adicionar novo dígito ao início e manter apenas 50 para exibição
-      return [newDigit, ...prev].slice(0, 50);
+      // Adicionar novo dígito ao início - aqui não é importante manter apenas os selecionados
+      // apenas garantir que sempre teremos pelo menos a quantidade selecionada
+      // O importante é que esses dígitos são do mercado em tempo real
+      return [newDigit, ...prev].slice(0, Math.max(parseInt(ticks) * 2, 100));
     });
     
-    // 2. Buscar os dados do histórico diretamente do serviço DerivHistoryService
-    // que já tem os dados atualizados em tempo real vindos da Deriv
-    const historyData = derivHistoryService.getDigitStats(symbol);
+    // 2. Capturar a quantidade selecionada pelo usuário para análise
+    const selectedTicksCount = parseInt(ticks);
     
-    if (historyData && historyData.lastDigits) {
-      // 3. Usar apenas a quantidade de ticks selecionada pelo usuário para análise
-      const selectedTicksCount = parseInt(ticks);
-      
-      // 4. Garantir que apenas estamos considerando os ticks mais recentes
-      // Pegamos exatamente a quantidade selecionada pelo usuário - isso é crítico para percentuais corretos
-      // Verificar se temos dados suficientes e limitar à quantidade escolhida
-      const recentDigits = Array.isArray(historyData.lastDigits) 
-        ? historyData.lastDigits.slice(0, selectedTicksCount)
-        : [];
-      
-      // 5. Inicializar contagens para cada dígito (0-9)
-      const digitCounts = Array(10).fill(0);
-      
-      // 6. Contar a frequência de cada dígito nos ticks selecionados
-      recentDigits.forEach(digit => {
-        if (digit >= 0 && digit <= 9) {
-          digitCounts[digit]++;
-        }
-      });
-      
-      // 7. Total de dígitos analisados (para calcular percentuais)
-      const totalDigits = recentDigits.length;
-      
-      // 8. Criar o array de estatísticas com contagens e percentuais
-      const updatedStats = digitCounts.map((count, digit) => {
-        // Calcular o percentual com precisão, arredondando para o inteiro mais próximo
-        const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
-        
-        return {
-          digit,
-          count,
-          percentage
-        };
-      });
-      
-      // 9. Atualizar o estado das estatísticas de dígitos na interface
-      setDigitStats(updatedStats);
-      
-      // 10. Log para depuração
-      console.log(`[BOT_PAGE] Novas estatísticas calculadas para últimos ${selectedTicksCount} ticks:`, 
-        `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
-      
-      // Verificar se a soma dos percentuais é 100% (ou próximo, devido a arredondamentos)
-      const totalPercentage = updatedStats.reduce((sum, stat) => sum + stat.percentage, 0);
-      if (Math.abs(totalPercentage - 100) > 5) {
-        console.warn(`[BOT_PAGE] Alerta: Total de percentuais (${totalPercentage}%) não está próximo de 100%. Verificar cálculos.`);
+    // 3. IMPORTANTE: Usar apenas os dígitos recebidos diretamente da conexão OAuth
+    // Esses dígitos já são atualizados em tempo real na prop lastDigits do estado
+    // Não usar histórico do DerivHistoryService, que pode estar desatualizado
+    const recentDigits = lastDigits.slice(0, selectedTicksCount);
+    
+    // 4. Inicializar contagens para cada dígito (0-9)
+    const digitCounts = Array(10).fill(0);
+    
+    // 5. Contar a frequência de cada dígito apenas nos ticks selecionados
+    recentDigits.forEach(digit => {
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
       }
+    });
+    
+    // 6. Total de dígitos analisados (para calcular percentuais)
+    const totalDigits = recentDigits.length;
+    
+    // 7. Criar o array de estatísticas com contagens e percentuais
+    const updatedStats = digitCounts.map((count, digit) => {
+      // Calcular o percentual com precisão, arredondando para o inteiro mais próximo
+      const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
       
-      console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, 
-        `Digit ${newDigit} (últimos ${selectedTicksCount} ticks) - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
+      return {
+        digit,
+        count,
+        percentage
+      };
+    });
+    
+    // 8. Atualizar o estado das estatísticas de dígitos na interface
+    setDigitStats(updatedStats);
+    
+    // 9. Log para depuração
+    console.log(`[BOT_PAGE] Novas estatísticas calculadas para últimos ${selectedTicksCount} ticks:`, 
+      `"${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}"`);
+    
+    // Verificar se a soma dos percentuais é 100% (ou próximo, devido a arredondamentos)
+    const totalPercentage = updatedStats.reduce((sum, stat) => sum + stat.percentage, 0);
+    if (Math.abs(totalPercentage - 100) > 5) {
+      console.warn(`[BOT_PAGE] Alerta: Total de percentuais (${totalPercentage}%) não está próximo de 100%. Verificar cálculos.`);
     }
+    
+    console.log(`[BOT_PAGE] APENAS LOG (sem persistência):`, 
+      `Digit ${newDigit} (últimos ${selectedTicksCount} ticks) - Stats: ${updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', ')}`);
   };
   
   // Estado para histórico de operações
@@ -1784,32 +1781,20 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 </div>
               </div>
               
-              {/* Visualização Estatística de Dígitos com Indicador de Persistência */}
+              {/* Novo componente de estatísticas percentuais */}
               <div className="mb-4">
                 <div className="mb-2">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-white text-md font-medium">Análise Estatística <span className="text-xs text-blue-400">(últimos {ticks} ticks mais recentes)</span></h3>
+                    <h3 className="text-white text-md font-medium">Análise Estatística <span className="text-xs text-blue-400">(atualização em tempo real)</span></h3>
                     <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                      <span className="text-xs text-gray-400">Atualização em tempo real</span>
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <span className="text-xs text-gray-400">Dados Deriv diretamente via OAuth</span>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Mostra a frequência percentual de cada dígito considerando apenas os últimos {ticks} ticks</p>
+                  <p className="text-xs text-gray-400 mt-1">Estatísticas percentuais de frequência de dígitos com captura direta da Deriv</p>
                 </div>
-                <div className="grid grid-cols-10 gap-1 mt-2">
-                  {digitStats.map(stat => (
-                    <div key={stat.digit} className="flex flex-col items-center">
-                      <div className="font-bold text-white mb-1">{stat.digit}</div>
-                      <div className="w-full bg-[#0e1a2e] rounded-sm h-24 relative">
-                        <div 
-                          className={`absolute bottom-0 left-0 right-0 ${getBarColor(stat.percentage)}`}
-                          style={{ height: `${stat.percentage}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">{stat.percentage}%</div>
-                    </div>
-                  ))}
-                </div>
+                {/* Componente dedicado para estatísticas percentuais */}
+                <PercentageStatsDisplay symbol="R_100" />
               </div>
               
               {/* Visualização completa de 500 dígitos históricos */}
@@ -1828,6 +1813,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     );
   };
   
-  // Retornamos o conteúdo principal renderizado
-  return renderMainContent();
+  // Retornar o conteúdo principal renderizado a partir da função BotPage
+  return isAuthenticated === false ? (
+    <DerivLoginRequired />
+  ) : (
+    renderMainContent()
+  );
 }
