@@ -7,15 +7,15 @@ interface DigitStat {
   percentage: number;
 }
 
-// Dados iniciais simulados para evitar tela em branco
+// Dados iniciais vazios - serão preenchidos apenas com dados reais
 const initialStats: DigitStat[] = Array.from({ length: 10 }, (_, i) => ({ 
   digit: i, 
   count: 0, 
   percentage: 0 
 }));
 
-// Exemplo de dígitos para inicialização
-const initialDigits = Array(10).fill(0).map(() => Math.floor(Math.random() * 10));
+// Array vazio para inicialização - será preenchido apenas com dados reais
+const initialDigits: number[] = [];
 
 export default function SimpleChart() {
   // Estados para armazenar dados
@@ -62,19 +62,32 @@ export default function SimpleChart() {
     const digit = parseInt(priceStr.charAt(priceStr.length - 1), 10);
     
     if (!isNaN(digit)) {
+      // Log detalhado do tick recebido
       console.log(`[CHART] Tick recebido: ${price}, último dígito: ${digit}`);
+      
+      // Atualizar último dígito para exibição destacada
       setLastDigit(digit);
       
-      // Atualizar lista de dígitos
+      // Atualizar lista de dígitos - coloca o mais recente no início (índice 0)
       setDigits(prev => {
+        // Cria nova lista com o dígito mais recente no início
         const newDigits = [digit, ...prev].slice(0, 500);
+        
+        // Log de diagnóstico para verificar a atualização
+        console.log(`[CHART] Lista atualizada: Novos 5 dígitos: [${newDigits.slice(0, 5).join(', ')}]`);
+        
+        // Calcular estatísticas com base na nova lista (cálculo direto pois useEffect pode demorar)
+        const sampleSize = parseInt(sample);
+        const newStats = calculateStats(newDigits, sampleSize);
+        setStats(newStats);
+        
         return newDigits;
       });
       
-      // Forçar atualização da interface
-      setUpdateKey(prev => prev + 1);
+      // Forçar atualização da interface imediatamente
+      setUpdateKey(prevKey => prevKey + 1);
     }
-  }, []);
+  }, [calculateStats, sample]);
   
   // Efeito para atualizar estatísticas
   useEffect(() => {
@@ -132,20 +145,48 @@ export default function SimpleChart() {
             // Processar histórico de ticks
             if (data.history && data.history.prices) {
               const prices = data.history.prices;
+              console.log(`[CHART] Histórico recebido com ${prices.length} ticks:`, prices.slice(0, 5));
+              
+              // Extrair dígitos do histórico (último dígito de cada preço)
               const extractedDigits = prices.map((price: number) => {
                 const priceStr = price.toFixed(2);
                 return parseInt(priceStr.charAt(priceStr.length - 1), 10);
-              });
+              }).filter((d: number) => !isNaN(d)); // Garantir que não temos NaN
               
-              console.log(`[CHART] Histórico recebido com ${extractedDigits.length} ticks`);
-              setDigits(extractedDigits);
-              setLoading(false);
+              console.log(`[CHART] Primeiros 10 dígitos extraídos: [${extractedDigits.slice(0, 10).join(', ')}]`);
+              
+              if (extractedDigits.length > 0) {
+                // Definir o último dígito para exibição
+                setLastDigit(extractedDigits[0]);
+                
+                // Atualizar os dígitos
+                setDigits(extractedDigits);
+                
+                // Calcular estatísticas
+                const sampleSize = parseInt(sample);
+                const newStats = calculateStats(extractedDigits, sampleSize);
+                setStats(newStats);
+                
+                // Atualizar estado
+                setLoading(false);
+                setUpdateKey(prevKey => prevKey + 1);
+                
+                console.log(`[CHART] Histórico processado com sucesso: ${extractedDigits.length} dígitos`);
+              } else {
+                console.error("[CHART] Não foi possível extrair dígitos do histórico.");
+              }
             }
             
             // Processar ticks em tempo real
             if (data.tick && data.tick.quote) {
               const price = parseFloat(data.tick.quote);
+              console.log(`[CHART] Novo tick recebido em tempo real: ${price}`);
               processTick(price);
+            }
+            
+            // Exibir mensagens de erro
+            if (data.error) {
+              console.error(`[CHART] Erro da API Deriv: ${data.error.code} - ${data.error.message}`);
             }
           } catch (error) {
             console.error("[CHART] Erro ao processar mensagem:", error);
