@@ -54,8 +54,35 @@ class IndependentDerivService {
     this.eventListeners.set('connection', new Set());
     this.eventListeners.set('error', new Set());
     
+    // Carregar históricos salvos do localStorage
+    this.loadSavedHistoriesFromLocalStorage();
+    
     // Conectar automaticamente
     this.connect();
+  }
+  
+  /**
+   * Carrega os históricos de dígitos salvos no localStorage
+   * para que estejam disponíveis logo após carregar a página
+   */
+  private loadSavedHistoriesFromLocalStorage(): void {
+    try {
+      // Carregar histórico para o símbolo padrão R_100
+      const savedHistoryKey = 'deriv_digits_history_R_100';
+      const savedHistoryJson = localStorage.getItem(savedHistoryKey);
+      
+      if (savedHistoryJson) {
+        const savedData = JSON.parse(savedHistoryJson);
+        const lastDigits = savedData.lastDigits || [];
+        
+        if (lastDigits.length > 0) {
+          console.log(`[INDEPENDENT_DERIV] Carregado histórico salvo de ${lastDigits.length} ticks para R_100`);
+          this.initializeDigitHistory('R_100', lastDigits);
+        }
+      }
+    } catch (e) {
+      console.warn('[INDEPENDENT_DERIV] Erro ao carregar histórico do localStorage:', e);
+    }
   }
   
   public static getInstance(): IndependentDerivService {
@@ -83,7 +110,7 @@ class IndependentDerivService {
       }
       
       console.log('[INDEPENDENT_DERIV] Conectando ao WebSocket da Deriv...');
-      const url = `wss://ws.binaryws.com/websockets/v3?app_id=${this.appId}`;
+      const url = `wss://ws.derivws.com/websockets/v3?app_id=${this.appId}`;
       
       try {
         this.socket = new WebSocket(url);
