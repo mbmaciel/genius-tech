@@ -575,9 +575,11 @@ class IndependentDerivService {
   }
   
   /**
-   * Obtém o histórico de dígitos para um símbolo
+   * Obtém o histórico de dígitos para um símbolo, com opção de filtrar por número de ticks
+   * @param symbol O símbolo para obter o histórico
+   * @param tickCount Opcional: O número de ticks para filtrar (25, 50, 100, 200, 300 ou 500)
    */
-  public getDigitHistory(symbol: string): DigitHistory {
+  public getDigitHistory(symbol: string, tickCount?: number): DigitHistory {
     const history = this.digitHistories.get(symbol);
     
     if (!history) {
@@ -595,7 +597,38 @@ class IndependentDerivService {
       };
     }
     
-    return { ...history };
+    // Se não especificar tickCount, retornar o histórico completo
+    if (!tickCount || tickCount >= history.lastDigits.length) {
+      return { ...history };
+    }
+    
+    // Caso contrário, filtrar pelos últimos N ticks
+    const filteredDigits = history.lastDigits.slice(-tickCount);
+    
+    // Recalcular as estatísticas baseadas nos dígitos filtrados
+    const digitCounts = new Array(10).fill(0);
+    for (const digit of filteredDigits) {
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
+      }
+    }
+    
+    // Recalcular percentuais
+    const totalSamples = filteredDigits.length;
+    const stats = digitCounts.map((count, digit) => ({
+      digit,
+      count,
+      percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
+    }));
+    
+    // Retornar história filtrada
+    return {
+      stats,
+      lastDigits: filteredDigits,
+      totalSamples,
+      symbol,
+      lastUpdated: new Date()
+    };
   }
   
   /**

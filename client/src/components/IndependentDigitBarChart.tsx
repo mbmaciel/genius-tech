@@ -43,15 +43,20 @@ export function IndependentDigitBarChart({
                     data.lastDigits.length, 'dígitos e', 
                     data.stats?.length || 0, 'estatísticas');
         
+        // Aplicar filtro com base no selectedCount
+        const tickCount = parseInt(selectedCount, 10);
+        // Obter os dados filtrados de acordo com a quantidade de ticks selecionada
+        const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
+        
         // Log detalhado dos percentuais para debug        
         console.log('[IndependentDigitBarChart] DADOS ATUALIZADOS:', 
-          data.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+          filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
                     
         // IMPORTANTE: Forçar incremento do renderVersion para garantir re-renderização
         setRenderVersion(prev => prev + 1);
         
         // Criar novos objetos para forçar re-render
-        const newStats = data.stats.map(stat => ({
+        const newStats = filteredData.stats.map(stat => ({
           digit: stat.digit,
           count: stat.count,
           percentage: stat.percentage
@@ -59,15 +64,15 @@ export function IndependentDigitBarChart({
         
         // Converter em novo objeto para forçar re-render (usando cópia profunda)
         setDigitHistory({
-          symbol: data.symbol,
+          symbol: filteredData.symbol,
           stats: newStats,
-          lastDigits: [...data.lastDigits],
-          totalSamples: data.totalSamples,
+          lastDigits: [...filteredData.lastDigits],
+          totalSamples: filteredData.totalSamples,
           lastUpdated: new Date()
         });
         
         // Atualizar últimos dígitos (mostrar apenas os 10 mais recentes)
-        const digits = [...data.lastDigits];
+        const digits = [...filteredData.lastDigits];
         // Pegamos apenas os 10 últimos dígitos conforme solicitado
         setLastDigits(digits.slice(-10).reverse());
         
