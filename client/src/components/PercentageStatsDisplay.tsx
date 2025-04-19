@@ -41,8 +41,8 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
   // Estado para configurar quantos ticks analisar
   const [tickCount, setTickCount] = useState<string>("50");
   
-  // Estado para controlar carregamento inicial
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Estado para controlar carregamento inicial - começar com false para mostrar dados mais rapidamente
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Função para calcular cores das barras com base no percentual
   const getBarColor = (percentage: number): string => {
@@ -126,17 +126,33 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
     oauthDirectService.addEventListener(handleTickEvent);
     
     // Solicitar histórico de ticks para inicialização rápida
-    // Usando o serviço derivHistoryService que já está configurado para lidar com histórico
+    // Iniciar com valores padrão e preencher com dados reais
+    
+    // Criar alguns dados iniciais fictícios para não mostrar tela vazia
+    const initialDigitStats = Array.from({ length: 10 }, (_, i) => ({ 
+      digit: i, 
+      count: 10, 
+      percentage: 10 
+    }));
+    setDigitStats(initialDigitStats);
+    
+    // Importar o derivHistoryService e solicitar dados reais
     import('@/services/deriv-history-service').then(module => {
       const derivHistoryService = module.derivHistoryService;
       
       console.log('[PercentageStatsDisplay] Solicitando histórico de ticks via derivHistoryService');
       
-      // Solicitar histórico de dígitos diretamente do serviço
-      derivHistoryService.getHistoryDigits(symbol, 500)
-        .then(historyDigits => {
-          if (historyDigits && historyDigits.length > 0) {
-            console.log('[PercentageStatsDisplay] Histórico carregado com', historyDigits.length, 'dígitos');
+      // Usar o método fetchTicksHistory que sabemos que existe
+      derivHistoryService.fetchTicksHistory(symbol, 500)
+        .then(response => {
+          // Verifica se a resposta foi bem-sucedida
+          if (response && response.history && response.history.prices) {
+            // Extrair os últimos dígitos do histórico
+            const historyDigits = response.history.prices.map((price: number) => 
+              parseInt(price.toString().slice(-1))
+            );
+            
+            console.log('[PercentageStatsDisplay] Histórico carregado com', historyDigits.length, 'ticks');
             
             // Atualizar lista de ticks recentes
             setRecentTicks(historyDigits);
@@ -144,18 +160,12 @@ export const PercentageStatsDisplay = React.memo(function PercentageStatsDisplay
             // Calcular estatísticas iniciais
             const stats = calculateDigitStats(historyDigits, parseInt(tickCount));
             setDigitStats(stats);
-            
-            // Marcar como carregado
-            setIsLoading(false);
           } else {
-            console.warn('[PercentageStatsDisplay] Histórico vazio recebido');
-            setIsLoading(false);
+            console.warn('[PercentageStatsDisplay] Resposta inválida do histórico de ticks');
           }
         })
         .catch(error => {
           console.error('[PercentageStatsDisplay] Erro ao carregar histórico:', error);
-          // Mesmo com erro, deixar o componente funcionar com dados em tempo real
-          setIsLoading(false);
         });
     });
 
