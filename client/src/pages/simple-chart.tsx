@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // Interface para estatísticas de dígitos
 interface DigitStat {
@@ -7,26 +7,37 @@ interface DigitStat {
   percentage: number;
 }
 
+// Dados iniciais simulados para evitar tela em branco
+const initialStats: DigitStat[] = Array.from({ length: 10 }, (_, i) => ({ 
+  digit: i, 
+  count: 0, 
+  percentage: 0 
+}));
+
+// Exemplo de dígitos para inicialização
+const initialDigits = Array(10).fill(0).map(() => Math.floor(Math.random() * 10));
+
 export default function SimpleChart() {
   // Estados para armazenar dados
-  const [digits, setDigits] = useState<number[]>([]);
-  const [stats, setStats] = useState<DigitStat[]>(
-    Array.from({ length: 10 }, (_, i) => ({ digit: i, count: 0, percentage: 0 }))
-  );
+  const [digits, setDigits] = useState<number[]>(initialDigits);
+  const [stats, setStats] = useState<DigitStat[]>(initialStats);
   const [loading, setLoading] = useState<boolean>(true);
   const [sample, setSample] = useState<string>("100");
+  const [connected, setConnected] = useState<boolean>(false);
+  const [lastDigit, setLastDigit] = useState<number | null>(null);
   
   // Para forçar renderização
   const [updateKey, setUpdateKey] = useState<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Calcular estatísticas
-  const calculateStats = (digitsList: number[], sampleSize: number) => {
+  const calculateStats = useCallback((digitsList: number[], sampleSize: number) => {
     // Recortar para o tamanho da amostra
     const sample = digitsList.slice(0, sampleSize);
     const total = sample.length;
     
-    if (total === 0) return;
+    if (total === 0) return initialStats;
     
     // Inicializar contadores
     const counts = Array(10).fill(0);
@@ -42,105 +53,148 @@ export default function SimpleChart() {
       return { digit, count, percentage };
     });
     
-    setStats(newStats);
-  };
+    return newStats;
+  }, []);
+  
+  // Processar novo tick
+  const processTick = useCallback((price: number) => {
+    const priceStr = price.toFixed(2);
+    const digit = parseInt(priceStr.charAt(priceStr.length - 1), 10);
+    
+    if (!isNaN(digit)) {
+      console.log(`[CHART] Tick recebido: ${price}, último dígito: ${digit}`);
+      setLastDigit(digit);
+      
+      // Atualizar lista de dígitos
+      setDigits(prev => {
+        const newDigits = [digit, ...prev].slice(0, 500);
+        return newDigits;
+      });
+      
+      // Forçar atualização da interface
+      setUpdateKey(prev => prev + 1);
+    }
+  }, []);
+  
+  // Efeito para atualizar estatísticas
+  useEffect(() => {
+    if (digits.length > 0) {
+      const sampleSize = parseInt(sample);
+      const newStats = calculateStats(digits, sampleSize);
+      setStats(newStats);
+      console.log(`[CHART] Estatísticas atualizadas para amostra de ${sampleSize} dígitos`);
+    }
+  }, [sample, digits, calculateStats]);
   
   // Conectar ao WebSocket
   useEffect(() => {
     const connectWebSocket = () => {
-      // URL do WebSocket da Deriv
-      const wsUrl = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-      
-      ws.onopen = () => {
-        console.log("WebSocket conectado!");
+      try {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          console.log("[CHART] WebSocket já está conectado");
+          return;
+        }
         
-        // Enviar solicitação de histórico de ticks - R_100 com inscrição
-        const request = {
-          ticks_history: "R_100",
-          adjust_start_time: 1,
-          count: 500,
-          end: "latest", 
-          start: 1,
-          style: "ticks",
-          subscribe: 1
+        // URL do WebSocket da Deriv
+        const wsUrl = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+        
+        // Evento de conexão aberta
+        ws.onopen = () => {
+          console.log("[CHART] WebSocket conectado com sucesso!");
+          setConnected(true);
+          
+          // Enviar solicitação de histórico de ticks - R_100 com inscrição
+          const request = {
+            ticks_history: "R_100",
+            adjust_start_time: 1,
+            count: 500,
+            end: "latest", 
+            start: 1,
+            style: "ticks",
+            subscribe: 1
+          };
+          
+          try {
+            ws.send(JSON.stringify(request));
+            console.log("[CHART] Solicitação de ticks enviada:", request);
+          } catch (error) {
+            console.error("[CHART] Erro ao enviar solicitação:", error);
+          }
         };
         
-        ws.send(JSON.stringify(request));
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Processar histórico de ticks
-          if (data.history && data.history.prices) {
-            const prices = data.history.prices;
-            const extractedDigits = prices.map((price: number) => {
-              const priceStr = price.toFixed(2);
-              return parseInt(priceStr.charAt(priceStr.length - 1), 10);
-            });
+        // Evento de mensagem recebida
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
             
-            setDigits(extractedDigits);
-            calculateStats(extractedDigits, parseInt(sample));
-            setLoading(false);
-            console.log("Recebido histórico com", extractedDigits.length, "ticks");
-          }
-          
-          // Processar ticks em tempo real
-          if (data.tick && data.tick.quote) {
-            const price = parseFloat(data.tick.quote);
-            const priceStr = price.toFixed(2);
-            const lastDigit = parseInt(priceStr.charAt(priceStr.length - 1), 10);
-            
-            if (!isNaN(lastDigit)) {
-              console.log("Novo tick recebido:", price, "Último dígito:", lastDigit);
-              
-              // Adicionar novo dígito ao início do array
-              setDigits(prev => {
-                const newDigits = [lastDigit, ...prev].slice(0, 500);
-                calculateStats(newDigits, parseInt(sample));
-                return newDigits;
+            // Processar histórico de ticks
+            if (data.history && data.history.prices) {
+              const prices = data.history.prices;
+              const extractedDigits = prices.map((price: number) => {
+                const priceStr = price.toFixed(2);
+                return parseInt(priceStr.charAt(priceStr.length - 1), 10);
               });
               
-              // Forçar atualização do componente
-              setUpdateKey(prev => prev + 1);
+              console.log(`[CHART] Histórico recebido com ${extractedDigits.length} ticks`);
+              setDigits(extractedDigits);
+              setLoading(false);
             }
+            
+            // Processar ticks em tempo real
+            if (data.tick && data.tick.quote) {
+              const price = parseFloat(data.tick.quote);
+              processTick(price);
+            }
+          } catch (error) {
+            console.error("[CHART] Erro ao processar mensagem:", error);
           }
-        } catch (error) {
-          console.error("Erro ao processar mensagem:", error);
-        }
-      };
-      
-      ws.onerror = (error) => {
-        console.error("Erro WebSocket:", error);
+        };
+        
+        // Evento de erro
+        ws.onerror = (error) => {
+          console.error("[CHART] Erro WebSocket:", error);
+          setConnected(false);
+          setLoading(false);
+        };
+        
+        // Evento de conexão fechada
+        ws.onclose = () => {
+          console.log("[CHART] Conexão WebSocket fechada");
+          setConnected(false);
+          
+          // Limpar timeout existente
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
+          
+          // Tentar reconectar após 5 segundos
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log("[CHART] Tentando reconectar...");
+            connectWebSocket();
+          }, 5000);
+        };
+      } catch (error) {
+        console.error("[CHART] Erro ao configurar WebSocket:", error);
         setLoading(false);
-      };
-      
-      ws.onclose = () => {
-        console.log("Conexão WebSocket fechada");
-        // Reconectar após 2 segundos
-        setTimeout(connectWebSocket, 2000);
-      };
+      }
     };
     
+    // Estabelecer conexão inicial
     connectWebSocket();
     
     // Limpar ao desmontar
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, []);
-  
-  // Atualizar estatísticas quando a amostra mudar
-  useEffect(() => {
-    if (digits.length > 0) {
-      calculateStats(digits, parseInt(sample));
-    }
-  }, [sample, digits.length]);
+  }, [processTick]);
   
   // Forçar renderização periódica
   useEffect(() => {
@@ -157,8 +211,11 @@ export default function SimpleChart() {
       
       <div className="mb-4 flex justify-between items-center">
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 bg-red-600 rounded-sm"></div>
-          <span className="font-medium">Gráfico de dígitos do R_100</span>
+          <div className={`w-3 h-3 rounded-sm ${connected ? 'bg-green-500' : 'bg-red-600'}`}></div>
+          <span className="font-medium">
+            Gráfico de dígitos do R_100 
+            {!connected && <span className="text-red-500 ml-2">(Reconectando...)</span>}
+          </span>
         </div>
         
         <select 
@@ -173,10 +230,20 @@ export default function SimpleChart() {
           <option value="500">500 Ticks</option>
         </select>
       </div>
+
+      {/* Exibir o último dígito recebido */}
+      {lastDigit !== null && (
+        <div className="mb-4 flex justify-center">
+          <div className="bg-primary text-white font-bold text-2xl w-16 h-16 rounded-full flex items-center justify-center animate-pulse">
+            {lastDigit}
+          </div>
+        </div>
+      )}
       
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-white rounded-full"></div>
+        <div className="flex flex-col justify-center items-center h-64">
+          <div className="animate-spin h-12 w-12 border-t-4 border-b-4 border-green-500 rounded-full mb-4"></div>
+          <p className="text-white">Conectando à Deriv API...</p>
         </div>
       ) : (
         <div className="bg-[#0e1a2e] rounded-lg shadow-lg border border-gray-800">
@@ -192,7 +259,7 @@ export default function SimpleChart() {
                     style={{ bottom: `${(value / 50) * 100}%` }}
                   >
                     <span className="absolute -top-3 -left-8 text-gray-500 text-xs">
-                      {value}
+                      {value}%
                     </span>
                   </div>
                 ))}
@@ -256,8 +323,30 @@ export default function SimpleChart() {
             </div>
             
             {/* Estatísticas */}
-            <div className="mt-4 text-xs text-gray-400 text-center">
-              Analisando {sample} de {digits.length} dígitos disponíveis
+            <div className="mt-6 text-xs text-gray-400">
+              <div className="flex justify-between items-center border-t border-gray-800 pt-4">
+                <span>Analisando {sample} de {digits.length} dígitos disponíveis</span>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                  <span>Atualizações em tempo real ativas</span>
+                </div>
+              </div>
+              
+              {/* Legenda de cores */}
+              <div className="flex items-center mt-2 space-x-4 justify-center">
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-[#ff3232] mr-1"></div>
+                  <span>≥ 20%</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-[#2a405a] mr-1"></div>
+                  <span>Pares</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-[#896746] mr-1"></div>
+                  <span>Ímpares</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
