@@ -561,9 +561,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           const tickData = data.tick;
           const price = parseFloat(tickData.quote);
           
-          // Extração otimizada do último dígito
-          const priceStr = price.toString();
-          const lastDigit = parseInt(priceStr.charAt(priceStr.length - 1));
+          // Extração otimizada do último dígito - usando mesma abordagem do deriv-history-service
+          const priceStr = price.toFixed(2); // Formato padrão da Deriv é com 2 casas decimais
+          const lastChar = priceStr.charAt(priceStr.length - 1);
+          const lastDigit = parseInt(lastChar, 10);
           
           // Extrair dados adicionais do esquema
           const symbol = tickData.symbol;

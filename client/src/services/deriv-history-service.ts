@@ -257,8 +257,13 @@ class DerivHistoryService {
       const prices = data.history.prices;
       const times = data.history.times;
       
-      // Extrair todos os dígitos de uma vez
-      const digits: number[] = prices.map(price => Math.floor(price * 10) % 10);
+      // Extrair todos os dígitos de uma vez - usando uma abordagem mais precisa
+      const digits: number[] = prices.map(price => {
+        // Converter para string e pegar o último dígito após o ponto decimal
+        const priceStr = price.toFixed(2); // Formato padrão da Deriv é com 2 casas decimais
+        const lastChar = priceStr.charAt(priceStr.length - 1);
+        return parseInt(lastChar, 10);
+      });
       
       // Inicializar contadores para estatísticas
       const counts: Record<number, number> = {};
@@ -304,7 +309,11 @@ class DerivHistoryService {
     if (data.tick) {
       const symbol = data.tick.symbol as string;
       const price = data.tick.quote as number;
-      const digit = Math.floor(price * 10) % 10;
+      
+      // Extrair o último dígito usando a mesma abordagem que para o histórico
+      const priceStr = price.toFixed(2); // Formato padrão da Deriv é com 2 casas decimais
+      const lastChar = priceStr.charAt(priceStr.length - 1);
+      const digit = parseInt(lastChar, 10);
       
       // Adicionar ao histórico
       this.addDigitToHistoryInternal(symbol, digit); // Usando a versão que não tenta persistir
