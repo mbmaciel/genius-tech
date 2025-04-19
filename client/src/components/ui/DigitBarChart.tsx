@@ -104,7 +104,12 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
       };
     });
     
-    setDigitStats(updatedStats);
+    // Log para diagnóstico
+    console.log(`[DigitBarChart] Estatísticas atualizadas (${totalDigits} ticks): `,
+      updatedStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+    
+    // Forçar uma nova referência do array para garantir re-renderização
+    setDigitStats([...updatedStats]);
   };
   
   // Efeito para buscar o histórico de ticks quando o componente montar
@@ -124,6 +129,9 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
     }
   }, [ticksCount, digits]);
   
+  // Estado para forçar atualizações visuais
+  const [updateCount, setUpdateCount] = useState<number>(0);
+
   // Efeito para assinar eventos de ticks em tempo real
   useEffect(() => {
     // Função para tratar novos ticks
@@ -136,13 +144,22 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
         const price = tickData.quote.toString();
         const lastDigit = parseInt(price.charAt(price.length - 1));
         
+        // Log do tick recebido
+        console.log(`[DigitBarChart] Novo tick para ${symbol}: ${price} (último dígito: ${lastDigit})`);
+        
         // Adicionar o novo dígito ao início do array
         setDigits(prevDigits => {
+          // Criar novo array com o dígito adicionado no início
           const newDigits = [lastDigit, ...prevDigits].slice(0, 500);
+          
+          // Atualizar as estatísticas com os novos dados
           updateDigitStats(newDigits, parseInt(ticksCount));
           
-          // Atualizar a sequência de dígitos
+          // Atualizar a sequência de dígitos mais recentes (reverter para mostrar o mais recente primeiro)
           setLastSequence(newDigits.slice(0, 15).reverse());
+          
+          // Incrementar contador de atualizações para forçar re-renderização
+          setUpdateCount(prev => prev + 1);
           
           return newDigits;
         });
@@ -152,11 +169,16 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
     // Registrar listener para ticks
     window.addEventListener('tick', handleTick as EventListener);
     
+    console.log(`[DigitBarChart] Assinando ticks para ${symbol}`);
+    
     // Assinar para receber ticks
-    oauthDirectService.subscribeToTicks(symbol);
+    oauthDirectService.subscribeToTicks(symbol)
+      .then(() => console.log(`[DigitBarChart] Assinatura de ticks para ${symbol} bem-sucedida`))
+      .catch(err => console.error(`[DigitBarChart] Erro ao assinar ticks para ${symbol}:`, err));
     
     // Limpar listener quando o componente desmontar
     return () => {
+      console.log(`[DigitBarChart] Removendo assinatura de ticks para ${symbol}`);
       window.removeEventListener('tick', handleTick as EventListener);
     };
   }, [symbol, ticksCount]);
@@ -186,15 +208,19 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
         <span className="text-xs text-white mr-4">Últimos {ticksCount} Dígitos (%)</span>
       </div>
       
-      {/* Gráfico de barras */}
-      <div className="relative h-56">
+      {/* Gráfico de barras - usando updateCount para forçar re-renderização */}
+      <div className="relative h-56" key={`digit-chart-${updateCount}`}>
         {digitStats.map((stat) => (
-          <div key={stat.digit} className="flex flex-col items-center absolute" style={{ 
-            left: `${stat.digit * 10}%`, 
-            width: '10%', 
-            bottom: 0, 
-            height: '100%' 
-          }}>
+          <div 
+            key={`${stat.digit}-${updateCount}-${stat.percentage}`} 
+            className="flex flex-col items-center absolute" 
+            style={{ 
+              left: `${stat.digit * 10}%`, 
+              width: '10%', 
+              bottom: 0, 
+              height: '100%' 
+            }}
+          >
             {/* Valor percentual sobre a barra */}
             <div className="text-white text-xs mb-1">{stat.percentage > 0 ? `${stat.percentage}%` : ''}</div>
             
