@@ -465,12 +465,12 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                   });
                   document.dispatchEvent(tickEvent);
                   
-                  // Forçar busca completa do histórico após receber um tick
-                  // para garantir que todos os componentes estejam sincronizados
-                  // Evitar loop infinito limitando a 300ms entre busca
-                  setTimeout(() => {
-                    fetchDigitHistory();
-                  }, 300);
+                  // Não precisamos fazer fetchDigitHistory após cada tick
+                  // Isso evita as reconexões constantes
+                  // Apenas recalculamos as estatísticas com os dados existentes
+                  if (digits.length > 0) {
+                    calculateStats(digits.slice(0, parseInt(selectedCount)));
+                  }
                 }
               }
             }
