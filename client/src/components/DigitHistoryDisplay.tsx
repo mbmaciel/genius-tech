@@ -1,26 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { oauthDirectService } from "@/services/oauthDirectService";
-import { derivHistoryService } from "@/services/deriv-history-service";
 import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface DigitHistoryDisplayProps {
   symbol?: string;
   className?: string;
 }
 
+type DigitStat = {
+  digit: number;
+  count: number;
+  percentage: number;
+};
+
 export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitHistoryDisplayProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [digits, setDigits] = useState<number[]>([]);
-  const [digitStats, setDigitStats] = useState<{
-    digit: number;
-    count: number;
-    percentage: number;
-  }[]>(Array.from({ length: 10 }, (_, i) => ({ 
-    digit: i, 
-    count: 0, 
-    percentage: 0 
-  })));
+  const [digitStats, setDigitStats] = useState<DigitStat[]>(
+    Array.from({ length: 10 }, (_, i) => ({ digit: i, count: 0, percentage: 0 }))
+  );
+  // Estado para armazenar a quantidade selecionada de dígitos para análise
+  const [selectedCount, setSelectedCount] = useState<string>("500");
 
   // Função para buscar histórico completo de ticks (500 ticks)
   const fetchFullTicksHistory = async () => {
@@ -30,103 +32,152 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
       
       console.log("[DigitHistoryDisplay] Buscando histórico completo de 500 ticks para:", symbol);
       
-      // Solicitar histórico usando o CustomEvent API para comunicação com o serviço OAuth
-      const ticksHistory = await new Promise<number[]>((resolve, reject) => {
-        try {
-          // Request ID único para identificar a resposta
-          const requestId = `history_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-          
-          // Criamos um listener para a resposta do histórico
-          const historyResponseHandler = (event: CustomEvent) => {
-            const response = event.detail;
-            
-            // Verificamos se a resposta corresponde ao nosso requestId
-            if (response && response.req_id === requestId) {
-              // Removemos o listener após receber a resposta
-              window.removeEventListener('deriv-history-response', historyResponseHandler as EventListener);
-              
-              if (response.error) {
-                reject(new Error(response.error.message || 'Erro ao obter histórico'));
-                return;
-              }
-              
-              if (response.history && Array.isArray(response.history.prices)) {
-                // Extrair os dígitos do histórico (último dígito de cada preço)
-                const digits = response.history.prices.map((price: string) => {
-                  const lastDigit = parseInt(price.slice(-1));
-                  return isNaN(lastDigit) ? 0 : lastDigit;
-                });
-                resolve(digits);
-              } else {
-                reject(new Error("Formato de resposta inválido"));
-              }
-            }
-          };
-          
-          // Registramos o listener para a resposta
-          window.addEventListener('deriv-history-response', historyResponseHandler as EventListener);
-          
-          // Criamos o evento de solicitação de histórico
-          const historyRequest = new CustomEvent('deriv-request-history', {
-            detail: {
-              req_id: requestId,
-              ticks_history: symbol,
-              adjust_start_time: 1,
-              count: 500,
-              end: "latest",
-              start: 1,
-              style: "ticks"
-            }
-          });
-          
-          // Disparamos o evento para que o serviço OAuth o capture
-          window.dispatchEvent(historyRequest);
-          
-          // Definimos um timeout para evitar que a promessa fique pendente eternamente
-          setTimeout(() => {
-            window.removeEventListener('deriv-history-response', historyResponseHandler as EventListener);
-            reject(new Error("Timeout ao aguardar resposta do histórico"));
-          }, 10000);
-          
-        } catch (err) {
-          reject(err);
-        }
-      });
+      // Solicitar histórico via WebSocket direto
+      const historicDigits = await fetchDirectFromDeriv(symbol, 500);
       
-      if (ticksHistory && ticksHistory.length > 0) {
+      if (historicDigits && historicDigits.length > 0) {
         // Atualizar o estado com os dígitos históricos
-        setDigits(ticksHistory);
+        setDigits(historicDigits);
         
         // Calcular estatísticas
-        calculateStats(ticksHistory);
+        calculateStats(historicDigits);
         
-        console.log(`[DigitHistoryDisplay] Recebidos ${ticksHistory.length} dígitos históricos para ${symbol}`);
+        console.log(`[DigitHistoryDisplay] Recebidos ${historicDigits.length} dígitos históricos para ${symbol}`);
       } else {
         setError("Não foi possível obter o histórico de dígitos");
         console.error("[DigitHistoryDisplay] Nenhum dígito recebido para:", symbol);
       }
     } catch (err) {
-      setError(`Erro ao buscar histórico: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Erro ao buscar histórico: ${errorMessage}`);
       console.error("[DigitHistoryDisplay] Erro ao buscar histórico:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Função para obter histórico diretamente da Deriv via WebSocket
+  const fetchDirectFromDeriv = (symbolName: string, count: number): Promise<number[]> => {
+    return new Promise((resolve, reject) => {
+      try {
+        // Preparar a requisição de histórico
+        const request = {
+          ticks_history: symbolName,
+          adjust_start_time: 1,
+          count: count,
+          end: "latest",
+          start: 1,
+          style: "ticks",
+          req_id: Math.floor(Math.random() * 1000000)
+        };
+        
+        // Obter o token de autorização, se disponível
+        const authToken = localStorage.getItem('deriv_oauth_token');
+        
+        // Estabelecer conexão WebSocket direta
+        const wsUrl = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+          console.log("[DigitHistoryDisplay] WebSocket conectado para histórico");
+          
+          // Autorizar primeiro se tiver token
+          if (authToken) {
+            ws.send(JSON.stringify({
+              authorize: authToken
+            }));
+          } else {
+            // Se não tiver token, enviar solicitação de histórico diretamente
+            ws.send(JSON.stringify(request));
+          }
+        };
+        
+        ws.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            
+            // Se resposta for de autorização, enviar solicitação de histórico
+            if (data.msg_type === 'authorize') {
+              console.log("[DigitHistoryDisplay] Autorização para histórico bem-sucedida");
+              ws.send(JSON.stringify(request));
+            }
+            
+            // Se for a resposta do histórico
+            if (data.msg_type === 'history' && data.req_id === request.req_id) {
+              if (data.error) {
+                console.error("[DigitHistoryDisplay] Erro na resposta do histórico:", data.error);
+                reject(new Error(data.error.message || "Erro ao solicitar histórico"));
+                ws.close();
+                return;
+              }
+              
+              if (data.history && Array.isArray(data.history.prices)) {
+                console.log(`[DigitHistoryDisplay] Recebidos ${data.history.prices.length} ticks históricos`);
+                
+                // Extrair últimos dígitos de cada preço
+                const digits = data.history.prices.map((price: number | string) => {
+                  const priceStr = price.toString();
+                  const lastChar = priceStr.charAt(priceStr.length - 1);
+                  const digit = parseInt(lastChar);
+                  return isNaN(digit) ? 0 : digit;
+                });
+                
+                resolve(digits);
+              } else {
+                console.error("[DigitHistoryDisplay] Resposta de histórico inválida:", data);
+                reject(new Error("Formato de resposta inválido"));
+              }
+              
+              // Fechar conexão após receber resposta
+              ws.close();
+            }
+          } catch (err) {
+            console.error("[DigitHistoryDisplay] Erro ao processar mensagem:", err);
+            reject(err);
+            ws.close();
+          }
+        };
+        
+        ws.onerror = (error) => {
+          console.error("[DigitHistoryDisplay] Erro na conexão WebSocket:", error);
+          reject(new Error("Erro na conexão WebSocket"));
+        };
+        
+        // Timeout para evitar espera infinita
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            console.warn("[DigitHistoryDisplay] Timeout ao aguardar resposta, fechando conexão");
+            ws.close();
+            reject(new Error("Timeout ao solicitar histórico"));
+          }
+        }, 15000);
+      } catch (err) {
+        console.error("[DigitHistoryDisplay] Erro ao estabelecer conexão:", err);
+        reject(err);
+      }
+    });
+  };
+
   // Calcular estatísticas dos dígitos
-  const calculateStats = (historyDigits: number[]) => {
+  const calculateStats = (historyDigits: number[], countToAnalyze?: number) => {
+    // Obter a quantidade de dígitos a analisar, com base na seleção do usuário
+    const limit = countToAnalyze || parseInt(selectedCount);
+    
+    // Utilizar apenas os N dígitos mais recentes
+    const digitsToAnalyze = historyDigits.slice(0, limit);
+    
     // Inicializar contagens para cada dígito (0-9)
     const digitCounts = Array(10).fill(0);
     
     // Contar a frequência de cada dígito
-    historyDigits.forEach(digit => {
+    digitsToAnalyze.forEach(digit => {
       if (digit >= 0 && digit <= 9) {
         digitCounts[digit]++;
       }
     });
     
     // Total de dígitos analisados (para calcular percentuais)
-    const totalDigits = historyDigits.length;
+    const totalDigits = digitsToAnalyze.length;
     
     // Criar o array de estatísticas com contagens e percentuais
     const updatedStats = digitCounts.map((count, digit) => {
@@ -161,36 +212,37 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
     });
   };
 
+  // Recalcular estatísticas quando a seleção de contagem muda
+  useEffect(() => {
+    if (digits.length > 0) {
+      calculateStats(digits);
+    }
+  }, [selectedCount, digits.length]);
+
   // Efeito para buscar histórico inicial e configurar listener de ticks
   useEffect(() => {
     // Buscar histórico completo inicial
     fetchFullTicksHistory();
     
     // Configurar listener para ticks em tempo real
-    const tickListener = (data: any) => {
-      if (data && data.tick && typeof data.tick.last_digit === 'number') {
-        const lastDigit = data.tick.last_digit;
+    const tickListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.tick && typeof customEvent.detail.tick.last_digit === 'number') {
+        const lastDigit = customEvent.detail.tick.last_digit;
         // Adicionar novo dígito recebido
         addNewDigit(lastDigit);
       }
     };
     
-    // Registrar um event listener para os ticks
-    const handleTick = (event: CustomEvent) => {
-      if (event.detail) {
-        tickListener(event.detail);
-      }
-    };
-    
-    // Adicionar o event listener para o evento 'tick'
-    window.addEventListener('deriv-tick', handleTick as EventListener);
+    // Adicionar o event listener para o evento 'deriv-tick'
+    window.addEventListener('deriv-tick', tickListener);
     
     // Inscrever-se para receber ticks do símbolo especificado
     oauthDirectService.subscribeToTicks(symbol);
     
     // Limpar listener ao desmontar componente
     return () => {
-      window.removeEventListener('deriv-tick', handleTick as EventListener);
+      window.removeEventListener('deriv-tick', tickListener);
     };
   }, [symbol]);
 
@@ -198,12 +250,32 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
   return (
     <div className={`w-full ${className}`}>
       <div className="mb-4">
-        <h3 className="text-white text-md font-medium mb-2 flex items-center">
-          Histórico de 500 Dígitos
-          {loading && (
-            <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
-          )}
-        </h3>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-white text-md font-medium flex items-center">
+            Histórico de Dígitos
+            {loading && (
+              <Loader2 className="ml-2 h-4 w-4 animate-spin text-primary" />
+            )}
+          </h3>
+          
+          {/* Menu de seleção para quantidade de dígitos a analisar */}
+          <div className="flex items-center">
+            <span className="text-xs text-gray-400 mr-2">Analisar últimos:</span>
+            <Select value={selectedCount} onValueChange={(value) => setSelectedCount(value)}>
+              <SelectTrigger className="h-8 w-[80px] bg-[#0e1a2e] border-none">
+                <SelectValue placeholder="500" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="250">250</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         
         {error ? (
           <div className="text-red-500 text-sm">{error}</div>
@@ -249,8 +321,13 @@ export function DigitHistoryDisplay({ symbol = "R_100", className = "" }: DigitH
             </div>
             
             {/* Indicador de total */}
-            <div className="mt-2 text-xs text-gray-400 text-right">
-              Total: {digits.length}/500 dígitos
+            <div className="mt-2 text-xs text-gray-400 flex justify-between">
+              <div>
+                <span className="font-medium text-primary">{selectedCount}</span> dígitos analisados
+              </div>
+              <div>
+                Total disponível: {digits.length}/500 dígitos
+              </div>
             </div>
           </>
         )}
