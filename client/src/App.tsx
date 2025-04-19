@@ -9,6 +9,7 @@ import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
 import ChartPage from "@/pages/chart-page";
 import SimpleChart from "@/pages/simple-chart";
 import RealtimeDigits from "@/pages/realtime-digits";
+import DigitDisplay from "@/pages/digit-display";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -146,6 +147,7 @@ function App() {
         <Route path="/chart" component={(props: any) => <ProtectedRoute component={ChartPage} {...props} />} />
         <Route path="/simplechart" component={SimpleChart} />
         <Route path="/realtime" component={RealtimeDigits} />
+        <Route path="/digits" component={DigitDisplay} />
       </Switch>
     </div>
   );
