@@ -236,11 +236,11 @@ class IndependentDerivService {
       percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
     }));
     
-    // Criar ou atualizar o histórico
+    // Criar ou atualizar o histórico com exatamente 500 ticks
     this.digitHistories.set(symbol, {
       stats,
-      lastDigits: lastDigits.slice(-500), // Manter apenas os 500 mais recentes
-      totalSamples,
+      lastDigits: lastDigits.slice(-500), // Garantir que temos exatamente os 500 mais recentes
+      totalSamples: Math.min(totalSamples, 500), // Limitar a 500 o total de amostras
       symbol,
       lastUpdated: new Date()
     });
