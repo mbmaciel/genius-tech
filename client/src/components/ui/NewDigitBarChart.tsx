@@ -75,37 +75,35 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
     try {
       setLoading(true);
       
-      // Tente obter do sessionStorage primeiro para ter uma resposta imediata
-      const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
-      const storedStats = sessionStorage.getItem(`digitStats_${symbol}`);
+      // Sempre buscar do serviço para garantir dados atualizados
+      await fetchFromServices();
       
-      if (storedDigits && storedStats) {
-        try {
-          const parsedDigits = JSON.parse(storedDigits);
-          const parsedStats = JSON.parse(storedStats);
-          
-          if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
-            console.log(`[NewDigitBarChart] Usando ${parsedDigits.length} dígitos do sessionStorage`);
-            setDigits(parsedDigits);
-            calculateStats(parsedDigits.slice(0, parseInt(selectedCount)));
-            setError(null);
-            setLoading(false);
+      // Após buscar do serviço, adicionar uma verificação secundária
+      if (digits.length === 0) {
+        // Se ainda não temos dígitos do serviço, tente recuperar do sessionStorage como backup
+        const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
+        
+        if (storedDigits) {
+          try {
+            const parsedDigits = JSON.parse(storedDigits);
             
-            // Continue buscando em segundo plano para atualizar os dados
-            setTimeout(() => fetchFromServices(), 500);
-            return;
+            if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
+              console.log(`[NewDigitBarChart] Usando ${parsedDigits.length} dígitos do sessionStorage como fallback`);
+              setDigits(parsedDigits);
+              calculateStats(parsedDigits.slice(0, parseInt(selectedCount)));
+              setError(null);
+            }
+          } catch (e) {
+            console.error('[NewDigitBarChart] Erro ao ler do sessionStorage como fallback:', e);
           }
-        } catch (e) {
-          console.error('[NewDigitBarChart] Erro ao ler do sessionStorage:', e);
         }
       }
-      
-      // Se não tiver dados no sessionStorage, busque normalmente
-      await fetchFromServices();
       
     } catch (err) {
       console.error(`[NewDigitBarChart] Erro ao buscar histórico: ${err}`);
       setError("Erro ao obter dados históricos");
+      setLoading(false);
+    } finally {
       setLoading(false);
     }
   };
@@ -396,10 +394,18 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                     detail: { 
                       digit, 
                       quote, 
-                      symbol 
+                      symbol,
+                      timestamp: Date.now() // Adicionar timestamp para melhor controle
                     } 
                   });
                   document.dispatchEvent(tickEvent);
+                  
+                  // Forçar busca completa do histórico após receber um tick
+                  // para garantir que todos os componentes estejam sincronizados
+                  // Evitar loop infinito limitando a 300ms entre busca
+                  setTimeout(() => {
+                    fetchDigitHistory();
+                  }, 300);
                 }
               }
             }
@@ -460,15 +466,41 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
         detail: { 
           digit: lastDigit, 
           quote: lastQuote, 
-          symbol 
+          symbol,
+          timestamp: Date.now() // Adicionar timestamp para melhor controle
         } 
       });
       document.dispatchEvent(tickEvent);
       
-      // Atualizar o histórico
+      // Recuperar dados de sessionStorage
+      try {
+        const storedDigits = sessionStorage.getItem(`digitHistory_${symbol}`);
+        if (storedDigits) {
+          const parsedDigits = JSON.parse(storedDigits);
+          if (Array.isArray(parsedDigits) && parsedDigits.length > 0) {
+            // Verificar se este dígito já está no início do array
+            if (parsedDigits[0] !== lastDigit) {
+              // Adicionar dígito no início e manter apenas os 500 mais recentes
+              const updatedDigits = [lastDigit, ...parsedDigits].slice(0, 500);
+              // Atualizar estado e sessionStorage
+              setDigits(updatedDigits);
+              sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(updatedDigits));
+              
+              // Recalcular estatísticas
+              calculateStats(updatedDigits.slice(0, parseInt(selectedCount)));
+              
+              console.log(`[NewDigitBarChart] Histórico atualizado diretamente no useEffect de lastDigit`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[NewDigitBarChart] Erro ao atualizar histórico diretamente no useEffect:`, e);
+      }
+      
+      // Atualizar o histórico completo
       fetchDigitHistory();
     }
-  }, [lastDigit, lastQuote, symbol]);
+  }, [lastDigit, lastQuote, symbol, selectedCount]);
 
   return (
     <div className={`w-full ${className}`} key={`chart-container-${renderKey}`}>
