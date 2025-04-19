@@ -17,8 +17,17 @@ const RealtimeDigits: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sampleSize, setSampleSize] = useState<number>(100);
-  const [stats, setStats] = useState<DigitStat[]>([]);
+  const [stats, setStats] = useState<DigitStat[]>(
+    Array.from({ length: 10 }, (_, i) => ({ 
+      digit: i as Digit, 
+      count: 0, 
+      percentage: 0 
+    }))
+  );
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  
+  // Para forçar re-renderização
+  const [updateCounter, setUpdateCounter] = useState<number>(0);
   
   // Referências
   const wsRef = useRef<WebSocket | null>(null);
@@ -45,16 +54,30 @@ const RealtimeDigits: React.FC = () => {
       0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0
     };
     
+    // Contagem de cada dígito no conjunto de amostra
     sample.forEach(digit => {
       counts[digit]++;
     });
     
-    // Calculando percentuais
+    // Verificação do total para debug
+    const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    if (totalCount !== sample.length) {
+      console.error(`[REAL-DIGITS] ERRO: Total de contagem (${totalCount}) difere do tamanho da amostra (${sample.length})`);
+    }
+    
+    // Calculando percentuais com precisão
     const result: DigitStat[] = Object.entries(counts).map(([digitStr, count]) => {
       const digit = parseInt(digitStr) as Digit;
+      // Cálculo mais preciso com arredondamento apenas no final
       const percentage = Math.round((count / sample.length) * 100);
       return { digit, count, percentage };
     });
+    
+    // Verificação para garantir que os percentuais estão corretos
+    const totalPercentage = result.reduce((sum, stat) => sum + stat.percentage, 0);
+    if (totalPercentage < 95 || totalPercentage > 105) {
+      console.warn(`[REAL-DIGITS] Aviso: Soma de percentuais (${totalPercentage}%) está fora do intervalo esperado.`);
+    }
     
     return result.sort((a, b) => a.digit - b.digit);
   };
@@ -87,7 +110,14 @@ const RealtimeDigits: React.FC = () => {
       // Adicionar o novo dígito ao início da lista
       setDigits(prevDigits => {
         const updatedDigits = [digit, ...prevDigits].slice(0, 500);
-        setStats(calculateStats(updatedDigits, sampleSize));
+        
+        // Calcular estatísticas e atualizar estado
+        const newStats = calculateStats(updatedDigits, sampleSize);
+        setStats(newStats);
+        
+        // Forçar renderização incrementando o contador
+        setUpdateCounter(prev => prev + 1);
+        
         return updatedDigits;
       });
       
@@ -300,7 +330,7 @@ const RealtimeDigits: React.FC = () => {
                 <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
                   {[0, 10, 20, 30, 40, 50].map((value) => (
                     <div 
-                      key={`grid-${value}`}
+                      key={`grid-${value}-${updateCounter}`}
                       className="w-full border-t border-gray-800 relative"
                       style={{ bottom: `${value * 2}%` }}
                     >
@@ -319,9 +349,15 @@ const RealtimeDigits: React.FC = () => {
                     stat.percentage >= 20 ? 'bg-yellow-600' :
                     stat.digit % 2 === 0 ? 'bg-blue-800' : 'bg-purple-800';
                   
+                  // Calculando a altura correta da barra
+                  // Escala: 100% do percentual = 100% da altura
+                  // Se o percentual máximo for 50%, então 50% = 100% de altura
+                  // Cada 1% de frequência = 2% de altura (para escala visual)
+                  const barHeight = Math.max(1, stat.percentage * 2);
+                  
                   return (
                     <div 
-                      key={`bar-${stat.digit}`}
+                      key={`bar-${stat.digit}-${updateCounter}`}
                       className="flex-1 flex flex-col items-center"
                     >
                       {/* Porcentagem */}
@@ -331,9 +367,9 @@ const RealtimeDigits: React.FC = () => {
                       
                       {/* Barra */}
                       <div 
-                        className={`w-full ${barColor} transition-all duration-300 rounded-t-sm`}
+                        className={`w-full ${barColor} transition-all duration-500 rounded-t-sm`}
                         style={{ 
-                          height: `${Math.max(1, stat.percentage * 2)}%`,
+                          height: `${barHeight}%`,
                         }}
                       ></div>
                       
