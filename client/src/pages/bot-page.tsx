@@ -56,8 +56,7 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 // Log para indicar uso da nova versão com OAuth dedicado
 console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente serviço OAuth dedicado');
 
-// Importar o novo componente de estatísticas percentuais
-import { SimplePercentageStats } from "@/components/SimplePercentageStats";
+// Espaço para importação de novos componentes
 
 export function BotPage() {
   const { toast } = useToast();
@@ -1794,17 +1793,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                   </div>
                   <p className="text-xs text-gray-400 mt-1">Estatísticas percentuais de frequência de dígitos com captura direta da Deriv</p>
                 </div>
-                {/* Componente dedicado para estatísticas percentuais */}
-                <SimplePercentageStats symbol="R_100" />
+                {/* Espaço para novo componente de estatísticas percentuais */}
+                <div className="p-4 bg-[#0d1729] rounded-md">
+                  <div className="flex justify-center items-center h-32">
+                    <span className="text-gray-400">Componente removido para recriação</span>
+                  </div>
+                </div>
               </div>
               
-              {/* Visualização completa de 500 dígitos históricos */}
+              {/* Espaço para visualização completa de dígitos históricos */}
               <div>
                 <h3 className="text-white text-md font-medium mb-2">
                   Histórico Completo de Dígitos
                   <span className="text-xs text-gray-400 ml-2">(500 ticks da Deriv)</span>
                 </h3>
-                <FullHistoryDigitDisplay symbol="R_100" maxDigitsToShow={500} />
+                <div className="p-4 bg-[#0d1729] rounded-md">
+                  <div className="flex justify-center items-center h-32">
+                    <span className="text-gray-400">Componente removido para recriação</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
