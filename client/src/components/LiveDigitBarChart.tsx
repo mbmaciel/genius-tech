@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DigitBarChart } from './DigitBarChart';
-import { DerivHistoryService, DigitHistoryData } from '../services/deriv-history-service';
+import { independentDerivService, DigitHistory } from '../services/independent-deriv-service';
 
 interface LiveDigitBarChartProps {
   symbol?: string;
@@ -17,22 +17,29 @@ export function LiveDigitBarChart({
   className = '',
   maxDigits = 500
 }: LiveDigitBarChartProps) {
-  const [historyData, setHistoryData] = useState<DigitHistoryData | null>(null);
+  const [historyData, setHistoryData] = useState<DigitHistory | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Obter a instância do serviço
-    const historyService = DerivHistoryService.getInstance();
-    
     // Função para atualizar os dados quando recebermos novas informações
-    const updateHistoryData = (data: DigitHistoryData) => {
+    const updateHistoryData = (data: DigitHistory) => {
       setHistoryData(data);
       setLoading(false);
     };
     
     // Registrar para receber atualizações
-    historyService.addListener(updateHistoryData);
+    independentDerivService.addListener('history', updateHistoryData);
+    
+    // Função para lidar com erros
+    const handleError = (errorData: any) => {
+      console.error('[LiveDigitBarChart] Erro na conexão:', errorData);
+      setError('Falha na comunicação com a Deriv API');
+      setLoading(false);
+    };
+    
+    // Registrar para receber erros
+    independentDerivService.addListener('error', handleError);
     
     // Buscar dados iniciais
     const fetchInitialData = async () => {
@@ -40,16 +47,17 @@ export function LiveDigitBarChart({
         setLoading(true);
         
         // Obter dados atuais (podem estar vazios inicialmente)
-        const currentData = historyService.getDigitStats(symbol);
+        const currentData = independentDerivService.getDigitHistory(symbol);
         
         // Se já temos dados, podemos mostrá-los enquanto carregamos mais
-        if (currentData && currentData.lastDigits.length > 0) {
+        if (currentData && currentData.totalSamples > 0) {
           setHistoryData(currentData);
         }
         
         // Solicitar dados mais recentes e assinar para atualizações
         // Isso usa uma conexão WebSocket separada, independente do bot
-        await historyService.getTicksHistory(symbol, maxDigits, true);
+        await independentDerivService.fetchTicksHistory(symbol, maxDigits);
+        await independentDerivService.subscribeTicks(symbol);
         
         setLoading(false);
       } catch (err) {
@@ -64,7 +72,8 @@ export function LiveDigitBarChart({
     
     // Limpar ao desmontar
     return () => {
-      historyService.removeListener(updateHistoryData);
+      independentDerivService.removeListener('history', updateHistoryData);
+      independentDerivService.removeListener('error', handleError);
     };
   }, [symbol, maxDigits]);
   
@@ -83,19 +92,15 @@ export function LiveDigitBarChart({
       };
     }
     
-    // Converter as estatísticas do formato do serviço para o formato do gráfico
-    const statistics = Object.entries(historyData.digitStats).map(([digit, stats]) => ({
-      digit: parseInt(digit),
-      count: stats.count,
-      percentage: stats.percentage
-    })).sort((a, b) => a.digit - b.digit); // Ordenar por dígito
+    // Obter estatísticas do serviço independente
+    const statistics = historyData.stats; // Já estão no formato correto
     
-    // Recentes primeiro
+    // Pegar os últimos 10 dígitos
     const recentDigits = [...historyData.lastDigits].slice(0, 10);
     
     return {
       statistics,
-      totalCount: historyData.totalCount,
+      totalCount: historyData.totalSamples,
       recentDigits
     };
   };

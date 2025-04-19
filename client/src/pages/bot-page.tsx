@@ -14,6 +14,7 @@ import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
 import { DigitBarChart } from "@/components/ui/DigitBarChart";
+import { IndependentDigitBarChart } from "@/components/IndependentDigitBarChart";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";
@@ -1760,7 +1761,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <span className="text-sm text-gray-400">Atualização em tempo real</span>
               </div>
               <div className="p-4" style={{ height: '450px' }}>
-                <DigitBarChart symbol="R_100" className="h-full w-full" />
+                {/* Usando o componente IndependentDigitBarChart que tem conexão independente */}
+                <IndependentDigitBarChart symbol="R_100" className="h-full w-full" showControls={false} />
               </div>
             </div>
           </div>
