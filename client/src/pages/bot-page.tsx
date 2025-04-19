@@ -13,7 +13,7 @@ import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
-import { DigitsFixedDisplay } from "@/components/DigitsFixedDisplay";
+
 import { NewDigitBarChart } from "@/components/ui/NewDigitBarChart";
 import derivApiService from "@/services/derivApiService";
 import { oauthDirectService } from "@/services/oauthDirectService";
@@ -1758,10 +1758,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             <div className="bg-[#13203a] rounded-lg p-5 border border-[#2a3756]">
               <h2 className="text-lg font-semibold text-white mb-4">Histórico de Mercado</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Componente que exibe os últimos 500 ticks do mercado */}
-                <DigitsFixedDisplay symbol="R_100" />
-                
+              <div className="grid grid-cols-1 gap-4">
                 {/* Componente de gráfico de barras para visualizar distribuição dos dígitos */}
                 <NewDigitBarChart symbol="R_100" className="h-full" />
               </div>
