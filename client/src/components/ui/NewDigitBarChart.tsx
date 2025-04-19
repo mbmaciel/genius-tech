@@ -301,8 +301,8 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                   
                   // Atualizar estado local do indicador visual
                   setShowLastDigit(true);
-                  setLastDigit(digit); // Atualizar o último dígito no estado
-                  setLastQuote(quote); // Atualizar a última cotação no estado
+                  // Não estamos usando setLastDigit e setLastQuote diretamente
+                  // pois esses valores vêm do hook useDerivTicks
                   
                   // Limpar timeout anterior
                   if (lastDigitTimeoutRef.current) {
@@ -352,9 +352,16 @@ export function NewDigitBarChart({ symbol = "R_100", className = "" }: DigitBarC
                     
                     // Persistir em sessionStorage de forma segura
                     try {
-                      console.log(`[NewDigitBarChart] Atualizando histórico de dígitos: novo=${digit}, total=${currentDigits.length}`);
-                      console.log(`[NewDigitBarChart] Primeiros dígitos do histórico: ${currentDigits.slice(0, 5).join('-')}`);
-                      sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(currentDigits));
+                      // Usar uma cópia independente para evitar problemas de referência
+                      const digitsCopy = [...currentDigits];
+                      console.log(`[NewDigitBarChart] Atualizando histórico com novo dígito ${digit}, total agora: ${digitsCopy.length}`);
+                      
+                      // Persistir apenas depois de confirmar que temos dados válidos
+                      if (digitsCopy.length > 0 && digitsCopy.every(d => Number.isInteger(d) && d >= 0 && d <= 9)) {
+                        sessionStorage.setItem(`digitHistory_${symbol}`, JSON.stringify(digitsCopy));
+                      } else {
+                        console.warn('[NewDigitBarChart] Tentativa de salvar dados inválidos evitada.');
+                      }
                     } catch (storageError) {
                       console.error('[NewDigitBarChart] Erro ao salvar no sessionStorage:', storageError);
                     }
