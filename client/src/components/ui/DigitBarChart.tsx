@@ -53,7 +53,7 @@ export function DigitBarChart({ symbol = 'R_100', className = '' }: DigitBarChar
       
       if (history && history.history && Array.isArray(history.history.prices)) {
         // Extrair apenas o último dígito de cada preço
-        const historyDigits = history.history.prices.map(price => {
+        const historyDigits = history.history.prices.map((price: number) => {
           // Converter para string, pegar o último caractere e converter de volta para número
           const priceStr = price.toString();
           return parseInt(priceStr.charAt(priceStr.length - 1));

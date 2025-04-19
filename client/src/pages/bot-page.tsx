@@ -1753,7 +1753,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               />
             </div>
             
-            {/* A seção de Histórico do Mercado foi removida aqui */}
+            {/* Gráfico de barras de dígitos do R_100 */}
+            <div className="bg-[#13203a] rounded-lg border border-[#2a3756]">
+              <div className="px-4 py-3 border-b border-[#2a3756] flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-white">Distribuição de Dígitos</h2>
+              </div>
+              <DigitBarChart symbol="R_100" className="p-4" />
+            </div>
           </div>
         </div>
       </div>
