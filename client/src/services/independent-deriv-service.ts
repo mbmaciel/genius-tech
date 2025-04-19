@@ -277,9 +277,9 @@ class IndependentDerivService {
       return;
     }
     
-    // Atualizar lista de últimos dígitos (limitar a 500)
+    // Atualizar lista de últimos dígitos (assegurar que manteremos exatamente 500)
     history.lastDigits.push(lastDigit);
-    if (history.lastDigits.length > 500) {
+    while (history.lastDigits.length > 500) {
       history.lastDigits.shift();
     }
     
