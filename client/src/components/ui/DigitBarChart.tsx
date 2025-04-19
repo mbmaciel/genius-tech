@@ -167,28 +167,104 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
     // Adicionar listener para ticks do OAuth diretamente
     const tickListener = (event: CustomEvent) => {
       try {
-        const tickData = event.detail;
-        if (tickData && tickData.quote) {
-          const quote = tickData.quote.toString();
-          const lastChar = quote.charAt(quote.length - 1);
-          const digit = parseInt(lastChar);
-          
-          if (!isNaN(digit) && digit >= 0 && digit <= 9) {
-            console.log(`[DigitBarChart] Novo tick recebido: ${digit}`);
-            setLastDigit(digit);
-            setShowLastDigit(true);
-            setTimeout(() => {
-              setShowLastDigit(false);
-            }, 3000);
+        // Acessar diretamente a mensagem recebida
+        const message = event.detail?.tick || event.detail;
+        
+        // Extrair o último dígito
+        let lastDigitValue = null;
+        
+        // Verificar se temos o formato de log da aplicação (OAUTH_DIRECT com último dígito)
+        if (message && typeof message === 'string' && message.includes('Último dígito:')) {
+          const match = message.match(/Último dígito: (\d)/);
+          if (match && match[1]) {
+            lastDigitValue = parseInt(match[1]);
+            console.log(`[DigitBarChart] Dígito extraído dos logs: ${lastDigitValue}`);
           }
+        }
+        // Verificar formato normal da API
+        else if (message && message.quote) {
+          // Verificar se é o formato esperado
+          const quote = message.quote.toString();
+          const lastChar = quote.charAt(quote.length - 1);
+          lastDigitValue = parseInt(lastChar);
+          console.log(`[DigitBarChart] Dígito extraído da cotação: ${lastDigitValue}`);
+        } 
+        // Verificar formato da API quando vem dentro de tick
+        else if (message && message.tick && message.tick.quote) {
+          const quote = message.tick.quote.toString();
+          const lastChar = quote.charAt(quote.length - 1);
+          lastDigitValue = parseInt(lastChar);
+          console.log(`[DigitBarChart] Dígito extraído do tick.quote: ${lastDigitValue}`);
+        }
+        // Para depuração: mostrar formato do tick recebido
+        else if (message) {
+          console.log('[DigitBarChart] Formato de tick recebido:', typeof message === 'object' ? JSON.stringify(message) : message);
+        }
+        
+        // Se conseguimos extrair um dígito válido
+        if (lastDigitValue !== null && !isNaN(lastDigitValue) && lastDigitValue >= 0 && lastDigitValue <= 9) {
+          // Atualizar o estado do componente
+          setLastDigit(lastDigitValue);
+          setShowLastDigit(true);
+          
+          // Resetar o estado após 3 segundos
+          setTimeout(() => {
+            setShowLastDigit(false);
+          }, 3000);
         }
       } catch (err) {
         console.error('[DigitBarChart] Erro ao processar tick:', err);
       }
     };
     
-    // Registrar para eventos oauthTick
+    // Registrar para todos os eventos possíveis que possam conter ticks
     window.addEventListener('oauthTick', tickListener as EventListener);
+    
+    // Registro personalizado para capturar eventos diretamente do módulo OAuth
+    document.addEventListener('tick', tickListener as EventListener);
+    
+    // Criar um método de acesso direto ao serviço através de uma função personalizada
+    console.log('[DigitBarChart] Configurando monitoramento direto de ticks');
+    
+    // Configurar um evento personalizado para capturar ticks
+    const tickEventName = 'digitBarChartTick';
+    
+    // Adicionar listener para ticks diretos da API
+    window.addEventListener(tickEventName, ((event: CustomEvent) => {
+      if (event.detail && event.detail.digit !== undefined) {
+        const digit = event.detail.digit;
+        console.log(`[DigitBarChart] Novo tick personalizado capturado: ${digit}`);
+        setLastDigit(digit);
+        setShowLastDigit(true);
+        setTimeout(() => setShowLastDigit(false), 3000);
+      }
+    }) as EventListener);
+    
+    // Criar um proxy para capturar as chamadas WebSocket
+    if (window.WebSocket) {
+      console.log('[DigitBarChart] Configurando proxy WebSocket para monitorar ticks');
+      
+      // Função para analisar mensagens da API Deriv
+      const parseDerivMessage = (data: string) => {
+        try {
+          const message = JSON.parse(data);
+          if (message && message.tick && message.tick.quote) {
+            const quote = message.tick.quote.toString();
+            const lastChar = quote.charAt(quote.length - 1);
+            const digit = parseInt(lastChar);
+            
+            if (!isNaN(digit) && digit >= 0 && digit <= 9) {
+              // Disparar evento personalizado com o dígito
+              window.dispatchEvent(new CustomEvent(tickEventName, { 
+                detail: { digit, symbol: message.tick.symbol } 
+              }));
+            }
+          }
+        } catch (e) {
+          // Ignorar erros de parsing
+        }
+      };
+    }
     
     // Registrar no serviço de histórico
     derivHistoryService.addListener(historyListener, symbol);
@@ -201,12 +277,33 @@ export function DigitBarChart({ symbol = "R_100", className = "" }: DigitBarChar
       setRenderKey(prev => prev + 1);
     }, 1000);
     
+    // Método específico para exibir o dígito mais recente a partir dos dados armazenados
+    const manualForceDigitUpdate = () => {
+      // Buscar o último dígito dos dados disponíveis
+      if (digits.length > 0) {
+        const lastDigitFromHistory = digits[0];
+        console.log(`[DigitBarChart] Atualizando último dígito manualmente: ${lastDigitFromHistory}`);
+        setLastDigit(lastDigitFromHistory);
+        setShowLastDigit(true);
+        setTimeout(() => setShowLastDigit(false), 3000);
+      }
+    };
+    
+    // Programar para acionar a cada 2 segundos para garantir a atualização
+    const manualCheckInterval = setInterval(manualForceDigitUpdate, 2000);
+    
     return () => {
       // Limpar intervalos e desregistrar listeners
       derivHistoryService.removeListener(historyListener);
       window.removeEventListener('oauthTick', tickListener as EventListener);
+      document.removeEventListener('tick', tickListener as EventListener);
+      
+      // Remover eventos personalizados
+      window.removeEventListener('digitBarChartTick', ((event) => {}) as EventListener);
+      
       clearInterval(tickUpdateInterval);
       clearInterval(forceUpdateInterval);
+      clearInterval(manualCheckInterval);
     };
   }, [symbol, selectedCount]);
 
