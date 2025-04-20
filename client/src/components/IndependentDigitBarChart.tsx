@@ -154,140 +154,113 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
-  // Efeito para estabilizar renderização em configurações menores (25, 50 ticks)
+  // Sistema único de atualização com estabilidade para todos os modos
   useEffect(() => {
-    // Esta função garante que não haverá atualizações muito frequentes
-    // quando usamos configurações de poucos ticks (25, 50)
-    if (parseInt(selectedCount, 10) <= 50) {
-      console.log(`[IndependentDigitBarChart] Usando modo de estabilização para ${selectedCount} ticks`);
-      
-      // Referência para verificar se componente ainda está montado
-      const isMounted = { current: true };
-      
-      // Usar um timer dedicado para limitar a taxa de atualização
-      const smallTicksUpdateInterval = setInterval(() => {
-        // Verificar se o componente ainda está montado antes de atualizar
-        if (!isMounted.current) return;
-        
-        try {
-          // Forçar uma atualização estável dos dados
-          const tickCount = parseInt(selectedCount, 10);
-          const currentData = independentDerivService.getDigitHistory(symbol, tickCount);
-          
-          // Verificar se temos dados para processar
-          if (currentData && currentData.stats && currentData.stats.length > 0) {
-            // Fazer uma cópia completa para evitar referências
-            const stableHistory = {
-              symbol: currentData.symbol,
-              stats: currentData.stats.map(stat => ({...stat})),
-              lastDigits: [...currentData.lastDigits],
-              totalSamples: currentData.totalSamples,
-              lastUpdated: new Date()
-            };
-            
-            // Atualizar os estados de forma mais controlada
-            if (isMounted.current) {
-              setDigitHistory(stableHistory);
-              setLastDigits([...currentData.lastDigits].slice(-10).reverse());
-              setRenderVersion(prev => prev + 1);
-            }
-          }
-        } catch (err) {
-          console.error('[IndependentDigitBarChart] Erro no modo de estabilização:', err);
-        }
-      }, 500); // Atualizar a cada 500ms (mais lento e estável)
-      
-      return () => {
-        isMounted.current = false;
-        clearInterval(smallTicksUpdateInterval);
-      };
-    }
-  }, [selectedCount, symbol]);
-  
-  // Contador de versão para forçar re-renderização completa
-  const [renderVersion, setRenderVersion] = useState<number>(0);
-  
-  // Atualizar dados periodicamente
-  useEffect(() => {
-    // Intervalo rápido para melhor sensação de tempo real
-    const REFRESH_INTERVAL = 200; // ms - mais rápido para melhor responsividade
-    let interval: NodeJS.Timeout;
+    console.log(`[IndependentDigitBarChart] Configurando sistema de atualização para ${selectedCount} ticks`);
     
     // Referência para verificar se componente ainda está montado
     const isMounted = { current: true };
     
-    // Função que força atualização completa dos dados e re-renderização
-    const forceRender = () => {
+    // Diferentes intervalos baseados no número de ticks selecionados
+    let UPDATE_INTERVAL = 200; // padrão - mais rápido para 100 ticks
+    
+    // Ajustar intervalo com base no número de ticks
+    if (parseInt(selectedCount, 10) <= 50) {
+      UPDATE_INTERVAL = 600; // mais lento para poucos ticks (25-50)
+    } else if (parseInt(selectedCount, 10) >= 200) {
+      UPDATE_INTERVAL = 400; // médio para muitos ticks (200+)
+    }
+    
+    console.log(`[IndependentDigitBarChart] Configurado intervalo de ${UPDATE_INTERVAL}ms para ${selectedCount} ticks`);
+    
+    // Último timestamp de atualização para evitar atualizações muito próximas
+    let lastUpdateTimestamp = 0;
+    
+    // Cache de dados para evitar atualizações desnecessárias
+    let dataCache: DigitHistory | null = null;
+    
+    // Função de atualização unificada
+    const updateChart = () => {
       try {
         if (!symbol || !isMounted.current) return;
         
-        // Obter a quantidade de ticks selecionada
+        // Verificar tempo entre atualizações
+        const now = Date.now();
+        if (now - lastUpdateTimestamp < UPDATE_INTERVAL/2) {
+          return; // Skip se muito recente
+        }
+        
+        // Obter a quantidade de ticks selecionada (manter como número)
         const tickCount = parseInt(selectedCount, 10);
         
-        // Log para debug para verificar se a seleção está sendo utilizada corretamente
-        console.log(`[IndependentDigitBarChart] Renderizando com ${tickCount} ticks selecionados`);
-        
-        // Obter os dados mais recentes do serviço WebSocket com a quantidade selecionada
+        // Obter dados atualizados
         const currentData = independentDerivService.getDigitHistory(symbol, tickCount);
         
-        if (currentData && currentData.stats && currentData.stats.length > 0) {
-          // Incrementar contador de versão para forçar re-renderização completa
-          // A cada 100 atualizações, resetamos para 1 para evitar números muito grandes
-          const nextVersion = renderVersion >= 10000 ? 1 : Math.max(renderVersion, 0) + 1;
-          
-          // Forçar criação de novos objetos com estrutura idêntica
-          // Isso garante que o React detecte as mudanças e atualize a UI
-          const freshStats = currentData.stats.map(stat => ({
+        // Verificar se os dados são válidos e completos
+        if (!currentData || !currentData.stats || currentData.stats.length !== 10) {
+          console.warn('[IndependentDigitBarChart] Dados incompletos recebidos');
+          return;
+        }
+        
+        // Verificar se houve alteração nos dados (para evitar renderizações desnecessárias)
+        if (dataCache && 
+            JSON.stringify(dataCache.stats.map(s => s.percentage)) === 
+            JSON.stringify(currentData.stats.map(s => s.percentage)) &&
+            dataCache.lastDigits.length === currentData.lastDigits.length) {
+          return; // Pular se os dados são idênticos
+        }
+        
+        // Atualizar cache
+        dataCache = currentData;
+        lastUpdateTimestamp = now;
+        
+        // Criar uma cópia completa dos dados para garantir que React detecte as mudanças
+        const newDigitHistory = {
+          symbol: currentData.symbol,
+          stats: currentData.stats.map(stat => ({
             digit: stat.digit,
             count: stat.count,
             percentage: stat.percentage
-          }));
+          })),
+          lastDigits: [...currentData.lastDigits],
+          totalSamples: currentData.totalSamples,
+          lastUpdated: new Date()
+        };
+        
+        // Atualizar estados de forma atômica
+        if (isMounted.current) {
+          console.log(`[IndependentDigitBarChart] Atualizando gráfico com distribuição: ${
+            newDigitHistory.stats.map(s => `${s.digit}:${s.percentage}%`).join(', ')
+          }`);
           
-          // Sempre atualizar se temos estatísticas (para garantir que o gráfico esteja atualizado)
-          // Criar um objeto completamente novo sem referências ao anterior
-          const newHistory = {
-            symbol: currentData.symbol,
-            stats: freshStats,
-            lastDigits: [...currentData.lastDigits],
-            totalSamples: currentData.totalSamples,
-            lastUpdated: new Date()
-          };
-          
-          // Define os novos estados (cada um separadamente para garantir a atualização)
-          setDigitHistory(newHistory);
+          // Atualizar estados de forma controlada
+          setDigitHistory(newDigitHistory);
           setLastDigits([...currentData.lastDigits].slice(-10).reverse());
+          setRenderVersion(prev => (prev >= 1000 ? 1 : prev + 1));
           
-          // Forçar a re-renderização completa
-          setRenderVersion(nextVersion);
-          
-          // Log mais visível para debug (a cada 10 atualizações para não poluir o console)
-          if (nextVersion % 10 === 0) {
-            console.log(`[DigitBarChart] ▶▶▶ Atualização v${nextVersion}:`, 
-              freshStats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
-          }
-          
-          // Atualizar o estado de carregamento se necessário
-          if (loading) {
-            setLoading(false);
-          }
+          // Desativar loading se estiver ativo
+          if (loading) setLoading(false);
         }
       } catch (err) {
-        console.error('[DigitBarChart] Erro ao atualizar:', err);
+        console.error('[IndependentDigitBarChart] Erro na atualização:', err);
       }
     };
     
-    // Executar imediatamente a primeira vez
-    forceRender();
+    // Executar primeira atualização imediatamente
+    updateChart();
     
     // Configurar intervalo de atualização
-    interval = setInterval(forceRender, REFRESH_INTERVAL);
+    const interval = setInterval(updateChart, UPDATE_INTERVAL);
     
-    // Limpar intervalo ao desmontar
+    // Cleanup
     return () => {
       isMounted.current = false;
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [symbol, selectedCount]); // Adicionado selectedCount para reagir a mudanças neste valor
+  }, [symbol, selectedCount]); // Dependências: símbolo e número de ticks
+  
+  // Versão de renderização para garantir refresh completo
+  const [renderVersion, setRenderVersion] = useState<number>(0);
   
   // Determinar a cor da barra com base no dígito (para seguir exatamente o modelo da imagem)
   const getBarColor = (digit: number): string => {
@@ -457,9 +430,9 @@ export function IndependentDigitBarChart({
                 const isHighFrequency = stat.percentage >= 15;
                 const isLowFrequency = stat.percentage <= 5;
                 
-                // Calcular a altura visual baseada no percentual (com um mínimo visual)
-                // Usamos um divisor menor para barras maiores, mais visíveis
-                const barHeight = Math.max(5, (stat.percentage / 6) * 100); 
+                // Calcular a altura visual diretamente proporcional à porcentagem (escala linear simples)
+                // Limitada entre 5% e 100% para visibilidade. 50% = metade da altura disponível
+                const barHeight = Math.max(5, Math.min(100, stat.percentage * 2));
                 
                 // Determinar a cor da barra baseada em características do dígito
                 let barColor;
@@ -492,9 +465,13 @@ export function IndependentDigitBarChart({
                       backgroundColor: barColor,
                       width: '100%',
                       minHeight: '15px',
-                      transition: parseInt(selectedCount, 10) <= 50 
-                        ? 'height 0.5s ease-in-out' // Transição mais lenta e suave para 25/50 ticks
-                        : 'height 0.15s ease-out', // Transição suave mas rápida para outros casos
+                      transition: `height ${
+                        parseInt(selectedCount, 10) <= 50 
+                          ? '0.5s cubic-bezier(0.4, 0, 0.2, 1)' // Transição mais lenta e suave para 25/50 ticks
+                          : parseInt(selectedCount, 10) >= 200
+                            ? '0.3s ease-out' // Média suavidade para 200+ ticks
+                            : '0.15s ease-in-out' // Rápida mas suave para 100 ticks
+                      }`,
                       borderRadius: '2px 2px 0 0',
                       boxShadow: isHighFrequency || isLowFrequency ? '0 0 5px 0 rgba(255,255,255,0.2)' : 'none'
                     }}></div>
