@@ -424,8 +424,8 @@ export function IndependentDigitBarChart({
       
       {/* Gráfico de barras */}
       <div className="p-6">
-        <div className="flex items-end h-52 mb-8 relative">
-          {/* Eixo Y (percentuais) */}
+        <div className="flex items-end h-72 mb-8 relative">
+          {/* Eixo Y (percentuais) - com escala progressiva para visualizar melhor diferenças pequenas */}
           <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 pr-2">
             <div>50%</div>
             <div>40%</div>
@@ -452,9 +452,9 @@ export function IndependentDigitBarChart({
                 const isHighFrequency = stat.percentage >= 15;
                 const isLowFrequency = stat.percentage <= 5;
                 
-                // Calcular altura visual para escala de 0-50% (como na escala do eixo Y)
-                // Dobrar a porcentagem para que 10% = 20% da altura visual e assim por diante
-                const barHeight = Math.max(3, stat.percentage * 2);
+                // Escala o percentual para ser mais visível no eixo Y que vai até 50% 
+                // Multiplica por 2 para que 25% ocupe 50% da altura do gráfico
+                const barHeight = Math.max(4, stat.percentage * 2);
                 
                 // Determinar a cor da barra baseada em características do dígito
                 let barColor;

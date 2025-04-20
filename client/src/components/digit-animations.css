@@ -22,7 +22,8 @@
     opacity: 0.8;
   }
   100% {
-    height: var(--target-height, 100%);
+    /* Mantém a altura exata do valor percentual */
+    height: var(--target-height, inherit);
     opacity: 1;
     transform: scaleY(1);
   }
