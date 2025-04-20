@@ -454,23 +454,18 @@ export function IndependentDigitBarChart({
                 
                 // Escala o percentual de forma estritamente proporcional, relacionando com a escala máxima do eixo Y (50%)
                 // Se o percentual máximo for 50%, o valor é exatamente proporcional
-                // Para percentuais menores, garantimos visibilidade mínima de 2% para zero
-                const MAX_SCALE = 50; // Escala máxima do eixo Y
+                // Para barras idênticas à imagem, padronizamos a escala máxima em 40
+                const MAX_SCALE = 40; // Escala máxima do eixo Y (máximo de 40%)
                 const barHeight = stat.percentage === 0 ? 2 : (stat.percentage / MAX_SCALE) * 100;
                 
-                // Determinar a cor da barra baseada em características do dígito
-                let barColor;
-                if (isHighFrequency) {
-                  barColor = '#ff444f'; // Vermelho para alta frequência
-                } else if (isLowFrequency) {
-                  barColor = '#00e5b3'; // Verde para baixa frequência
-                } else {
-                  barColor = stat.digit % 2 === 0 ? '#3a96dd' : '#f87537'; // Azul para pares, laranja para ímpares
-                }
+                // Definir cores exatas conforme a imagem
+                // Dígitos pares em verde, ímpares em vermelho
+                const barColor = stat.digit % 2 === 0 
+                  ? '#00c200' // Verde para dígitos pares (0, 2, 4, 6, 8)
+                  : '#ff0000'; // Vermelho para dígitos ímpares (1, 3, 5, 7, 9)
                 
-                // Texto destacado para valores extremos
-                const percentText = isHighFrequency ? 'text-[#ff444f] font-bold' : 
-                                   isLowFrequency ? 'text-[#00e5b3] font-bold' : 'text-white';
+                // Texto em branco mais fino (exatamente como mostrado na imagem)
+                const percentText = 'text-white';
                 
                 return (
                   <div 
@@ -499,19 +494,15 @@ export function IndependentDigitBarChart({
                               : '0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67)' // Efeito otimizado para 100 ticks
                         }`,
                         borderRadius: '3px 3px 0 0',
-                        boxShadow: isHighFrequency || isLowFrequency 
-                          ? `0 0 8px 0 ${barColor}80, inset 0 0 3px 0 rgba(255,255,255,0.3)` 
-                          : 'inset 0 0 2px 0 rgba(255,255,255,0.2)',
+                        // Sem sombra ou efeitos para corresponder exatamente à imagem
+                        boxShadow: 'none',
                         transformOrigin: 'bottom',
                         animationDuration: '1.5s'
                       }}
                     ></div>
                     
                     {/* Dígito abaixo da barra - sempre visível com fundo */}
-                    <div className={`mt-2 text-center text-sm font-medium z-10 relative bg-[#0e1a2e] px-1.5 rounded-sm ${
-                      isHighFrequency ? 'text-[#ff444f]' : 
-                      isLowFrequency ? 'text-[#00e5b3]' : 'text-white'
-                    }`}>
+                    <div className="mt-2 text-center text-sm font-medium z-10 relative bg-[#0e1a2e] px-1.5 rounded-sm text-white">
                       {stat.digit}
                     </div>
                   </div>
@@ -556,9 +547,10 @@ export function IndependentDigitBarChart({
             <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2 z-10 relative">
               {lastDigits.map((digit, index) => {
                 // Determinar a cor baseada no dígito, igual às barras
+                // Dígitos pares em verde, ímpares em vermelho (igual às barras)
                 const textColor = digit % 2 === 0 
-                  ? 'text-[#00e5b3]' // Verde para pares
-                  : 'text-[#ff444f]'; // Vermelho para ímpares
+                  ? 'text-[#00c200]' // Verde para pares (0, 2, 4, 6, 8)
+                  : 'text-[#ff0000]'; // Vermelho para ímpares (1, 3, 5, 7, 9)
                 
                 return (
                   <div 
