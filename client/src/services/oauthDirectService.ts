@@ -867,12 +867,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
 
+      // Garantir que estamos usando o valor do usuário para porcentagem de entrada
+      // Se userConfig existir, devemos usar APENAS o valor dele, sem fallback
+      const userDefinedPercentage = userConfig?.porcentagemParaEntrar;
+      
+      console.log(`[OAUTH_DIRECT] Valor de porcentagem definido pelo usuário:`, userDefinedPercentage);
+      
+      // Usar apenas o valor configurado pelo usuário, para respeitar estritamente sua configuração
       const entryResult = evaluateEntryConditions(
         strategyId,
         digitStats,
         {
-          // Primeiro prioriza configuração do usuário, depois usa qualquer configuração da estratégia se disponível
-          porcentagemParaEntrar: userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage,
+          // Usar APENAS o valor do usuário, sem fallback para a estratégia
+          porcentagemParaEntrar: userDefinedPercentage,
           martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
           usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2 // Usar martingale após 2 perdas consecutivas
         }

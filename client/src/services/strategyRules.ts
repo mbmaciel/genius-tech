@@ -18,8 +18,17 @@ export type ContractType = 'CALL' | 'PUT' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITD
  */
 export function evaluateAdvanceStrategy(
   digitStats: DigitStat[],
-  entryPercentage: number
+  entryPercentage: number | undefined
 ): { shouldEnter: boolean; contractType: ContractType; message: string } {
+  // Se a porcentagem não estiver definida pelo usuário, não executar operações
+  if (entryPercentage === undefined) {
+    return { 
+      shouldEnter: false, 
+      contractType: 'CALL', 
+      message: 'Configuração de porcentagem não definida pelo usuário. Operação não permitida.' 
+    };
+  }
+  
   // Extrair estatísticas para os dígitos 0 e 1
   const digit0 = digitStats.find(stat => stat.digit === 0);
   const digit1 = digitStats.find(stat => stat.digit === 1);
@@ -33,16 +42,18 @@ export function evaluateAdvanceStrategy(
     };
   }
   
-  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido
+  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
   const digit0Percentage = Math.round(digit0.percentage);
   const digit1Percentage = Math.round(digit1.percentage);
   
-  const shouldEnter = digit0Percentage <= entryPercentage && digit1Percentage <= entryPercentage;
+  // Usar o valor EXATO definido pelo usuário
+  const userPercentage = Number(entryPercentage);
+  const shouldEnter = digit0Percentage <= userPercentage && digit1Percentage <= userPercentage;
   
-  // Determinar mensagem de feedback
+  // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 
-    ? `ADVANCE: Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${entryPercentage}%`
-    : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${entryPercentage}%`;
+    ? `ADVANCE: Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${userPercentage}% (valor definido pelo usuário)`
+    : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${userPercentage}% (valor definido pelo usuário)`;
     
   return { 
     shouldEnter, 

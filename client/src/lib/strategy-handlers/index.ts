@@ -103,13 +103,17 @@ export function evaluateEntryConditions(
   
   // Aplicar regras específicas para cada estratégia
   if (normalizedId.includes('advance')) {
-    // Obter porcentagem limite da configuração ou usar padrão
-    // O valor de porcentagem DEVE SER definido pelo usuário, nunca usar valor fixo
-    const entryPercentage = strategyConfig?.porcentagemParaEntrar 
-      ? parseFloat(strategyConfig.porcentagemParaEntrar.toString()) 
-      : 70; // Valor padrão de 70% caso não haja configuração - preferência por valor mais conservador
+    // Obter porcentagem limite da configuração
+    // IMPORTANTE: O valor deve vir EXCLUSIVAMENTE da configuração do usuário
+    // Se não houver configuração, a operação não é permitida
+    let entryPercentage = undefined;
     
-    // Removido log para evitar confusão com o valor exibido
+    if (strategyConfig?.porcentagemParaEntrar !== undefined) {
+      entryPercentage = parseFloat(strategyConfig.porcentagemParaEntrar.toString());
+      console.log(`[STRATEGY_HANDLER] Usando valor definido pelo usuário para porcentagem de entrada: ${entryPercentage}%`);
+    } else {
+      console.log(`[STRATEGY_HANDLER] ALERTA: Configuração de porcentagem não encontrada. Operação não será permitida.`);
+    }
     
     const result = evaluateAdvanceStrategy(digitStats, entryPercentage);
     shouldEnter = result.shouldEnter;
