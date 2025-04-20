@@ -59,9 +59,13 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     }
     
     // Verificar se temos configuração de parcelas martingale
+    // IMPORTANTE: estratégias Iron Over e Iron Under NÃO usam parcelas martingale
+    // Elas usam um conceito diferente de "martingale após X perdas"
+    const isIronStrategy = strategyId.toLowerCase() === 'ironover' || strategyId.toLowerCase() === 'ironunder';
+    
     const hasParcelasMartingale = 
-      userConfig?.parcelasMartingale || 
-      strategy?.config?.maxMartingaleLevel;
+      !isIronStrategy && 
+      (userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel);
     
     // Mapeamento dos comandos específicos para cada estratégia
     switch (strategyId.toLowerCase()) {
@@ -108,33 +112,25 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
           ? `ENTRADA MANUAL OVER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
           : "ENTRADA MANUAL OVER";
       case 'ironover':
-        // Para Iron Over, adicionar também o parâmetro "Usar Martingale Após X Loss"
+        // Para Iron Over, adicionar apenas o parâmetro "Usar Martingale Após X Loss"
+        // IMPORTANTE: IRON Over NÃO usa o conceito de "Parcelas Martingale"
         let ironOverCommand = "ENTRADA IRON OVER";
         
-        // Adicionar parcelas martingale se configurado
-        if (hasParcelasMartingale) {
-          ironOverCommand += ` | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`;
-        }
-        
-        // Adicionar informação sobre "USAR MARTINGALE APÓS X LOSS"
+        // Adicionar APENAS informação sobre "USAR MARTINGALE APÓS X LOSS"
         if (userConfig?.usarMartingaleAposXLoss !== undefined) {
-          ironOverCommand += ` | USAR MARTINGALE APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
+          ironOverCommand += ` | MULTIPLICAR APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
         }
         
         return ironOverCommand;
         
       case 'ironunder':
-        // Para Iron Under, adicionar também o parâmetro "Usar Martingale Após X Loss"
+        // Para Iron Under, adicionar apenas o parâmetro "Usar Martingale Após X Loss" 
+        // IMPORTANTE: IRON Under NÃO usa o conceito de "Parcelas Martingale"
         let ironUnderCommand = "ENTRADA IRON UNDER";
         
-        // Adicionar parcelas martingale se configurado
-        if (hasParcelasMartingale) {
-          ironUnderCommand += ` | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`;
-        }
-        
-        // Adicionar informação sobre "USAR MARTINGALE APÓS X LOSS"
+        // Adicionar APENAS informação sobre "USAR MARTINGALE APÓS X LOSS"
         if (userConfig?.usarMartingaleAposXLoss !== undefined) {
-          ironUnderCommand += ` | USAR MARTINGALE APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
+          ironUnderCommand += ` | MULTIPLICAR APÓS: ${userConfig.usarMartingaleAposXLoss} LOSS`;
         }
         
         return ironUnderCommand;
