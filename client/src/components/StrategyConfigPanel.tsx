@@ -82,9 +82,24 @@ const createCompleteConfig = (strategy: BinaryBotStrategy): StrategyConfiguratio
   
   // Advance: Porcentagem para Entrar, Valor Inicial, Martingale, Meta, Limite de Perda
   if (strategyId.includes('advance')) {
+    // Verificar se já existe uma configuração salva
+    const savedConfig = localStorage.getItem(`strategy_config_${strategy.id}`);
+    let userValue = null;
+    
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig);
+        userValue = parsed.porcentagemParaEntrar;
+        console.log("[STRATEGY_CONFIG] Carregando valor salvo para porcentagem:", userValue);
+      } catch (err) {
+        console.error("[STRATEGY_CONFIG] Erro ao carregar configuração salva:", err);
+      }
+    }
+    
+    // Se tiver valor salvo, use-o; caso contrário, deixe em branco para forçar o usuário a configurar
     return {
       ...baseConfig,
-      porcentagemParaEntrar: 70
+      porcentagemParaEntrar: userValue !== null ? userValue : undefined
     };
   }
   
@@ -110,7 +125,9 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     martingale: 1.5,
     valorAposVencer: 0.35,
     parcelasMartingale: 3,
-    porcentagemParaEntrar: 70,
+    // Removido valor fixo padrão para estratégia ADVANCE
+    // O usuário deve configurar explicitamente
+    porcentagemParaEntrar: undefined,
     usarMartingaleAposXLoss: 2
   });
 
@@ -288,7 +305,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
                 type="number"
                 min="0"
                 max="100"
-                value={config.porcentagemParaEntrar?.toString() || "70"}
+                value={config.porcentagemParaEntrar?.toString() || ""}
                 onChange={(e) => handleChange('porcentagemParaEntrar', e.target.value)}
                 className="bg-[#0d1525] border-gray-700"
               />
