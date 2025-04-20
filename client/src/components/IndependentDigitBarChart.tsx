@@ -452,10 +452,11 @@ export function IndependentDigitBarChart({
                 const isHighFrequency = stat.percentage >= 15;
                 const isLowFrequency = stat.percentage <= 5;
                 
-                // Escala o percentual para ser mais visível no eixo Y que vai até 50% 
-                // Multiplica por 2 para que 25% ocupe 50% da altura do gráfico
-                // Valor mínimo de 5% para garantir visibilidade mesmo com 0% ou valores muito baixos
-                const barHeight = stat.percentage === 0 ? 5 : Math.max(5, stat.percentage * 2);
+                // Escala o percentual de forma estritamente proporcional, relacionando com a escala máxima do eixo Y (50%)
+                // Se o percentual máximo for 50%, o valor é exatamente proporcional
+                // Para percentuais menores, garantimos visibilidade mínima de 2% para zero
+                const MAX_SCALE = 50; // Escala máxima do eixo Y
+                const barHeight = stat.percentage === 0 ? 2 : (stat.percentage / MAX_SCALE) * 100;
                 
                 // Determinar a cor da barra baseada em características do dígito
                 let barColor;
@@ -489,7 +490,7 @@ export function IndependentDigitBarChart({
                         height: `${barHeight}%`,
                         backgroundColor: barColor,
                         width: '100%',
-                        minHeight: '15px',
+                        minHeight: '4px',
                         transition: `height ${
                           parseInt(selectedCount, 10) <= 50 
                             ? '0.7s cubic-bezier(0.34, 1.56, 0.64, 1)' // Transição elástica para 25/50 ticks
