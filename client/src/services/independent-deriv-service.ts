@@ -599,8 +599,11 @@ class IndependentDerivService {
     
     // Se não especificar tickCount, retornar o histórico completo
     if (!tickCount || tickCount >= history.lastDigits.length) {
+      console.log(`[INDEPENDENT_DERIV] Retornando histórico completo para ${symbol}: ${history.lastDigits.length} ticks`);
       return { ...history };
     }
+    
+    console.log(`[INDEPENDENT_DERIV] Filtrando histórico para ${symbol} com ${tickCount} ticks dos ${history.lastDigits.length} disponíveis`);
     
     // Caso contrário, filtrar pelos últimos N ticks
     const filteredDigits = history.lastDigits.slice(-tickCount);
@@ -620,6 +623,10 @@ class IndependentDerivService {
       count,
       percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
     }));
+    
+    // Log para debug
+    console.log(`[INDEPENDENT_DERIV] Histórico filtrado: ${totalSamples} ticks, distribuição:`,
+      stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
     
     // Retornar história filtrada
     return {
