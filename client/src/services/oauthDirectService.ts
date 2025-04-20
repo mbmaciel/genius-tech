@@ -740,11 +740,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           // Notificar interface sobre venda bem-sucedida
           this.notifyListeners({
             type: 'contract_finished',
-            contract_id: this.currentContractId,
+            contract_id: this.currentContractId || undefined,
             sold: true,
             profit: data.sell.profit,
             contract_details: {
-              contract_id: this.currentContractId,
+              contract_id: this.currentContractId || 0,
               status: 'sold',
               profit: data.sell.profit
             }
@@ -815,7 +815,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Inicia uma nova operação após o resultado de uma anterior
    */
-  private startNextOperation(isWin: boolean, lastContract: any): void {
+  private async startNextOperation(isWin: boolean, lastContract: any): Promise<void> {
     try {
       // Se temos uma operação agendada, limpar
       if (this.operationTimeout) {
@@ -874,19 +874,38 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       console.log(`[OAUTH_DIRECT] Valor de porcentagem definido pelo usuário:`, userDefinedPercentage);
       
-      // Usar apenas o valor configurado pelo usuário, para respeitar estritamente sua configuração
-      const entryResult = evaluateEntryConditions(
-        strategyId,
-        digitStats,
-        {
-          // Usar APENAS o valor do usuário, sem fallback para a estratégia
-          porcentagemParaEntrar: userDefinedPercentage,
-          martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
-          usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2 // Usar martingale após 2 perdas consecutivas
-        }
-      );
-      
-      console.log(`[OAUTH_DIRECT] Avaliação de entrada para ${strategyId}: ${entryResult.message}`);
+      let entryResult;
+      try {
+        // Obter a estratégia para conseguir o caminho do XML
+        const strategyObj = getStrategyById(strategyId);
+        
+        // Usar apenas o valor configurado pelo usuário, para respeitar estritamente sua configuração
+        entryResult = await evaluateEntryConditions(
+          strategyId,
+          digitStats,
+          {
+            // Usar APENAS o valor do usuário, sem fallback para a estratégia
+            porcentagemParaEntrar: userDefinedPercentage,
+            valorInicial: userConfig?.valorInicial || this.settings.entryValue || 0.35,
+            martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
+            usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2, // Usar martingale após 2 perdas consecutivas
+            metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
+            limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20
+          },
+          strategyObj?.xmlPath // Passar o caminho do XML para usar o parser XML
+        );
+        
+        console.log(`[OAUTH_DIRECT] Avaliação de entrada para ${strategyId}: ${entryResult.message}`);
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao analisar com o parser XML:', error);
+        
+        // Usar estratégia padrão em caso de erro
+        this.operationTimeout = setTimeout(async () => {
+          // Tentar novamente após aguardar mais ticks
+          await this.startNextOperation(isWin, lastContract);
+        }, 5000);
+        return;
+      }
       
       if (entryResult.shouldEnter) {
         // Agendar próxima operação com os parâmetros determinados pela avaliação
@@ -917,9 +936,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         // Se condições não atendidas, aguardar e verificar novamente
         console.log('[OAUTH_DIRECT] Condições de entrada não atendidas, aguardando próximo tick');
         
-        this.operationTimeout = setTimeout(() => {
+        this.operationTimeout = setTimeout(async () => {
           // Tentar novamente após aguardar mais ticks
-          this.startNextOperation(isWin, lastContract);
+          await this.startNextOperation(isWin, lastContract);
         }, 5000);
         
         // Notificar sobre a espera
@@ -2168,23 +2187,81 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // A estratégia agora é sempre uma string simples
       // Derivamos parâmetros do nome e configurações
       try {
-        // Determinar tipo de contrato com base no nome da estratégia
-        if (this.strategyConfig.includes('under') || this.strategyConfig.includes('baixo') || this.strategyConfig.includes('low')) {
-          contractType = 'DIGITUNDER';
-          console.log('[OAUTH_DIRECT] Usando tipo DIGITUNDER baseado no nome da estratégia');
-        } else if (this.strategyConfig.includes('over') || this.strategyConfig.includes('alto') || this.strategyConfig.includes('high')) {
-          contractType = 'DIGITOVER';
-          console.log('[OAUTH_DIRECT] Usando tipo DIGITOVER baseado no nome da estratégia');
-        } else if (this.strategyConfig.includes('diff')) {
-          contractType = 'DIGITDIFF';
-          console.log('[OAUTH_DIRECT] Usando tipo DIGITDIFF baseado no nome da estratégia');
-        } else if (this.strategyConfig.includes('match')) {
-          contractType = 'DIGITMATICH';
-          console.log('[OAUTH_DIRECT] Usando tipo DIGITMATCH baseado no nome da estratégia');
+        // Identificar estratégia atual
+        const strategyId = this.strategyConfig.toLowerCase();
+        const strategyObj = getStrategyById(strategyId);
+        
+        // Buscar configuração salva pelo usuário
+        const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+        let userConfig: any = {};
+        
+        if (userConfigObj) {
+          try {
+            userConfig = JSON.parse(userConfigObj);
+          } catch (err) {
+            console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
+          }
         }
         
-        // Usar settings para previsão
-        if (this.settings.prediction !== undefined) {
+        // Obter as estatísticas dos últimos dígitos para análise
+        const digitStats = this.getDigitStats();
+        
+        // Vamos usar o parser XML se a estratégia tiver um arquivo XML associado
+        if (strategyObj?.xmlPath && digitStats.length > 0) {
+          console.log(`[OAUTH_DIRECT] Analisando primeira entrada com parser XML para estratégia ${strategyId}`);
+          
+          try {
+            // Avaliar entrada com o parser XML
+            const xmlAnalysis = await evaluateEntryConditions(
+              strategyId,
+              digitStats,
+              {
+                // Configurações do usuário
+                porcentagemParaEntrar: userConfig?.porcentagemParaEntrar,
+                valorInicial: userConfig?.valorInicial || this.settings.entryValue || 0.35,
+                martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
+                metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
+                limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20
+              },
+              strategyObj?.xmlPath
+            );
+            
+            // Usar valores do parser XML se disponíveis
+            contractType = xmlAnalysis.contractType as string;
+            if (xmlAnalysis.prediction !== undefined) {
+              prediction = xmlAnalysis.prediction.toString();
+            }
+            
+            console.log(`[OAUTH_DIRECT] Usando configurações do parser XML:`, {
+              contractType,
+              prediction,
+              shouldEnter: xmlAnalysis.shouldEnter,
+              message: xmlAnalysis.message
+            });
+          } catch (error) {
+            console.error(`[OAUTH_DIRECT] Erro ao analisar com parser XML:`, error);
+            // Continuar com as configurações padrão em caso de erro
+          }
+        } else {
+          // Usar lógica anterior para determinar tipo de contrato se não tiver XML
+          // Determinar tipo de contrato com base no nome da estratégia
+          if (this.strategyConfig.includes('under') || this.strategyConfig.includes('baixo') || this.strategyConfig.includes('low')) {
+            contractType = 'DIGITUNDER';
+            console.log('[OAUTH_DIRECT] Usando tipo DIGITUNDER baseado no nome da estratégia');
+          } else if (this.strategyConfig.includes('over') || this.strategyConfig.includes('alto') || this.strategyConfig.includes('high')) {
+            contractType = 'DIGITOVER';
+            console.log('[OAUTH_DIRECT] Usando tipo DIGITOVER baseado no nome da estratégia');
+          } else if (this.strategyConfig.includes('diff')) {
+            contractType = 'DIGITDIFF';
+            console.log('[OAUTH_DIRECT] Usando tipo DIGITDIFF baseado no nome da estratégia');
+          } else if (this.strategyConfig.includes('match')) {
+            contractType = 'DIGITMATICH';
+            console.log('[OAUTH_DIRECT] Usando tipo DIGITMATCH baseado no nome da estratégia');
+          }
+        }
+        
+        // Usar settings para previsão (caso não tenha sido definido pelo parser XML)
+        if (this.settings.prediction !== undefined && prediction === "0") {
           prediction = this.settings.prediction.toString();
           console.log('[OAUTH_DIRECT] Usando previsão das configurações:', prediction);
         }
