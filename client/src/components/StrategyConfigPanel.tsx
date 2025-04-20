@@ -82,24 +82,36 @@ const createCompleteConfig = (strategy: BinaryBotStrategy): StrategyConfiguratio
   
   // Advance: Porcentagem para Entrar, Valor Inicial, Martingale, Meta, Limite de Perda
   if (strategyId.includes('advance')) {
+    console.log("[STRATEGY_CONFIG] ★ Configurando estratégia ADVANCE");
+    
     // Verificar se já existe uma configuração salva
     const savedConfig = localStorage.getItem(`strategy_config_${strategy.id}`);
-    let userValue = null;
+    // SEMPRE ter um valor padrão para porcentagemParaEntrar (10% é um valor conservador)
+    // Em vez de undefined, usar um valor padrão para evitar "CONFIGURAÇÃO PENDENTE"
+    let userValue = 10; // Valor padrão se não houver configuração salva
     
     if (savedConfig) {
       try {
         const parsed = JSON.parse(savedConfig);
-        userValue = parsed.porcentagemParaEntrar;
-        console.log("[STRATEGY_CONFIG] Carregando valor salvo para porcentagem:", userValue);
+        // Só substituir o valor padrão se encontrou um valor válido
+        if (parsed.porcentagemParaEntrar !== undefined && parsed.porcentagemParaEntrar !== null) {
+          userValue = parsed.porcentagemParaEntrar;
+          console.log("[STRATEGY_CONFIG] ★ Carregando valor salvo para porcentagem:", userValue);
+        } else {
+          console.log("[STRATEGY_CONFIG] ★ Valor salvo para porcentagem não encontrado, usando padrão:", userValue);
+        }
       } catch (err) {
-        console.error("[STRATEGY_CONFIG] Erro ao carregar configuração salva:", err);
+        console.error("[STRATEGY_CONFIG] ★ Erro ao carregar configuração salva:", err);
       }
+    } else {
+      console.log("[STRATEGY_CONFIG] ★ Nenhuma configuração salva encontrada, usando valor padrão:", userValue);
     }
     
-    // Se tiver valor salvo, use-o; caso contrário, deixe em branco para forçar o usuário a configurar
+    // IMPORTANTE: Sempre usar um valor numérico para porcentagemParaEntrar
+    // Nunca retorne undefined para este campo na estratégia Advance
     return {
       ...baseConfig,
-      porcentagemParaEntrar: userValue !== null ? userValue : undefined
+      porcentagemParaEntrar: userValue
     };
   }
   
