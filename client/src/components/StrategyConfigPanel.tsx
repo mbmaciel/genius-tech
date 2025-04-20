@@ -229,14 +229,8 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
   // Verificar quais campos devem ser exibidos com base na estratégia selecionada
   const strategyId = strategy.id.toLowerCase();
   
-  // Determinar quais campos específicos mostrar
-  const showValorAposVencer = strategyId === 'profitpro' || 
-                            strategyId.includes('manual') || 
-                            strategyId.includes('bot') || 
-                            strategyId.includes('maxpro') ||
-                            strategyId.includes('wise') ||
-                            strategyId.includes('tendencia') ||
-                            strategyId.includes('green');
+  // VALOR APÓS VENCER FOI REMOVIDO - esse valor deve ser igual ao valor de entrada definido pelo usuário
+  // e não precisa ser configurado separadamente
   
   // Parcelas de Martingale é um conceito usado apenas em algumas estratégias
   // As estratégias IRON não usam "parcelas", mas sim "martingale após X perdas"
@@ -306,20 +300,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
             />
           </div>
 
-          {/* Campo Valor Após Vencer - apenas para estratégias que o usam */}
-          {showValorAposVencer && (
-            <div className="space-y-2">
-              <Label htmlFor="valorAposVencer">Valor Após Vencer (USD)</Label>
-              <Input
-                id="valorAposVencer"
-                type="number"
-                step="0.01"
-                value={config.valorAposVencer?.toString() || "0.35"}
-                onChange={(e) => handleChange('valorAposVencer', e.target.value)}
-                className="bg-[#0d1525] border-gray-700"
-              />
-            </div>
-          )}
+          {/* Campo Valor Após Vencer removido - valor é sempre igual ao Valor Inicial */}
 
           {/* Campo Parcelas Martingale - apenas para estratégias que o usam */}
           {showParcelasMartingale && (
