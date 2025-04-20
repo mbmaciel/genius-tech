@@ -346,6 +346,51 @@ export function BotController({
           description: `Resultado: $${event.profit.toFixed(2)}`,
           variant: event.is_win ? "default" : "destructive",
         });
+        
+        // Disparar evento para o histórico de operações
+        // Este evento é capturado pelo componente RelatorioOperacoes para registrar a operação
+        const historyEvent = new CustomEvent('trading_operation_finished', {
+          detail: {
+            timestamp: Date.now(),
+            contractId: event.contract_id,
+            isWin: event.is_win,
+            profit: event.profit,
+            entry: event.entry_value || 0,
+            exit: event.exit_value || 0,
+            status: event.is_win ? 'won' : 'lost',
+            type: selectedStrategy,
+            contractDetails: event.contract_details || {}
+          }
+        });
+        document.dispatchEvent(historyEvent);
+      }
+      
+      // NOVO: Tratar evento de operação intermediária para estratégia Advance
+      if (event.type === 'intermediate_operation') {
+        console.log('[BOT_CONTROLLER] Recebida operação intermediária da estratégia Advance:', event.details);
+        
+        // Criar evento para adicionar a operação intermediária ao histórico
+        // Usamos o mesmo formato do evento de histórico normal, mas adicionamos flag de intermediário
+        const intermediateHistoryEvent = new CustomEvent('trading_operation_finished', {
+          detail: {
+            timestamp: Date.now(),
+            contractId: event.details.contractId,
+            isWin: event.details.status === 'won',
+            profit: event.details.profit || 0,
+            entry: event.details.amount || 0,
+            exit: event.details.result || 0,
+            status: event.details.status || 'pending',
+            type: `${selectedStrategy} (intermediária)`, // Marcar claramente como intermediária
+            isIntermediate: true, // Flag para identificar operações intermediárias no componente de histórico
+            analysis: event.details.analysis || '',
+            contractDetails: {
+              contract_id: event.details.contractId,
+              status: event.details.status,
+              profit: event.details.profit
+            }
+          }
+        });
+        document.dispatchEvent(intermediateHistoryEvent);
       }
       
       if (event.type === 'bot_started' || event.type === 'operation_started') {
