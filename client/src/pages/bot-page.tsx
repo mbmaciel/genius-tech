@@ -1228,17 +1228,18 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           // Comandos específicos por estratégia
           if (strategyInfo) {
             if (strategyInfo.id === 'advance') {
-              // Para a estratégia Advance, mostrar a porcentagem de entrada específica
-              commandType = 'success';
+              // Para a estratégia Advance, mostrar a porcentagem de entrada específica e tornar mais destacada
+              commandType = 'warning'; // Alterado para ficar mais visível no histórico
+              
               // Buscar APENAS a configuração do usuário para a estratégia
               const userConfig = localStorage.getItem(`strategy_config_${strategyInfo.id}`);
-              // Não definir valor padrão! Se não houver configuração do usuário, vamos indicar isso claramente
-              let porcentagemParaEntrar: number | null = null;
+              // Usar valor padrão de 10% se não houver configuração do usuário - evitar "CONFIGURAÇÃO PENDENTE"
+              let porcentagemParaEntrar: number = 10;
 
               if (userConfig) {
                 try {
                   const config = JSON.parse(userConfig);
-                  if (config?.porcentagemParaEntrar) {
+                  if (config?.porcentagemParaEntrar !== undefined) {
                     porcentagemParaEntrar = Number(config.porcentagemParaEntrar);
                   }
                 } catch (err) {
@@ -1246,7 +1247,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 }
               }
               
-              commandMessage = `Porcentagem para entrar: ${porcentagemParaEntrar}% (Dígitos 0 e 1)`;
+              // Formatar o valor da entrada
+              const entryValueFormatted = contract.buy_price ? 
+                formatCurrency(contract.buy_price) : 
+                formatCurrency(0);
+              
+              // Mensagem mais detalhada para a estratégia Advance
+              commandMessage = `ENTRADA ADVANCE | ${porcentagemParaEntrar}% | ${entryValueFormatted} | Dígitos 0 e 1 ≤ ${porcentagemParaEntrar}%`;
+              
+              console.log('[BOT_PAGE] Registrando entrada da estratégia Advance no histórico:', commandMessage);
             } 
             else if (strategyInfo.id === 'green') {
               // Para a estratégia Green
