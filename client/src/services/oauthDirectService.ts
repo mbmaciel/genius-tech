@@ -760,7 +760,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Obtém estatísticas de dígitos dos últimos 25 ticks
    * Usado para avaliar condições de entrada das estratégias
    */
-  private getDigitStats(): DigitStat[] {
+  // Convertido para público para permitir integração com parser XML de estratégias
+  public getDigitStats(): DigitStat[] {
     try {
       // Obter dados de digits dos últimos ticks recebidos
       const localData = localStorage.getItem(`deriv_ticks_${this.activeSymbol}`);

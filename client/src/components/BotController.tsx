@@ -6,6 +6,7 @@ import { Wallet, User } from "lucide-react";
 import { BinaryBotStrategy } from '@/lib/automationService';
 import { StrategyConfigPanel, StrategyConfiguration } from '@/components/StrategyConfigPanel';
 import { getStrategyById, getContractTypeForStrategy, usesDigitPrediction } from '@/lib/strategiesConfig';
+import { loadStrategyXml, evaluateEntryConditions, getStrategyState } from '@/lib/strategy-handlers';
 
 interface BotControllerProps {
   entryValue: number;
@@ -103,12 +104,34 @@ export function BotController({
   
   // Efeito para carregar a estratégia quando o ID mudar
   useEffect(() => {
-    if (selectedStrategy) {
-      const strategy = getStrategyById(selectedStrategy);
-      setCurrentBotStrategy(strategy);
-    } else {
-      setCurrentBotStrategy(null);
-    }
+    const loadStrategyWithXml = async () => {
+      if (selectedStrategy) {
+        const strategy = getStrategyById(selectedStrategy);
+        setCurrentBotStrategy(strategy);
+        
+        // Se temos a estratégia e o caminho do XML, carregar o XML para o parser
+        if (strategy && strategy.xmlPath) {
+          try {
+            console.log(`[BOT_CONTROLLER] Carregando XML da estratégia ${strategy.name} de: ${strategy.xmlPath}`);
+            
+            // Usar o novo loadStrategyXml do strategy-handlers
+            const loaded = await loadStrategyXml(selectedStrategy, strategy.xmlPath);
+            
+            if (loaded) {
+              console.log(`[BOT_CONTROLLER] XML da estratégia ${strategy.name} carregado com sucesso`);
+            } else {
+              console.error(`[BOT_CONTROLLER] Falha ao carregar XML da estratégia ${strategy.name}`);
+            }
+          } catch (error) {
+            console.error(`[BOT_CONTROLLER] Erro ao carregar XML da estratégia ${strategy.name}:`, error);
+          }
+        }
+      } else {
+        setCurrentBotStrategy(null);
+      }
+    };
+    
+    loadStrategyWithXml();
   }, [selectedStrategy]);
 
   // Buscar informações da conta ao iniciar componente
@@ -459,13 +482,73 @@ export function BotController({
         martingale: strategyConfig.martingale
       });
       
-      // Definir o tipo de contrato com base na estratégia
-      const contractType = getContractTypeForStrategy(selectedStrategy);
+      // ----- INÍCIO: NOVA IMPLEMENTAÇÃO COM PARSER XML -----
+      // Carregar o XML da estratégia se ainda não foi carregado
+      if (currentBotStrategy?.xmlPath) {
+        try {
+          const loaded = await loadStrategyXml(selectedStrategy, currentBotStrategy.xmlPath);
+          if (loaded) {
+            console.log(`[BOT_CONTROLLER] XML da estratégia ${currentBotStrategy.name} carregado com sucesso!`);
+            
+            // Exibir mensagem de sucesso para o usuário
+            toast({
+              title: "Estratégia carregada",
+              description: `A estratégia ${currentBotStrategy.name} foi interpretada e será executada fielmente conforme seus comandos.`,
+              duration: 5000,
+            });
+          } else {
+            console.warn(`[BOT_CONTROLLER] Não foi possível carregar XML da estratégia ${currentBotStrategy.name}, usando implementação alternativa`);
+          }
+        } catch (error) {
+          console.error(`[BOT_CONTROLLER] Erro ao carregar XML:`, error);
+        }
+      }
+      // ----- FIM: NOVA IMPLEMENTAÇÃO COM PARSER XML -----
       
-      // Determinar a previsão de dígito com base na estratégia (se aplicável)
-      // A previsão agora é determinada no código e não nas configurações
+      // Definir o tipo de contrato com base na estratégia
+      // Agora usaremos o tipo de contrato do XML se disponível
+      let contractType = getContractTypeForStrategy(selectedStrategy);
+      
+      // Determinar a previsão de dígito com base na estratégia
       const needsPrediction = usesDigitPrediction(selectedStrategy);
-      const prediction = needsPrediction ? Math.floor(Math.random() * 10) : undefined;
+      let prediction = needsPrediction ? Math.floor(Math.random() * 10) : undefined;
+      
+      // Tente obter os valores da estratégia usando o parser XML
+      try {
+        // Obter últimas estatísticas de dígitos 
+        const digitStats = oauthDirectService.getDigitStats();
+        
+        if (digitStats.length > 0) {
+          console.log(`[BOT_CONTROLLER] Usando estatísticas de dígitos para análise XML (${digitStats.length} dígitos)`);
+          
+          // Obter consecutiveLosses do estado atual da estratégia
+          const strategyState = getStrategyState(selectedStrategy);
+          const consecutiveLosses = strategyState?.consecutiveLosses || 0;
+          
+          // Analisar estratégia com parser XML
+          const xmlAnalysis = await evaluateEntryConditions(
+            selectedStrategy, 
+            digitStats, 
+            strategyConfig,
+            currentBotStrategy?.xmlPath
+          );
+          
+          // Usar valores do parser XML se possível
+          contractType = xmlAnalysis.contractType;
+          prediction = xmlAnalysis.prediction;
+          
+          console.log(`[BOT_CONTROLLER] ★ Análise XML da estratégia ${selectedStrategy}:`, {
+            shouldEnter: xmlAnalysis.shouldEnter,
+            contractType: xmlAnalysis.contractType,
+            prediction: xmlAnalysis.prediction,
+            entryAmount: xmlAnalysis.entryAmount,
+            message: xmlAnalysis.message
+          });
+        }
+      } catch (error) {
+        console.error(`[BOT_CONTROLLER] Erro ao analisar estratégia com parser XML:`, error);
+        // Continuar com os valores padrão obtidos anteriormente
+      }
       
       if (prediction !== undefined) {
         console.log(`[BOT_CONTROLLER] Usando previsão de dígito: ${prediction}`);
