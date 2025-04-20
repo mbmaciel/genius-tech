@@ -1,373 +1,486 @@
 /**
- * Serviço para analisar e interpretar arquivos XML de estratégias
- * Este serviço converte os arquivos XML de estratégias em instruções executáveis pelo bot
+ * XML Strategy Parser
+ * Interpreta fielmente as estratégias definidas nos arquivos XML
+ * e executa seus comandos exatamente como definidos
  */
 
-import { ContractType, ContractPrediction } from './derivApiService';
+import { DOMParser } from 'xmldom';
+import { DigitStat } from './strategyRules';
 
-export interface XmlStrategy {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  ruleSet: StrategyRuleSet;
-  params: StrategyParams;
+// Interface para representar as variáveis da estratégia
+export interface StrategyVariables {
+  // Variáveis comuns em todas estratégias
+  valorInicial?: number;
+  valorAposVencer?: number;
+  martingale?: number;
+  meta?: number;
+  limitePerda?: number;
+  previsao?: number;
+  
+  // Variáveis específicas
+  porcentagemParaEntrar?: number;
+  usarMartingaleAposXLoss?: number;
+  parcelasMartingale?: number;
+  contadorDeLoss?: number;
+  
+  // Lista de dígitos (para estratégias que usam histórico)
+  listaDeDigitos?: number[];
 }
 
-export interface StrategyParams {
-  entryValue: number;
-  martingaleFactor: number;
-  maxMartingaleLevel: number;
-  contractType?: ContractType;
-  prediction?: ContractPrediction;
-  targetProfit: number;
-  stopLoss: number;
-  waitTime?: number;
+// Interface para o resultado da análise
+export interface StrategyAnalysisResult {
+  shouldEnter: boolean;
+  contractType: string;
+  prediction?: number;
+  amount: number;
+  message: string;
+  rawCommands?: any;
 }
 
-export interface StrategyRuleSet {
-  conditionGroups: ConditionGroup[];
-  actionSequence: Action[];
-}
-
-export interface ConditionGroup {
-  id: string;
-  conditions: Condition[];
-  operator: 'AND' | 'OR';
-}
-
-export interface Condition {
-  type: 'DIGIT_MATCH' | 'DIGIT_DIFF' | 'DIGIT_EVEN' | 'DIGIT_ODD' | 'DIGIT_OVER' | 'DIGIT_UNDER' | 'CONSECUTIVE_DIGITS' | 'BALANCED_DISTRIBUTION' | 'PATTERN_MATCH' | 'LAST_DIGIT_PREDICTION';
-  value?: number | string;
-  count?: number;
-  lastDigits?: number[];
-}
-
-export interface Action {
-  type: 'BUY_CONTRACT' | 'WAIT' | 'ANALYZE_HISTORY' | 'APPLY_MARTINGALE' | 'RESET_STAKE';
-  params?: {
-    contractType?: ContractType;
-    prediction?: ContractPrediction;
-    stake?: number;
-    duration?: number;
+// Classe para interpretar e executar estratégias XML
+export class XmlStrategyParser {
+  private xmlContent: string = '';
+  private xmlDoc: Document | null = null;
+  private variables: StrategyVariables = {};
+  private tradeType: string = '';
+  private contractType: string = '';
+  private entryConditions: any[] = [];
+  private userConfig: StrategyVariables = {};
+  
+  // Mapeamento de variáveis do XML para nomes no sistema
+  private variableMapping: Record<string, string> = {
+    'VALOR INICIAL': 'valorInicial',
+    'VALOR APÓS VENCER': 'valorAposVencer',
+    'MARTINGALE': 'martingale',
+    'META': 'meta',
+    'LIMITE DE PERDA': 'limitePerda',
+    'PREVISÃO': 'previsao',
+    'PORCENTAGEM PARA ENTRAR': 'porcentagemParaEntrar',
+    'USAR MARTINGALE APÓS QUANTOS LOSS?': 'usarMartingaleAposXLoss',
+    'PARCELAS DE MARTINGALE': 'parcelasMartingale',
+    'CONTADOR DE LOSS': 'contadorDeLoss',
+    'LISTA DE DIGITOS': 'listaDeDigitos'
   };
-}
-
-export interface DigitAnalysis {
-  lastDigits: number[];
-  frequencies: {[key: number]: number};
-  patterns: {[key: string]: number};
-  evenCount: number;
-  oddCount: number;
-}
-
-class XmlStrategyParser {
-  private strategies: {[key: string]: XmlStrategy} = {};
   
   /**
-   * Carrega as estratégias a partir de seus arquivos XML
-   * @param files Lista de arquivos XML de estratégias
+   * Carrega o conteúdo XML da estratégia
    */
-  public async loadStrategies(files: string[]): Promise<void> {
+  public loadXml(xmlContent: string): boolean {
     try {
-      const loadPromises = files.map(file => this.parseXmlFile(file));
-      await Promise.all(loadPromises);
-      console.log(`${Object.keys(this.strategies).length} estratégias carregadas`);
+      this.xmlContent = xmlContent;
+      const parser = new DOMParser();
+      this.xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+      
+      // Extrair configurações básicas da estratégia
+      this.extractVariables();
+      this.extractTradeType();
+      this.extractEntryConditions();
+      
+      return true;
     } catch (error) {
-      console.error('Erro ao carregar estratégias:', error);
+      console.error('[XML_PARSER] Erro ao carregar XML:', error);
+      return false;
     }
   }
   
   /**
-   * Analisa um arquivo XML e extrai sua estratégia
-   * @param filePath Caminho para o arquivo XML
+   * Define as configurações do usuário para sobrescrever os valores padrão
    */
-  private async parseXmlFile(filePath: string): Promise<void> {
+  public setUserConfig(config: StrategyVariables): void {
+    this.userConfig = config;
+    console.log('[XML_PARSER] Configurações do usuário aplicadas:', config);
+  }
+  
+  /**
+   * Extrai as variáveis definidas no XML
+   */
+  private extractVariables(): void {
+    if (!this.xmlDoc) return;
+    
     try {
-      // Em um ambiente real, aqui usaríamos fetch ou outra método para carregar o arquivo
-      // Como estamos em um ambiente simulado, vamos criar um parse baseado no nome do arquivo
+      // Obter todos os blocos de definição de variáveis
+      const variablesBlocks = this.xmlDoc.getElementsByTagName('block');
       
-      const fileName = filePath.split('/').pop() || '';
-      const strategyName = fileName.replace('.xml', '');
-      
-      // Cria uma estratégia padrão com base no nome do arquivo
-      const strategy: XmlStrategy = {
-        id: strategyName.toLowerCase().replace(/\s+/g, '_'),
-        name: strategyName,
-        category: this.detectCategory(strategyName),
-        description: `Estratégia automatizada para ${strategyName}`,
-        params: this.createDefaultParams(strategyName),
-        ruleSet: this.createRuleSetFromName(strategyName)
-      };
-      
-      this.strategies[strategy.id] = strategy;
-      console.log(`Estratégia carregada: ${strategy.name}`);
-    } catch (error) {
-      console.error(`Erro ao analisar arquivo ${filePath}:`, error);
-    }
-  }
-  
-  /**
-   * Determina a categoria da estratégia com base em seu nome
-   */
-  private detectCategory(name: string): string {
-    const lowerName = name.toLowerCase();
-    
-    if (lowerName.includes('iron') || lowerName.includes('bot') || 
-        lowerName.includes('max') || lowerName.includes('pro') || 
-        lowerName.includes('green')) {
-      return 'premium';
-    }
-    
-    return 'lite';
-  }
-  
-  /**
-   * Cria parâmetros padrão com base no nome da estratégia
-   */
-  private createDefaultParams(name: string): StrategyParams {
-    const lowerName = name.toLowerCase();
-    
-    let contractType: ContractType = 'DIGITOVER';
-    let prediction: ContractPrediction | undefined = undefined;
-    
-    if (lowerName.includes('over')) {
-      contractType = 'DIGITOVER';
-      prediction = 5;
-    } else if (lowerName.includes('under')) {
-      contractType = 'DIGITUNDER';
-      prediction = 5;
-    }
-    
-    return {
-      entryValue: 0.35,
-      martingaleFactor: 2.0,
-      maxMartingaleLevel: 3,
-      contractType,
-      prediction,
-      targetProfit: 5.0,
-      stopLoss: 10.0,
-      waitTime: 1000
-    };
-  }
-  
-  /**
-   * Cria um conjunto de regras com base no nome da estratégia
-   */
-  private createRuleSetFromName(name: string): StrategyRuleSet {
-    const lowerName = name.toLowerCase();
-    
-    let conditionGroups: ConditionGroup[] = [];
-    let actionSequence: Action[] = [];
-    
-    // Criar uma condição baseada no nome da estratégia
-    if (lowerName.includes('over')) {
-      conditionGroups.push({
-        id: 'over_condition',
-        operator: 'AND',
-        conditions: [
-          { type: 'DIGIT_OVER', value: 5 }
-        ]
-      });
-      
-      actionSequence.push({
-        type: 'BUY_CONTRACT',
-        params: {
-          contractType: 'DIGITOVER',
-          prediction: 5
+      for (let i = 0; i < variablesBlocks.length; i++) {
+        const block = variablesBlocks[i];
+        
+        // Verificar se é um bloco de atribuição de variável
+        if (block.getAttribute('type') === 'variables_set') {
+          // Obter o nome da variável
+          const varField = block.getElementsByTagName('field')[0];
+          if (varField && varField.getAttribute('name') === 'VAR') {
+            const varName = varField.textContent || '';
+            
+            // Obter o valor da variável
+            const valueBlock = block.getElementsByTagName('value')[0];
+            if (valueBlock) {
+              const numberBlock = valueBlock.getElementsByTagName('block')[0];
+              let varValue: number | undefined;
+              
+              // Se for um bloco de número
+              if (numberBlock && numberBlock.getAttribute('type') === 'math_number') {
+                const numField = numberBlock.getElementsByTagName('field')[0];
+                if (numField && numField.getAttribute('name') === 'NUM') {
+                  varValue = parseFloat(numField.textContent || '0');
+                }
+              }
+              // Se for uma referência a outra variável
+              else if (numberBlock && numberBlock.getAttribute('type') === 'variables_get') {
+                const refVarField = numberBlock.getElementsByTagName('field')[0];
+                if (refVarField) {
+                  const refVarName = refVarField.textContent || '';
+                  // Mapear para o nome de variável no sistema
+                  const systemVarName = this.variableMapping[refVarName];
+                  if (systemVarName && this.variables[systemVarName] !== undefined) {
+                    varValue = this.variables[systemVarName] as number;
+                  }
+                }
+              }
+              
+              // Salvar variável com seu valor
+              if (varValue !== undefined) {
+                const systemVarName = this.variableMapping[varName];
+                if (systemVarName) {
+                  this.variables[systemVarName] = varValue;
+                  console.log(`[XML_PARSER] Variável '${varName}' (${systemVarName}) = ${varValue}`);
+                }
+              }
+            }
+          }
         }
-      });
-    } else if (lowerName.includes('under')) {
-      conditionGroups.push({
-        id: 'under_condition',
-        operator: 'AND',
-        conditions: [
-          { type: 'DIGIT_UNDER', value: 5 }
-        ]
-      });
-      
-      actionSequence.push({
-        type: 'BUY_CONTRACT',
-        params: {
-          contractType: 'DIGITUNDER',
-          prediction: 5
-        }
-      });
-    } else {
-      // Estratégia genérica
-      conditionGroups.push({
-        id: 'generic_condition',
-        operator: 'AND',
-        conditions: [
-          { type: 'LAST_DIGIT_PREDICTION' }
-        ]
-      });
-      
-      actionSequence.push({ type: 'ANALYZE_HISTORY' });
-      actionSequence.push({
-        type: 'BUY_CONTRACT',
-        params: {
-          contractType: Math.random() > 0.5 ? 'DIGITOVER' : 'DIGITUNDER',
-          prediction: 5
-        }
-      });
-    }
-    
-    // Adicionar ações comuns a todas as estratégias
-    actionSequence.push({ type: 'WAIT', params: { duration: 1000 } });
-    
-    return {
-      conditionGroups,
-      actionSequence
-    };
-  }
-  
-  /**
-   * Obtém uma estratégia pelo ID
-   */
-  public getStrategy(id: string): XmlStrategy | null {
-    return this.strategies[id] || null;
-  }
-  
-  /**
-   * Obtém todas as estratégias disponíveis
-   */
-  public getAllStrategies(): XmlStrategy[] {
-    return Object.values(this.strategies);
-  }
-  
-  /**
-   * Filtra estratégias por categoria
-   */
-  public getStrategiesByCategory(category: string): XmlStrategy[] {
-    return Object.values(this.strategies)
-      .filter(strategy => strategy.category === category);
-  }
-  
-  /**
-   * Analisa um conjunto de dígitos para detectar padrões
-   */
-  public analyzeDigits(digits: number[]): DigitAnalysis {
-    // Inicializa o objeto de análise
-    const analysis: DigitAnalysis = {
-      lastDigits: digits.slice(-10),
-      frequencies: {},
-      patterns: {},
-      evenCount: 0,
-      oddCount: 0
-    };
-    
-    // Inicializa as frequências para todos os dígitos
-    for (let i = 0; i <= 9; i++) {
-      analysis.frequencies[i] = 0;
-    }
-    
-    // Calcula frequências e contagem de pares/ímpares
-    digits.forEach(digit => {
-      analysis.frequencies[digit]++;
-      
-      if (digit % 2 === 0) {
-        analysis.evenCount++;
-      } else {
-        analysis.oddCount++;
       }
-    });
-    
-    // Detecta padrões simples (sequências de 3 dígitos)
-    for (let i = 0; i < digits.length - 2; i++) {
-      const pattern = `${digits[i]},${digits[i+1]},${digits[i+2]}`;
-      analysis.patterns[pattern] = (analysis.patterns[pattern] || 0) + 1;
-    }
-    
-    return analysis;
-  }
-  
-  /**
-   * Avalia se uma condição é atendida com base na análise de dígitos
-   */
-  public evaluateCondition(condition: Condition, analysis: DigitAnalysis): boolean {
-    const lastDigit = analysis.lastDigits[analysis.lastDigits.length - 1];
-    
-    switch (condition.type) {
-      case 'DIGIT_MATCH':
-        return lastDigit === condition.value;
-        
-      case 'DIGIT_DIFF':
-        return lastDigit !== condition.value;
-        
-      case 'DIGIT_EVEN':
-        return lastDigit % 2 === 0;
-        
-      case 'DIGIT_ODD':
-        return lastDigit % 2 !== 0;
-        
-      case 'DIGIT_OVER':
-        return lastDigit > (condition.value as number);
-        
-      case 'DIGIT_UNDER':
-        return lastDigit < (condition.value as number);
-        
-      case 'CONSECUTIVE_DIGITS':
-        if (!condition.count) return false;
-        
-        // Verifica se os últimos N dígitos são iguais
-        const count = Math.min(condition.count, analysis.lastDigits.length);
-        const lastDigits = analysis.lastDigits.slice(-count);
-        return lastDigits.every(d => d === lastDigits[0]);
-        
-      case 'BALANCED_DISTRIBUTION':
-        // Verifica se a distribuição é equilibrada (todos os dígitos aparecem)
-        return Object.values(analysis.frequencies).every(f => f > 0);
-        
-      case 'PATTERN_MATCH':
-        if (!condition.value) return false;
-        
-        // Verifica se um padrão específico ocorreu
-        return !!analysis.patterns[condition.value as string];
-        
-      case 'LAST_DIGIT_PREDICTION':
-        // Implementação simplificada para previsão de próximo dígito
-        return true;
-        
-      default:
-        return false;
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair variáveis:', error);
     }
   }
   
   /**
-   * Avalia um grupo de condições
+   * Extrai o tipo de operação do XML
    */
-  public evaluateConditionGroup(group: ConditionGroup, analysis: DigitAnalysis): boolean {
-    if (group.conditions.length === 0) return true;
+  private extractTradeType(): void {
+    if (!this.xmlDoc) return;
     
-    const results = group.conditions.map(condition => this.evaluateCondition(condition, analysis));
-    
-    return group.operator === 'AND'
-      ? results.every(result => result)
-      : results.some(result => result);
+    try {
+      // Obter o bloco de trade
+      const tradeBlocks = this.xmlDoc.getElementsByTagName('block');
+      
+      for (let i = 0; i < tradeBlocks.length; i++) {
+        const block = tradeBlocks[i];
+        
+        // Verificar se é um bloco de trade
+        if (block.getAttribute('type') === 'trade') {
+          // Obter os campos do bloco de trade
+          const fields = block.getElementsByTagName('field');
+          
+          for (let j = 0; j < fields.length; j++) {
+            const field = fields[j];
+            
+            // Extrair tipo de trade (CALL/PUT/DIGIT...)
+            if (field.getAttribute('name') === 'TRADETYPE_LIST') {
+              this.tradeType = field.textContent || '';
+            }
+            
+            // Extrair subtipo específico (CALL/PUT/DIGITOVER/DIGITUNDER)
+            if (field.getAttribute('name') === 'TYPE_LIST') {
+              this.contractType = field.textContent || '';
+            }
+          }
+          
+          console.log(`[XML_PARSER] Tipo de trade: ${this.tradeType}, Contrato: ${this.contractType}`);
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair tipo de trade:', error);
+    }
   }
   
   /**
-   * Avalia uma estratégia completa com base nos dígitos recebidos
+   * Extrai as condições de entrada do XML
    */
-  public evaluateStrategy(strategy: XmlStrategy, digits: number[]): Action[] {
-    const analysis = this.analyzeDigits(digits);
+  private extractEntryConditions(): void {
+    if (!this.xmlDoc) return;
     
-    // Verifica se pelo menos um grupo de condições é atendido
-    const hasMatchingCondition = strategy.ruleSet.conditionGroups.some(group => 
-      this.evaluateConditionGroup(group, analysis)
-    );
+    try {
+      // Obter o bloco de before_purchase (onde ficam as condições de entrada)
+      const beforePurchaseBlocks = this.xmlDoc.getElementsByTagName('block');
+      
+      for (let i = 0; i < beforePurchaseBlocks.length; i++) {
+        const block = beforePurchaseBlocks[i];
+        
+        // Verificar se é um bloco before_purchase
+        if (block.getAttribute('type') === 'before_purchase') {
+          // Obter as condições dentro do bloco
+          const statements = block.getElementsByTagName('statement');
+          
+          for (let j = 0; j < statements.length; j++) {
+            const statement = statements[j];
+            
+            // Verificar se é o stack de before_purchase
+            if (statement.getAttribute('name') === 'BEFOREPURCHASE_STACK') {
+              // Extrair condições (blocos IF e outros)
+              const conditionBlocks = statement.getElementsByTagName('block');
+              
+              for (let k = 0; k < conditionBlocks.length; k++) {
+                this.entryConditions.push(conditionBlocks[k]);
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`[XML_PARSER] Condições de entrada extraídas: ${this.entryConditions.length}`);
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair condições de entrada:', error);
+    }
+  }
+  
+  /**
+   * Analisa a estratégia Advance
+   * Condição: Entrar APENAS quando dígitos 0 e 1 estiverem com frequência <= porcentagem definida
+   */
+  public analyzeAdvanceStrategy(digitStats: DigitStat[]): StrategyAnalysisResult {
+    // Obter porcentagem limite
+    let porcentagemParaEntrar = this.variables.porcentagemParaEntrar;
     
-    // Se nenhuma condição for atendida, não realizar ações
-    if (!hasMatchingCondition) {
-      return [{ type: 'WAIT', params: { duration: 1000 } }];
+    // Se o usuário definiu um valor, substituir o padrão
+    if (this.userConfig.porcentagemParaEntrar !== undefined) {
+      porcentagemParaEntrar = this.userConfig.porcentagemParaEntrar;
+      console.log(`[XML_PARSER] Usando porcentagem definida pelo usuário: ${porcentagemParaEntrar}%`);
     }
     
-    // Retorna as ações da estratégia
-    return strategy.ruleSet.actionSequence;
+    // Se a porcentagem não estiver definida, não permitir operação
+    if (porcentagemParaEntrar === undefined) {
+      return {
+        shouldEnter: false,
+        contractType: 'DIGITOVER',
+        amount: this.getFinalAmount(),
+        message: 'Porcentagem para entrar não definida. Defina nas configurações.'
+      };
+    }
+    
+    // Obter estatísticas dos dígitos 0 e 1
+    const digit0 = digitStats.find(d => d.digit === 0);
+    const digit1 = digitStats.find(d => d.digit === 1);
+    
+    if (!digit0 || !digit1) {
+      return {
+        shouldEnter: false,
+        contractType: 'DIGITOVER',
+        amount: this.getFinalAmount(),
+        message: 'Estatísticas incompletas para dígitos 0 e 1'
+      };
+    }
+    
+    // Verificar a condição exata da estratégia ADVANCE
+    // Condição: AMBOS os dígitos 0 e 1 devem ter frequência <= porcentagem definida
+    const digit0Percentage = Math.round(digit0.percentage);
+    const digit1Percentage = Math.round(digit1.percentage);
+    const shouldEnter = digit0Percentage <= porcentagemParaEntrar && digit1Percentage <= porcentagemParaEntrar;
+    
+    // Determinar tipo de contrato (a estratégia Advance usa DIGITOVER por padrão)
+    const contractType = 'DIGITOVER';
+    
+    // Determinar mensagem de feedback
+    const message = shouldEnter
+      ? `ADVANCE: Condição atendida! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${porcentagemParaEntrar}%`
+      : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${porcentagemParaEntrar}%`;
+    
+    // Obter valor de entrada com sobreposição de configuração do usuário
+    const amount = this.getFinalAmount();
+    
+    return {
+      shouldEnter,
+      contractType,
+      amount,
+      prediction: this.variables.previsao,
+      message
+    };
+  }
+  
+  /**
+   * Analisa a estratégia Iron Over
+   * Condição: Usar DIGITOVER e controlar martingale após X perdas
+   */
+  public analyzeIronOverStrategy(consecutiveLosses: number): StrategyAnalysisResult {
+    // Obter valor para martingale após X perdas
+    let usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
+    
+    // Se o usuário definiu um valor, substituir o padrão
+    if (this.userConfig.usarMartingaleAposXLoss !== undefined) {
+      usarMartingaleAposXLoss = this.userConfig.usarMartingaleAposXLoss;
+      console.log(`[XML_PARSER] Usando limite de perdas para martingale definido pelo usuário: ${usarMartingaleAposXLoss}`);
+    }
+    
+    // Se não estiver definido, usar valor padrão 1
+    if (usarMartingaleAposXLoss === undefined) {
+      usarMartingaleAposXLoss = 1;
+    }
+    
+    // Verificar se deve usar martingale
+    const useMartingale = consecutiveLosses >= usarMartingaleAposXLoss;
+    
+    // IRON OVER sempre entra, mas controla o martingale
+    const shouldEnter = true;
+    
+    // Obter valor de entrada considerando martingale
+    let amount = this.getFinalAmount();
+    
+    // Se for usar martingale, ajustar valor
+    if (useMartingale && consecutiveLosses > 0) {
+      let martingaleFactor = this.variables.martingale || 0.5;
+      
+      // Se o usuário definiu um valor, substituir o padrão
+      if (this.userConfig.martingale !== undefined) {
+        martingaleFactor = this.userConfig.martingale;
+      }
+      
+      // Calcular novo valor com martingale
+      amount = Math.round((amount * (1 + martingaleFactor)) * 100) / 100;
+      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale (${martingaleFactor}) após ${consecutiveLosses} perdas, novo valor: ${amount}`);
+    }
+    
+    // Obter previsão do XML ou configuração do usuário
+    let prediction = this.variables.previsao || 5;
+    
+    // Mensagem da estratégia
+    const message = useMartingale
+      ? `IRON OVER: Usando martingale após ${consecutiveLosses} perdas (limite: ${usarMartingaleAposXLoss}). Previsão: DIGITOVER ${prediction}`
+      : `IRON OVER: Operação normal sem martingale. Previsão: DIGITOVER ${prediction}`;
+    
+    return {
+      shouldEnter,
+      contractType: 'DIGITOVER',
+      prediction,
+      amount,
+      message
+    };
+  }
+  
+  /**
+   * Analisa a estratégia Iron Under
+   * Condição: Usar DIGITUNDER e controlar martingale após X perdas
+   */
+  public analyzeIronUnderStrategy(consecutiveLosses: number): StrategyAnalysisResult {
+    // Similar ao Iron Over mas com tipo de contrato DIGITUNDER
+    // Obter valor para martingale após X perdas
+    let usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
+    
+    // Se o usuário definiu um valor, substituir o padrão
+    if (this.userConfig.usarMartingaleAposXLoss !== undefined) {
+      usarMartingaleAposXLoss = this.userConfig.usarMartingaleAposXLoss;
+      console.log(`[XML_PARSER] Usando limite de perdas para martingale definido pelo usuário: ${usarMartingaleAposXLoss}`);
+    }
+    
+    // Se não estiver definido, usar valor padrão 1
+    if (usarMartingaleAposXLoss === undefined) {
+      usarMartingaleAposXLoss = 1;
+    }
+    
+    // Verificar se deve usar martingale
+    const useMartingale = consecutiveLosses >= usarMartingaleAposXLoss;
+    
+    // IRON UNDER sempre entra, mas controla o martingale
+    const shouldEnter = true;
+    
+    // Obter valor de entrada considerando martingale
+    let amount = this.getFinalAmount();
+    
+    // Se for usar martingale, ajustar valor
+    if (useMartingale && consecutiveLosses > 0) {
+      let martingaleFactor = this.variables.martingale || 0.5;
+      
+      // Se o usuário definiu um valor, substituir o padrão
+      if (this.userConfig.martingale !== undefined) {
+        martingaleFactor = this.userConfig.martingale;
+      }
+      
+      // Calcular novo valor com martingale
+      amount = Math.round((amount * (1 + martingaleFactor)) * 100) / 100;
+      console.log(`[XML_PARSER] IRON UNDER: Aplicando martingale (${martingaleFactor}) após ${consecutiveLosses} perdas, novo valor: ${amount}`);
+    }
+    
+    // Obter previsão do XML ou configuração do usuário
+    let prediction = this.variables.previsao || 4;
+    
+    // Mensagem da estratégia
+    const message = useMartingale
+      ? `IRON UNDER: Usando martingale após ${consecutiveLosses} perdas (limite: ${usarMartingaleAposXLoss}). Previsão: DIGITUNDER ${prediction}`
+      : `IRON UNDER: Operação normal sem martingale. Previsão: DIGITUNDER ${prediction}`;
+    
+    return {
+      shouldEnter,
+      contractType: 'DIGITUNDER',
+      prediction,
+      amount,
+      message
+    };
+  }
+  
+  /**
+   * Obtém o valor final para entrada considerando configurações do usuário
+   */
+  private getFinalAmount(): number {
+    // Valor inicial da estratégia
+    let amount = this.variables.valorInicial || 0.35;
+    
+    // Se o usuário definiu um valor, substituir o padrão
+    if (this.userConfig.valorInicial !== undefined) {
+      amount = this.userConfig.valorInicial;
+    }
+    
+    return amount;
+  }
+  
+  /**
+   * Analisar qualquer estratégia com base no XML carregado
+   */
+  public analyzeStrategy(
+    strategyId: string, 
+    digitStats: DigitStat[],
+    consecutiveLosses: number = 0
+  ): StrategyAnalysisResult {
+    const normalizedId = strategyId.toLowerCase();
+    
+    // Estratégia ADVANCE
+    if (normalizedId.includes('advance')) {
+      return this.analyzeAdvanceStrategy(digitStats);
+    }
+    // Estratégia IRON OVER
+    else if (normalizedId.includes('iron_over') || normalizedId.includes('ironover')) {
+      return this.analyzeIronOverStrategy(consecutiveLosses);
+    }
+    // Estratégia IRON UNDER
+    else if (normalizedId.includes('iron_under') || normalizedId.includes('ironunder')) {
+      return this.analyzeIronUnderStrategy(consecutiveLosses);
+    } 
+    // Implementar outras estratégias conforme necessário
+    
+    // Estratégia padrão
+    return {
+      shouldEnter: true,
+      contractType: this.contractType || 'DIGITOVER',
+      prediction: this.variables.previsao,
+      amount: this.getFinalAmount(),
+      message: `Estratégia ${strategyId}: Usando configuração padrão`
+    };
+  }
+  
+  /**
+   * Obter todas as variáveis extraídas do XML
+   */
+  public getVariables(): StrategyVariables {
+    return this.variables;
+  }
+  
+  /**
+   * Obter o tipo de contrato definido no XML
+   */
+  public getContractType(): string {
+    return this.contractType;
   }
 }
 
-// Exporta uma instância única do serviço
-export const xmlStrategyParser = new XmlStrategyParser();
+// Instância global do parser
+const xmlStrategyParser = new XmlStrategyParser();
 export default xmlStrategyParser;
