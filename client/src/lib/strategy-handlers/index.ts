@@ -229,15 +229,27 @@ export async function evaluateEntryConditions(
     
     if (normalizedId.includes('advance')) {
       // Obter porcentagem limite da configuração
-      let entryPercentage = undefined;
+      // CRÍTICO: Sempre ter um valor para porcentagem, usando 10% como padrão se não estiver definido
+      let entryPercentage = 10; // Valor padrão para estratégia Advance
       
-      if (strategyConfig?.porcentagemParaEntrar !== undefined) {
-        entryPercentage = parseFloat(strategyConfig.porcentagemParaEntrar.toString());
-        console.log(`[STRATEGY_HANDLER] Usando valor definido pelo usuário para porcentagem de entrada: ${entryPercentage}%`);
+      // Verificar se o usuário definiu um valor específico na configuração
+      if (strategyConfig?.porcentagemParaEntrar !== undefined && strategyConfig.porcentagemParaEntrar !== null) {
+        // Converter para número e garantir que seja um valor válido
+        const configValue = parseFloat(strategyConfig.porcentagemParaEntrar.toString());
+        if (!isNaN(configValue)) {
+          entryPercentage = configValue;
+          console.log(`[STRATEGY_HANDLER] ADVANCE: Usando porcentagem definida pelo usuário: ${entryPercentage}%`);
+        } else {
+          console.log(`[STRATEGY_HANDLER] ADVANCE: Valor de porcentagem inválido (${strategyConfig.porcentagemParaEntrar}), usando padrão: ${entryPercentage}%`);
+        }
       } else {
-        console.log(`[STRATEGY_HANDLER] ALERTA: Configuração de porcentagem não encontrada. Operação não será permitida.`);
+        console.log(`[STRATEGY_HANDLER] ADVANCE: Usando porcentagem padrão: ${entryPercentage}%`);
       }
       
+      // Log adicional para depuração - mostra exatamente o valor que está sendo usado
+      console.log(`[STRATEGY_HANDLER] ADVANCE DEBUG: Valor final de porcentagem para análise: ${entryPercentage}%`);
+      
+      // O valor de entryPercentage agora é garantido ser um número válido
       const result = evaluateAdvanceStrategy(digitStats, entryPercentage);
       shouldEnter = result.shouldEnter;
       contractType = result.contractType;
