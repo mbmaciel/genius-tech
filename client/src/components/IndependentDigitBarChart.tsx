@@ -424,26 +424,26 @@ export function IndependentDigitBarChart({
       
       {/* Gráfico de barras */}
       <div className="p-6">
-        <div className="flex items-end h-60 mb-12 relative">
+        <div className="flex items-end h-[200px] mb-12 relative">
           {/* Eixo Y (percentuais) - com escala progressiva para visualizar melhor diferenças pequenas */}
           <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 pr-2">
-            <div>50%</div>
+            <div>100%</div>
+            <div>80%</div>
+            <div>60%</div>
             <div>40%</div>
-            <div>30%</div>
             <div>20%</div>
-            <div>10%</div>
             <div>0%</div>
           </div>
           
           {/* Linhas de grade horizontais - uma para cada valor do eixo */}
           <div className="absolute left-8 right-0 top-0 bottom-0 flex flex-col justify-between">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
+            {[0, 20, 40, 60, 80, 100].map((i) => (
               <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
             ))}
           </div>
           
           {/* Barras para cada dígito */}
-          <div className="flex justify-between items-end w-full pl-8">
+          <div className="flex justify-between items-end w-full pl-8 h-full">
             {/* Força a recriação completa de todas as barras */}
             {renderVersion && digitHistory?.stats ? 
               // Mapear cada estatística para uma barra - key baseada no renderVersion para recriação completa
