@@ -33,6 +33,7 @@ export interface StrategyAnalysisResult {
   contractType: string;
   prediction?: number;
   amount: number;
+  entryAmount?: number; // Valor efetivo para entrada
   message: string;
   rawCommands?: any;
 }
@@ -277,34 +278,49 @@ export class XmlStrategyParser {
    * Condição: Entrar APENAS quando dígitos 0 e 1 estiverem com frequência <= porcentagem definida
    */
   public analyzeAdvanceStrategy(digitStats: DigitStat[]): StrategyAnalysisResult {
-    // Obter porcentagem limite
+    console.log(`[XML_PARSER] ADVANCE: Analisando condições de entrada`);
+    console.log(`[XML_PARSER] ADVANCE: Variáveis atuais:`, JSON.stringify(this.variables));
+    console.log(`[XML_PARSER] ADVANCE: Configurações do usuário:`, JSON.stringify(this.userConfig));
+    
+    // Obter porcentagem limite - CRÍTICO PARA ESTRATÉGIA ADVANCE
     let porcentagemParaEntrar = this.variables.porcentagemParaEntrar;
     
-    // Se o usuário definiu um valor, substituir o padrão
+    // VERIFICAÇÃO PRIORITÁRIA: configuração do usuário deve sempre sobrescrever o XML
     if (this.userConfig.porcentagemParaEntrar !== undefined) {
       porcentagemParaEntrar = this.userConfig.porcentagemParaEntrar;
-      console.log(`[XML_PARSER] Usando porcentagem definida pelo usuário: ${porcentagemParaEntrar}%`);
+      console.log(`[XML_PARSER] ADVANCE: Usando porcentagem definida pelo usuário: ${porcentagemParaEntrar}%`);
+    } else {
+      console.log(`[XML_PARSER] ADVANCE: Porcentagem não definida pelo usuário. Valor do XML: ${porcentagemParaEntrar}`);
     }
     
-    // Se a porcentagem não estiver definida, não permitir operação
+    // BLOQUEIO DE SEGURANÇA: Se porcentagem não estiver definida, não permitir operação
+    // Esta verificação é crítica para a estratégia Advance
     if (porcentagemParaEntrar === undefined) {
+      console.log(`[XML_PARSER] ADVANCE: ERRO - Porcentagem para entrar não definida!`);
+      
       return {
         shouldEnter: false,
         contractType: 'DIGITOVER',
         amount: this.getFinalAmount(),
-        message: 'Porcentagem para entrar não definida. Defina nas configurações.'
+        entryAmount: this.getFinalAmount(), // Garantir que o campo entryAmount seja enviado
+        message: 'CONFIGURAÇÃO PENDENTE: Porcentagem para entrar não definida. Defina nas configurações.'
       };
     }
+    
+    console.log(`[XML_PARSER] ADVANCE: Porcentagem limite definida: ${porcentagemParaEntrar}%`);
     
     // Obter estatísticas dos dígitos 0 e 1
     const digit0 = digitStats.find(d => d.digit === 0);
     const digit1 = digitStats.find(d => d.digit === 1);
     
     if (!digit0 || !digit1) {
+      console.log(`[XML_PARSER] ADVANCE: Estatísticas incompletas para dígitos 0 e 1`);
+      
       return {
         shouldEnter: false,
         contractType: 'DIGITOVER',
         amount: this.getFinalAmount(),
+        entryAmount: this.getFinalAmount(),
         message: 'Estatísticas incompletas para dígitos 0 e 1'
       };
     }
@@ -313,23 +329,30 @@ export class XmlStrategyParser {
     // Condição: AMBOS os dígitos 0 e 1 devem ter frequência <= porcentagem definida
     const digit0Percentage = Math.round(digit0.percentage);
     const digit1Percentage = Math.round(digit1.percentage);
+    
+    console.log(`[XML_PARSER] ADVANCE: Estatísticas atuais: Dígito 0 = ${digit0Percentage}%, Dígito 1 = ${digit1Percentage}%`);
+    console.log(`[XML_PARSER] ADVANCE: Condição: ambos devem ser <= ${porcentagemParaEntrar}%`);
+    
     const shouldEnter = digit0Percentage <= porcentagemParaEntrar && digit1Percentage <= porcentagemParaEntrar;
     
     // Determinar tipo de contrato (a estratégia Advance usa DIGITOVER por padrão)
     const contractType = 'DIGITOVER';
+    
+    // Obter valor de entrada com sobreposição de configuração do usuário
+    const amount = this.getFinalAmount();
     
     // Determinar mensagem de feedback
     const message = shouldEnter
       ? `ADVANCE: Condição atendida! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${porcentagemParaEntrar}%`
       : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${porcentagemParaEntrar}%`;
     
-    // Obter valor de entrada com sobreposição de configuração do usuário
-    const amount = this.getFinalAmount();
+    console.log(`[XML_PARSER] ADVANCE: Resultado da análise: ${shouldEnter ? 'ENTRAR' : 'NÃO ENTRAR'}`);
     
     return {
       shouldEnter,
       contractType,
       amount,
+      entryAmount: amount, // Garantir que o valor seja enviado para o callback
       prediction: this.variables.previsao,
       message
     };
@@ -390,6 +413,7 @@ export class XmlStrategyParser {
       contractType: 'DIGITOVER',
       prediction,
       amount,
+      entryAmount: amount,
       message
     };
   }
@@ -450,6 +474,7 @@ export class XmlStrategyParser {
       contractType: 'DIGITUNDER',
       prediction,
       amount,
+      entryAmount: amount,
       message
     };
   }
@@ -479,19 +504,27 @@ export class XmlStrategyParser {
   ): StrategyAnalysisResult {
     const normalizedId = strategyId.toLowerCase();
     
-    // Estratégia ADVANCE
-    if (normalizedId.includes('advance')) {
+    console.log(`[XML_PARSER] Analisando estratégia: "${strategyId}" (normalizado: "${normalizedId}")`);
+    
+    // VERIFICAÇÃO ESTRATÉGIA ADVANCE - VERIFICAÇÕES ADICIONAIS PARA GARANTIR RECONHECIMENTO
+    if (normalizedId.includes('advance') || normalizedId === 'advance' || strategyId === 'Advance' || strategyId === 'ADVANCE') {
+      console.log(`[XML_PARSER] Estratégia ADVANCE reconhecida! Usando análise específica para Advance`);
       return this.analyzeAdvanceStrategy(digitStats);
     }
     // Estratégia IRON OVER
     else if (normalizedId.includes('iron_over') || normalizedId.includes('ironover')) {
+      console.log(`[XML_PARSER] Estratégia IRON OVER reconhecida!`);
       return this.analyzeIronOverStrategy(consecutiveLosses);
     }
     // Estratégia IRON UNDER
     else if (normalizedId.includes('iron_under') || normalizedId.includes('ironunder')) {
+      console.log(`[XML_PARSER] Estratégia IRON UNDER reconhecida!`);
       return this.analyzeIronUnderStrategy(consecutiveLosses);
     } 
     // Implementar outras estratégias conforme necessário
+    
+    // Se chegou aqui, não reconheceu nenhuma estratégia específica
+    console.log(`[XML_PARSER] AVISO: Estratégia não reconhecida: "${strategyId}". Usando configuração padrão.`);
     
     // Estratégia padrão
     return {
@@ -499,6 +532,7 @@ export class XmlStrategyParser {
       contractType: this.contractType || 'DIGITOVER',
       prediction: this.variables.previsao,
       amount: this.getFinalAmount(),
+      entryAmount: this.getFinalAmount(), // Garantir que o campo entryAmount seja enviado
       message: `Estratégia ${strategyId}: Usando configuração padrão`
     };
   }
