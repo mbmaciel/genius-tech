@@ -424,7 +424,7 @@ export function IndependentDigitBarChart({
       
       {/* Gráfico de barras */}
       <div className="p-6">
-        <div className="flex items-end h-72 mb-8 relative">
+        <div className="flex items-end h-60 mb-12 relative">
           {/* Eixo Y (percentuais) - com escala progressiva para visualizar melhor diferenças pequenas */}
           <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 pr-2">
             <div>50%</div>
@@ -454,7 +454,8 @@ export function IndependentDigitBarChart({
                 
                 // Escala o percentual para ser mais visível no eixo Y que vai até 50% 
                 // Multiplica por 2 para que 25% ocupe 50% da altura do gráfico
-                const barHeight = Math.max(4, stat.percentage * 2);
+                // Valor mínimo de 5% para garantir visibilidade mesmo com 0% ou valores muito baixos
+                const barHeight = stat.percentage === 0 ? 5 : Math.max(5, stat.percentage * 2);
                 
                 // Determinar a cor da barra baseada em características do dígito
                 let barColor;
@@ -505,8 +506,8 @@ export function IndependentDigitBarChart({
                       }}
                     ></div>
                     
-                    {/* Dígito abaixo da barra */}
-                    <div className={`mt-2 text-center text-sm font-medium ${
+                    {/* Dígito abaixo da barra - sempre visível com fundo */}
+                    <div className={`mt-2 text-center text-sm font-medium z-10 relative bg-[#0e1a2e] px-1.5 rounded-sm ${
                       isHighFrequency ? 'text-[#ff444f]' : 
                       isLowFrequency ? 'text-[#00e5b3]' : 'text-white'
                     }`}>
@@ -539,7 +540,7 @@ export function IndependentDigitBarChart({
                         animationDelay: `${i * 0.08}s`
                       }}
                     ></div>
-                    <div className="mt-2 text-center text-sm text-gray-400">{i}</div>
+                    <div className="mt-2 text-center text-sm text-gray-400 z-10 relative bg-[#0e1a2e] px-1.5 rounded-sm">{i}</div>
                   </div>
                 );
               })
@@ -551,7 +552,7 @@ export function IndependentDigitBarChart({
         <div className="mt-6">
           <div className="flex justify-center">
             {/* Container para a sequência de dígitos no estilo da imagem */}
-            <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2">
+            <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2 z-10 relative">
               {lastDigits.map((digit, index) => {
                 // Determinar a cor baseada no dígito, igual às barras
                 const textColor = digit % 2 === 0 

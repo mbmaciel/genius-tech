@@ -5,10 +5,12 @@
 
 /* Animação para barras em crescimento - efeito dinâmico ao renderizar */
 .bar-animation {
-  animation: growFromBottom 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) backwards;
+  animation: growFromBottom 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   transform-origin: bottom;
   position: relative; /* Necessário para efeitos de brilho e sombra */
   will-change: height, transform, opacity; /* Otimização para animações */
+  border-radius: 3px 3px 0 0;
+  overflow: hidden; /* Contém o efeito de brilho */
 }
 
 /* Animação de crescimento */
@@ -19,10 +21,10 @@
     transform: scaleY(0.3);
   }
   40% {
-    opacity: 0.8;
+    opacity: 0.9;
   }
   100% {
-    /* Mantém a altura exata do valor percentual */
+    /* A altura é o valor percentual multiplicado por 2 para combinar com o eixo Y */
     height: var(--target-height, inherit);
     opacity: 1;
     transform: scaleY(1);
@@ -44,7 +46,32 @@
 
 /* Animação de pulso para barras de frequência alta */
 .animate-pulse {
-  animation: pulse 1.5s infinite;
+  animation: pulse 2s infinite;
+  position: relative;
+}
+
+/* Efeito de brilho especial para barras de frequência alta */
+.animate-pulse::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.3) 0%, 
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  opacity: 0;
+  animation: glow 2s infinite;
+  border-radius: 3px 3px 0 0;
+}
+
+@keyframes glow {
+  0% { opacity: 0.1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 0.1; }
 }
 
 @keyframes pulse {
