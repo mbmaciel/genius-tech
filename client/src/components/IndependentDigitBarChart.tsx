@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 import { independentDerivService, DigitHistory } from '../services/independent-deriv-service';
+import './digit-animations.css';
 
 interface IndependentDigitBarChartProps {
   symbol?: string;
@@ -481,21 +482,28 @@ export function IndependentDigitBarChart({
                     </div>
                     
                     {/* Barra com altura dinâmica e efeitos visuais */}
-                    <div style={{
-                      height: `${barHeight}%`,
-                      backgroundColor: barColor,
-                      width: '100%',
-                      minHeight: '15px',
-                      transition: `height ${
-                        parseInt(selectedCount, 10) <= 50 
-                          ? '0.5s cubic-bezier(0.4, 0, 0.2, 1)' // Transição mais lenta e suave para 25/50 ticks
-                          : parseInt(selectedCount, 10) >= 200
-                            ? '0.3s ease-out' // Média suavidade para 200+ ticks
-                            : '0.15s ease-in-out' // Rápida mas suave para 100 ticks
-                      }`,
-                      borderRadius: '2px 2px 0 0',
-                      boxShadow: isHighFrequency || isLowFrequency ? '0 0 5px 0 rgba(255,255,255,0.2)' : 'none'
-                    }}></div>
+                    <div 
+                      className={`bar-animation ${isHighFrequency ? 'animate-pulse' : ''}`}
+                      style={{
+                        height: `${barHeight}%`,
+                        backgroundColor: barColor,
+                        width: '100%',
+                        minHeight: '15px',
+                        transition: `height ${
+                          parseInt(selectedCount, 10) <= 50 
+                            ? '0.7s cubic-bezier(0.34, 1.56, 0.64, 1)' // Transição elástica para 25/50 ticks
+                            : parseInt(selectedCount, 10) >= 200
+                              ? '0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' // Efeito suave para 200+ ticks
+                              : '0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67)' // Efeito otimizado para 100 ticks
+                        }`,
+                        borderRadius: '3px 3px 0 0',
+                        boxShadow: isHighFrequency || isLowFrequency 
+                          ? `0 0 8px 0 ${barColor}80, inset 0 0 3px 0 rgba(255,255,255,0.3)` 
+                          : 'inset 0 0 2px 0 rgba(255,255,255,0.2)',
+                        transformOrigin: 'bottom',
+                        animationDuration: '1.5s'
+                      }}
+                    ></div>
                     
                     {/* Dígito abaixo da barra */}
                     <div className={`mt-2 text-center text-sm font-medium ${
@@ -508,22 +516,33 @@ export function IndependentDigitBarChart({
                 );
               })
             : 
-              // Barras de placeholder durante o carregamento
-              Array.from({ length: 10 }, (_, i) => (
-                <div key={`placeholder-${i}-${renderVersion || 0}`} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
-                  <div className="text-xs font-medium text-white mb-1">0%</div>
-                  <div 
-                    style={{ 
-                      height: '15%',
-                      backgroundColor: i % 2 === 0 ? '#00e5b3' : '#ff444f',
-                      width: '100%',
-                      minHeight: '15px',
-                      borderRadius: '2px 2px 0 0'
-                    }}
-                  ></div>
-                  <div className="mt-2 text-center text-sm text-white">{i}</div>
-                </div>
-              ))
+              // Barras de placeholder durante o carregamento com efeito de pulso
+              Array.from({ length: 10 }, (_, i) => {
+                // Cores alternadas para pares e ímpares
+                const placeholderColor = i % 2 === 0 ? '#00e5b3' : '#ff444f';
+                // Altura variada para criar efeito visual interessante
+                const placeholderHeight = 5 + (i % 3) * 5;
+                
+                return (
+                  <div key={`placeholder-${i}-${renderVersion || 0}`} className="flex flex-col items-center w-full max-w-[45px] min-w-[20px]">
+                    <div className="text-xs font-medium text-gray-400 mb-1 pulse-opacity">--</div>
+                    <div 
+                      className="loading-bar-pulse"
+                      style={{ 
+                        height: `${placeholderHeight}%`,
+                        backgroundColor: placeholderColor,
+                        width: '100%',
+                        minHeight: '12px',
+                        borderRadius: '3px 3px 0 0',
+                        opacity: 0.7,
+                        boxShadow: `0 0 5px 0 ${placeholderColor}60`,
+                        animationDelay: `${i * 0.08}s`
+                      }}
+                    ></div>
+                    <div className="mt-2 text-center text-sm text-gray-400">{i}</div>
+                  </div>
+                );
+              })
             }
           </div>
         </div>
