@@ -427,17 +427,17 @@ export function IndependentDigitBarChart({
         <div className="flex items-end h-[200px] mb-12 relative">
           {/* Eixo Y (percentuais) - com escala progressiva para visualizar melhor diferenças pequenas */}
           <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 pr-2">
-            <div>100%</div>
-            <div>80%</div>
-            <div>60%</div>
+            <div>50%</div>
             <div>40%</div>
+            <div>30%</div>
             <div>20%</div>
+            <div>10%</div>
             <div>0%</div>
           </div>
           
           {/* Linhas de grade horizontais - uma para cada valor do eixo */}
           <div className="absolute left-8 right-0 top-0 bottom-0 flex flex-col justify-between">
-            {[0, 20, 40, 60, 80, 100].map((i) => (
+            {[0, 10, 20, 30, 40, 50].map((i) => (
               <div key={i} className="w-full border-t border-[#2a3756] h-0"></div>
             ))}
           </div>
@@ -453,16 +453,16 @@ export function IndependentDigitBarChart({
                 const isLowFrequency = stat.percentage <= 5;
                 
                 // Calculando altura exata em pixels em vez de usar percentuais
-                // Em um container de 200px, cada 1% equivale a 2px
-                const pixelHeight = stat.percentage === 0 ? 2 : stat.percentage * 2;
+                // Em um container de 200px, cada 1% equivale a 4px (com máximo de 50%)
+                const pixelHeight = stat.percentage === 0 ? 2 : stat.percentage * 4;
                 // Valor absoluto em pixels, sem percentual
                 const barHeight = pixelHeight;
                 
-                // Definir cores exatas conforme a imagem
-                // Dígitos pares em verde, ímpares em vermelho
-                const barColor = stat.digit % 2 === 0 
-                  ? '#00c200' // Verde para dígitos pares (0, 2, 4, 6, 8)
-                  : '#ff0000'; // Vermelho para dígitos ímpares (1, 3, 5, 7, 9)
+                // Definir cores baseadas no percentual: 
+                // Acima de 10% = vermelho, abaixo de 10% = verde
+                const barColor = stat.percentage > 10
+                  ? '#ff0000' // Vermelho para percentuais acima de 10%
+                  : '#00c200'; // Verde para percentuais abaixo ou igual a 10%
                 
                 // Texto em branco mais fino (exatamente como mostrado na imagem)
                 const percentText = 'text-white';
@@ -541,11 +541,12 @@ export function IndependentDigitBarChart({
             {/* Container para a sequência de dígitos no estilo da imagem */}
             <div className="bg-[#0c1625] border border-[#2a3756] rounded-md flex items-center px-2 py-1 space-x-2 z-10 relative">
               {lastDigits.map((digit, index) => {
-                // Determinar a cor baseada no dígito, igual às barras
-                // Dígitos pares em verde, ímpares em vermelho (igual às barras)
-                const textColor = digit % 2 === 0 
-                  ? 'text-[#00c200]' // Verde para pares (0, 2, 4, 6, 8)
-                  : 'text-[#ff0000]'; // Vermelho para ímpares (1, 3, 5, 7, 9)
+                // Agora também as cores dos dígitos seguem a regra do percentual
+                // Usamos o mapa de estatísticas para obter o percentual de cada dígito
+                const digitPercentage = digitHistory?.stats.find(stat => stat.digit === digit)?.percentage || 0;
+                const textColor = digitPercentage > 10
+                  ? 'text-[#ff0000]' // Vermelho para percentuais acima de 10%
+                  : 'text-[#00c200]'; // Verde para percentuais abaixo ou igual a 10%
                 
                 return (
                   <div 
