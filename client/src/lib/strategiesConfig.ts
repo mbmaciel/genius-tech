@@ -119,7 +119,8 @@ export const availableStrategies: BinaryBotStrategy[] = [
       martingaleFactor: 1.5,
       maxMartingaleLevel: 3,
       // Valor específico da porcentagem para entrar da estratégia Advance
-      entryPercentage: 8
+      // Aumentando valor padrão para 70% (mais conservador/seguro)
+      entryPercentage: 70
     }
   },
   {

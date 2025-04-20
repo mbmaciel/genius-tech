@@ -76,7 +76,8 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
           ? parseFloat(entryPercentage) 
           : entryPercentage;
         
-        console.log("[RELATORIO] Usando valor dinâmico para porcentagem de entrada:", percentageValue);
+        // Este log era apenas para debug e estava mostrando o valor fixo de 8%
+        // console.log("[RELATORIO] Usando valor dinâmico para porcentagem de entrada:", percentageValue);
         
         let command = `PORCENTAGEM PARA ENTRAR: ${percentageValue}%`;
         
