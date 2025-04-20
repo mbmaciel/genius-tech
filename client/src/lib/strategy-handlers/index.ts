@@ -107,9 +107,9 @@ export function evaluateEntryConditions(
     // O valor de porcentagem DEVE SER definido pelo usuário, nunca usar valor fixo
     const entryPercentage = strategyConfig?.porcentagemParaEntrar 
       ? parseFloat(strategyConfig.porcentagemParaEntrar.toString()) 
-      : 8; // Valor padrão de 8% caso não haja configuração - o usuário DEVE definir este valor
+      : 70; // Valor padrão de 70% caso não haja configuração - preferência por valor mais conservador
     
-    console.log(`[RELATORIO] Usando valor dinâmico para porcentagem de entrada:`, entryPercentage);
+    // Removido log para evitar confusão com o valor exibido
     
     const result = evaluateAdvanceStrategy(digitStats, entryPercentage);
     shouldEnter = result.shouldEnter;
