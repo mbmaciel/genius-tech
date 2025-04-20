@@ -709,6 +709,25 @@ class IndependentDerivService {
   }
   
   /**
+   * Remove todos os ouvintes de um evento específico ou de todos os eventos
+   */
+  public removeAllListeners(event?: string): void {
+    if (event) {
+      // Remover todos os ouvintes de um evento específico
+      if (this.eventListeners.has(event)) {
+        this.eventListeners.set(event, new Set());
+        console.log(`[INDEPENDENT_DERIV] Todos os ouvintes removidos para evento ${event}`);
+      }
+    } else {
+      // Remover todos os ouvintes de todos os eventos
+      this.eventListeners.forEach((_, eventName) => {
+        this.eventListeners.set(eventName, new Set());
+      });
+      console.log(`[INDEPENDENT_DERIV] Todos os ouvintes removidos de todos os eventos`);
+    }
+  }
+  
+  /**
    * Notifica todos os ouvintes registrados para um evento
    */
   private notifyListeners(event: string, data: any): void {

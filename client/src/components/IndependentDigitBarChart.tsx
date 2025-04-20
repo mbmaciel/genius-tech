@@ -154,18 +154,29 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
-  // Limpar o estado anterior ao mudar a configuração de ticks
-  // Isso evita que o gráfico antigo fique visível por baixo do novo
+  // EXCLUSIVO PARA ESTE PROBLEMA:
+  // Desmontamos completamente o componente quando mudamos o número de ticks
+  // para garantir que nenhum elemento persistirá
+  const [shouldRender, setShouldRender] = useState(true);
+  
+  // Efeito radical que desmonta e remonta completamente o componente
   useEffect(() => {
-    console.log('[IndependentDigitBarChart] Limpando estado anterior ao mudar para', selectedCount, 'ticks');
-    // Limpar temporariamente os dados para evitar sobreposição
-    setDigitHistory(null);
-    setLastDigits([]);
-    // Mostrar estado de carregamento brevemente
-    setLoading(true);
+    console.log('[IndependentDigitBarChart] Desmontando/remontando componente para', selectedCount, 'ticks');
     
-    // A próxima atualização do serviço preencherá os dados novamente
-    // com os valores corretos para a nova configuração de ticks
+    // 1. Desinscrever dos eventos
+    independentDerivService.removeAllListeners();
+    
+    // 2. Desmontar completamente
+    setShouldRender(false);
+    
+    // 3. Aguardar um momento para garantir que tudo foi limpo
+    const timer = setTimeout(() => {
+      // 4. Remontar com novos valores
+      console.log(`[IndependentDigitBarChart] Remontando com ${selectedCount} ticks`);
+      setShouldRender(true);
+    }, 50);
+    
+    return () => clearTimeout(timer);
   }, [selectedCount]);
   
   // Sistema único de atualização com estabilidade para todos os modos
@@ -314,9 +325,12 @@ export function IndependentDigitBarChart({
     };
   }, [isMenuOpen]);
   
+  // Chave única para o componente inteiro forçar recriação completa quando mudar o selectedCount
+  const componentKey = `chart-${symbol}-count-${selectedCount}-v${renderVersion}`;
+  
   return (
     <div 
-      key={renderKey}
+      key={componentKey}
       className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}
     >
       {/* Header com título e controles */}
