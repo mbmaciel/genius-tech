@@ -154,6 +154,56 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
+  // Efeito para estabilizar renderização em configurações menores (25, 50 ticks)
+  useEffect(() => {
+    // Esta função garante que não haverá atualizações muito frequentes
+    // quando usamos configurações de poucos ticks (25, 50)
+    if (parseInt(selectedCount, 10) <= 50) {
+      console.log(`[IndependentDigitBarChart] Usando modo de estabilização para ${selectedCount} ticks`);
+      
+      // Referência para verificar se componente ainda está montado
+      const isMounted = { current: true };
+      
+      // Usar um timer dedicado para limitar a taxa de atualização
+      const smallTicksUpdateInterval = setInterval(() => {
+        // Verificar se o componente ainda está montado antes de atualizar
+        if (!isMounted.current) return;
+        
+        try {
+          // Forçar uma atualização estável dos dados
+          const tickCount = parseInt(selectedCount, 10);
+          const currentData = independentDerivService.getDigitHistory(symbol, tickCount);
+          
+          // Verificar se temos dados para processar
+          if (currentData && currentData.stats && currentData.stats.length > 0) {
+            // Fazer uma cópia completa para evitar referências
+            const stableHistory = {
+              symbol: currentData.symbol,
+              stats: currentData.stats.map(stat => ({...stat})),
+              lastDigits: [...currentData.lastDigits],
+              totalSamples: currentData.totalSamples,
+              lastUpdated: new Date()
+            };
+            
+            // Atualizar os estados de forma mais controlada
+            if (isMounted.current) {
+              setDigitHistory(stableHistory);
+              setLastDigits([...currentData.lastDigits].slice(-10).reverse());
+              setRenderVersion(prev => prev + 1);
+            }
+          }
+        } catch (err) {
+          console.error('[IndependentDigitBarChart] Erro no modo de estabilização:', err);
+        }
+      }, 500); // Atualizar a cada 500ms (mais lento e estável)
+      
+      return () => {
+        isMounted.current = false;
+        clearInterval(smallTicksUpdateInterval);
+      };
+    }
+  }, [selectedCount, symbol]);
+  
   // Contador de versão para forçar re-renderização completa
   const [renderVersion, setRenderVersion] = useState<number>(0);
   
@@ -442,7 +492,9 @@ export function IndependentDigitBarChart({
                       backgroundColor: barColor,
                       width: '100%',
                       minHeight: '15px',
-                      transition: 'height 0.1s ease-out', // Transição suave mas rápida
+                      transition: parseInt(selectedCount, 10) <= 50 
+                        ? 'height 0.5s ease-in-out' // Transição mais lenta e suave para 25/50 ticks
+                        : 'height 0.15s ease-out', // Transição suave mas rápida para outros casos
                       borderRadius: '2px 2px 0 0',
                       boxShadow: isHighFrequency || isLowFrequency ? '0 0 5px 0 rgba(255,255,255,0.2)' : 'none'
                     }}></div>
