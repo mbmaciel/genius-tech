@@ -1,34 +1,92 @@
 /**
  * Animações para o IndependentDigitBarChart
+ * Arquivo para controlar as animações das barras do gráfico de dígitos
  */
 
-/* Animação para barras em crescimento */
+/* Animação para barras em crescimento - efeito dinâmico ao renderizar */
 .bar-animation {
-  animation: growFromBottom 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) backwards;
+  animation: growFromBottom 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) backwards;
   transform-origin: bottom;
+  position: relative; /* Necessário para efeitos de brilho e sombra */
+  will-change: height, transform, opacity; /* Otimização para animações */
 }
 
+/* Animação de crescimento */
 @keyframes growFromBottom {
-  from {
+  0% {
     height: 0%;
-    opacity: 0.7;
+    opacity: 0.6;
+    transform: scaleY(0.3);
   }
-  to {
-    height: 100%;
+  40% {
+    opacity: 0.8;
+  }
+  100% {
+    height: var(--target-height, 100%);
     opacity: 1;
+    transform: scaleY(1);
   }
+}
+
+/* Efeito de brilho sutil para barras normais */
+.bar-animation::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.5;
 }
 
 /* Animação de pulso para barras de frequência alta */
+.animate-pulse {
+  animation: pulse 1.5s infinite;
+}
+
 @keyframes pulse {
-  0% { box-shadow: 0 0 8px 0 rgba(255, 68, 79, 0.5); }
-  50% { box-shadow: 0 0 12px 1px rgba(255, 68, 79, 0.8); }
-  100% { box-shadow: 0 0 8px 0 rgba(255, 68, 79, 0.5); }
+  0% { 
+    box-shadow: 0 0 8px 0 rgba(255, 68, 79, 0.5);
+    filter: brightness(1);
+  }
+  50% { 
+    box-shadow: 0 0 12px 1px rgba(255, 68, 79, 0.8);
+    filter: brightness(1.15);
+  }
+  100% { 
+    box-shadow: 0 0 8px 0 rgba(255, 68, 79, 0.5);
+    filter: brightness(1);
+  }
 }
 
 /* Animações para barras de carregamento */
 .loading-bar-pulse {
   animation: pulsate 1.5s ease-in-out infinite;
+  position: relative;
+  overflow: hidden; /* Para conter o efeito de brilho */
+}
+
+/* Efeito de brilho deslizante para barras de carregamento */
+.loading-bar-pulse::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, 
+    rgba(255,255,255,0) 0%, 
+    rgba(255,255,255,0.3) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
 }
 
 @keyframes pulsate {
