@@ -1229,10 +1229,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             if (strategyInfo.id === 'advance') {
               // Para a estratégia Advance, mostrar a porcentagem de entrada específica
               commandType = 'success';
-              // Valor padrão do XML para a porcentagem de entrada
-              // Não usar valor fixo, usar configuração do usuário para a estratégia
+              // Buscar APENAS a configuração do usuário para a estratégia
               const userConfig = localStorage.getItem(`strategy_config_${strategyInfo.id}`);
-              let porcentagemParaEntrar = 70; // Valor padrão mais alto e seguro
+              // Não definir valor padrão! Se não houver configuração do usuário, vamos indicar isso claramente
+              let porcentagemParaEntrar: number | null = null;
 
               if (userConfig) {
                 try {
