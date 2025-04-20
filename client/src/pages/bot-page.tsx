@@ -1395,6 +1395,44 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
       }
       
+      // Processar eventos intermediários da estratégia Advance
+      if (event.type === 'intermediate_operation' && selectedStrategy === 'advance') {
+        console.log('[BOT_PAGE] Evento de operação intermediária da estratégia Advance:', event);
+        
+        // Gerar ID único para esta operação intermediária
+        const intermediateId = Math.floor(Math.random() * 1000000);
+        
+        // Obter porcentagem configurada para Advance
+        let porcentagemParaEntrar = 10; // Valor padrão
+        try {
+          const userConfig = localStorage.getItem(`strategy_config_advance`);
+          if (userConfig) {
+            const config = JSON.parse(userConfig);
+            if (config?.porcentagemParaEntrar !== undefined) {
+              porcentagemParaEntrar = Number(config.porcentagemParaEntrar);
+            }
+          }
+        } catch (e) {
+          console.error('[BOT_PAGE] Erro ao ler configuração para operação intermediária:', e);
+        }
+        
+        // Criar notificação para esta operação intermediária
+        const intermediateOperation = {
+          id: intermediateId,
+          entryValue: event.details?.amount || 0,
+          finalValue: event.details?.result || 0,
+          profit: (event.details?.profit || 0),
+          time: new Date(),
+          notification: {
+            type: (event.details?.result > 0 ? 'success' : 'error') as ('success' | 'error'),
+            message: `OPERAÇÃO INTERMEDIÁRIA | ${formatCurrency(event.details?.amount || 0)} | Resultado: ${formatCurrency(event.details?.result || 0)} | Análise Atual: ${event.details?.analysis || 'N/A'}`
+          }
+        };
+        
+        console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico:', intermediateOperation);
+        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+      }
+      
       // Processar eventos de operação finalizada
       if (event.type === 'contract_finished') {
         console.log('[BOT_PAGE] Evento de contrato finalizado recebido:', event);
