@@ -3,14 +3,14 @@
  * Gerencia e aplica regras de estratégias para os bots
  */
 
-import { DigitStat } from "@/types/digit-types";
 import { 
   evaluateAdvanceStrategy, 
   evaluateIronOverStrategy, 
   evaluateIronUnderStrategy,
   evaluateMaxProStrategy,
   evaluateDefaultStrategy,
-  ContractType
+  ContractType,
+  DigitStat
 } from "@/services/strategyRules";
 
 // Estado global para cada estratégia

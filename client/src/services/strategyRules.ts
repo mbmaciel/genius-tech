@@ -3,17 +3,22 @@
  * Implementação das condições específicas de cada bot
  */
 
-import { DigitStat } from "@/types/digit-types";
+// Tipos de estatísticas de dígitos
+export interface DigitStat {
+  digit: number;
+  count: number;
+  percentage: number;
+}
 
 export type ContractType = 'CALL' | 'PUT' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
 
 /**
  * Avalia a estratégia ADVANCE
- * Regra: Comprar APENAS quando os dígitos 0 E 1 tiverem frequência MENOR OU IGUAL à porcentagem definida (padrão 8%)
+ * Regra: Comprar APENAS quando os dígitos 0 E 1 tiverem frequência MENOR OU IGUAL à porcentagem definida pelo usuário
  */
 export function evaluateAdvanceStrategy(
   digitStats: DigitStat[],
-  entryPercentage: number = 8
+  entryPercentage: number
 ): { shouldEnter: boolean; contractType: ContractType; message: string } {
   // Extrair estatísticas para os dígitos 0 e 1
   const digit0 = digitStats.find(stat => stat.digit === 0);
