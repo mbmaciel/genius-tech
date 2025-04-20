@@ -85,10 +85,47 @@ export class XmlStrategyParser {
   
   /**
    * Define as configurações do usuário para sobrescrever os valores padrão
+   * Usa as configurações do usuário para sobrescrever variáveis extraídas do XML
    */
   public setUserConfig(config: StrategyVariables): void {
     this.userConfig = config;
     console.log('[XML_PARSER] Configurações do usuário aplicadas:', config);
+    
+    // Aplicar configurações do usuário diretamente nas variáveis (sobrescrevendo o XML)
+    if (config.porcentagemParaEntrar !== undefined) {
+      this.variables.porcentagemParaEntrar = config.porcentagemParaEntrar;
+      console.log(`[XML_PARSER] Sobrescrevendo porcentagemParaEntrar com valor do usuário: ${config.porcentagemParaEntrar}`);
+    }
+    
+    if (config.martingale !== undefined) {
+      this.variables.martingale = config.martingale;
+      console.log(`[XML_PARSER] Sobrescrevendo martingale com valor do usuário: ${config.martingale}`);
+    }
+    
+    if (config.usarMartingaleAposXLoss !== undefined) {
+      this.variables.usarMartingaleAposXLoss = config.usarMartingaleAposXLoss;
+      console.log(`[XML_PARSER] Sobrescrevendo usarMartingaleAposXLoss com valor do usuário: ${config.usarMartingaleAposXLoss}`);
+    }
+    
+    if (config.parcelasMartingale !== undefined) {
+      this.variables.parcelasMartingale = config.parcelasMartingale;
+      console.log(`[XML_PARSER] Sobrescrevendo parcelasMartingale com valor do usuário: ${config.parcelasMartingale}`);
+    }
+    
+    if (config.valorInicial !== undefined) {
+      this.variables.valorInicial = config.valorInicial;
+      console.log(`[XML_PARSER] Sobrescrevendo valorInicial com valor do usuário: ${config.valorInicial}`);
+    }
+    
+    if (config.meta !== undefined) {
+      this.variables.meta = config.meta;
+      console.log(`[XML_PARSER] Sobrescrevendo meta com valor do usuário: ${config.meta}`);
+    }
+    
+    if (config.limitePerda !== undefined) {
+      this.variables.limitePerda = config.limitePerda;
+      console.log(`[XML_PARSER] Sobrescrevendo limitePerda com valor do usuário: ${config.limitePerda}`);
+    }
   }
   
   /**
