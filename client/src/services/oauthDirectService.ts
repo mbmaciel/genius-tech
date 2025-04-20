@@ -892,7 +892,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
             limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20,
             parcelasMartingale: userConfig?.parcelasMartingale || 1,
-            valorAposVencer: userConfig?.valorAposVencer || this.settings.entryValue || 0.35
+            // Valor após vencer SEMPRE igual ao valor inicial, não precisa de configuração separada
+            valorAposVencer: userConfig?.valorInicial || this.settings.entryValue || 0.35
           },
           strategyObj?.xmlPath // Passar o caminho do XML para usar o parser XML
         );
