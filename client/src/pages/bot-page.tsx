@@ -263,6 +263,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     finalValue: number;
     profit: number;
     time: Date;
+    contractType?: string;
     notification?: {
       type: 'success' | 'info' | 'warning' | 'error';
       message: string;
@@ -1401,7 +1402,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       // Processar eventos de limite atingido (stop loss ou take profit)
       if (event.type === 'bot_limit_reached') {
         // Adicionar notificação ao histórico no topo
-        const notificationType = event.message.includes('perda') ? 'error' : 'success';
+        const notificationType: 'error' | 'success' = event.message.includes('perda') ? 'error' : 'success';
         const newNotification = {
           id: Date.now(),
           entryValue: 0,
@@ -1415,7 +1416,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         };
         
         console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico:', newNotification);
-        setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+        setOperationHistory((prevHistory) => {
+          // Tipagem explícita para prevHistory
+          const updatedHistory = [newNotification, ...prevHistory];
+          return updatedHistory.slice(0, 50);
+        });
       }
       
       // Processar eventos de parada do bot
@@ -1443,7 +1448,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         };
         
         console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico:', newNotification);
-        setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+        setOperationHistory((prevHistory) => {
+          // Tipagem explícita para prevHistory
+          const updatedHistory = [newNotification, ...prevHistory];
+          return updatedHistory.slice(0, 50);
+        });
       }
       
       // Processar eventos de atualização de saldo

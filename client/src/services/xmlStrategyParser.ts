@@ -388,16 +388,18 @@ export class XmlStrategyParser {
     
     // Se for usar martingale, ajustar valor
     if (useMartingale && consecutiveLosses > 0) {
-      let martingaleFactor = this.variables.martingale || 0.5;
+      // IRON OVER usa uma lógica de martingale diferente:
+      // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
+      // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Se o usuário definiu um valor, substituir o padrão
-      if (this.userConfig.martingale !== undefined) {
-        martingaleFactor = this.userConfig.martingale;
-      }
+      // Obter valor inicial para a estratégia
+      const valorInicial = this.variables.valorInicial || 0.35;
       
-      // Calcular novo valor com martingale
-      amount = Math.round((amount * (1 + martingaleFactor)) * 100) / 100;
-      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale (${martingaleFactor}) após ${consecutiveLosses} perdas, novo valor: ${amount}`);
+      // IMPORTANTE: IRON OVER/UNDER não usa parcelas de martingale, mas sim um multiplicador
+      // baseado no número de perdas consecutivas
+      amount = Math.round((valorInicial * consecutiveLosses) * 100) / 100;
+      
+      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale específico após ${consecutiveLosses} perdas. Valor inicial: ${valorInicial}, Novo valor: ${amount} (${valorInicial} x ${consecutiveLosses})`);
     }
     
     // Obter previsão do XML ou configuração do usuário
@@ -449,16 +451,18 @@ export class XmlStrategyParser {
     
     // Se for usar martingale, ajustar valor
     if (useMartingale && consecutiveLosses > 0) {
-      let martingaleFactor = this.variables.martingale || 0.5;
+      // IRON UNDER usa a mesma lógica do IRON OVER:
+      // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
+      // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Se o usuário definiu um valor, substituir o padrão
-      if (this.userConfig.martingale !== undefined) {
-        martingaleFactor = this.userConfig.martingale;
-      }
+      // Obter valor inicial para a estratégia
+      const valorInicial = this.variables.valorInicial || 0.35;
       
-      // Calcular novo valor com martingale
-      amount = Math.round((amount * (1 + martingaleFactor)) * 100) / 100;
-      console.log(`[XML_PARSER] IRON UNDER: Aplicando martingale (${martingaleFactor}) após ${consecutiveLosses} perdas, novo valor: ${amount}`);
+      // IMPORTANTE: IRON OVER/UNDER não usa parcelas de martingale, mas sim um multiplicador
+      // baseado no número de perdas consecutivas
+      amount = Math.round((valorInicial * consecutiveLosses) * 100) / 100;
+      
+      console.log(`[XML_PARSER] IRON UNDER: Aplicando martingale específico após ${consecutiveLosses} perdas. Valor inicial: ${valorInicial}, Novo valor: ${amount} (${valorInicial} x ${consecutiveLosses})`);
     }
     
     // Obter previsão do XML ou configuração do usuário

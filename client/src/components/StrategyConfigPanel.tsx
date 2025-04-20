@@ -238,6 +238,8 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
                             strategyId.includes('tendencia') ||
                             strategyId.includes('green');
   
+  // Parcelas de Martingale é um conceito usado apenas em algumas estratégias
+  // As estratégias IRON não usam "parcelas", mas sim "martingale após X perdas"
   const showParcelasMartingale = strategyId === 'profitpro' || 
                                strategyId.includes('manual') ||
                                strategyId.includes('green');
@@ -353,7 +355,13 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           {/* Campo Usar Martingale Após X Loss - apenas para estratégias IRON */}
           {showUsarMartingaleAposXLoss && (
             <div className="space-y-2">
-              <Label htmlFor="usarMartingaleAposXLoss">Usar Martingale Após X Loss</Label>
+              <Label htmlFor="usarMartingaleAposXLoss">
+                {strategyId.includes('iron') ? (
+                  "Multiplicar valor após X perdas"
+                ) : (
+                  "Usar Martingale Após X Loss"
+                )}
+              </Label>
               <Input
                 id="usarMartingaleAposXLoss"
                 type="number"
@@ -362,6 +370,11 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
                 onChange={(e) => handleChange('usarMartingaleAposXLoss', e.target.value)}
                 className="bg-[#0d1525] border-gray-700"
               />
+              {strategyId.includes('iron') && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Após esse número de perdas, a próxima entrada será: Valor Inicial × Número de perdas consecutivas
+                </p>
+              )}
             </div>
           )}
         </div>
