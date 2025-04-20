@@ -104,9 +104,10 @@ export function evaluateEntryConditions(
   // Aplicar regras específicas para cada estratégia
   if (normalizedId.includes('advance')) {
     // Obter porcentagem limite da configuração ou usar padrão
+    // O valor de porcentagem DEVE SER definido pelo usuário, nunca usar valor fixo
     const entryPercentage = strategyConfig?.porcentagemParaEntrar 
       ? parseFloat(strategyConfig.porcentagemParaEntrar.toString()) 
-      : 8;
+      : 70; // Valor padrão aumentado para 70% caso não haja configuração
     
     console.log(`[RELATORIO] Usando valor dinâmico para porcentagem de entrada:`, entryPercentage);
     

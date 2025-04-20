@@ -68,7 +68,8 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
       case 'advance':
         // Obter o valor da porcentagem específica para a estratégia Advance
         // Usar a configuração do usuário, se disponível, ou o valor padrão
-        let entryPercentage = userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage || 8;
+        // IMPORTANTE: NUNCA usar 8% como valor fixo, sempre usar a configuração do usuário
+        let entryPercentage = userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage || 70;
         
         // Garantir que estamos exibindo um valor numérico, não uma string
         const percentageValue = typeof entryPercentage === 'string' 
