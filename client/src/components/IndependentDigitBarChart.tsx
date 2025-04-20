@@ -303,9 +303,14 @@ export function IndependentDigitBarChart({
           <div className="flex items-center ml-2 relative">
             <div className="custom-dropdown">
               <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                onClick={(e) => {
+                  e.stopPropagation(); // Impedir que o evento se propague para outros elementos
+                  setIsMenuOpen(!isMenuOpen);
+                  console.log("[MENU] Menu clicado, novo estado:", !isMenuOpen);
+                }}
                 className="h-8 w-[100px] bg-blue-900/30 border border-blue-500 text-xs text-white hover:bg-blue-800/40 hover:border-blue-400 rounded px-2 flex items-center justify-between"
                 data-test-id="tick-select-trigger"
+                style={{ cursor: 'pointer' }} // Garantir que o cursor seja de ponteiro
               >
                 <span>{selectedCount} Ticks</span>
                 <ChevronDown className="h-4 w-4" />

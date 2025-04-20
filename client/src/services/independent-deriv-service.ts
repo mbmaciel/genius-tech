@@ -261,10 +261,13 @@ class IndependentDerivService {
       const prices = data.history.prices;
       
       if (prices && prices.length > 0) {
-        // Extrair últimos dígitos do histórico
-        const lastDigits = prices.map((price: number) => 
-          parseInt(price.toString().slice(-1))
-        );
+        // Extrair últimos dígitos do histórico - usando método correto (segunda casa decimal)
+        const lastDigits = prices.map((price: number) => {
+          // Usar o mesmo método que usamos para ticks em tempo real
+          const priceStr = parseFloat(price.toString()).toFixed(2); // Formatar com 2 casas decimais
+          const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
+          return parseInt(lastChar, 10);
+        });
         
         // Atualizar histórico
         this.initializeDigitHistory(symbol, lastDigits);
@@ -288,12 +291,20 @@ class IndependentDerivService {
     // Inicializar array de contagem para dígitos 0-9
     const digitCounts = new Array(10).fill(0);
     
+    console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} dígitos. Primeiros 10:`, 
+      lastDigits.slice(0, 10).join(', '));
+    
     // Contar ocorrências de cada dígito, incluindo zero
     for (const digit of lastDigits) {
+      // Verificação extra para garantir que dígitos 0 sejam contados corretamente
       if (digit >= 0 && digit <= 9) {
         digitCounts[digit]++;
       }
     }
+    
+    // Verificação adicional para garantir que estamos contando corretamente
+    console.log('[INDEPENDENT_DERIV] Contagem por dígito:', 
+      digitCounts.map((count, digit) => `${digit}: ${count}`).join(', '));
     
     // Calcular percentuais
     const totalSamples = lastDigits.length;
