@@ -616,24 +616,49 @@ class IndependentDerivService {
     
     console.log(`[INDEPENDENT_DERIV] Filtrando histórico para ${symbol} com ${tickCount} ticks dos ${history.lastDigits.length} disponíveis`);
     
-    // Caso contrário, filtrar pelos últimos N ticks
-    const filteredDigits = history.lastDigits.slice(-tickCount);
+    // Caso contrário, filtrar pelos últimos N ticks (com verificação extra para garantir que estamos pegando o número certo)
+    const filteredDigits = history.lastDigits.slice(-Math.min(tickCount, history.lastDigits.length));
+    
+    // Verificação extra
+    if (filteredDigits.length !== tickCount) {
+      console.warn(`[INDEPENDENT_DERIV] Aviso: Solicitados ${tickCount} ticks, mas obtidos ${filteredDigits.length}`);
+    }
     
     // Recalcular as estatísticas baseadas nos dígitos filtrados
     const digitCounts = new Array(10).fill(0);
+    
+    // Contar ocorrências de cada dígito com verificação extra
     for (const digit of filteredDigits) {
       if (digit >= 0 && digit <= 9) {
         digitCounts[digit]++;
+      } else {
+        console.warn(`[INDEPENDENT_DERIV] Dígito inválido ignorado: ${digit}`);
       }
     }
     
-    // Recalcular percentuais
+    // Verificação extra para garantir que temos contagem para todos os dígitos
+    if (digitCounts.some(count => count === undefined)) {
+      console.warn(`[INDEPENDENT_DERIV] Algumas contagens são undefined:`, digitCounts);
+      // Corrigir qualquer contagem undefined
+      for (let i = 0; i < digitCounts.length; i++) {
+        if (digitCounts[i] === undefined) digitCounts[i] = 0;
+      }
+    }
+    
+    // Recalcular percentuais com alta precisão e depois arredondar para evitar erros de precisão
     const totalSamples = filteredDigits.length;
-    const stats = digitCounts.map((count, digit) => ({
-      digit,
-      count,
-      percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
-    }));
+    
+    // Garantir que temos estatísticas para TODOS os dígitos, não apenas os que aparecem
+    const stats = [];
+    for (let digit = 0; digit <= 9; digit++) {
+      const count = digitCounts[digit] || 0;
+      // Usar cálculo de percentual mais preciso: calcular com precisão e depois arredondar
+      const percentage = totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0;
+      stats.push({ digit, count, percentage });
+    }
+    
+    // Garantir que os dígitos estão em ordem correta
+    stats.sort((a, b) => a.digit - b.digit);
     
     // Log para debug
     console.log(`[INDEPENDENT_DERIV] Histórico filtrado: ${totalSamples} ticks, distribuição:`,
