@@ -153,6 +153,22 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     const newConfig = createCompleteConfig(strategy);
     console.log("[STRATEGY_CONFIG] Configuração criada para", strategy.name, newConfig);
     
+    // CRÍTICO: Garantir que a configuração inicial também seja salva no localStorage
+    // A estratégia Advance precisa de um valor válido para porcentagemParaEntrar
+    try {
+      // Só salvamos no localStorage se não houver uma configuração prévia
+      // para evitar sobrescrever configurações já definidas pelo usuário
+      const existingConfig = localStorage.getItem(`strategy_config_${strategy.id}`);
+      if (!existingConfig) {
+        console.log(`[STRATEGY_CONFIG] Salvando configuração inicial para ${strategy.id}:`, newConfig);
+        localStorage.setItem(`strategy_config_${strategy.id}`, JSON.stringify(newConfig));
+      } else {
+        console.log(`[STRATEGY_CONFIG] Configuração existente encontrada para ${strategy.id}, não sobrescrevendo`);
+      }
+    } catch (error) {
+      console.error(`[STRATEGY_CONFIG] Erro ao salvar configuração inicial:`, error);
+    }
+    
     // Atualizar estado
     setConfig(newConfig);
     
@@ -181,6 +197,16 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
       ...config,
       [field]: value
     };
+    
+    // PERSISTÊNCIA CRÍTICA: Salvar no localStorage toda vez que o usuário alterar um valor
+    if (strategy?.id) {
+      try {
+        localStorage.setItem(`strategy_config_${strategy.id}`, JSON.stringify(updatedConfig));
+        console.log(`[STRATEGY_CONFIG] Configuração salva para ${strategy.id}:`, updatedConfig);
+      } catch (error) {
+        console.error(`[STRATEGY_CONFIG] Erro ao salvar configuração:`, error);
+      }
+    }
     
     setConfig(updatedConfig);
     onChange(updatedConfig);
