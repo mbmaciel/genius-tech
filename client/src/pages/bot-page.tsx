@@ -1760,7 +1760,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 <h2 className="text-lg font-semibold text-white">Distribuição de Dígitos</h2>
                 <span className="text-sm text-gray-400">Atualização em tempo real</span>
               </div>
-              <div className="p-4" style={{ height: '450px' }}>
+              <div className="p-4" style={{ height: '580px' }}>
                 {/* Usando o componente IndependentDigitBarChart que tem conexão independente */}
                 <IndependentDigitBarChart symbol="R_100" className="h-full w-full" showControls={true} />
               </div>
