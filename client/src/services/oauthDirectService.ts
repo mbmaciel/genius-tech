@@ -854,14 +854,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Determinar próximo valor de entrada
       const nextAmount = this.calculateNextAmount(isWin, lastContract);
       
-      // Avaliar se devemos entrar baseado nas regras específicas da estratégia
+      // Avaliar se devemos entrar baseado nas regras específicas da estratégia e configuração do usuário
+      // Buscar configuração salva pelo usuário - estratégia deve usar APENAS a configuração do usuário
+      const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+      let userConfig: any = null;
+      
+      if (userConfigObj) {
+        try {
+          userConfig = JSON.parse(userConfigObj);
+        } catch (err) {
+          console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
+        }
+      }
+
       const entryResult = evaluateEntryConditions(
         strategyId,
         digitStats,
         {
-          porcentagemParaEntrar: strategy?.config?.entryPercentage || 8,
-          martingale: this.settings.martingaleFactor || 1.5,
-          usarMartingaleAposXLoss: 2 // Usar martingale após 2 perdas consecutivas
+          // Primeiro prioriza configuração do usuário, depois usa qualquer configuração da estratégia se disponível
+          porcentagemParaEntrar: userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage,
+          martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
+          usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2 // Usar martingale após 2 perdas consecutivas
         }
       );
       
