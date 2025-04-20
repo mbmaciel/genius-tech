@@ -1762,7 +1762,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               </div>
               <div className="p-4" style={{ height: '450px' }}>
                 {/* Usando o componente IndependentDigitBarChart que tem conexão independente */}
-                <IndependentDigitBarChart symbol="R_100" className="h-full w-full" showControls={false} />
+                <IndependentDigitBarChart symbol="R_100" className="h-full w-full" showControls={true} />
               </div>
             </div>
           </div>
