@@ -335,8 +335,9 @@ export class XmlStrategyParser {
     
     const shouldEnter = digit0Percentage <= porcentagemParaEntrar && digit1Percentage <= porcentagemParaEntrar;
     
-    // Determinar tipo de contrato (a estratégia Advance usa DIGITOVER por padrão)
-    const contractType = 'DIGITOVER';
+    // Estratégia Advance: alterar para CALL em vez de DIGITOVER para evitar erros com dígito 0
+    // CALL é mais confiável para a estratégia Advance e evita erros de validação de dígitos
+    const contractType = 'CALL';
     
     // Obter valor de entrada com sobreposição de configuração do usuário
     const amount = this.getFinalAmount();

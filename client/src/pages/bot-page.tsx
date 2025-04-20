@@ -21,6 +21,16 @@ import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 
+// Função para formatar valores monetários
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
 // Interface para conta Deriv
 interface DerivAccount {
   loginid: string;
@@ -1345,6 +1355,44 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico:', newNotification);
           setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
         }
+      }
+      
+      // Processar operações iniciadas (específico para estratégia Advance)
+      if (event.type === 'operation_started' && selectedStrategy === 'advance') {
+        console.log('[BOT_PAGE] Evento de operação iniciada da estratégia Advance:', event);
+        
+        // Gerar ID aleatório para esta operação para facilitar rastreamento
+        const tempId = Math.floor(Math.random() * 1000000);
+        
+        // Obter porcentagem configurada para Advance
+        let porcentagemParaEntrar = 10; // Valor padrão
+        const userConfig = localStorage.getItem(`strategy_config_advance`);
+        if (userConfig) {
+          try {
+            const config = JSON.parse(userConfig);
+            if (config?.porcentagemParaEntrar !== undefined) {
+              porcentagemParaEntrar = Number(config.porcentagemParaEntrar);
+            }
+          } catch (e) {
+            console.error('[BOT_PAGE] Erro ao ler configuração da estratégia Advance:', e);
+          }
+        }
+        
+        // Criar notificação no histórico de operações
+        const newOperation = {
+          id: tempId,
+          entryValue: event.details?.amount || 0,
+          finalValue: 0,
+          profit: 0,
+          time: new Date(),
+          notification: {
+            type: 'warning' as 'warning',
+            message: `ENTRADA ADVANCE | ${porcentagemParaEntrar}% | ${formatCurrency(event.details?.amount || 0)} | Dígitos 0 e 1 ≤ ${porcentagemParaEntrar}%`
+          }
+        };
+        
+        console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico:', newOperation);
+        setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
       }
       
       // Processar eventos de operação finalizada
