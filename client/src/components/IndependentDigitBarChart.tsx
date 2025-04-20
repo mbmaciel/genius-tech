@@ -452,9 +452,11 @@ export function IndependentDigitBarChart({
                 const isHighFrequency = stat.percentage >= 15;
                 const isLowFrequency = stat.percentage <= 5;
                 
-                // Solução para barras com altura exatamente igual ao valor percentual
-                // Não usamos escala, apenas passamos o valor direto para CSS
-                const barHeight = stat.percentage === 0 ? 2 : stat.percentage;
+                // Calculando altura exata em pixels em vez de usar percentuais
+                // Em um container de 200px, cada 1% equivale a 2px
+                const pixelHeight = stat.percentage === 0 ? 2 : stat.percentage * 2;
+                // Valor absoluto em pixels, sem percentual
+                const barHeight = pixelHeight;
                 
                 // Definir cores exatas conforme a imagem
                 // Dígitos pares em verde, ímpares em vermelho
@@ -480,7 +482,7 @@ export function IndependentDigitBarChart({
                     <div 
                       className="bar-chart-bar"
                       style={{
-                        height: `${barHeight}%`,
+                        height: `${barHeight}px`,
                         backgroundColor: barColor,
                         width: '100%',
                         minHeight: '4px',
