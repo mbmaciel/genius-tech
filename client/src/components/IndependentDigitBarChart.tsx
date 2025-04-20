@@ -32,6 +32,16 @@ export function IndependentDigitBarChart({
   const [lastDigits, setLastDigits] = useState<number[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   
+  // SOLUÇÃO PARA O BUG: 
+  // Isso força uma nova instância do componente cada vez que o número de ticks muda
+  // Resolvendo completamente o problema de renderização
+  const [key, setKey] = useState<string>(`${symbol}-${selectedCount}-${Date.now()}`);
+  
+  // Quando o selectedCount muda, geramos uma nova chave única
+  useEffect(() => {
+    setKey(`${symbol}-${selectedCount}-${Date.now()}`);
+  }, [symbol, selectedCount]);
+  
   // Iniciar conexão e inscrição para ticks
   useEffect(() => {
     setLoading(true);
@@ -154,29 +164,29 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
-  // EXCLUSIVO PARA ESTE PROBLEMA:
-  // Desmontamos completamente o componente quando mudamos o número de ticks
-  // para garantir que nenhum elemento persistirá
-  const [shouldRender, setShouldRender] = useState(true);
-  
-  // Efeito radical que desmonta e remonta completamente o componente
+  // SOLUÇÃO SIMPLIFICADA PARA O PROBLEMA DE RENDERIZAÇÃO:
+  // Quando o selectedCount muda, limpamos o estado e removemos todos os listeners
   useEffect(() => {
-    console.log('[IndependentDigitBarChart] Desmontando/remontando componente para', selectedCount, 'ticks');
+    console.log('[IndependentDigitBarChart] Nova contagem selecionada:', selectedCount);
     
-    // 1. Desinscrever dos eventos
-    independentDerivService.removeAllListeners();
+    // 1. Limpar completamente os dados
+    setDigitHistory(null);
+    setLastDigits([]);
     
-    // 2. Desmontar completamente
-    setShouldRender(false);
+    // 2. Mostrar estado de carregamento
+    setLoading(true);
     
-    // 3. Aguardar um momento para garantir que tudo foi limpo
-    const timer = setTimeout(() => {
-      // 4. Remontar com novos valores
-      console.log(`[IndependentDigitBarChart] Remontando com ${selectedCount} ticks`);
-      setShouldRender(true);
-    }, 50);
+    // 3. Remover todos os listeners de histórico
+    const listeners = (independentDerivService as any).eventListeners?.get('history');
+    if (listeners) {
+      listeners.clear();
+      console.log('[IndependentDigitBarChart] Listeners de histórico limpos');
+    }
     
-    return () => clearTimeout(timer);
+    // 4. Resetar versão de renderização para forçar atualização completa
+    setRenderVersion(v => v + 100);
+    
+    console.log(`[IndependentDigitBarChart] Setup completo para ${selectedCount} ticks`);
   }, [selectedCount]);
   
   // Sistema único de atualização com estabilidade para todos os modos
@@ -325,12 +335,12 @@ export function IndependentDigitBarChart({
     };
   }, [isMenuOpen]);
   
-  // Chave única para o componente inteiro forçar recriação completa quando mudar o selectedCount
-  const componentKey = `chart-${symbol}-count-${selectedCount}-v${renderVersion}`;
+  // SOLUÇÃO FINAL: 
+  // Use a chave única para o componente inteiro para forçar recriação completa quando mudar o selectedCount
   
   return (
     <div 
-      key={componentKey}
+      key={key}
       className={`bg-[#0e1a2e] rounded-md overflow-hidden shadow-lg ${className}`}
     >
       {/* Header com título e controles */}
