@@ -6,7 +6,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 import { independentDerivService, DigitHistory } from '../services/independent-deriv-service';
 
 interface IndependentDigitBarChartProps {
@@ -30,6 +30,7 @@ export function IndependentDigitBarChart({
   const [digitHistory, setDigitHistory] = useState<DigitHistory | null>(null);
   const [selectedCount, setSelectedCount] = useState<string>("100");
   const [lastDigits, setLastDigits] = useState<number[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   
   // Iniciar conexão e inscrição para ticks
   useEffect(() => {
@@ -254,6 +255,28 @@ export function IndependentDigitBarChart({
     console.log(`[IndependentDigitBarChart] Renderizando com chave: ${renderKey}`);
   }, [renderKey]);
   
+  // Efeito para fechar o menu quando clicar fora dele
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      // Procurar se o clique foi dentro do menu ou do botão de dropdown
+      if (isMenuOpen && !target.closest('.custom-dropdown')) {
+        setIsMenuOpen(false);
+      }
+    };
+    
+    // Adicionar listener quando o menu estiver aberto
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    // Remover listener ao desmontar ou fechar o menu
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+  
   return (
     <div 
       key={renderKey}
@@ -277,68 +300,67 @@ export function IndependentDigitBarChart({
         
         {/* Controles de seleção (opcional) */}
         {showControls && (
-          <div className="flex items-center ml-2">
-            <Select 
-              value={selectedCount} 
-              onValueChange={(value) => {
-                try {
-                  console.log(`[IndependentDigitBarChart] Alterando seleção para: ${value}`);
-                  // Primeiro atualiza o estado para o novo valor
-                  setSelectedCount(value);
-                  
-                  // Para prevenir o fechamento imediato, vamos usar setTimeout
-                  setTimeout(() => {
-                    try {
-                      // Buscar dados atualizados com o novo valor de ticks
-                      const tickCount = parseInt(value, 10);
-                      const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
-                      
-                      // Atualizar história com os novos dados filtrados
-                      if (filteredData) {
-                        console.log(`[IndependentDigitBarChart] Aplicando filtro de ${tickCount} ticks, dados atualizados:`, 
-                          filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
-                        
-                        setDigitHistory({
-                          ...filteredData,
-                          lastUpdated: new Date()
-                        });
-                        
-                        // Atualizar últimos dígitos (sempre mostrar apenas os 10 mais recentes)
-                        setLastDigits([...filteredData.lastDigits].slice(-10).reverse());
-                        
-                        // Forçar atualização completa ao alterar o número de ticks
-                        setRenderVersion(prev => prev + 1);
-                      }
-                    } catch (error) {
-                      console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
-                    }
-                  }, 0);
-                } catch (error) {
-                  console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
-                }
-              }}
-            >
-              <SelectTrigger 
-                className="h-8 w-[100px] bg-blue-900/30 border border-blue-500 text-xs text-white hover:bg-blue-800/40 hover:border-blue-400"
+          <div className="flex items-center ml-2 relative">
+            <div className="custom-dropdown">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="h-8 w-[100px] bg-blue-900/30 border border-blue-500 text-xs text-white hover:bg-blue-800/40 hover:border-blue-400 rounded px-2 flex items-center justify-between"
                 data-test-id="tick-select-trigger"
               >
-                <SelectValue placeholder={`${selectedCount} Ticks`} />
-              </SelectTrigger>
-              <SelectContent 
-                className="bg-[#0e1a2e] border border-blue-500 z-50"
-                position="popper"
-                side="bottom"
-                align="end"
-                sideOffset={5}
-              >
-                <SelectItem value="25" className="text-white hover:bg-blue-900/50">25 Ticks</SelectItem>
-                <SelectItem value="50" className="text-white hover:bg-blue-900/50">50 Ticks</SelectItem>
-                <SelectItem value="100" className="text-white hover:bg-blue-900/50">100 Ticks</SelectItem>
-                <SelectItem value="200" className="text-white hover:bg-blue-900/50">200 Ticks</SelectItem>
-                <SelectItem value="300" className="text-white hover:bg-blue-900/50">300 Ticks</SelectItem>
-                <SelectItem value="500" className="text-white hover:bg-blue-900/50">500 Ticks</SelectItem>
-              </SelectContent>
-            </Select>
+                <span>{selectedCount} Ticks</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              
+              {isMenuOpen && (
+                <div 
+                  className="absolute right-0 top-full mt-1 bg-[#0e1a2e] border border-blue-500 rounded z-50 w-[100px] overflow-hidden shadow-lg"
+                  style={{ maxHeight: '200px' }}
+                >
+                  {["25", "50", "100", "200", "300", "500"].map((value) => (
+                    <button
+                      key={value}
+                      className={`w-full text-left px-3 py-1.5 text-xs ${
+                        selectedCount === value 
+                          ? 'bg-blue-900 text-white font-medium' 
+                          : 'text-white hover:bg-blue-900/50'
+                      }`}
+                      onClick={() => {
+                        try {
+                          console.log(`[IndependentDigitBarChart] Alterando seleção para: ${value}`);
+                          setSelectedCount(value);
+                          setIsMenuOpen(false);
+                          
+                          // Buscar dados atualizados com o novo valor de ticks
+                          const tickCount = parseInt(value, 10);
+                          const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
+                          
+                          // Atualizar história com os novos dados filtrados
+                          if (filteredData) {
+                            console.log(`[IndependentDigitBarChart] Aplicando filtro de ${tickCount} ticks, dados atualizados:`, 
+                              filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+                            
+                            setDigitHistory({
+                              ...filteredData,
+                              lastUpdated: new Date()
+                            });
+                            
+                            // Atualizar últimos dígitos (sempre mostrar apenas os 10 mais recentes)
+                            setLastDigits([...filteredData.lastDigits].slice(-10).reverse());
+                            
+                            // Forçar atualização completa ao alterar o número de ticks
+                            setRenderVersion(prev => prev + 1);
+                          }
+                        } catch (error) {
+                          console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
+                        }
+                      }}
+                    >
+                      {value} Ticks
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
