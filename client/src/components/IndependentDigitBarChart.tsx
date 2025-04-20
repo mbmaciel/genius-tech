@@ -154,6 +154,20 @@ export function IndependentDigitBarChart({
     }
   }, [selectedCount, digitHistory]);
   
+  // Limpar o estado anterior ao mudar a configuração de ticks
+  // Isso evita que o gráfico antigo fique visível por baixo do novo
+  useEffect(() => {
+    console.log('[IndependentDigitBarChart] Limpando estado anterior ao mudar para', selectedCount, 'ticks');
+    // Limpar temporariamente os dados para evitar sobreposição
+    setDigitHistory(null);
+    setLastDigits([]);
+    // Mostrar estado de carregamento brevemente
+    setLoading(true);
+    
+    // A próxima atualização do serviço preencherá os dados novamente
+    // com os valores corretos para a nova configuração de ticks
+  }, [selectedCount]);
+  
   // Sistema único de atualização com estabilidade para todos os modos
   useEffect(() => {
     console.log(`[IndependentDigitBarChart] Configurando sistema de atualização para ${selectedCount} ticks`);
@@ -358,26 +372,9 @@ export function IndependentDigitBarChart({
                           setSelectedCount(value);
                           setIsMenuOpen(false);
                           
-                          // Buscar dados atualizados com o novo valor de ticks
-                          const tickCount = parseInt(value, 10);
-                          const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
-                          
-                          // Atualizar história com os novos dados filtrados
-                          if (filteredData) {
-                            console.log(`[IndependentDigitBarChart] Aplicando filtro de ${tickCount} ticks, dados atualizados:`, 
-                              filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
-                            
-                            setDigitHistory({
-                              ...filteredData,
-                              lastUpdated: new Date()
-                            });
-                            
-                            // Atualizar últimos dígitos (sempre mostrar apenas os 10 mais recentes)
-                            setLastDigits([...filteredData.lastDigits].slice(-10).reverse());
-                            
-                            // Forçar atualização completa ao alterar o número de ticks
-                            setRenderVersion(prev => prev + 1);
-                          }
+                          // Não precisamos buscar dados aqui, pois o useEffect específico
+                          // já vai limpar os dados e o sistema de atualização automática
+                          // irá buscar os novos dados com a quantidade correta de ticks
                         } catch (error) {
                           console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
                         }
