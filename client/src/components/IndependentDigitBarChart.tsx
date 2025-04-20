@@ -281,35 +281,56 @@ export function IndependentDigitBarChart({
             <Select 
               value={selectedCount} 
               onValueChange={(value) => {
-                console.log(`[IndependentDigitBarChart] Alterando seleção para: ${value}`);
-                setSelectedCount(value);
-                
-                // Buscar dados atualizados com o novo valor de ticks
-                const tickCount = parseInt(value, 10);
-                const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
-                
-                // Atualizar história com os novos dados filtrados
-                if (filteredData) {
-                  console.log(`[IndependentDigitBarChart] Aplicando filtro de ${tickCount} ticks, dados atualizados:`, 
-                    filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+                try {
+                  console.log(`[IndependentDigitBarChart] Alterando seleção para: ${value}`);
+                  // Primeiro atualiza o estado para o novo valor
+                  setSelectedCount(value);
                   
-                  setDigitHistory({
-                    ...filteredData,
-                    lastUpdated: new Date()
-                  });
-                  
-                  // Atualizar últimos dígitos (sempre mostrar apenas os 10 mais recentes)
-                  setLastDigits([...filteredData.lastDigits].slice(-10).reverse());
+                  // Para prevenir o fechamento imediato, vamos usar setTimeout
+                  setTimeout(() => {
+                    try {
+                      // Buscar dados atualizados com o novo valor de ticks
+                      const tickCount = parseInt(value, 10);
+                      const filteredData = independentDerivService.getDigitHistory(symbol, tickCount);
+                      
+                      // Atualizar história com os novos dados filtrados
+                      if (filteredData) {
+                        console.log(`[IndependentDigitBarChart] Aplicando filtro de ${tickCount} ticks, dados atualizados:`, 
+                          filteredData.stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+                        
+                        setDigitHistory({
+                          ...filteredData,
+                          lastUpdated: new Date()
+                        });
+                        
+                        // Atualizar últimos dígitos (sempre mostrar apenas os 10 mais recentes)
+                        setLastDigits([...filteredData.lastDigits].slice(-10).reverse());
+                        
+                        // Forçar atualização completa ao alterar o número de ticks
+                        setRenderVersion(prev => prev + 1);
+                      }
+                    } catch (error) {
+                      console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
+                    }
+                  }, 0);
+                } catch (error) {
+                  console.error('[IndependentDigitBarChart] Erro ao processar seleção:', error);
                 }
-                
-                // Forçar atualização completa ao alterar o número de ticks
-                setRenderVersion(prev => prev + 1);
               }}
             >
-              <SelectTrigger className="h-8 w-[100px] bg-blue-900/30 border border-blue-500 text-xs text-white hover:bg-blue-800/40 hover:border-blue-400">
-                <SelectValue placeholder="Selecionar" />
+              <SelectTrigger 
+                className="h-8 w-[100px] bg-blue-900/30 border border-blue-500 text-xs text-white hover:bg-blue-800/40 hover:border-blue-400"
+                data-test-id="tick-select-trigger"
+              >
+                <SelectValue placeholder={`${selectedCount} Ticks`} />
               </SelectTrigger>
-              <SelectContent className="bg-[#0e1a2e] border border-blue-500">
+              <SelectContent 
+                className="bg-[#0e1a2e] border border-blue-500 z-50"
+                position="popper"
+                side="bottom"
+                align="end"
+                sideOffset={5}
+              >
                 <SelectItem value="25" className="text-white hover:bg-blue-900/50">25 Ticks</SelectItem>
                 <SelectItem value="50" className="text-white hover:bg-blue-900/50">50 Ticks</SelectItem>
                 <SelectItem value="100" className="text-white hover:bg-blue-900/50">100 Ticks</SelectItem>
