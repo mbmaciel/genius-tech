@@ -9,6 +9,21 @@ import {
   TradingSettings, 
   OAuthDirectServiceInterface 
 } from './oauthDirectService.interface';
+import { getStrategyById } from '@/lib/strategiesConfig';
+import { 
+  evaluateAdvanceStrategy, 
+  evaluateIronOverStrategy, 
+  evaluateIronUnderStrategy,
+  evaluateMaxProStrategy,
+  evaluateDefaultStrategy, 
+  ContractType as StrategyContractType,
+  DigitStat
+} from '@/services/strategyRules';
+import {
+  evaluateEntryConditions,
+  updateStrategyResult,
+  initializeStrategyState
+} from '@/lib/strategy-handlers';
 
 interface TokenInfo {
   token: string;
@@ -742,14 +757,65 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Obtém estatísticas de dígitos dos últimos 25 ticks
+   * Usado para avaliar condições de entrada das estratégias
+   */
+  private getDigitStats(): DigitStat[] {
+    try {
+      // Obter dados de digits dos últimos ticks recebidos
+      const localData = localStorage.getItem(`deriv_ticks_${this.activeSymbol}`);
+      if (!localData) {
+        console.log('[OAUTH_DIRECT] Nenhum histórico de ticks disponível ainda');
+        return [];
+      }
+      
+      const lastTicksData = JSON.parse(localData);
+      if (!Array.isArray(lastTicksData) || lastTicksData.length < 10) {
+        console.log('[OAUTH_DIRECT] Histórico de ticks insuficiente para análise');
+        return [];
+      }
+      
+      // Pegar os últimos 25 ticks (ou menos se não houver tantos)
+      const sampleSize = Math.min(25, lastTicksData.length);
+      const recentTicks = lastTicksData.slice(0, sampleSize);
+      
+      // Mapear os dígitos
+      const digits = recentTicks.map((tick: any) => tick.lastDigit || parseInt(tick.price.toString().slice(-1)));
+      
+      // Calcular contagem para cada dígito
+      const digitCounts: Record<number, number> = {};
+      for (let i = 0; i <= 9; i++) {
+        digitCounts[i] = 0;
+      }
+      
+      digits.forEach(digit => {
+        if (digit >= 0 && digit <= 9) {
+          digitCounts[digit]++;
+        }
+      });
+      
+      // Converter para o formato de estatísticas de dígitos
+      const digitStats: DigitStat[] = [];
+      for (let i = 0; i <= 9; i++) {
+        const count = digitCounts[i];
+        const percentage = Math.round((count / sampleSize) * 100);
+        digitStats.push({ digit: i, count, percentage });
+      }
+      
+      console.log(`[OAUTH_DIRECT] Estatísticas de dígitos calculadas: ${JSON.stringify(digitStats.map(d => `${d.digit}:${d.percentage}%`).join(', '))}`);
+      
+      return digitStats;
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao calcular estatísticas de dígitos:', error);
+      return [];
+    }
+  }
+
+  /**
    * Inicia uma nova operação após o resultado de uma anterior
    */
   private startNextOperation(isWin: boolean, lastContract: any): void {
     try {
-      // Implementação específica do martingale
-      // Será executada posteriormente
-      const nextAmount = this.calculateNextAmount(isWin, lastContract);
-      
       // Se temos uma operação agendada, limpar
       if (this.operationTimeout) {
         clearTimeout(this.operationTimeout);
@@ -758,12 +824,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Verificar se podemos continuar com base nas configurações
       const shouldContinue = this.validateOperationContinuation(isWin, lastContract);
       
-      if (shouldContinue) {
-        // Agendar próxima operação
-        this.operationTimeout = setTimeout(() => {
-          this.executeContractBuy(nextAmount);
-        }, 3000);
-      } else {
+      if (!shouldContinue) {
         console.log('[OAUTH_DIRECT] Estratégia finalizada devido às condições de parada');
         
         this.notifyListeners({
@@ -773,6 +834,78 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         
         // Parar a execução
         this.stop();
+        return;
+      }
+      
+      // Obter a estratégia atual
+      const strategyId = this.strategyConfig.toLowerCase();
+      const strategy = getStrategyById(strategyId);
+      
+      // Atualizar o resultado no estado da estratégia
+      updateStrategyResult(
+        strategyId, 
+        isWin ? 'win' : 'loss', 
+        isWin ? (lastContract.profit || 0) : -(lastContract.buy_price || 0)
+      );
+      
+      // Obter as estatísticas de dígitos para avaliar condições de entrada
+      const digitStats = this.getDigitStats();
+      
+      // Determinar próximo valor de entrada
+      const nextAmount = this.calculateNextAmount(isWin, lastContract);
+      
+      // Avaliar se devemos entrar baseado nas regras específicas da estratégia
+      const entryResult = evaluateEntryConditions(
+        strategyId,
+        digitStats,
+        {
+          porcentagemParaEntrar: strategy?.config?.entryPercentage || 8,
+          martingale: this.settings.martingaleFactor || 1.5,
+          usarMartingaleAposXLoss: 2 // Usar martingale após 2 perdas consecutivas
+        }
+      );
+      
+      console.log(`[OAUTH_DIRECT] Avaliação de entrada para ${strategyId}: ${entryResult.message}`);
+      
+      if (entryResult.shouldEnter) {
+        // Agendar próxima operação com os parâmetros determinados pela avaliação
+        this.operationTimeout = setTimeout(() => {
+          // Converter tipo de contrato para formato da API Deriv
+          const contractTypeMapping: Record<string, string> = {
+            'CALL': 'CALL',
+            'PUT': 'PUT',
+            'DIGITOVER': 'DIGITOVER',
+            'DIGITUNDER': 'DIGITUNDER',
+            'DIGITDIFF': 'DIGITDIFF',
+            'DIGITEVEN': 'DIGITEVEN',
+            'DIGITODD': 'DIGITODD'
+          };
+          
+          // Usar tipo de contrato da avaliação da estratégia
+          this.settings.contractType = contractTypeMapping[entryResult.contractType] || 'DIGITOVER';
+          
+          // Usar previsão da avaliação, se disponível
+          if (entryResult.prediction !== undefined) {
+            this.settings.prediction = entryResult.prediction;
+          }
+          
+          // Executar a compra com o valor baseado na estratégia
+          this.executeContractBuy(entryResult.entryAmount || nextAmount);
+        }, 3000);
+      } else {
+        // Se condições não atendidas, aguardar e verificar novamente
+        console.log('[OAUTH_DIRECT] Condições de entrada não atendidas, aguardando próximo tick');
+        
+        this.operationTimeout = setTimeout(() => {
+          // Tentar novamente após aguardar mais ticks
+          this.startNextOperation(isWin, lastContract);
+        }, 5000);
+        
+        // Notificar sobre a espera
+        this.notifyListeners({
+          type: 'info',
+          message: `Aguardando condições ideais: ${entryResult.message}`
+        });
       }
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao iniciar próxima operação:', error);
@@ -1920,6 +2053,22 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           message: 'Conta sem permissões de trading. Por favor, reautorize com permissões adequadas.'
         });
         return false;
+      }
+      
+      // Inicializar o estado da estratégia
+      const strategyId = this.strategyConfig.toLowerCase();
+      const strategy = getStrategyById(strategyId);
+      
+      if (strategy) {
+        console.log(`[OAUTH_DIRECT] Inicializando estratégia: ${strategy.name} (ID: ${strategyId})`);
+        initializeStrategyState(strategyId, entryAmount);
+        
+        // Obter as configurações específicas da estratégia
+        if (strategy.config && strategy.config.entryPercentage) {
+          console.log(`[OAUTH_DIRECT] Configuração de porcentagem para ${strategy.name}: ${strategy.config.entryPercentage}%`);
+        }
+      } else {
+        console.warn(`[OAUTH_DIRECT] Estratégia não encontrada para ID: ${strategyId}, usando padrões`);
       }
       
       // Obter saldo atual antes de iniciar operações para rastreamento de lucro/perda

@@ -1230,7 +1230,21 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               // Para a estratégia Advance, mostrar a porcentagem de entrada específica
               commandType = 'success';
               // Valor padrão do XML para a porcentagem de entrada
-              const porcentagemParaEntrar = 8; // Valor fixo do XML
+              // Não usar valor fixo, usar configuração do usuário para a estratégia
+              const userConfig = localStorage.getItem(`strategy_config_${xmlStrategy.id}`);
+              let porcentagemParaEntrar = 70; // Valor padrão mais alto e seguro
+
+              if (userConfig) {
+                try {
+                  const config = JSON.parse(userConfig);
+                  if (config?.porcentagemParaEntrar) {
+                    porcentagemParaEntrar = Number(config.porcentagemParaEntrar);
+                  }
+                } catch (err) {
+                  console.error("[BOT_PAGE] Erro ao carregar configuração do usuário:", err);
+                }
+              }
+              
               commandMessage = `Porcentagem para entrar: ${porcentagemParaEntrar}% (Dígitos 0 e 1)`;
             } 
             else if (strategyInfo.id === 'green') {
