@@ -890,7 +890,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
             usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2, // Usar martingale após 2 perdas consecutivas
             metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
-            limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20
+            limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20,
+            parcelasMartingale: userConfig?.parcelasMartingale || 1,
+            valorAposVencer: userConfig?.valorAposVencer || this.settings.entryValue || 0.35
           },
           strategyObj?.xmlPath // Passar o caminho do XML para usar o parser XML
         );
@@ -2221,7 +2223,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 valorInicial: userConfig?.valorInicial || this.settings.entryValue || 0.35,
                 martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
                 metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
-                limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20
+                limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20,
+                usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2,
+                parcelasMartingale: userConfig?.parcelasMartingale || 1,
+                valorAposVencer: userConfig?.valorAposVencer || this.settings.entryValue || 0.35
               },
               strategyObj?.xmlPath
             );
