@@ -67,17 +67,24 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     switch (strategyId.toLowerCase()) {
       case 'advance':
         // Obter o valor da porcentagem específica para a estratégia Advance
-        // Usar a configuração do usuário, se disponível, ou o valor padrão
-        // IMPORTANTE: NUNCA usar 8% como valor fixo, sempre usar a configuração do usuário
-        let entryPercentage = userConfig?.porcentagemParaEntrar || strategy?.config?.entryPercentage || 70;
+        // SOMENTE usar a configuração do usuário, sem valor padrão
+        // IMPORTANTE: NUNCA usar valores padrão (nem 70% nem 8%), SOMENTE valor do usuário
+        let entryPercentage = userConfig?.porcentagemParaEntrar;
+        
+        if (entryPercentage === undefined || entryPercentage === null) {
+          console.log("[RELATORIO] ALERTA: Valor de porcentagem não definido pelo usuário");
+          
+          // Se não tem configuração do usuário, mostrar mensagem clara
+          let command = "CONFIGURAÇÃO PENDENTE";  
+          return command;
+        }
         
         // Garantir que estamos exibindo um valor numérico, não uma string
         const percentageValue = typeof entryPercentage === 'string' 
           ? parseFloat(entryPercentage) 
           : entryPercentage;
         
-        // Este log era apenas para debug e estava mostrando o valor fixo de 8%
-        // console.log("[RELATORIO] Usando valor dinâmico para porcentagem de entrada:", percentageValue);
+        console.log("[RELATORIO] Usando valor do usuário para porcentagem de entrada:", percentageValue);
         
         let command = `PORCENTAGEM PARA ENTRAR: ${percentageValue}%`;
         
