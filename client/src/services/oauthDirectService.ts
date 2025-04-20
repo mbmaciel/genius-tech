@@ -683,11 +683,40 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           if (this.currentContractId && this.currentContractId.toString() === contract.contract_id.toString()) {
             console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} atualizado, status: ${contract.status}`);
             
+            // Emitir evento normal de atualização do contrato
             this.notifyListeners({
               type: 'contract_update',
               contract_id: contract.contract_id,
               contract_details: contract
             });
+            
+            // ADICIONAL: Verificar se estamos executando a estratégia Advance para emitir eventos intermediários
+            if (this.strategyConfig.toLowerCase().includes('advance')) {
+              console.log(`[OAUTH_DIRECT] Estratégia ADVANCE detectada, emitindo evento intermediário para o contrato ${contract.contract_id}`);
+              
+              // Calcular valores para o evento intermediário
+              const amount = contract.buy_price || 0;
+              const currentProfit = contract.profit || 0;
+              const result = contract.status === 'won' ? amount + currentProfit : 
+                            contract.status === 'lost' ? 0 : amount;
+              
+              // Determinar porcentagem atual para análise (usada na estratégia Advance)
+              const digit0Percentage = this.getDigitPercentage(0);
+              const digit1Percentage = this.getDigitPercentage(1);
+              
+              // Emitir evento de operação intermediária para atualizar o histórico
+              this.notifyListeners({
+                type: 'intermediate_operation',
+                details: {
+                  amount: amount,
+                  result: result,
+                  profit: currentProfit,
+                  contractId: contract.contract_id,
+                  status: contract.status,
+                  analysis: `Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`
+                }
+              });
+            }
             
             // Se o contrato foi finalizado, notificar resultado
             if (contract.status !== 'open') {
@@ -756,6 +785,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
   }
   
+  /**
+   * Retorna a porcentagem de ocorrência de um dígito específico
+   * @param digit Dígito para verificar porcentagem (0-9)
+   * @returns Porcentagem de ocorrência nos ticks recentes (0-100)
+   */
+  public getDigitPercentage(digit: number): number {
+    if (digit < 0 || digit > 9) {
+      console.error(`[OAUTH_DIRECT] Dígito inválido: ${digit}, deve ser entre 0 e 9`);
+      return 0;
+    }
+    
+    const stats = this.getDigitStats();
+    const digitStat = stats.find(stat => stat.digit === digit);
+    
+    return digitStat?.percentage || 0;
+  }
+
   /**
    * Obtém estatísticas de dígitos dos últimos 25 ticks
    * Usado para avaliar condições de entrada das estratégias
