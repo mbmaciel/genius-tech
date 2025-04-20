@@ -1339,19 +1339,62 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       
       // Processar eventos de operação finalizada
       if (event.type === 'contract_finished') {
+        console.log('[BOT_PAGE] Evento de contrato finalizado recebido:', event);
+        
         // Adicionar operação ao histórico
         const contract = event.contract_details;
         if (contract) {
+          const contractId = typeof contract.contract_id === 'number' ? contract.contract_id : 
+                            typeof contract.contract_id === 'string' ? parseInt(contract.contract_id) : 
+                            Math.floor(Math.random() * 1000000);
+                            
+          // Valores seguros com fallbacks para evitar valores undefined
+          const buyPrice = contract.buy_price || event.entry_value || 0;
+          const sellPrice = event.exit_value || event.sell_price || contract.sell_price || 0;
+          const profit = typeof event.profit === 'number' ? event.profit : 0;
+          
+          // Criar objeto de operação completo
           const newOperation = {
-            id: typeof contract.contract_id === 'number' ? contract.contract_id : Math.random(),
-            entryValue: contract.buy_price || 0,
-            finalValue: event.exit_value || event.sell_price || contract.sell_price || 0,
-            profit: event.profit || 0,
-            time: new Date()
+            id: contractId,
+            entryValue: buyPrice,
+            finalValue: sellPrice,
+            profit: profit,
+            time: new Date(),
+            contractType: contract.contract_type || 'desconhecido'
           };
           
           console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
-          setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+          
+          // Verificar duplicação antes de adicionar ao histórico
+          setOperationHistory(prev => {
+            // Verificar se esta operação já existe no histórico
+            const exists = prev.some(op => op.id === contractId);
+            if (exists) {
+              console.log(`[BOT_PAGE] Operação ${contractId} já existe no histórico, atualizando...`);
+              // Atualizar a operação existente
+              return prev.map(op => op.id === contractId ? newOperation : op);
+            } else {
+              // Adicionar nova operação no topo do histórico
+              return [newOperation, ...prev].slice(0, 50);
+            }
+          });
+          
+          // Atualizar as estatísticas gerais quando uma operação é finalizada
+          if (profit > 0) {
+            setStats(prev => ({
+              ...prev,
+              wins: prev.wins + 1,
+              totalProfit: +(prev.totalProfit + profit).toFixed(2)
+            }));
+          } else {
+            setStats(prev => ({
+              ...prev,
+              losses: prev.losses + 1,
+              totalProfit: +(prev.totalProfit + profit).toFixed(2)
+            }));
+          }
+        } else {
+          console.warn('[BOT_PAGE] Evento contract_finished recebido sem detalhes do contrato:', event);
         }
       }
       
