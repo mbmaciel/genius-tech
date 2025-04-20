@@ -452,11 +452,9 @@ export function IndependentDigitBarChart({
                 const isHighFrequency = stat.percentage >= 15;
                 const isLowFrequency = stat.percentage <= 5;
                 
-                // Escala o percentual de forma estritamente proporcional, relacionando com a escala máxima do eixo Y (50%)
-                // Se o percentual máximo for 50%, o valor é exatamente proporcional
-                // Para barras idênticas à imagem, padronizamos a escala máxima em 40
-                const MAX_SCALE = 40; // Escala máxima do eixo Y (máximo de 40%)
-                const barHeight = stat.percentage === 0 ? 2 : (stat.percentage / MAX_SCALE) * 100;
+                // Solução para barras com altura exatamente igual ao valor percentual
+                // Não usamos escala, apenas passamos o valor direto para CSS
+                const barHeight = stat.percentage === 0 ? 2 : stat.percentage;
                 
                 // Definir cores exatas conforme a imagem
                 // Dígitos pares em verde, ímpares em vermelho
@@ -480,19 +478,14 @@ export function IndependentDigitBarChart({
                     
                     {/* Barra com altura dinâmica e efeitos visuais */}
                     <div 
-                      className={`bar-animation ${isHighFrequency ? 'animate-pulse' : ''}`}
+                      className="bar-chart-bar"
                       style={{
                         height: `${barHeight}%`,
                         backgroundColor: barColor,
                         width: '100%',
                         minHeight: '4px',
-                        transition: `height ${
-                          parseInt(selectedCount, 10) <= 50 
-                            ? '0.7s cubic-bezier(0.34, 1.56, 0.64, 1)' // Transição elástica para 25/50 ticks
-                            : parseInt(selectedCount, 10) >= 200
-                              ? '0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' // Efeito suave para 200+ ticks
-                              : '0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67)' // Efeito otimizado para 100 ticks
-                        }`,
+                        // Sem transições animadas para corresponder exatamente à imagem
+                        transition: 'none',
                         borderRadius: '3px 3px 0 0',
                         // Sem sombra ou efeitos para corresponder exatamente à imagem
                         boxShadow: 'none',
