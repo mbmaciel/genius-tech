@@ -620,9 +620,11 @@ export function BotController({
       
       if (success) {
         // ATUALIZAR IMEDIATAMENTE O STATUS PARA GARANTIR QUE A INTERFACE MUDE
-        console.log('[BOT_CONTROLLER] ✅ Serviço iniciado, atualizando status para ATIVO...');
+        console.log('[BOT_CONTROLLER] ✅✅✅ SERVIÇO INICIADO - Atualizando status para ATIVO ✅✅✅');
+        console.log('[BOT_CONTROLLER] 🔄 Estado anterior:', status);
         setStatus('running');
         onStatusChange('running');
+        console.log('[BOT_CONTROLLER] 🔄 Estado atual definido como: running');
 
         // Forçar a primeira operação após iniciar o serviço
         console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
@@ -739,10 +741,14 @@ export function BotController({
             status={status} 
             selectedStrategy={selectedStrategy}
             onStart={() => {
+              // Log especial para depuração do clique
+              console.log('[BOT_BUTTON] 🚀 Botão de início clicado - Estratégia:', selectedStrategy);
               // Chamar função para iniciar o bot
               startBot();
             }}
             onStop={() => {
+              // Log especial para depuração do clique
+              console.log('[BOT_BUTTON] 🛑 Parando bot...');
               // Chamar função para parar o bot
               stopBot();
             }}

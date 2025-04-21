@@ -2019,7 +2019,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private executeContractBuy(amount: number = 1): void {
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      console.error('[OAUTH_DIRECT] WebSocket não está conectado');
+      console.error('[OAUTH_DIRECT] 🔴 WebSocket não está conectado - Não é possível executar operação');
       this.notifyListeners({
         type: 'error',
         message: 'WebSocket não está conectado'
@@ -2030,6 +2030,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       const contractType = this.settings.contractType || 'DIGITOVER';
       const prediction = this.settings.prediction || 5;
+      
+      // Log detalhado para depuração IRON UNDER
+      console.log(`[OAUTH_DIRECT] 🚀🚀🚀 EXECUTANDO COMPRA DE CONTRATO - DEBUG DETALHADO 🚀🚀🚀`);
+      console.log(`[OAUTH_DIRECT] 🚀 Estratégia ativa: ${this.activeStrategy}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Tipo de contrato: ${contractType}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Previsão: ${prediction}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Valor da entrada: ${amount}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Status da conexão: ${this.webSocket.readyState}`);
       
       // Notificar início da operação
       this.notifyListeners({
@@ -2053,6 +2061,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Adicionar predição se for tipo de contrato com dígito
       if (contractType.includes('DIGIT')) {
         parameters.barrier = prediction.toString();
+        console.log(`[OAUTH_DIRECT] 🚀 Definindo barreira (previsão) para ${prediction}`);
       }
       
       const buyRequest = {
@@ -2061,7 +2070,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         parameters
       };
       
-      console.log('[OAUTH_DIRECT] Enviando solicitação de compra de contrato:', buyRequest);
+      console.log('[OAUTH_DIRECT] 🚀 Enviando solicitação de compra de contrato:', JSON.stringify(buyRequest, null, 2));
       this.webSocket.send(JSON.stringify(buyRequest));
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao executar compra de contrato:', error);
@@ -2244,7 +2253,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Garantir que o amount seja um número
     const entryAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     try {
-      console.log('[OAUTH_DIRECT] Iniciando primeira operação do bot com valor:', amount);
+      console.log(`[OAUTH_DIRECT] 🌟🌟🌟 INICIANDO PRIMEIRA OPERAÇÃO DO BOT 🌟🌟🌟`);
+      console.log(`[OAUTH_DIRECT] 🌟 Valor da primeira entrada: ${amount}`);
+      console.log(`[OAUTH_DIRECT] 🌟 Estratégia ativa: ${this.activeStrategy || 'Nenhuma'}`);
+      console.log(`[OAUTH_DIRECT] 🌟 Configurações: ${JSON.stringify(this.settings, null, 2)}`);
+      console.log(`[OAUTH_DIRECT] 🌟 Token ativo: ${this.activeToken ? 'Presente' : 'Ausente'}`);
+      console.log(`[OAUTH_DIRECT] 🌟 WebSocket status: ${this.webSocket ? this.webSocket.readyState : 'Não inicializado'}`);
+      
       
       // Verificar se o WebSocket está conectado
       if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
