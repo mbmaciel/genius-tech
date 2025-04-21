@@ -15,56 +15,88 @@ export type ContractType = 'CALL' | 'PUT' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITD
 /**
  * Avalia a estratégia ADVANCE
  * Regra: Comprar APENAS quando os dígitos 0 E 1 tiverem frequência MENOR OU IGUAL à porcentagem definida pelo usuário
+ * A análise utiliza os últimos 25 ticks para calcular os percentuais
  */
 export function evaluateAdvanceStrategy(
   digitStats: DigitStat[],
   entryPercentage: number | undefined
-): { shouldEnter: boolean; contractType: ContractType; message: string } {
+): { 
+  shouldEnter: boolean; 
+  contractType: ContractType; 
+  message: string;
+  analysis: { digit0: number; digit1: number; threshold: number }; // Adicionamos análise para o histórico
+  shouldLog: boolean; // Flag para informar que esta análise deve ser registrada no histórico, mesmo sem entrada
+} {
   // Garantir que sempre temos um valor para porcentagem
   // Se valor não estiver definido, usar 10% como padrão
   const percentageToUse = entryPercentage !== undefined ? entryPercentage : 10;
   
-  // Log adicional para debug
-  console.log(`[STRATEGY_RULES] ADVANCE: Analisando com porcentagem: ${percentageToUse}%`);
+  // Log adicional para debug mais detalhado
+  console.log(`[STRATEGY_RULES] ADVANCE: Analisando com porcentagem definida pelo usuário: ${percentageToUse}%`);
+  console.log(`[STRATEGY_RULES] ADVANCE: Total de estatísticas recebidas: ${digitStats.length} dígitos`);
   
   // Reescrita da validação para simplicidade e clareza
   if (typeof percentageToUse !== 'number' || isNaN(percentageToUse)) {
     return { 
       shouldEnter: false, 
-      contractType: 'CALL', 
-      message: `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.` 
+      contractType: 'DIGITOVER', // Avance usa DIGITOVER conforme definido no XML
+      message: `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.`,
+      analysis: { digit0: 0, digit1: 0, threshold: percentageToUse },
+      shouldLog: true // Registramos esta operação intermediária no histórico
     };
   }
   
-  // Extrair estatísticas para os dígitos 0 e 1
+  // Extrair estatísticas para os dígitos 0 e 1 - deve vir da análise dos últimos 25 ticks
   const digit0 = digitStats.find(stat => stat.digit === 0);
   const digit1 = digitStats.find(stat => stat.digit === 1);
   
-  // Se não encontrou estatísticas para esses dígitos, não iniciar operação
-  if (!digit0 || !digit1) {
+  // Certifique-se de sempre ter valores, mesmo que sejam zeros
+  const digit0Percentage = digit0 ? Math.round(digit0.percentage) : 0;
+  const digit1Percentage = digit1 ? Math.round(digit1.percentage) : 0;
+  
+  // Verificamos se temos dados suficientes para uma análise confiável (pelo menos 25 ticks)
+  const hasSufficientData = digitStats.length > 0 && 
+    digitStats.reduce((sum, stat) => sum + stat.count, 0) >= 25;
+  
+  // Se não temos dados suficientes, informar e não iniciar operação,
+  // mas ainda registramos no histórico para transparência
+  if (!hasSufficientData) {
     return { 
       shouldEnter: false, 
-      contractType: 'CALL', 
-      message: 'Estatísticas incompletas para dígitos 0 e 1' 
+      contractType: 'DIGITOVER', // Tipo correto conforme XML
+      message: 'ADVANCE: Dados insuficientes para análise completa. Necessários pelo menos 25 ticks recentes.',
+      analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
+      shouldLog: true // Registramos esta análise no histórico
     };
   }
   
-  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
-  const digit0Percentage = Math.round(digit0.percentage);
-  const digit1Percentage = Math.round(digit1.percentage);
+  // Se não encontrou estatísticas para esses dígitos específicos, usar zeros
+  // mas ainda registramos no histórico para transparência
+  if (!digit0 || !digit1) {
+    return { 
+      shouldEnter: false, 
+      contractType: 'DIGITOVER', // Tipo correto conforme XML
+      message: 'ADVANCE: Calculando estatísticas para dígitos 0 e 1...',
+      analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
+      shouldLog: true // Registramos esta análise no histórico
+    };
+  }
   
   // CRÍTICO: Usar a variável percentageToUse que foi definida no início com tratamento adequado
+  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
   const shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 
-    ? `ADVANCE: Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}% (valor definido pelo usuário)`
-    : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}% (valor definido pelo usuário)`;
+    ? `ADVANCE: ✅ Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}% (valor definido pelo usuário)`
+    : `ADVANCE: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}% (valor definido pelo usuário)`;
     
   return { 
     shouldEnter, 
-    contractType: 'CALL',  // ADVANCE usa CALL por padrão
-    message 
+    contractType: 'DIGITOVER', // Tipo correto conforme XML
+    message,
+    analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
+    shouldLog: true // Sempre registramos estas análises no histórico para transparência completa
   };
 }
 
