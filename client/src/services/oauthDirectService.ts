@@ -44,7 +44,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private currentContractId: string | number | null = null;
   private verboseLogging: boolean = false; // Controle de logs detalhados
   private settings: TradingSettings = {
-    entryValue: 0.35,
+    // CORREÇÃO CRÍTICA: Não usar valor fixo, será substituído pelo valor do localStorage
+    entryValue: 0, // Inicializado como 0, será preenchido durante a configuração da estratégia
     profitTarget: 20,
     lossLimit: 20,
     martingaleFactor: 1.5,
@@ -1190,8 +1191,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     if (isWin) {
-      // Em caso de vitória, voltar ao valor inicial
+      // CORREÇÃO CRÍTICA: Em caso de vitória, voltar ao valor inicial CONFIGURADO pelo usuário
+      // Este valor vem do localStorage e tem prioridade absoluta
       console.log(`[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial}`);
+      console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Garantindo uso do valor exato configurado pelo usuário: ${configuracoes.valorInicial}. Valor anterior de entrada: ${lastContract?.buy_price}`);
+      
+      // Atualizar também o valor na configuração global para garantir consistência
+      this.settings.entryValue = configuracoes.valorInicial;
+      
       return configuracoes.valorInicial;
     } else {
       // Obter o estado atual da estratégia para verificar perdas consecutivas
