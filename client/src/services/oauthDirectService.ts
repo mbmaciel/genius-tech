@@ -1180,10 +1180,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Verificar se já atingimos o número de perdas para aplicar martingale
       if (consecutiveLosses >= configuracoes.usarMartingaleAposXLoss) {
-        // Aplicar martingale após X perdas consecutivas
-        let nextAmount = Math.round(buyPrice * (1 + configuracoes.martingale) * 100) / 100;
+        // CORREÇÃO CRÍTICA: Aplicar martingale corretamente conforme XML
+        // No XML da estratégia Iron Under, o martingale é usado para MULTIPLICAR o valor 
+        // Verificar se é Iron Under e aplicar lógica correta
+        let nextAmount;
         
-        console.log(`[OAUTH_DIRECT] 🔴 Aplicando martingale (${configuracoes.martingale}) após ${consecutiveLosses} perdas consecutivas`);
+        if (this.strategyConfig.toLowerCase().includes('ironunder')) {
+          // Para Iron Under, seguir estritamente a lógica do XML
+          // No XML de Iron Under, o martingale é um valor absoluto (0.5 para aumentar 50%)
+          nextAmount = Math.round(buyPrice * (1 + configuracoes.martingale) * 100) / 100;
+          console.log(`[OAUTH_DIRECT] 🔴 Iron Under: Aplicando martingale de ${configuracoes.martingale} (aumento de ${configuracoes.martingale * 100}%)`);
+        } else {
+          // Para outras estratégias, usar o fator de multiplicação conforme configurado
+          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          console.log(`[OAUTH_DIRECT] 🔴 Aplicando fator martingale de ${configuracoes.martingale}x`);
+        }
+        
+        console.log(`[OAUTH_DIRECT] 🔴 Aplicando martingale após ${consecutiveLosses} perdas consecutivas`);
         console.log(`[OAUTH_DIRECT] 🔴 Valor anterior: ${buyPrice}, Novo valor: ${nextAmount}`);
         
         return nextAmount;
