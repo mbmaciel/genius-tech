@@ -75,10 +75,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
 
-      // 3. Terceira prioridade: Valor atual nas settings
-      if (this.settings.entryValue > 0) {
-        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${this.settings.entryValue}`);
-        return this.settings.entryValue;
+      // 3. Terceira prioridade: Valor atual nas settings (verificar se é um número válido)
+      const settingsValue = Number(this.settings.entryValue);
+      if (!isNaN(settingsValue) && settingsValue > 0) {
+        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${settingsValue}`);
+        return settingsValue;
       }
 
       // 4. Último recurso: Valor padrão

@@ -51,7 +51,7 @@ export function getStrategyState(strategyId: string): StrategyState | undefined 
  */
 export function initializeStrategyState(
   strategyId: string, 
-  initialAmount: number = 0.35
+  initialAmount: number = 1.0 // CORREÇÃO: Valor default mais visível
 ): void {
   console.log(`[STRATEGY_HANDLER] Inicializando estado para estratégia: ${strategyId}`);
   
@@ -119,16 +119,16 @@ export function updateStrategyResult(
           console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO CRÍTICA: Após vitória, usando valor inicial configurado pelo usuário: ${state.currentAmount}`);
         } else {
           // Fallback para valor padrão apenas se não houver configuração
-          state.currentAmount = 0.35; 
+          state.currentAmount = 1.0; // CORREÇÃO: Valor default mais visível
           console.log(`[STRATEGY_HANDLER] Após vitória, usando valor padrão: ${state.currentAmount}`);
         }
       } catch (error) {
         console.error('[STRATEGY_HANDLER] Erro ao ler configuração após vitória:', error);
-        state.currentAmount = 0.35; // Fallback para valor padrão
+        state.currentAmount = 1.0; // CORREÇÃO: Valor default mais visível
       }
     } else {
       // Não encontrou configuração, usar valor padrão
-      state.currentAmount = 0.35;
+      state.currentAmount = 1.0; // CORREÇÃO: Valor default mais visível
       console.log(`[STRATEGY_HANDLER] Não encontrou configuração, usando valor padrão após vitória: ${state.currentAmount}`);
     }
   } else {
@@ -265,7 +265,8 @@ export async function evaluateEntryConditions(
   console.log(`[STRATEGY_HANDLER] 🧪 Parser XML disponível: ${canUseXmlParser}`);
   
   // Configurações de entrada padrão (caso não use parser XML)
-  let entryAmount = state.currentAmount || 0.35;
+  // CORREÇÃO CRÍTICA: Usar valor inicial configurado pelo usuário
+  let entryAmount = state.currentAmount || 1.0; // Valor default mais visível
   let shouldEnter = false;
   let contractType: ContractType = 'CALL';
   let prediction: number | undefined = undefined;
