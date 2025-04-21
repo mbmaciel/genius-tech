@@ -55,14 +55,35 @@ export function initializeStrategyState(
 ): void {
   console.log(`[STRATEGY_HANDLER] Inicializando estado para estratégia: ${strategyId}`);
   
-  // Definir state padrão
+  // CORREÇÃO CRÍTICA: Buscar valor inicial definido pelo usuário antes de inicializar
+  let valorInicial = initialAmount; // Valor default
+  
+  // Verificar se há configuração do usuário salva
+  const strategyLowerCase = strategyId.toLowerCase();
+  const strategyConfigString = localStorage.getItem(`strategy_config_${strategyLowerCase}`);
+  
+  if (strategyConfigString) {
+    try {
+      const userConfig = JSON.parse(strategyConfigString);
+      if (userConfig.valorInicial !== undefined) {
+        valorInicial = parseFloat(userConfig.valorInicial);
+        console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO CRÍTICA: Inicializando com valor definido pelo usuário: ${valorInicial}`);
+      }
+    } catch (error) {
+      console.error('[STRATEGY_HANDLER] Erro ao carregar configuração inicial:', error);
+    }
+  }
+  
+  // Definir state padrão usando o valor correto
   strategyStates[strategyId] = {
     consecutiveLosses: 0,
     lastResult: null,
-    currentAmount: initialAmount,
+    currentAmount: valorInicial, // Usar valor do usuário em vez do valor fixo
     prediction: strategyId.includes('digit') ? Math.floor(Math.random() * 10) : undefined,
     entryConditionsMet: false
   };
+  
+  console.log(`[STRATEGY_HANDLER] Estado inicializado com valor inicial: ${valorInicial}`);
 }
 
 /**
@@ -83,10 +104,37 @@ export function updateStrategyResult(
   // Atualizar contagem de perdas consecutivas
   if (result === 'win') {
     state.consecutiveLosses = 0;
-    state.currentAmount = 0.35; // Resetar para valor inicial após ganho
+    
+    // CORREÇÃO CRÍTICA: Não usar valor fixo de 0.35, mas sim o valor inicial configurado pelo usuário
+    // Obter configuração do usuário para esta estratégia
+    const strategyCurrent = strategyId.toLowerCase();
+    const strategyConfigString = localStorage.getItem(`strategy_config_${strategyCurrent}`);
+    
+    if (strategyConfigString) {
+      try {
+        const userConfig = JSON.parse(strategyConfigString);
+        // Usar o valor definido pelo usuário, se disponível
+        if (userConfig.valorInicial !== undefined) {
+          state.currentAmount = parseFloat(userConfig.valorInicial);
+          console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO CRÍTICA: Após vitória, usando valor inicial configurado pelo usuário: ${state.currentAmount}`);
+        } else {
+          // Fallback para valor padrão apenas se não houver configuração
+          state.currentAmount = 0.35; 
+          console.log(`[STRATEGY_HANDLER] Após vitória, usando valor padrão: ${state.currentAmount}`);
+        }
+      } catch (error) {
+        console.error('[STRATEGY_HANDLER] Erro ao ler configuração após vitória:', error);
+        state.currentAmount = 0.35; // Fallback para valor padrão
+      }
+    } else {
+      // Não encontrou configuração, usar valor padrão
+      state.currentAmount = 0.35;
+      console.log(`[STRATEGY_HANDLER] Não encontrou configuração, usando valor padrão após vitória: ${state.currentAmount}`);
+    }
   } else {
     state.consecutiveLosses++;
     // Valor de Entrada será calculado de acordo com a estratégia
+    console.log(`[STRATEGY_HANDLER] Derrota registrada! Aumentando consecutiveLosses para: ${state.consecutiveLosses}`);
   }
   
   console.log(`[STRATEGY_HANDLER] ${strategyId}: Resultado ${result}, Profit ${profit}, Perdas consecutivas: ${state.consecutiveLosses}`);
