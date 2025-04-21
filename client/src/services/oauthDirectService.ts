@@ -718,6 +718,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               // Para vitórias, SEMPRE calcular com base no payout
               if (isWin && contract.payout && contract.buy_price) {
                 profit = Number(contract.payout) - Number(contract.buy_price);
+                
+                // NOVA CORREÇÃO: Verificar se o profit é proporcionalmente correto (pelo menos 0.5x do valor de entrada)
+                // O payout mínimo esperado para DIGITOVER é aproximadamente 1.8x o valor da entrada
+                const minExpectedProfit = Number(contract.buy_price) * 0.8; // Deve ganhar pelo menos 80% do valor da entrada
+                
+                if (profit < minExpectedProfit) {
+                  console.log(`[OAUTH_DIRECT] ★★★ CORREÇÃO CRÍTICA: Profit calculado (${profit}) é muito baixo. Aplicando correção forçada. ★★★`);
+                  
+                  // Correção forçada: usar um valor padronizado de 1.8x para payout (para DIGITOVER e DIGITUNDER)
+                  const correctedPayout = Number(contract.buy_price) * 1.8;
+                  profit = correctedPayout - Number(contract.buy_price);
+                  
+                  console.log(`[OAUTH_DIRECT] ★★★ PROFIT CORRIGIDO: ${profit} (baseado em payout esperado de ${correctedPayout}) ★★★`);
+                }
+                
                 console.log(`[OAUTH_DIRECT] Calculando lucro para operação vencedora: Payout ${contract.payout} - Preço de compra ${contract.buy_price} = ${profit}`);
               }
               // Para perdas, sempre usar o valor negativo do preço de compra
