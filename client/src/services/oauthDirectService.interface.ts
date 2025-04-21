@@ -48,6 +48,9 @@ export interface TradingSettings {
   martingaleFactor?: number;
   contractType?: string;
   prediction?: number;
+  activeSymbol?: string;   // Símbolo ativo (ex: R_100)
+  duration?: number;       // Duração do contrato
+  durationUnit?: string;   // Unidade de duração (t = ticks, s = segundos, etc)
 }
 
 export interface OAuthDirectServiceInterface {

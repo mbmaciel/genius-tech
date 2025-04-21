@@ -64,6 +64,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   };
   
   private strategyConfig: string = '';
+  private lastDigit: number = 0; // Último dígito recebido nos ticks
+  private advancePercentage: number = 10; // Porcentagem para estratégia Advance (padrão 10%)
+  private activeStrategy: string = ''; // Estratégia ativa
   
   private operationTimeout: any = null;
   private pingInterval: any = null;
@@ -987,7 +990,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               const intermediateOperation = {
                 id: Date.now().toString(),
                 timestamp: new Date().toISOString(),
-                symbol: this.settings.activeSymbol,
+                symbol: this.activeSymbol, // Usar a propriedade da classe diretamente
                 type: 'DIGITOVER',  // Tipo de contrato usado pela estratégia Advance
                 amount: this.settings.entryValue,
                 result: null,  // Não tem resultado, é só análise
@@ -2755,6 +2758,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     if (index !== -1) {
       this.eventListeners.splice(index, 1);
     }
+  }
+  
+  /**
+   * Método compatível com componentes antigos para emitir eventos
+   * Internamente usa notifyListeners
+   */
+  private emit(type: string, data: any): void {
+    this.notifyListeners({
+      type,
+      ...data
+    });
   }
   
   /**
