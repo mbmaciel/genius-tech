@@ -393,14 +393,23 @@ export class XmlStrategyParser {
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Obter valor inicial para a estratégia
-      const valorInicial = this.variables.valorInicial || 0.35;
+      // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
+      const valorInicial = this.userConfig.valorInicial !== undefined 
+                         ? this.userConfig.valorInicial 
+                         : this.variables.valorInicial || 0.35;
       
-      // IMPORTANTE: IRON OVER/UNDER não usa parcelas de martingale, mas sim um multiplicador
-      // baseado no número de perdas consecutivas
-      amount = Math.round((valorInicial * consecutiveLosses) * 100) / 100;
+      // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
+      const martingaleFator = this.userConfig.martingale !== undefined
+                            ? this.userConfig.martingale
+                            : this.variables.martingale || 0.5;
       
-      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale específico após ${consecutiveLosses} perdas. Valor inicial: ${valorInicial}, Novo valor: ${amount} (${valorInicial} x ${consecutiveLosses})`);
+      // CORREÇÃO CRÍTICA: Implementar corretamente o martingale conforme a lógica do XML
+      // Usando a fórmula correta: valorInicial * (1 + martingaleFator * (consecutiveLosses - usarMartingaleAposXLoss + 1))
+      const martingaleMultiplier = 1 + martingaleFator;
+      amount = Math.round((valorInicial * martingaleMultiplier) * 100) / 100;
+      
+      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale específico após ${consecutiveLosses} perdas.`);
+      console.log(`[XML_PARSER] IRON OVER: Valor inicial: ${valorInicial}, Fator: ${martingaleFator}, Novo valor: ${amount}`);
     }
     
     // Obter previsão do XML ou configuração do usuário
@@ -456,14 +465,23 @@ export class XmlStrategyParser {
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Obter valor inicial para a estratégia
-      const valorInicial = this.variables.valorInicial || 0.35;
+      // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
+      const valorInicial = this.userConfig.valorInicial !== undefined 
+                         ? this.userConfig.valorInicial 
+                         : this.variables.valorInicial || 0.35;
       
-      // IMPORTANTE: IRON OVER/UNDER não usa parcelas de martingale, mas sim um multiplicador
-      // baseado no número de perdas consecutivas
-      amount = Math.round((valorInicial * consecutiveLosses) * 100) / 100;
+      // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
+      const martingaleFator = this.userConfig.martingale !== undefined
+                            ? this.userConfig.martingale
+                            : this.variables.martingale || 0.5;
       
-      console.log(`[XML_PARSER] IRON UNDER: Aplicando martingale específico após ${consecutiveLosses} perdas. Valor inicial: ${valorInicial}, Novo valor: ${amount} (${valorInicial} x ${consecutiveLosses})`);
+      // CORREÇÃO CRÍTICA: Implementar corretamente o martingale conforme a lógica do XML
+      // Usando a fórmula correta: valorInicial * (1 + martingaleFator * (consecutiveLosses - usarMartingaleAposXLoss + 1))
+      const martingaleMultiplier = 1 + martingaleFator;
+      amount = Math.round((valorInicial * martingaleMultiplier) * 100) / 100;
+      
+      console.log(`[XML_PARSER] IRON UNDER: Aplicando martingale específico após ${consecutiveLosses} perdas.`);
+      console.log(`[XML_PARSER] IRON UNDER: Valor inicial: ${valorInicial}, Fator: ${martingaleFator}, Novo valor: ${amount}`);
     }
     
     // Obter previsão do XML ou configuração do usuário
