@@ -733,6 +733,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               
               console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}, Payout: ${contract.payout}, Preço de compra: ${contract.buy_price}`);
               
+              // Verificar se é a primeira operação (via passthrough)
+              const isFirstOperation = contract.passthrough?.is_first_operation === true;
+              if (isFirstOperation) {
+                console.log(`[OAUTH_DIRECT] ★★★ PRIMEIRA OPERAÇÃO DETECTADA VIA PASSTHROUGH ★★★`);
+                console.log(`[OAUTH_DIRECT] Valor EXATO de entrada: ${contract.passthrough?.entryAmount || contract.buy_price}, Payout: ${contract.payout}`);
+              }
+              
               // Incluir todos os detalhes relevantes do contrato para histórico
               this.notifyListeners({
                 type: 'contract_finished',
@@ -741,7 +748,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 profit: profit,
                 contract_details: contract,
                 entry_value: contract.buy_price || 0,
-                exit_value: contract.sell_price || 0
+                exit_value: contract.sell_price || 0,
+                is_first_operation: isFirstOperation
               });
               
               // Iniciar próxima operação após resultado
@@ -2447,13 +2455,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Construir parâmetros básicos
       const parameters: any = {
         amount: finalAmount, // Usar o valor correto do XML em vez do padrão
-        basis: 'stake',
+        basis: 'stake', // Usar sempre 'stake' para garantir o cálculo correto do payout
         contract_type: contractType,
         currency: 'USD',
-        duration: duration,
-        duration_unit: durationUnit,
+        duration: 5, // Corrigir para 5 ticks independente da variável duration 
+        duration_unit: 't', // Usar sempre 't' (ticks) para duração padronizada
         symbol: symbolCode
       };
+      
+      // Adicionar log detalhado da requisição
+      console.log(`[OAUTH_DIRECT] ★★★ Parâmetros da primeira operação: Valor=${finalAmount}, Tipo=${contractType}, Duração=5t ★★★`);
       
       // Adicionar previsão para contratos de dígitos
       if (contractType.startsWith('DIGIT')) {
@@ -2463,9 +2474,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Requisição de compra de contrato completa
       const buyRequest = {
         buy: 1,
-        price: finalAmount, // Usar o valor correto do XML aqui também
+        price: finalAmount, // Usar o valor correto do XML para price também
         parameters: parameters,
-        subscribe: 1
+        passthrough: {
+          is_first_operation: true, // Marcar como primeira operação para tratamento especial
+          entryAmount: finalAmount // Incluir valor de entrada também no passthrough para garantir
+        },
+        subscribe: 1 // Manter inscrição para atualizações
       };
       
       console.log('[OAUTH_DIRECT] Enviando solicitação de compra:', buyRequest);
