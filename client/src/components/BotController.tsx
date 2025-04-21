@@ -638,8 +638,10 @@ export function BotController({
         console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
         
         // Executar a primeira operação com base na estratégia e no valor de entrada configurado
-        const entryAmount = strategyConfig.valorInicial;
-        const operationStarted = await oauthDirectService.executeFirstOperation(entryAmount);
+        // CORREÇÃO CRÍTICA: Usar método getUserDefinedAmount para garantir a prioridade correta
+        const userConfiguredAmount = strategyConfig.valorInicial;
+        console.log(`[BOT_CONTROLLER] 🚨 CORREÇÃO: Usando método getUserDefinedAmount para valor ${userConfiguredAmount}`);
+        const operationStarted = await oauthDirectService.executeFirstOperation(userConfiguredAmount);
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
@@ -653,7 +655,7 @@ export function BotController({
         // Atualização de status também ocorre via evento bot_started
         toast({
           title: "Bot iniciado",
-          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${entryAmount}`,
+          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${userConfiguredAmount}`,
         });
       } else {
         console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
