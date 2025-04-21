@@ -709,9 +709,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             if (contract.status !== 'open') {
               // Obter resultado final
               const isWin = contract.status === 'won';
-              const profit = contract.profit;
               
-              console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}`);
+              // Certificar-se de usar o valor correto para o lucro
+              // Para operações ganhas: usar o valor de profit que vem da API
+              // Para operações perdidas: o profit pode vir como zero, então calculamos com base no preço de compra
+              let profit = contract.profit;
+              
+              // Verificar se o profit está definido corretamente
+              if (profit === undefined || profit === null || profit === 0) {
+                // Se for uma vitória com profit zero, temos que calcular com base no payout
+                if (isWin && contract.payout && contract.buy_price) {
+                  profit = Number(contract.payout) - Number(contract.buy_price);
+                  console.log(`[OAUTH_DIRECT] Recalculando lucro: Payout ${contract.payout} - Preço de compra ${contract.buy_price} = ${profit}`);
+                } 
+                // Se for uma perda, o profit deve ser -buy_price
+                else if (!isWin && contract.buy_price) {
+                  profit = -Number(contract.buy_price);
+                }
+              }
+              
+              console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}, Payout: ${contract.payout}, Preço de compra: ${contract.buy_price}`);
               
               // Incluir todos os detalhes relevantes do contrato para histórico
               this.notifyListeners({
