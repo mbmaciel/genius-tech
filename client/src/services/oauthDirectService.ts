@@ -2028,13 +2028,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      const contractType = this.settings.contractType || 'DIGITOVER';
-      const prediction = this.settings.prediction || 5;
+      // Verificar se é IRON UNDER e forçar o tipo correto
+      let contractType = this.settings.contractType || 'DIGITOVER';
+      
+      // CORREÇÃO CRÍTICA: Forçar DIGITUNDER para estratégia Iron Under
+      if (this.activeStrategy && (
+          this.activeStrategy.toLowerCase().includes('iron under') || 
+          this.activeStrategy.toLowerCase().includes('ironunder')
+        )) {
+        contractType = 'DIGITUNDER';
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando DIGITUNDER para estratégia Iron Under`);
+      }
+      
+      // Garantir que prediction seja válido (1-9) para contratos DIGIT
+      let prediction = this.settings.prediction || 5;
+      if (contractType.startsWith('DIGIT') && (prediction < 1 || prediction > 9)) {
+        console.warn(`[OAUTH_DIRECT] 🚨 Valor de previsão inválido: ${prediction}. API Deriv aceita apenas 1-9. Ajustando para 5.`);
+        prediction = 5;
+      }
       
       // Log detalhado para depuração IRON UNDER
       console.log(`[OAUTH_DIRECT] 🚀🚀🚀 EXECUTANDO COMPRA DE CONTRATO - DEBUG DETALHADO 🚀🚀🚀`);
       console.log(`[OAUTH_DIRECT] 🚀 Estratégia ativa: ${this.activeStrategy}`);
-      console.log(`[OAUTH_DIRECT] 🚀 Tipo de contrato: ${contractType}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Tipo de contrato (CORRIGIDO): ${contractType}`);
       console.log(`[OAUTH_DIRECT] 🚀 Previsão: ${prediction}`);
       console.log(`[OAUTH_DIRECT] 🚀 Valor da entrada: ${amount}`);
       console.log(`[OAUTH_DIRECT] 🚀 Status da conexão: ${this.webSocket.readyState}`);
