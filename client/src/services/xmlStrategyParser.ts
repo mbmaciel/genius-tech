@@ -310,19 +310,19 @@ export class XmlStrategyParser {
     console.log(`[XML_PARSER] ADVANCE: Porcentagem limite definida: ${porcentagemParaEntrar}%`);
     
     // Obter estatísticas dos dígitos 0 e 1
-    const digit0 = digitStats.find(d => d.digit === 0);
-    const digit1 = digitStats.find(d => d.digit === 1);
+    let digit0 = digitStats.find(d => d.digit === 0);
+    let digit1 = digitStats.find(d => d.digit === 1);
     
-    if (!digit0 || !digit1) {
-      console.log(`[XML_PARSER] ADVANCE: Estatísticas incompletas para dígitos 0 e 1`);
-      
-      return {
-        shouldEnter: false,
-        contractType: 'DIGITOVER',
-        amount: this.getFinalAmount(),
-        entryAmount: this.getFinalAmount(),
-        message: 'Estatísticas incompletas para dígitos 0 e 1'
-      };
+    // Garantir que sempre temos valores válidos mesmo se não encontrarmos nas estatísticas
+    // Isso evita que a estratégia fique bloqueada se não encontrar os dígitos
+    if (!digit0) {
+      console.log(`[XML_PARSER] ADVANCE: Estatística para dígito 0 não encontrada, criando valor padrão`);
+      digit0 = { digit: 0, count: 0, percentage: 0 };
+    }
+    
+    if (!digit1) {
+      console.log(`[XML_PARSER] ADVANCE: Estatística para dígito 1 não encontrada, criando valor padrão`);
+      digit1 = { digit: 1, count: 0, percentage: 0 };
     }
     
     // Verificar a condição exata da estratégia ADVANCE

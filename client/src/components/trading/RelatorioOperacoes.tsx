@@ -201,6 +201,9 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
   // Obter o comando atual da estratégia selecionada
   const strategyCommand = getStrategyCommand(selectedStrategy);
 
+  // Filtrar operações intermediárias para não exibi-las
+  const filteredOperations = operations.filter((op) => !op.isIntermediate);
+
   return (
     <div className="bg-[#13203a] rounded-lg shadow-lg p-4 h-full">
       <div className="flex items-center justify-between mb-4">
@@ -209,9 +212,9 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
       </div>
       
       <div className="overflow-y-auto custom-scrollbar h-[calc(100%-2.5rem)]" style={{ maxHeight: '350px' }}>
-        {operations.length > 0 ? (
+        {filteredOperations.length > 0 ? (
           <div className="space-y-2">
-            {operations.map((op) => (
+            {filteredOperations.map((op) => (
               <div 
                 key={op.id} 
                 className={`p-3 rounded-md flex items-start justify-between ${

@@ -42,7 +42,7 @@ export function evaluateAdvanceStrategy(
       contractType: 'CALL', // A estratégia Advance usa CALL para melhor compatibilidade
       message: `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.`,
       analysis: { digit0: 0, digit1: 0, threshold: 10 },
-      shouldLog: true // Registramos esta operação intermediária no histórico
+      shouldLog: false // NÃO registramos esta operação intermediária no histórico (CORREÇÃO)
     };
   }
   
