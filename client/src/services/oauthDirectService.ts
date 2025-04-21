@@ -43,6 +43,53 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private eventListeners: Array<(event: TradingEvent) => void> = [];
   private currentContractId: string | number | null = null;
   private verboseLogging: boolean = false; // Controle de logs detalhados
+  /**
+   * Método para obter o valor inicial do usuário com alta prioridade
+   * @param userConfigValue Valor opcional do userConfig
+   * @returns O valor inicial do usuário, ou o valor padrão
+   */
+  private getUserDefinedAmount(userConfigValue?: string | number): number {
+    try {
+      // 1. Prioridade máxima: Valor diretamente fornecido pelo userConfig (parâmetro)
+      if (userConfigValue !== undefined) {
+        const parsedValue = parseFloat(userConfigValue.toString());
+        if (!isNaN(parsedValue)) {
+          console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor do parâmetro: ${parsedValue}`);
+          return parsedValue;
+        }
+      }
+
+      // 2. Segunda prioridade: Configuração atual no localStorage para a estratégia ativa
+      const strategyId = this.strategyConfig.toLowerCase();
+      const savedConfigStr = localStorage.getItem(`strategy_config_${strategyId}`);
+      if (savedConfigStr) {
+        const savedConfig = JSON.parse(savedConfigStr);
+        if (savedConfig.valorInicial !== undefined) {
+          const parsedValue = parseFloat(savedConfig.valorInicial);
+          if (!isNaN(parsedValue)) {
+            console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor do localStorage: ${parsedValue}`);
+            // Atualizar settings para manter consistência
+            this.settings.entryValue = parsedValue;
+            return parsedValue;
+          }
+        }
+      }
+
+      // 3. Terceira prioridade: Valor atual nas settings
+      if (this.settings.entryValue > 0) {
+        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${this.settings.entryValue}`);
+        return this.settings.entryValue;
+      }
+
+      // 4. Último recurso: Valor padrão
+      console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor padrão: 1.0`);
+      return 1.0;
+    } catch (error) {
+      console.error(`[OAUTH_DIRECT] Erro em getUserDefinedAmount:`, error);
+      return 1.0; // Valor padrão em caso de erro
+    }
+  }
+
   private settings: TradingSettings = {
     // CORREÇÃO CRÍTICA: Não usar valor fixo, será substituído pelo valor do localStorage
     entryValue: 0, // Inicializado como 0, será preenchido durante a configuração da estratégia
@@ -995,14 +1042,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           {
             // Usar APENAS o valor do usuário, sem fallback para a estratégia
             porcentagemParaEntrar: userDefinedPercentage,
-            valorInicial: userConfig?.valorInicial || this.settings.entryValue || 0.35,
+            // CORREÇÃO CRÍTICA: Usar valor inicial do localStorage com alta prioridade
+            valorInicial: this.getUserDefinedAmount(userConfig?.valorInicial),
             martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
             usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2, // Usar martingale após 2 perdas consecutivas
             metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
             limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20,
             parcelasMartingale: userConfig?.parcelasMartingale || 1,
-            // Valor após vencer SEMPRE igual ao valor inicial, não precisa de configuração separada
-            valorAposVencer: userConfig?.valorInicial || this.settings.entryValue || 0.35
+            // CORREÇÃO CRÍTICA: Valor após vencer SEMPRE igual ao valor inicial configurado pelo usuário
+            valorAposVencer: this.getUserDefinedAmount(userConfig?.valorInicial)
           },
           strategyObj?.xmlPath // Passar o caminho do XML para usar o parser XML
         );
@@ -2568,13 +2616,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               {
                 // Configurações do usuário
                 porcentagemParaEntrar: userConfig?.porcentagemParaEntrar,
-                valorInicial: userConfig?.valorInicial || this.settings.entryValue || 0.35,
+                // CORREÇÃO CRÍTICA: Usar valor inicial do localStorage com alta prioridade
+                valorInicial: this.getUserDefinedAmount(userConfig?.valorInicial),
                 martingale: userConfig?.martingale || this.settings.martingaleFactor || 1.5,
                 metaGanho: userConfig?.metaGanho || this.settings.profitTarget || 20,
                 limitePerda: userConfig?.limitePerda || this.settings.lossLimit || 20,
                 usarMartingaleAposXLoss: userConfig?.usarMartingaleAposXLoss || 2,
                 parcelasMartingale: userConfig?.parcelasMartingale || 1,
-                valorAposVencer: userConfig?.valorAposVencer || this.settings.entryValue || 0.35
+                // CORREÇÃO CRÍTICA: Valor após vencer SEMPRE igual ao valor inicial configurado pelo usuário
+                valorAposVencer: this.getUserDefinedAmount(userConfig?.valorInicial)
               },
               strategyObj?.xmlPath
             );
