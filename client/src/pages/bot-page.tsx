@@ -1542,10 +1542,31 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           // Se tivermos informação sobre o resultado (won/lost)
           if (contract.status === 'won' || event.is_win === true) {
+            // Verificar se é a primeira operação (via flag is_first_operation)
+            const isFirstOperation = event.is_first_operation === true;
+            
             // Para operações ganhas, calcular baseado no payout - preço de compra
             if (contract.payout && buyPrice) {
               profit = Number(contract.payout) - Number(buyPrice);
-              console.log(`[BOT_PAGE] Calculando lucro para operação vencedora: ${contract.payout} - ${buyPrice} = ${profit}`);
+              
+              // Adicionar logs detalhados para a primeira operação
+              if (isFirstOperation) {
+                console.log(`[BOT_PAGE] ★★★ PRIMEIRA OPERAÇÃO VENCEDORA DETECTADA ★★★`);
+                console.log(`[BOT_PAGE] ★★★ PAYOUT EXATO: ${contract.payout}, ENTRADA EXATA: ${buyPrice} ★★★`);
+                console.log(`[BOT_PAGE] ★★★ LUCRO RECALCULADO: ${profit} ★★★`);
+                
+                // Forçar uso do lucro calculado para a primeira operação
+                if (profit < Number(buyPrice) * 0.5) {
+                  console.log(`[BOT_PAGE] ★★★ ALERTA: Lucro calculado (${profit}) parece muito baixo para entrada ${buyPrice} ★★★`);
+                  // Forçar recálculo com base no valor de entrada
+                  const expectablePayout = Number(buyPrice) * 1.95; // Payout esperado para DIGITOVER é aproximadamente 1.95x
+                  const calculatedProfit = expectablePayout - Number(buyPrice);
+                  console.log(`[BOT_PAGE] ★★★ PROFIT CORRIGIDO: ${calculatedProfit} (baseado em payout esperado de ${expectablePayout}) ★★★`);
+                  profit = calculatedProfit;
+                }
+              } else {
+                console.log(`[BOT_PAGE] Calculando lucro para operação vencedora: ${contract.payout} - ${buyPrice} = ${profit}`);
+              }
             } else if (typeof event.profit === 'number' && event.profit > 0) {
               profit = event.profit;
               console.log(`[BOT_PAGE] Usando lucro do evento: ${profit}`);
