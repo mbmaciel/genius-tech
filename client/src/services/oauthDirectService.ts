@@ -770,16 +770,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         } else {
           console.log('[OAUTH_DIRECT] Contrato vendido com sucesso:', data.sell);
           
+          // Calcular corretamente o lucro na venda
+          let profit = data.sell.profit;
+          
+          // Se o lucro for zero ou não estiver definido, tentar calcular com base no preço de venda e compra
+          if (profit === undefined || profit === null || profit === 0) {
+            if (data.sell.sell_price && data.sell.buy_price) {
+              profit = Number(data.sell.sell_price) - Number(data.sell.buy_price);
+              console.log(`[OAUTH_DIRECT] Recalculando lucro na venda: ${data.sell.sell_price} - ${data.sell.buy_price} = ${profit}`);
+            }
+          }
+          
           // Notificar interface sobre venda bem-sucedida
           this.notifyListeners({
             type: 'contract_finished',
             contract_id: this.currentContractId || undefined,
             sold: true,
-            profit: data.sell.profit,
+            profit: profit,
             contract_details: {
               contract_id: this.currentContractId || 0,
               status: 'sold',
-              profit: data.sell.profit
+              profit: profit,
+              buy_price: data.sell.buy_price,
+              sell_price: data.sell.sell_price
             }
           });
         }
@@ -892,11 +905,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const strategyId = this.strategyConfig.toLowerCase();
       const strategy = getStrategyById(strategyId);
       
-      // Atualizar o resultado no estado da estratégia
+      // Calcular corretamente o lucro para atualizar o resultado na estratégia
+      let calculatedProfit = lastContract.profit || 0;
+      
+      // Verificar se o profit está definido corretamente
+      if (calculatedProfit === 0 || calculatedProfit === undefined || calculatedProfit === null) {
+        // Se for uma vitória com profit zero, temos que calcular com base no payout
+        if (isWin && lastContract.payout && lastContract.buy_price) {
+          calculatedProfit = Number(lastContract.payout) - Number(lastContract.buy_price);
+          console.log(`[OAUTH_DIRECT] Recalculando lucro na estratégia: Payout ${lastContract.payout} - Preço de compra ${lastContract.buy_price} = ${calculatedProfit}`);
+        } 
+        // Se for uma perda, o profit deve ser -buy_price
+        else if (!isWin && lastContract.buy_price) {
+          calculatedProfit = -Number(lastContract.buy_price);
+        }
+      }
+      
+      // Atualizar o resultado no estado da estratégia com o valor calculado corretamente
       updateStrategyResult(
         strategyId, 
         isWin ? 'win' : 'loss', 
-        isWin ? (lastContract.profit || 0) : -(lastContract.buy_price || 0)
+        isWin ? calculatedProfit : -Number(lastContract.buy_price || 0)
       );
       
       // Obter as estatísticas de dígitos para avaliar condições de entrada
@@ -1105,28 +1134,36 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       return true;
     }
     
-    // Atualizar estatísticas com o resultado
+    // Calcular corretamente o lucro/perda para atualizar estatísticas
+    let calculatedAmount = 0;
+    
     if (isWin) {
       // Atualizar estatísticas para vitória
       this.sessionStats.wins++;
       
-      // Verificar o lucro obtido
-      if (lastContract && lastContract.profit) {
-        const profit = parseFloat(lastContract.profit);
-        if (!isNaN(profit)) {
-          this.sessionStats.totalProfit += profit;
+      // Calcular lucro corretamente (verificar se profit está definido ou calcular com payout)
+      if (lastContract) {
+        if (lastContract.profit && parseFloat(lastContract.profit) > 0) {
+          calculatedAmount = parseFloat(lastContract.profit);
+        } 
+        // Se profit não estiver definido, calcular pelo payout e buy_price
+        else if (lastContract.payout && lastContract.buy_price) {
+          calculatedAmount = Number(lastContract.payout) - Number(lastContract.buy_price);
+          console.log(`[OAUTH_DIRECT] Calculando lucro para estatísticas: Payout ${lastContract.payout} - Preço de compra ${lastContract.buy_price} = ${calculatedAmount}`);
+        }
+        
+        if (!isNaN(calculatedAmount)) {
+          this.sessionStats.totalProfit += calculatedAmount;
         }
       }
     } else {
       // Atualizar estatísticas para derrota
       this.sessionStats.losses++;
       
-      // Verificar a perda
-      if (lastContract && lastContract.profit) {
-        const loss = parseFloat(lastContract.profit); // Será negativo em caso de perda
-        if (!isNaN(loss) && loss < 0) {
-          this.sessionStats.totalLoss += Math.abs(loss);
-        }
+      // Para derrotas, considerar o valor negativo do preço de compra
+      if (lastContract && lastContract.buy_price) {
+        calculatedAmount = Number(lastContract.buy_price);
+        this.sessionStats.totalLoss += calculatedAmount;
       }
     }
     
