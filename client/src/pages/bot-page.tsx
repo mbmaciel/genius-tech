@@ -764,10 +764,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] Registrando listener de eventos do oauthDirectService');
         oauthDirectService.addEventListener(handleEvents);
         
-        // Registrar manipulador para eventos de operações intermediárias da Advance
-        document.addEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
-        console.log('[BOT_PAGE] 🔄 Registrando listener para eventos advance_intermediate_operation');
-        
         // Forçar uma inscrição para ticks do R_100 - CORREÇÃO CRÍTICA
         console.log('[BOT_PAGE] Forçando inscrição para ticks de R_100');
         setTimeout(() => {
@@ -787,8 +783,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           // Limpar recursos ao desmontar
           console.log('[BOT_PAGE] Removendo listener de eventos do oauthDirectService');
           oauthDirectService.removeEventListener(handleEvents);
-          document.removeEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
-          console.log('[BOT_PAGE] 🔄 Removendo listener para eventos advance_intermediate_operation');
           
           // Parar serviço se estiver rodando
           if (botStatus === 'running') {
@@ -1490,32 +1484,64 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           const contractId = typeof contract.contract_id === 'number' ? contract.contract_id : 
                             typeof contract.contract_id === 'string' ? parseInt(contract.contract_id) : 
                             Math.floor(Math.random() * 1000000);
-                            
+          
+          // Verificar se é uma operação intermediária da estratégia Advance
+          const isIntermediate = event.is_intermediate || contract.is_intermediate || false;
+          
           // Valores seguros com fallbacks para evitar valores undefined
           const buyPrice = contract.buy_price || event.entry_value || 0;
           const sellPrice = event.exit_value || event.sell_price || contract.sell_price || 0;
           const profit = typeof event.profit === 'number' ? event.profit : 0;
           
-          // Criar objeto de operação completo
+          // Determinar status e tipo de notificação baseados no resultado e tipo de operação
+          let statusText = profit >= 0 ? "GANHOU" : "PERDEU";
+          let notificationType: 'success' | 'error' | 'warning' | 'info' = profit >= 0 ? 'success' : 'error';
+          
+          // Para operações intermediárias da estratégia Advance, personalizar o texto e usar cor diferente
+          if (isIntermediate && selectedStrategy?.toLowerCase() === 'advance') {
+            statusText = "INTERMEDIÁRIA ADVANCE";
+            notificationType = 'warning'; // Usar warning para operações intermediárias
+            
+            // Se temos análise de dígitos, incluir na mensagem
+            if (contract.analysis) {
+              statusText += ` | ${contract.analysis}`;
+            }
+          }
+          
+          // Formatar os valores monetários
+          const entryFormatted = formatCurrency(buyPrice);
+          const resultFormatted = formatCurrency(profit);
+          
+          // Criar objeto de operação completo com mensagem personalizada
           const newOperation = {
             id: contractId,
             entryValue: buyPrice,
             finalValue: sellPrice,
             profit: profit,
             time: new Date(),
-            contractType: contract.contract_type || 'desconhecido'
+            contractType: contract.contract_type || 'desconhecido',
+            isIntermediate: isIntermediate,
+            notification: {
+              type: notificationType,
+              message: `${statusText} | Entrada: ${entryFormatted} | Resultado: ${resultFormatted}`
+            }
           };
           
           console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
           
           // Verificar duplicação antes de adicionar ao histórico
           setOperationHistory(prev => {
-            // Verificar se esta operação já existe no histórico
-            const exists = prev.some(op => op.id === contractId);
+            // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
+            if (isIntermediate) {
+              return [newOperation, ...prev].slice(0, 50);
+            }
+            
+            // Para operações finais, verificar se esta operação já existe
+            const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
             if (exists) {
               console.log(`[BOT_PAGE] Operação ${contractId} já existe no histórico, atualizando...`);
-              // Atualizar a operação existente
-              return prev.map(op => op.id === contractId ? newOperation : op);
+              // Atualizar apenas operações finais, manter intermediárias intactas
+              return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
             } else {
               // Adicionar nova operação no topo do histórico
               return [newOperation, ...prev].slice(0, 50);
@@ -1659,13 +1685,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // Registrar ouvinte de eventos do serviço OAuth
     oauthDirectService.addEventListener(handleEvents);
     
-    // Registrar ouvinte para eventos intermediários da estratégia Advance
-    document.addEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
-    
     // Limpar ouvintes ao desmontar
     return () => {
       oauthDirectService.removeEventListener(handleEvents);
-      document.removeEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
     };
   }, [selectedStrategy]); // Incluir selectedStrategy como dependência
 
