@@ -2189,19 +2189,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // Inicializar o estado da estratégia
-      const strategyId = this.strategyConfig.toLowerCase();
-      const strategy = getStrategyById(strategyId);
+      const baseStrategyId = this.strategyConfig.toLowerCase();
+      const strategy = getStrategyById(baseStrategyId);
       
       if (strategy) {
-        console.log(`[OAUTH_DIRECT] Inicializando estratégia: ${strategy.name} (ID: ${strategyId})`);
-        initializeStrategyState(strategyId, entryAmount);
+        console.log(`[OAUTH_DIRECT] Inicializando estratégia: ${strategy.name} (ID: ${baseStrategyId})`);
+        initializeStrategyState(baseStrategyId, entryAmount);
         
         // Obter as configurações específicas da estratégia
         if (strategy.config && strategy.config.entryPercentage) {
           console.log(`[OAUTH_DIRECT] Configuração de porcentagem para ${strategy.name}: ${strategy.config.entryPercentage}%`);
         }
       } else {
-        console.warn(`[OAUTH_DIRECT] Estratégia não encontrada para ID: ${strategyId}, usando padrões`);
+        console.warn(`[OAUTH_DIRECT] Estratégia não encontrada para ID: ${baseStrategyId}, usando padrões`);
       }
       
       // Obter saldo atual antes de iniciar operações para rastreamento de lucro/perda
