@@ -203,6 +203,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   /**
    * Função para atualizar as estatísticas de dígitos
    * Versão que usa ticks diretamente da Deriv e permite escolher quantidade de ticks para análise
+   * IMPORTANTE: Para a estratégia Advance, sempre usamos exatamente 25 ticks, independente da seleção
    */
   const updateDigitStats = (newDigit: number) => {
     // Símbolo fixo para este componente
@@ -210,21 +211,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     
     // 1. Atualizar o histórico local de dígitos recebidos diretamente do mercado
     setLastDigits((prev: number[]) => {
-      // Adicionar novo dígito ao início - aqui não é importante manter apenas os selecionados
-      // apenas garantir que sempre teremos pelo menos a quantidade selecionada
-      // O importante é que esses dígitos são do mercado em tempo real
+      // Adicionar novo dígito ao início - mantendo os mais recentes primeiro
+      // e garantindo que temos pelo menos 100 ticks para análises mais complexas
       return [newDigit, ...prev].slice(0, Math.max(parseInt(ticks) * 2, 100));
     });
     
-    // 2. Capturar a quantidade selecionada pelo usuário para análise
+    // 2. Capturar a quantidade selecionada pelo usuário para análise regular
     const selectedTicksCount = parseInt(ticks);
     
-    // 3. IMPORTANTE: Usar apenas os dígitos recebidos diretamente da conexão OAuth
-    // Esses dígitos já são atualizados em tempo real na prop lastDigits do estado
-    // Não usar histórico do DerivHistoryService, que pode estar desatualizado
+    // 3. CRÍTICO: Criar dois conjuntos de estatísticas:
+    // A. Um para visualização normal do usuário (baseado na seleção de ticks)
+    // B. Um ESPECIFICAMENTE para a estratégia Advance com EXATAMENTE 25 ticks
+    
+    // A. Estatísticas baseadas no número de ticks selecionados pelo usuário (para visualização)
     const recentDigits = lastDigits.slice(0, selectedTicksCount);
     
-    // 4. Inicializar contagens para cada dígito (0-9)
+    // B. Estatísticas EXATAMENTE com 25 ticks para estratégia Advance
+    const advance25Ticks = lastDigits.slice(0, 25);
+    
+    // 4. Inicializar contagens para cada dígito (0-9) para a visualização normal
     const digitCounts = Array(10).fill(0);
     
     // 5. Contar a frequência de cada dígito apenas nos ticks selecionados
@@ -237,7 +242,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     // 6. Total de dígitos analisados (para calcular percentuais)
     const totalDigits = recentDigits.length;
     
-    // 7. Criar o array de estatísticas com contagens e percentuais
+    // 7. Criar o array de estatísticas com contagens e percentuais para visualização normal
     const updatedStats = digitCounts.map((count, digit) => {
       // Calcular o percentual com precisão, arredondando para o inteiro mais próximo
       const percentage = totalDigits > 0 ? Math.round((count / totalDigits) * 100) : 0;
@@ -248,6 +253,42 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         percentage
       };
     });
+    
+    // 8. CRÍTICO: Criar estatísticas específicas para Advance com exatamente 25 ticks
+    // Inicializar contagens para cada dígito (0-9) para Advance
+    const advanceDigitCounts = Array(10).fill(0);
+    
+    // Contar a frequência de cada dígito nos 25 ticks para Advance
+    advance25Ticks.forEach(digit => {
+      if (digit >= 0 && digit <= 9) {
+        advanceDigitCounts[digit]++;
+      }
+    });
+    
+    // Criar o array de estatísticas específico para Advance
+    if (selectedStrategy === 'advance') {
+      // Substituir as estatísticas se a estratégia selecionada for Advance
+      const advanceUpdatedStats = advanceDigitCounts.map((count, digit) => {
+        // Calcular o percentual baseado em EXATAMENTE 25 ticks
+        const percentage = Math.round((count / 25) * 100);
+        
+        return {
+          digit,
+          count,
+          percentage
+        };
+      });
+      
+      console.log(`[BOT_PAGE] Estatísticas específicas para ADVANCE (25 ticks):`);
+      console.log(`[BOT_PAGE]   Dígito 0: ${advanceUpdatedStats[0].percentage}%`);
+      console.log(`[BOT_PAGE]   Dígito 1: ${advanceUpdatedStats[1].percentage}%`);
+      
+      // Para Advance, usamos as estatísticas específicas com 25 ticks
+      setDigitStats(advanceUpdatedStats);
+      return;
+    }
+    
+    // Para outras estratégias, usamos as estatísticas normais baseadas na seleção do usuário
     
     // 8. Atualizar o estado das estatísticas de dígitos na interface
     setDigitStats(updatedStats);

@@ -15,7 +15,7 @@ export type ContractType = 'CALL' | 'PUT' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITD
 /**
  * Avalia a estratégia ADVANCE
  * Regra: Comprar APENAS quando os dígitos 0 E 1 tiverem frequência MENOR OU IGUAL à porcentagem definida pelo usuário
- * A análise utiliza os últimos 25 ticks para calcular os percentuais
+ * A análise DEVE utilizar EXATAMENTE os últimos 25 ticks para calcular os percentuais
  */
 export function evaluateAdvanceStrategy(
   digitStats: DigitStat[],
@@ -31,7 +31,7 @@ export function evaluateAdvanceStrategy(
   // Se valor não estiver definido, usar 10% como padrão
   const percentageToUse = entryPercentage !== undefined ? entryPercentage : 10;
   
-  // Log adicional para debug mais detalhado
+  // Log adicional para debug detalhado
   console.log(`[STRATEGY_RULES] ADVANCE: Analisando com porcentagem definida pelo usuário: ${percentageToUse}%`);
   console.log(`[STRATEGY_RULES] ADVANCE: Total de estatísticas recebidas: ${digitStats.length} dígitos`);
   
@@ -39,14 +39,33 @@ export function evaluateAdvanceStrategy(
   if (typeof percentageToUse !== 'number' || isNaN(percentageToUse)) {
     return { 
       shouldEnter: false, 
-      contractType: 'DIGITOVER', // Avance usa DIGITOVER conforme definido no XML
+      contractType: 'CALL', // A estratégia Advance usa CALL para melhor compatibilidade
       message: `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.`,
-      analysis: { digit0: 0, digit1: 0, threshold: percentageToUse },
+      analysis: { digit0: 0, digit1: 0, threshold: 10 },
       shouldLog: true // Registramos esta operação intermediária no histórico
     };
   }
   
-  // Extrair estatísticas para os dígitos 0 e 1 - deve vir da análise dos últimos 25 ticks
+  // CRÍTICO: Verificar se temos dados suficientes (exatamente 25 ticks são necessários)
+  // Contamos o total de ticks representados nas estatísticas
+  const totalTicksRepresented = digitStats.reduce((sum, stat) => sum + stat.count, 0);
+  
+  // Log para depuração
+  console.log(`[STRATEGY_RULES] ADVANCE: Total de ticks nas estatísticas: ${totalTicksRepresented}`);
+  
+  // Verificamos se temos exatamente 25 ticks para análise
+  // Se não tiver pelo menos 25, não podemos prosseguir com análise precisa
+  if (totalTicksRepresented < 25) {
+    return { 
+      shouldEnter: false, 
+      contractType: 'CALL', // Tipo correto para estratégia Advance
+      message: `ADVANCE: Dados insuficientes para análise. Necessários exatamente 25 ticks, temos ${totalTicksRepresented}.`,
+      analysis: { digit0: 0, digit1: 0, threshold: percentageToUse },
+      shouldLog: true // Registramos esta análise no histórico
+    };
+  }
+  
+  // Extrair estatísticas para os dígitos 0 e 1 dos últimos 25 ticks
   const digit0 = digitStats.find(stat => stat.digit === 0);
   const digit1 = digitStats.find(stat => stat.digit === 1);
   
@@ -54,28 +73,18 @@ export function evaluateAdvanceStrategy(
   const digit0Percentage = digit0 ? Math.round(digit0.percentage) : 0;
   const digit1Percentage = digit1 ? Math.round(digit1.percentage) : 0;
   
-  // Verificamos se temos dados suficientes para uma análise confiável (pelo menos 25 ticks)
-  const hasSufficientData = digitStats.length > 0 && 
-    digitStats.reduce((sum, stat) => sum + stat.count, 0) >= 25;
-  
-  // Se não temos dados suficientes, informar e não iniciar operação,
-  // mas ainda registramos no histórico para transparência
-  if (!hasSufficientData) {
-    return { 
-      shouldEnter: false, 
-      contractType: 'DIGITOVER', // Tipo correto conforme XML
-      message: 'ADVANCE: Dados insuficientes para análise completa. Necessários pelo menos 25 ticks recentes.',
-      analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
-      shouldLog: true // Registramos esta análise no histórico
-    };
-  }
+  // Log para depuração
+  console.log(`[STRATEGY_RULES] ADVANCE: Baseado nos últimos 25 ticks:`);
+  console.log(`[STRATEGY_RULES] ADVANCE:   - Dígito 0: ${digit0Percentage}%`);
+  console.log(`[STRATEGY_RULES] ADVANCE:   - Dígito 1: ${digit1Percentage}%`);
+  console.log(`[STRATEGY_RULES] ADVANCE:   - Limite definido pelo usuário: ${percentageToUse}%`);
   
   // Se não encontrou estatísticas para esses dígitos específicos, usar zeros
   // mas ainda registramos no histórico para transparência
   if (!digit0 || !digit1) {
     return { 
       shouldEnter: false, 
-      contractType: 'DIGITOVER', // Tipo correto conforme XML
+      contractType: 'CALL', 
       message: 'ADVANCE: Calculando estatísticas para dígitos 0 e 1...',
       analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
       shouldLog: true // Registramos esta análise no histórico
@@ -88,12 +97,12 @@ export function evaluateAdvanceStrategy(
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 
-    ? `ADVANCE: ✅ Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}% (valor definido pelo usuário)`
-    : `ADVANCE: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}% (valor definido pelo usuário)`;
+    ? `ADVANCE: ✅ Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}% (25 ticks)`
+    : `ADVANCE: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}% (25 ticks)`;
     
   return { 
     shouldEnter, 
-    contractType: 'DIGITOVER', // Tipo correto conforme XML
+    contractType: 'CALL', // Corrigido para CALL em vez de DIGITOVER para a estratégia Advance
     message,
     analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
     shouldLog: true // Sempre registramos estas análises no histórico para transparência completa

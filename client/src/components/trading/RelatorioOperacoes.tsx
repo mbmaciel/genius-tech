@@ -259,11 +259,21 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                             <span className="font-medium text-blue-400">
                               Análise Advance
                             </span>
+                            {op.entryValue !== undefined && (
+                              <span className="text-xs text-gray-400 ml-2">
+                                Valor de entrada: <span className="text-yellow-400 font-semibold">{formatCurrency(op.entryValue)}</span>
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-300 mt-1 grid grid-cols-2 gap-x-2">
                             <span className="font-medium">Dígito 0: <span className="text-cyan-400">{op.analysis.digit0}%</span></span>
                             <span className="font-medium">Dígito 1: <span className="text-cyan-400">{op.analysis.digit1}%</span></span>
                             <span className="font-medium col-span-2">Limite para entrada: <span className="text-yellow-400">{op.analysis.threshold}%</span></span>
+                            <span className="font-medium col-span-2 mt-1">
+                              {op.profit >= 0 
+                                ? <span className="text-green-400">✓ Condição atendida</span> 
+                                : <span className="text-amber-400">✗ Condição não atendida</span>}
+                            </span>
                           </div>
                         </div>
                       ) : (

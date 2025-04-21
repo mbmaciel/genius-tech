@@ -721,14 +721,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 type: 'contract_finished',
                 contract_id: contract.contract_id,
                 is_win: forceStatus === 'won',
-                profit: currentProfit,
+                // Para operações intermediárias, usamos um valor calculado para indicar
+                // se a condição foi atendida (1) ou não (0), sem valor monetário real
+                profit: (digit0Percentage <= this.advancePercentage && digit1Percentage <= this.advancePercentage) ? 1 : 0,
                 contract_details: {
                   ...contract,
                   is_intermediate: true,  // Marcar como intermediário
                   analysis: `Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`
                 },
+                // Importante: incluir valores corretos para exibição monetária
                 entry_value: amount,
                 exit_value: result,
+                // Enviar análise detalhada para exibição no relatório
+                analysis: {
+                  digit0: digit0Percentage,
+                  digit1: digit1Percentage,
+                  threshold: this.advancePercentage || 10
+                },
                 // Adicionar flag para indicar que é uma operação intermediária
                 is_intermediate: true
               });
