@@ -413,7 +413,16 @@ export class XmlStrategyParser {
     }
     
     // Obter previsão do XML ou configuração do usuário
-    let prediction = this.variables.previsao || 5;
+    let prediction = this.variables.previsao;
+    
+    // CORREÇÃO CRÍTICA: Validar e garantir que prediction tenha um valor válido entre 1-9 para DIGITOVER
+    if (prediction === undefined || prediction === null || prediction < 1 || prediction > 9) {
+      // Usar um valor padrão seguro se prediction não for válido (1-9 são os únicos valores permitidos)
+      prediction = 5; // Valor conservador como fallback
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Previsão inválida para DIGITOVER. Usando valor padrão: ${prediction}`);
+    } else {
+      console.log(`[XML_PARSER] Usando previsão configurada: ${prediction} para DIGITOVER`);
+    }
     
     // Mensagem da estratégia
     const message = useMartingale
@@ -485,7 +494,16 @@ export class XmlStrategyParser {
     }
     
     // Obter previsão do XML ou configuração do usuário
-    let prediction = this.variables.previsao || 4;
+    let prediction = this.variables.previsao;
+    
+    // CORREÇÃO CRÍTICA: Validar e garantir que prediction tenha um valor válido entre 1-9 para DIGITUNDER
+    if (prediction === undefined || prediction === null || prediction < 1 || prediction > 9) {
+      // Usar um valor padrão seguro se prediction não for válido (1-9 são os únicos valores permitidos)
+      prediction = 5; // Valor conservador como fallback
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Previsão inválida para DIGITUNDER. Usando valor padrão: ${prediction}`);
+    } else {
+      console.log(`[XML_PARSER] Usando previsão configurada: ${prediction} para DIGITUNDER`);
+    }
     
     // Mensagem da estratégia
     const message = useMartingale
@@ -506,12 +524,53 @@ export class XmlStrategyParser {
    * Obtém o valor final para entrada considerando configurações do usuário
    */
   private getFinalAmount(): number {
-    // Valor inicial da estratégia
-    let amount = this.variables.valorInicial || 0.35;
+    // CORREÇÃO CRÍTICA: Priorizar SEMPRE configurações do usuário sobre valores do XML
     
-    // Se o usuário definiu um valor, substituir o padrão
-    if (this.userConfig.valorInicial !== undefined) {
+    // Buscar configuração definida pelo usuário no localStorage
+    // Esta abordagem é mais confiável porque pega diretamente do localStorage
+    // em vez de confiar apenas no this.userConfig que pode estar desatualizado
+    let strategies = ['ironover', 'ironunder', 'advance'];
+    let valorConfigurado = null;
+    
+    // Verificar para cada estratégia possível
+    for (const strategyId of strategies) {
+      try {
+        const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial !== undefined) {
+            valorConfigurado = parseFloat(config.valorInicial);
+            console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Encontrado valor inicial ${valorConfigurado} configurado pelo usuário para ${strategyId}`);
+            break; // Usar o primeiro valor encontrado
+          }
+        }
+      } catch (e) {
+        console.error(`[XML_PARSER] Erro ao ler configuração salva para ${strategyId}:`, e);
+      }
+    }
+    
+    // Ordem de prioridade para valor de entrada:
+    // 1. Valor encontrado no localStorage (mais confiável)
+    // 2. Valor definido no userConfig (argumentos da função)
+    // 3. Valor definido no XML
+    // 4. Valor padrão (0.35)
+    let amount = 0.35; // Valor padrão
+    
+    if (valorConfigurado !== null) {
+      // Prioridade 1: Usar valor definido pelo usuário no localStorage
+      amount = valorConfigurado;
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Usando valor ${amount} definido pelo usuário no localStorage`);
+    } else if (this.userConfig.valorInicial !== undefined) {
+      // Prioridade 2: Usar valor definido no userConfig
       amount = this.userConfig.valorInicial;
+      console.log(`[XML_PARSER] Usando valor ${amount} definido no userConfig`);
+    } else if (this.variables.valorInicial !== undefined) {
+      // Prioridade 3: Usar valor definido no XML
+      amount = this.variables.valorInicial;
+      console.log(`[XML_PARSER] Usando valor ${amount} definido no XML`);
+    } else {
+      // Prioridade 4: Usar valor padrão
+      console.log(`[XML_PARSER] Nenhum valor configurado encontrado. Usando valor padrão: ${amount}`);
     }
     
     return amount;
@@ -549,14 +608,25 @@ export class XmlStrategyParser {
     // Se chegou aqui, não reconheceu nenhuma estratégia específica
     console.log(`[XML_PARSER] AVISO: Estratégia não reconhecida: "${strategyId}". Usando configuração padrão.`);
     
+    // Obter previsão do XML ou configuração do usuário
+    let prediction = this.variables.previsao;
+    let contractType = this.contractType || 'DIGITOVER';
+    
+    // CORREÇÃO CRÍTICA: Validar e garantir que prediction tenha um valor válido entre 1-9 para contracts DIGIT
+    if (prediction === undefined || prediction === null || prediction < 1 || prediction > 9) {
+      // Usar um valor padrão seguro se prediction não for válido (1-9 são os únicos valores permitidos)
+      prediction = 5; // Valor conservador como fallback
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Previsão inválida para estratégia padrão. Usando valor padrão: ${prediction}`);
+    }
+    
     // Estratégia padrão
     return {
       shouldEnter: true,
-      contractType: this.contractType || 'DIGITOVER',
-      prediction: this.variables.previsao,
+      contractType: contractType,
+      prediction: prediction,
       amount: this.getFinalAmount(),
       entryAmount: this.getFinalAmount(), // Garantir que o campo entryAmount seja enviado
-      message: `Estratégia ${strategyId}: Usando configuração padrão`
+      message: `Estratégia ${strategyId}: Usando configuração padrão com previsão ${prediction} e tipo ${contractType}`
     };
   }
   
