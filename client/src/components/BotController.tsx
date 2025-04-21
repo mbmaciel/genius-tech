@@ -757,11 +757,30 @@ export function BotController({
               
               // Teste simplificado diretamente para compra
               try {
-                // Definir configurações específicas para IRON UNDER
+                // CORREÇÃO CRÍTICA: Obter o valor inicial configurado pelo usuário
+                const userConfigString = localStorage.getItem('strategy_config_iron under');
+                let userEntryValue = 1.0; // Valor padrão seguro
+                
+                if (userConfigString) {
+                  try {
+                    const userConfig = JSON.parse(userConfigString);
+                    if (userConfig.valorInicial !== undefined) {
+                      const userValueAsNumber = parseFloat(userConfig.valorInicial);
+                      if (!isNaN(userValueAsNumber) && userValueAsNumber > 0) {
+                        userEntryValue = userValueAsNumber;
+                        console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando valor configurado pelo usuário nas configurações: ${userEntryValue}`);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('[BOT_BUTTON] Erro ao analisar configuração do usuário para IRON UNDER:', error);
+                  }
+                }
+                
+                // Definir configurações específicas para IRON UNDER com o valor do usuário
                 oauthDirectService.setSettings({
                   contractType: 'DIGITUNDER',
                   prediction: 5, // IMPORTANTE: Alterado de 4 para 5 - API Deriv exige valores entre 1-9
-                  entryValue: 1.0, // CORREÇÃO: Valor default mais visível
+                  entryValue: userEntryValue, // CORREÇÃO CRÍTICA: Usar valor do usuário
                   profitTarget: 20,
                   lossLimit: 20,
                   martingaleFactor: 1.5
@@ -780,8 +799,10 @@ export function BotController({
                       console.log('[BOT_TEST] Serviço iniciado com sucesso!');
                       console.log('[BOT_TEST] Executando primeira operação de teste...');
                       
-                      // Forçar execução da primeira operação
-                      const started = await oauthDirectService.executeFirstOperation(1.0); // CORREÇÃO: Valor default mais visível
+                      // Forçar execução da primeira operação usando o valor configurado pelo usuário
+                      // CORREÇÃO: Reutilizar o mesmo userEntryValue calculado anteriormente
+                      console.log(`[BOT_TEST] 🚨 CORREÇÃO CRÍTICA: Reutilizando valor ${userEntryValue} para a primeira operação`);
+                      const started = await oauthDirectService.executeFirstOperation(userEntryValue);
                       
                       console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
                       
