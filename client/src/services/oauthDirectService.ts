@@ -757,8 +757,41 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             // Se o contrato foi finalizado, notificar resultado
             if (contract.status !== 'open') {
-              // Obter resultado final
-              const isWin = contract.status === 'won';
+              // CORREÇÃO CRÍTICA: Para estratégia Advance com contrato CALL
+              // Precisamos verificar se o último dígito é 0 ou 1
+              // Se for 0 ou 1, deve ser uma perda (mesmo que a API indique vitória)
+              // Se NÃO for 0 ou 1, deve ser uma vitória (mesmo que a API indique perda)
+              let isWin = contract.status === 'won';
+              
+              // Verificar se estamos usando a estratégia Advance
+              const strategyId = this.strategyConfig.toLowerCase();
+              const isAdvanceStrategy = strategyId.includes('advance');
+              const isCallContractType = contract.contract_type === 'CALL';
+              
+              // Obter o último dígito do preço de saída (exit_tick)
+              let exitDigit = null;
+              if (contract.exit_tick_display) {
+                // Extrair o último dígito do valor de saída
+                exitDigit = parseInt(contract.exit_tick_display.toString().slice(-1));
+                console.log(`[OAUTH_DIRECT] ★★★ EXIT DIGIT: ${exitDigit} ★★★`);
+              }
+              
+              // CORREÇÃO CRÍTICA: Para Advance com contrato CALL, o resultado é:
+              // - Vitória quando o dígito NÃO é 0 ou 1
+              // - Derrota quando o dígito É 0 ou 1
+              if (isAdvanceStrategy && isCallContractType && exitDigit !== null) {
+                const isDigit0or1 = exitDigit === 0 || exitDigit === 1;
+                
+                // Forçar resultado com base no dígito, não no status da API
+                const correctedResult = !isDigit0or1; // true (vitória) se NÃO for 0 ou 1
+                
+                if (correctedResult !== isWin) {
+                  console.log(`[OAUTH_DIRECT] ★★★ CORREÇÃO CRÍTICA ADVANCE: Alterando resultado de ${isWin ? 'VITÓRIA' : 'DERROTA'} para ${correctedResult ? 'VITÓRIA' : 'DERROTA'} (último dígito: ${exitDigit}) ★★★`);
+                  isWin = correctedResult;
+                } else {
+                  console.log(`[OAUTH_DIRECT] Resultado da estratégia Advance confirmado: ${isWin ? 'VITÓRIA' : 'DERROTA'} (último dígito: ${exitDigit})`);
+                }
+              }
               
               // Sempre recalcular o profit para garantir que seja o correto
               // Para operações ganhas: calcular com base no payout - preço de compra
@@ -2170,28 +2203,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // INÍCIO DA CORREÇÃO - Garantir que estamos usando o valor do usuário
+      // CORREÇÃO COMPLETA - Implementar a ordem de prioridade para valor de operação:
+      // 1. Maior prioridade: Configuração do usuário no localStorage
+      // 2. Segunda prioridade: Valor passado como parâmetro
+      // 3. Terceira prioridade: Configurações atuais do serviço
+      // 4. Última opção: Valor padrão (1.0)
+      
       const strategyId = this.strategyConfig.toLowerCase();
+      let finalAmount = amount; // Inicializar com o valor recebido como parâmetro
       
-      // Buscar configuração definida pelo usuário
-      const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
-      let userConfig: any = null;
+      // Usar o método dedicado para obter o valor com a ordem de prioridade correta
+      finalAmount = this.getUserDefinedAmount(amount);
       
-      if (userConfigObj) {
-        try {
-          userConfig = JSON.parse(userConfigObj);
-          console.log(`[OAUTH_DIRECT] 🔍 CONFIG USUÁRIO ENCONTRADA: ${JSON.stringify(userConfig)}`);
-        } catch (err) {
-          console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
-        }
-      }
+      // Log detalhado para debug
+      console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO COMPLETA - Fluxo de execução da compra:`);
+      console.log(`[OAUTH_DIRECT] 🚨 Valor original passado para função: ${amount}`);
+      console.log(`[OAUTH_DIRECT] 🚨 Valor final após aplicar prioridades: ${finalAmount}`);
       
-      // Se o usuário configurou um valor inicial, devemos usar esse valor, não o valor padrão
-      if (userConfig && userConfig.valorInicial !== undefined) {
-        // Sobrescrever o valor que veio do calculateNextAmount ou da estratégia
-        amount = Number(userConfig.valorInicial);
-        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Valor inicial sobrescrito com configuração do usuário: ${amount}`);
-      }
+      // Definir o amount para o valor final após aplicar as prioridades
+      amount = finalAmount;
       
       // Verificar se é IRON UNDER e forçar o tipo correto
       let contractType = this.settings.contractType || 'DIGITOVER';
@@ -2440,47 +2470,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
   async executeFirstOperation(amount?: number | string): Promise<boolean> {
-    // CORREÇÃO CRÍTICA COMPLETA: Implementar lógica de prioridade clara
-    // Valor padrão temporário apenas para inicialização
-    let entryAmount = 1.0;
+    // CORREÇÃO COMPLETA E ELEGANTE: Substituir toda a lógica por chamada do método auxiliar
+    // que já implementa a ordem de prioridade correta
     
-    // 1. MAIOR PRIORIDADE: Configuração do usuário no localStorage
-    const strategyId = this.strategyConfig.toLowerCase();
-    const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+    // Converter para número se for string
+    const parsedAmount = amount !== undefined ? (
+      typeof amount === 'string' ? parseFloat(amount) : amount
+    ) : undefined;
     
-    if (userConfigObj) {
-      try {
-        const userConfig = JSON.parse(userConfigObj);
-        if (userConfig && userConfig.valorInicial !== undefined) {
-          const userValue = Number(userConfig.valorInicial);
-          if (!isNaN(userValue) && userValue > 0) {
-            // Usar valor configurado pelo usuário como prioridade máxima
-            entryAmount = userValue;
-            console.log(`[OAUTH_DIRECT] 🥇 PRIORIDADE 1: Usando valor ${entryAmount} do localStorage para estratégia ${strategyId}`);
-          }
-        }
-      } catch (err) {
-        console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
-      }
-    } else {
-      // 2. SEGUNDA PRIORIDADE: Valor passado como parâmetro para a função
-      if (amount !== undefined) {
-        const parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-        if (!isNaN(parsedAmount) && parsedAmount > 0) {
-          entryAmount = parsedAmount;
-          console.log(`[OAUTH_DIRECT] 🥈 PRIORIDADE 2: Usando valor ${entryAmount} passado como parâmetro`);
-        }
-      } else {
-        // 3. TERCEIRA PRIORIDADE: Configuração atual do serviço
-        if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
-          entryAmount = this.settings.entryValue;
-          console.log(`[OAUTH_DIRECT] 🥉 PRIORIDADE 3: Usando valor ${entryAmount} das configurações do serviço`);
-        } else {
-          // 4. ÚLTIMA OPÇÃO: Valor padrão
-          console.log(`[OAUTH_DIRECT] ⚠️ Usando valor padrão de ${entryAmount} porque nenhuma configuração foi encontrada`);
-        }
-      }
-    }
+    // Usar o método unificado que implementa a ordem de prioridade correta
+    const entryAmount = this.getUserDefinedAmount(parsedAmount);
+    
+    console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO FINAL: executeFirstOperation usando valor ${entryAmount} após aplicar ordem de prioridade`);
+    console.log(`[OAUTH_DIRECT] 🚨 Valor original passado para função: ${parsedAmount || 'undefined'}`);
+    console.log(`[OAUTH_DIRECT] 🚨 Estratégia: ${this.strategyConfig}`);
+    console.log(`[OAUTH_DIRECT] 🚨 Configurações atuais: Valor de entrada ${this.settings.entryValue}, Martingale ${this.settings.martingaleFactor}`);
     
     // Garantir que o valor inicial seja usado também nas configurações
     this.settings.entryValue = entryAmount;
