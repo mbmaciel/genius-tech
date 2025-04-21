@@ -759,7 +759,7 @@ export function BotController({
                 oauthDirectService.setSettings({
                   contractType: 'DIGITUNDER',
                   prediction: 5, // IMPORTANTE: Alterado de 4 para 5 - API Deriv exige valores entre 1-9
-                  entryValue: 0.35,
+                  entryValue: 1.0, // CORREÇÃO: Valor default mais visível
                   profitTarget: 20,
                   lossLimit: 20,
                   martingaleFactor: 1.5
@@ -779,7 +779,7 @@ export function BotController({
                       console.log('[BOT_TEST] Executando primeira operação de teste...');
                       
                       // Forçar execução da primeira operação
-                      const started = await oauthDirectService.executeFirstOperation(0.35);
+                      const started = await oauthDirectService.executeFirstOperation(1.0); // CORREÇÃO: Valor default mais visível
                       
                       console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
                       

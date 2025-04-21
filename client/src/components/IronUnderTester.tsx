@@ -28,7 +28,7 @@ export function IronUnderTester() {
       oauthDirectService.setSettings({
         contractType: 'DIGITUNDER',
         prediction: 5, // ALTERADO DE 4 PARA 5 - Deriv requer digit entre 1-9
-        entryValue: 0.35,
+        entryValue: 1.0, // CORREÇÃO: Valor default mais visível
         profitTarget: 20,
         lossLimit: 20,
         martingaleFactor: 1.5
@@ -46,7 +46,7 @@ export function IronUnderTester() {
         
         // Executar primeira operação
         addLog('[TESTE] Executando primeira operação...');
-        const operationStarted = await oauthDirectService.executeFirstOperation(0.35);
+        const operationStarted = await oauthDirectService.executeFirstOperation(1.0); // CORREÇÃO: Valor default mais visível
         
         if (operationStarted) {
           addLog('[TESTE] ✅ Operação iniciada com sucesso!');

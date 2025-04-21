@@ -13,7 +13,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/Profitpro Atualizado.xml',
     type: 'BOTH',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -27,7 +27,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/Manual Over.xml',
     type: 'RISE',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -41,7 +41,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/Manual Under.xml',
     type: 'FALL',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -55,7 +55,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/BOT LOW.xml',
     type: 'BOTH',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -71,7 +71,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/IRON OVER.xml',
     type: 'RISE',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 0.5,
@@ -85,7 +85,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/IRON UNDER.xml',
     type: 'FALL',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 0.5,
@@ -99,7 +99,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/MAXPRO .xml',
     type: 'BOTH',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -113,7 +113,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/Advance .xml',
     type: 'ADVANCED',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -130,7 +130,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/WISE PRO TENDENCIA.xml',
     type: 'BOTH',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
@@ -144,7 +144,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     xmlPath: '/attached_assets/green.xml',
     type: 'BOTH',
     config: {
-      initialStake: 0.35,
+      initialStake: 1.0, // CORREÇÃO: Valor default mais visível
       targetProfit: 20,
       stopLoss: 10,
       martingaleFactor: 1.5,
