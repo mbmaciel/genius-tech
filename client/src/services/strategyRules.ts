@@ -144,10 +144,23 @@ export function evaluateIronOverStrategy(
  */
 export function evaluateIronUnderStrategy(
   digitStats: DigitStat[],
-  prediction: number = 5,
+  prediction: number = 4, // Mudamos para 4 como padrão
   consecutiveLosses: number = 0,
   martingaleAfterLosses: number = 2
 ): { shouldEnter: boolean; contractType: ContractType; useMartingale: boolean; message: string } {
+  // Log para debug
+  console.log(`[STRATEGY_RULES] IRON_UNDER: Avaliando com previsão ${prediction}, perdas consecutivas: ${consecutiveLosses}`);
+  
+  // Verificar se temos dados estatísticos suficientes
+  if (!digitStats || digitStats.length === 0) {
+    return {
+      shouldEnter: false,
+      contractType: 'DIGITUNDER',
+      useMartingale: false,
+      message: 'IRON UNDER: Aguardando estatísticas de dígitos.'
+    };
+  }
+  
   // IRON UNDER sempre entra, mas controla o martingale após X perdas
   const shouldEnter = true;
   const contractType: ContractType = 'DIGITUNDER';
