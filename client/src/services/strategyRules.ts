@@ -206,6 +206,8 @@ export function evaluateMaxProStrategy(
   };
 }
 
+
+
 /**
  * Avalia a estratégia padrão (fallback)
  * Usada quando não há regras específicas para a estratégia selecionada
