@@ -2089,6 +2089,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
+      // INÍCIO DA CORREÇÃO - Garantir que estamos usando o valor do usuário
+      const strategyId = this.strategyConfig.toLowerCase();
+      
+      // Buscar configuração definida pelo usuário
+      const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+      let userConfig: any = null;
+      
+      if (userConfigObj) {
+        try {
+          userConfig = JSON.parse(userConfigObj);
+          console.log(`[OAUTH_DIRECT] 🔍 CONFIG USUÁRIO ENCONTRADA: ${JSON.stringify(userConfig)}`);
+        } catch (err) {
+          console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
+        }
+      }
+      
+      // Se o usuário configurou um valor inicial, devemos usar esse valor, não o valor padrão
+      if (userConfig && userConfig.valorInicial !== undefined) {
+        // Sobrescrever o valor que veio do calculateNextAmount ou da estratégia
+        amount = Number(userConfig.valorInicial);
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Valor inicial sobrescrito com configuração do usuário: ${amount}`);
+      }
+      
       // Verificar se é IRON UNDER e forçar o tipo correto
       let contractType = this.settings.contractType || 'DIGITOVER';
       
@@ -2099,6 +2122,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         )) {
         contractType = 'DIGITUNDER';
         console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando DIGITUNDER para estratégia Iron Under`);
+      }
+      
+      // CORREÇÃO CRÍTICA: Forçar DIGITOVER para estratégia Iron Over
+      if (this.activeStrategy && (
+          this.activeStrategy.toLowerCase().includes('iron over') || 
+          this.activeStrategy.toLowerCase().includes('ironover')
+        )) {
+        contractType = 'DIGITOVER';
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando DIGITOVER para estratégia Iron Over`);
       }
       
       // Garantir que prediction seja válido (1-9) para contratos DIGIT
@@ -2327,11 +2359,30 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
   async executeFirstOperation(amount: number | string): Promise<boolean> {
-    // Garantir que o amount seja um número
-    const entryAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    // CORREÇÃO CRÍTICA: Verificar se existe configuração do usuário e usar esse valor prioritariamente
+    let entryAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    
+    // Buscar a configuração do usuário
+    const strategyId = this.strategyConfig.toLowerCase();
+    const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+    
+    // Se encontrou configuração, tentar usar o valor inicial definido pelo usuário
+    if (userConfigObj) {
+      try {
+        const userConfig = JSON.parse(userConfigObj);
+        if (userConfig && userConfig.valorInicial !== undefined) {
+          // Substituir o valor fornecido pelo valor configurado pelo usuário
+          entryAmount = Number(userConfig.valorInicial);
+          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando valor inicial ${entryAmount} definido pelo usuário para estratégia ${strategyId}`);
+        }
+      } catch (err) {
+        console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
+      }
+    }
+    
     try {
       console.log(`[OAUTH_DIRECT] 🌟🌟🌟 INICIANDO PRIMEIRA OPERAÇÃO DO BOT 🌟🌟🌟`);
-      console.log(`[OAUTH_DIRECT] 🌟 Valor da primeira entrada: ${amount}`);
+      console.log(`[OAUTH_DIRECT] 🌟 Valor da primeira entrada (CORRIGIDO): ${entryAmount}`);
       console.log(`[OAUTH_DIRECT] 🌟 Estratégia ativa: ${this.activeStrategy || 'Nenhuma'}`);
       console.log(`[OAUTH_DIRECT] 🌟 Configurações: ${JSON.stringify(this.settings, null, 2)}`);
       console.log(`[OAUTH_DIRECT] 🌟 Token ativo: ${this.activeToken ? 'Presente' : 'Ausente'}`);
