@@ -697,59 +697,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               contract_details: contract
             });
             
-            // ADICIONAL: Verificar se estamos executando a estratégia Advance para emitir eventos intermediários
-            if (this.strategyConfig.toLowerCase().includes('advance')) {
-              console.log(`[OAUTH_DIRECT] 🚨 Estratégia ADVANCE detectada em contrato_update, emitindo como contract_finished para ${contract.contract_id}`);
-              
-              // Calcular valores para o evento final (forçar conclusão)
-              const amount = contract.buy_price || 0;
-              const currentProfit = contract.profit || 0;
-              // Se o contrato está aberto, consideramos o valor atual como resultado
-              const forceStatus = contract.status === 'open' ? 'intermediary' : contract.status;
-              const result = contract.status === 'won' ? amount + currentProfit : 
-                           contract.status === 'lost' ? 0 : amount;
-              
-              // Determinar porcentagem atual para análise (usada na estratégia Advance)
-              const digit0Percentage = this.getDigitPercentage(0);
-              const digit1Percentage = this.getDigitPercentage(1);
-              
-              // Log detalhado do evento que está sendo emitido
-              console.log(`[OAUTH_DIRECT] 📊 FORÇANDO EMISSÃO DE CONTRACT_FINISHED PARA OPERAÇÃO INTERMEDIÁRIA: 
-                Contract ID: ${contract.contract_id}, 
-                Status: ${forceStatus}, 
-                Valor Entrada: ${amount}, 
-                Resultado: ${result}, 
-                Profit: ${currentProfit}, 
-                Análise: Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`);
-              
-              // Emitir evento de finalização para mostrar no histórico,
-              // mesmo se for apenas um update intermediário
-              this.notifyListeners({
-                type: 'contract_finished',
-                contract_id: contract.contract_id,
-                is_win: forceStatus === 'won',
-                // Para operações intermediárias, usamos um valor calculado para indicar
-                // se a condição foi atendida (1) ou não (0), sem valor monetário real
-                profit: (digit0Percentage <= this.advancePercentage && digit1Percentage <= this.advancePercentage) ? 1 : 0,
-                contract_details: {
-                  ...contract,
-                  is_intermediate: true,  // Marcar como intermediário
-                  analysis: `Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`
-                },
-                // Importante: incluir valores corretos para exibição monetária
-                entry_value: amount,
-                exit_value: result,
-                // Enviar análise detalhada para exibição no relatório
-                analysis: {
-                  digit0: digit0Percentage,
-                  digit1: digit1Percentage,
-                  threshold: this.advancePercentage || 10
-                },
-                // Adicionar flag para indicar que é uma operação intermediária
-                is_intermediate: true
-              });
-              
-              console.log(`[OAUTH_DIRECT] 📣 Evento contract_finished para operação intermediária enviado!`);
+            // IMPORTANTE: Não vamos mais emitir atualizações intermediárias em contract_update
+            // Isso estava causando múltiplos eventos indesejados no início da operação
+            
+            // Apenas reagir a atualizações completas de contratos
+            if (contract.status === 'won' || contract.status === 'lost') {
+              console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado com status: ${contract.status}`);
             }
             
             // Se o contrato foi finalizado, notificar resultado
