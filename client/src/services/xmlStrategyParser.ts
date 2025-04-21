@@ -393,10 +393,11 @@ export class XmlStrategyParser {
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
-      const valorInicial = this.userConfig.valorInicial !== undefined 
-                         ? this.userConfig.valorInicial 
-                         : this.variables.valorInicial || 1.0; // CORREÇÃO: Valor default mais visível;
+      // CORREÇÃO CRÍTICA: IGNORAR valor hardcoded (0.35) no XML e priorizar configuração do usuário
+      // Usando getFinalAmount para garantir consistência em todas as estratégias
+      const valorInicial = this.getFinalAmount();
+      console.log(`[XML_PARSER] 🚨 IRON OVER utilizando valor ${valorInicial} de getFinalAmount`);
+      // Este método já implementa a lógica de priorização completa
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
@@ -474,10 +475,11 @@ export class XmlStrategyParser {
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
-      const valorInicial = this.userConfig.valorInicial !== undefined 
-                         ? this.userConfig.valorInicial 
-                         : this.variables.valorInicial || 1.0; // CORREÇÃO: Valor default mais visível;
+      // CORREÇÃO CRÍTICA: IGNORAR valor hardcoded (0.35) no XML e priorizar configuração do usuário
+      // Usando getFinalAmount para garantir consistência em todas as estratégias
+      const valorInicial = this.getFinalAmount();
+      console.log(`[XML_PARSER] 🚨 IRON UNDER utilizando valor ${valorInicial} de getFinalAmount`);
+      // Este método já implementa a lógica de priorização completa
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
@@ -549,13 +551,14 @@ export class XmlStrategyParser {
       }
     }
     
-    // Ordem de prioridade para valor de entrada:
-    // 1. Valor encontrado no localStorage (mais confiável)
-    // 2. Valor definido no userConfig (argumentos da função)
-    // 3. Valor definido no XML
-    // 4. Valor padrão (1.0) - CORREÇÃO: Valor default mais visível quando usado
-    let amount = 1.0; // Valor padrão alterado para ser mais perceptível
+    // CORREÇÃO CRÍTICA:
+    // O valor hardcoded no XML (0.35) nunca deve ter prioridade sobre as configurações do usuário
     
+    // Força o uso do valor padrão 1.0 quando não houver configuração do usuário 
+    // (para evitar o valor hardcoded 0.35 do XML)
+    let amount = 1.0; // Valor padrão alterado para NUNCA usar o valor do XML
+    
+    // IGNORAR COMPLETAMENTE o valor do XML (0.35) se houver QUALQUER outro valor definido
     if (valorConfigurado !== null) {
       // Prioridade 1: Usar valor definido pelo usuário no localStorage
       amount = valorConfigurado;
@@ -563,14 +566,16 @@ export class XmlStrategyParser {
     } else if (this.userConfig.valorInicial !== undefined) {
       // Prioridade 2: Usar valor definido no userConfig
       amount = this.userConfig.valorInicial;
-      console.log(`[XML_PARSER] Usando valor ${amount} definido no userConfig`);
-    } else if (this.variables.valorInicial !== undefined) {
-      // Prioridade 3: Usar valor definido no XML
-      amount = this.variables.valorInicial;
-      console.log(`[XML_PARSER] Usando valor ${amount} definido no XML`);
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Usando valor ${amount} definido no userConfig`);
     } else {
-      // Prioridade 4: Usar valor padrão
-      console.log(`[XML_PARSER] Nenhum valor configurado encontrado. Usando valor padrão: ${amount}`);
+      // Prioridade 3: Usar valor padrão FORÇADO (ignorando valor 0.35 do XML)
+      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Ignorando valor ${this.variables.valorInicial} do XML. Usando valor padrão: ${amount}`);
+    }
+    
+    // NUNCA permitir valor inferior a 0.35 para evitar problemas com mínimo da plataforma
+    if (amount < 0.35) {
+      amount = 0.35;
+      console.log(`[XML_PARSER] Ajustando valor para o mínimo permitido: ${amount}`);
     }
     
     return amount;
