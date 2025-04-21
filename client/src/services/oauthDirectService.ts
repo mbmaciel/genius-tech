@@ -2436,30 +2436,54 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Esta função inicia o ciclo de operações do bot
    * IMPORTANTE: Esta função DEVE emitir o evento bot_started para a interface atualizar
    * 
-   * @param amount Valor inicial da operação
+   * @param amount Valor inicial da operação (opcional, pode ser ignorado se houver configuração do usuário)
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
-  async executeFirstOperation(amount: number | string): Promise<boolean> {
-    // CORREÇÃO CRÍTICA: Verificar se existe configuração do usuário e usar esse valor prioritariamente
-    let entryAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  async executeFirstOperation(amount?: number | string): Promise<boolean> {
+    // CORREÇÃO CRÍTICA COMPLETA: Implementar lógica de prioridade clara
+    // Valor padrão temporário apenas para inicialização
+    let entryAmount = 1.0;
     
-    // Buscar a configuração do usuário
+    // 1. MAIOR PRIORIDADE: Configuração do usuário no localStorage
     const strategyId = this.strategyConfig.toLowerCase();
     const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
     
-    // Se encontrou configuração, tentar usar o valor inicial definido pelo usuário
     if (userConfigObj) {
       try {
         const userConfig = JSON.parse(userConfigObj);
         if (userConfig && userConfig.valorInicial !== undefined) {
-          // Substituir o valor fornecido pelo valor configurado pelo usuário
-          entryAmount = Number(userConfig.valorInicial);
-          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando valor inicial ${entryAmount} definido pelo usuário para estratégia ${strategyId}`);
+          const userValue = Number(userConfig.valorInicial);
+          if (!isNaN(userValue) && userValue > 0) {
+            // Usar valor configurado pelo usuário como prioridade máxima
+            entryAmount = userValue;
+            console.log(`[OAUTH_DIRECT] 🥇 PRIORIDADE 1: Usando valor ${entryAmount} do localStorage para estratégia ${strategyId}`);
+          }
         }
       } catch (err) {
         console.error("[OAUTH_DIRECT] Erro ao carregar configuração do usuário:", err);
       }
+    } else {
+      // 2. SEGUNDA PRIORIDADE: Valor passado como parâmetro para a função
+      if (amount !== undefined) {
+        const parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+        if (!isNaN(parsedAmount) && parsedAmount > 0) {
+          entryAmount = parsedAmount;
+          console.log(`[OAUTH_DIRECT] 🥈 PRIORIDADE 2: Usando valor ${entryAmount} passado como parâmetro`);
+        }
+      } else {
+        // 3. TERCEIRA PRIORIDADE: Configuração atual do serviço
+        if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
+          entryAmount = this.settings.entryValue;
+          console.log(`[OAUTH_DIRECT] 🥉 PRIORIDADE 3: Usando valor ${entryAmount} das configurações do serviço`);
+        } else {
+          // 4. ÚLTIMA OPÇÃO: Valor padrão
+          console.log(`[OAUTH_DIRECT] ⚠️ Usando valor padrão de ${entryAmount} porque nenhuma configuração foi encontrada`);
+        }
+      }
     }
+    
+    // Garantir que o valor inicial seja usado também nas configurações
+    this.settings.entryValue = entryAmount;
     
     try {
       console.log(`[OAUTH_DIRECT] 🌟🌟🌟 INICIANDO PRIMEIRA OPERAÇÃO DO BOT 🌟🌟🌟`);
@@ -2673,8 +2697,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.error('[OAUTH_DIRECT] Erro ao processar parâmetros da estratégia:', error);
       }
       
-      // Obter o valor inicial da estratégia XML (valorInicial)
-      let finalAmount = amount;
+      // CORREÇÃO PRINCIPAL: Usar método getUserDefinedAmount para garantir prioridade correta
+      // Obter o valor inicial respeitando estritamente a prioridade de configurações
+      let finalAmount = this.getUserDefinedAmount(amount);
       
       // Buscar configuração específica da estratégia (já temos strategyId definido acima)
       const strategyConfigString = localStorage.getItem(`strategy_config_${this.strategyConfig.toLowerCase()}`);
@@ -2683,13 +2708,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       if (strategyConfigString) {
         try {
           userConfig = JSON.parse(strategyConfigString);
-          // CORREÇÃO CRÍTICA: Usar o valor inicial definido pelo usuário com prioridade absoluta 
+          
+          // GARANTIR CONSISTÊNCIA: Se temos configurações do usuário, garantir que o valor da entrada 
+          // seja exatamente o configurado pelo usuário e não o valor padrão
           if (userConfig.valorInicial !== undefined) {
-            finalAmount = parseFloat(userConfig.valorInicial);
-            console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando valor inicial da configuração do usuário: ${finalAmount}`);
+            const userValueAsNumber = parseFloat(userConfig.valorInicial);
+            // Validar que é um número válido
+            if (!isNaN(userValueAsNumber) && userValueAsNumber > 0) {
+              finalAmount = userValueAsNumber;
+              console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando valor inicial exato do usuário: ${finalAmount}`);
+            }
             
             // ATUALIZAÇÃO CRÍTICA: Garantir que todas as configurações do usuário são aplicadas
-            // para operações futuras
+            // para operações futuras, sobrescrevendo qualquer configuração anterior
             this.settings.entryValue = finalAmount;
             
             if (userConfig.martingale !== undefined) {
