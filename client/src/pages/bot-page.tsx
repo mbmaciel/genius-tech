@@ -267,18 +267,22 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   };
   
   // Estado para histórico de operações
-  const [operationHistory, setOperationHistory] = useState<Array<{
+  // Interface para operações no histórico
+  interface Operation {
     id: number;
     entryValue: number;
     finalValue: number;
     profit: number;
     time: Date;
     contractType?: string;
+    isIntermediate?: boolean; // Flag para identificar operações intermediárias da estratégia Advance
     notification?: {
       type: 'success' | 'info' | 'warning' | 'error';
       message: string;
     };
-  }>>([]);
+  }
+  
+  const [operationHistory, setOperationHistory] = useState<Array<Operation>>([]);
   
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
