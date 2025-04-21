@@ -76,10 +76,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
 
       // 3. Terceira prioridade: Valor atual nas settings (verificar se é um número válido)
-      const settingsValue = Number(this.settings.entryValue);
-      if (!isNaN(settingsValue) && settingsValue > 0) {
-        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${settingsValue}`);
-        return settingsValue;
+      // Usar parseFloat para garantir que sempre obtemos um número válido
+      if (typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
+        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${this.settings.entryValue}`);
+        return this.settings.entryValue;
       }
 
       // 4. Último recurso: Valor padrão
@@ -93,7 +93,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
   private settings: TradingSettings = {
     // CORREÇÃO CRÍTICA: Não usar valor fixo, será substituído pelo valor do localStorage
-    entryValue: 0, // Inicializado como 0, será preenchido durante a configuração da estratégia
+    entryValue: 1.0, // Valor default mais visível quando usado como fallback
     profitTarget: 20,
     lossLimit: 20,
     martingaleFactor: 1.5,
