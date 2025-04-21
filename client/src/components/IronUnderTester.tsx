@@ -22,13 +22,31 @@ export function IronUnderTester() {
       addLog('[TESTE] Iniciando teste da estratégia Iron Under...');
       setStatus('running');
       
+      // CORREÇÃO COMPLETA: Obter valor configurado pelo usuário do localStorage
+      let userEntryValue = 1.0; // Valor default como fallback
+      try {
+        const configStr = localStorage.getItem('strategy_config_iron under');
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial !== undefined && !isNaN(parseFloat(config.valorInicial))) {
+            userEntryValue = parseFloat(config.valorInicial);
+            addLog(`[TESTE] ✅ Usando valor configurado pelo usuário: ${userEntryValue}`);
+          }
+        } else {
+          addLog('[TESTE] ⚠️ Configuração não encontrada, usando valor padrão: 1.0');
+        }
+      } catch (error) {
+        console.error('[IRON_UNDER_TESTER] Erro ao carregar configuração:', error);
+        addLog('[TESTE] ⚠️ Erro ao carregar configuração, usando valor padrão: 1.0');
+      }
+      
       // Definir configurações específicas para IRON UNDER
       addLog('[TESTE] Configurando parâmetros da estratégia...');
       // IMPORTANTE: A API Deriv só aceita valores de 1 a 9 para digit
       oauthDirectService.setSettings({
         contractType: 'DIGITUNDER',
         prediction: 5, // ALTERADO DE 4 PARA 5 - Deriv requer digit entre 1-9
-        entryValue: 1.0, // CORREÇÃO: Valor default mais visível
+        entryValue: userEntryValue, // CORREÇÃO COMPLETA: Usar valor configurado pelo usuário
         profitTarget: 20,
         lossLimit: 20,
         martingaleFactor: 1.5
@@ -45,8 +63,8 @@ export function IronUnderTester() {
         addLog('[TESTE] Serviço de trading iniciado com sucesso!');
         
         // Executar primeira operação
-        addLog('[TESTE] Executando primeira operação...');
-        const operationStarted = await oauthDirectService.executeFirstOperation(1.0); // CORREÇÃO: Valor default mais visível
+        addLog(`[TESTE] Executando primeira operação com valor ${userEntryValue}...`);
+        const operationStarted = await oauthDirectService.executeFirstOperation(userEntryValue); // CORREÇÃO COMPLETA: Usar valor configurado pelo usuário
         
         if (operationStarted) {
           addLog('[TESTE] ✅ Operação iniciada com sucesso!');
