@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { BotController } from "@/components/BotController";
+import { IronUnderTester } from "@/components/IronUnderTester";
 import { DirectDigitDisplay } from "@/components/DirectDigitDisplay";
 import { DirectTickerDisplay } from "@/components/DirectTickerDisplay";
 import { ForceUpdateDigitDisplay } from "@/components/ForceUpdateDigitDisplay";

@@ -24,9 +24,10 @@ export function IronUnderTester() {
       
       // Definir configurações específicas para IRON UNDER
       addLog('[TESTE] Configurando parâmetros da estratégia...');
+      // IMPORTANTE: A API Deriv só aceita valores de 1 a 9 para digit
       oauthDirectService.setSettings({
         contractType: 'DIGITUNDER',
-        prediction: 4,
+        prediction: 5, // ALTERADO DE 4 PARA 5 - Deriv requer digit entre 1-9
         entryValue: 0.35,
         profitTarget: 20,
         lossLimit: 20,
@@ -59,7 +60,7 @@ export function IronUnderTester() {
       }
     } catch (error) {
       console.error('[IRON_UNDER_TESTER] Erro:', error);
-      addLog(`[TESTE] ❌ Erro: ${error.message || 'Erro desconhecido'}`);
+      addLog(`[TESTE] ❌ Erro: ${(error as Error).message || 'Erro desconhecido'}`);
       setStatus('stopped');
     }
   };
@@ -73,7 +74,7 @@ export function IronUnderTester() {
       addLog('[TESTE] Teste parado com sucesso');
     } catch (error) {
       console.error('[IRON_UNDER_TESTER] Erro ao parar:', error);
-      addLog(`[TESTE] ❌ Erro ao parar: ${error.message || 'Erro desconhecido'}`);
+      addLog(`[TESTE] ❌ Erro ao parar: ${(error as Error).message || 'Erro desconhecido'}`);
     }
   };
   
@@ -101,7 +102,7 @@ export function IronUnderTester() {
               {status === 'idle' && (
                 <Button 
                   onClick={testIronUnder}
-                  variant="success"
+                  variant="default"
                   className="w-40"
                 >
                   Iniciar Teste
