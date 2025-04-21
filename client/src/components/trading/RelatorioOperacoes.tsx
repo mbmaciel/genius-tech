@@ -4,14 +4,20 @@ import { getStrategyById } from '@/lib/strategiesConfig';
 
 // Interface para o tipo de operação
 interface Operation {
-  id: number;
-  entryValue: number;
-  finalValue: number;
+  id: number | string;
+  entryValue?: number;
+  finalValue?: number;
   profit: number;
   time: Date;
   notification?: {
     type: 'success' | 'info' | 'warning' | 'error';
     message: string;
+  };
+  isIntermediate?: boolean; // Flag para operações intermediárias (análises sem entrada)
+  analysis?: {
+    digit0: number;
+    digit1: number;
+    threshold: number;
   };
 }
 
@@ -22,7 +28,8 @@ interface RelatorioOperacoesProps {
 
 export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOperacoesProps) {
   // Função para formatar valores monetários
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined) => {
+    if (value === undefined) return '$0.00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'USD',
@@ -31,12 +38,18 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
   };
 
   // Função para formatar horário
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+  const formatTime = (date: Date | string) => {
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      return dateObj.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch (error) {
+      console.error('[RELATORIO] Erro ao formatar data:', error);
+      return '--:--:--';
+    }
   };
 
   // Função para obter o comando específico da estratégia
@@ -230,7 +243,7 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                     </div>
                   )}
                   
-                  {/* Detalhes da operação, se for uma operação completa */}
+                  {/* Detalhes da operação, se for uma operação completa ou intermediária */}
                   {!op.notification && (
                     <>
                       {/* Comando específico da estratégia */}
@@ -238,32 +251,53 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                         {strategyCommand}
                       </div>
                       
-                      <div className="flex items-center gap-1 mb-1">
-                        {op.profit > 0 ? (
-                          <ArrowUpIcon className="w-5 h-5 text-green-500" />
-                        ) : op.profit < 0 ? (
-                          <ArrowDownIcon className="w-5 h-5 text-red-500" />
-                        ) : (
-                          <InfoIcon className="w-5 h-5 text-gray-500" />
-                        )}
-                        <span className={`font-medium ${
-                          op.profit > 0 ? 'text-green-400' : 
-                          op.profit < 0 ? 'text-red-400' : 'text-gray-400'
-                        }`}>
-                          {op.profit > 0 ? 'Ganho:' : op.profit < 0 ? 'Perda:' : 'Operação:'}
-                        </span>
-                        <span className={`font-bold ${
-                          op.profit > 0 ? 'text-green-400' : 
-                          op.profit < 0 ? 'text-red-400' : 'text-gray-400'
-                        }`}>
-                          {formatCurrency(Math.abs(op.profit))}
-                        </span>
-                      </div>
-                      
-                      <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
-                        <span>Entrada: {formatCurrency(op.entryValue)}</span>
-                        <span>Saída: {formatCurrency(op.finalValue)}</span>
-                      </div>
+                      {/* Exibição especial para operações intermediárias da estratégia Advance */}
+                      {op.isIntermediate && op.analysis ? (
+                        <div className="mb-1">
+                          <div className="flex items-center gap-1">
+                            <InfoIcon className="w-5 h-5 text-blue-500" />
+                            <span className="font-medium text-blue-400">
+                              Análise Advance
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-300 mt-1 grid grid-cols-2 gap-x-2">
+                            <span className="font-medium">Dígito 0: <span className="text-cyan-400">{op.analysis.digit0}%</span></span>
+                            <span className="font-medium">Dígito 1: <span className="text-cyan-400">{op.analysis.digit1}%</span></span>
+                            <span className="font-medium col-span-2">Limite para entrada: <span className="text-yellow-400">{op.analysis.threshold}%</span></span>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1 mb-1">
+                            {op.profit > 0 ? (
+                              <ArrowUpIcon className="w-5 h-5 text-green-500" />
+                            ) : op.profit < 0 ? (
+                              <ArrowDownIcon className="w-5 h-5 text-red-500" />
+                            ) : (
+                              <InfoIcon className="w-5 h-5 text-gray-500" />
+                            )}
+                            <span className={`font-medium ${
+                              op.profit > 0 ? 'text-green-400' : 
+                              op.profit < 0 ? 'text-red-400' : 'text-gray-400'
+                            }`}>
+                              {op.profit > 0 ? 'Ganho:' : op.profit < 0 ? 'Perda:' : 'Operação:'}
+                            </span>
+                            <span className={`font-bold ${
+                              op.profit > 0 ? 'text-green-400' : 
+                              op.profit < 0 ? 'text-red-400' : 'text-gray-400'
+                            }`}>
+                              {formatCurrency(Math.abs(op.profit))}
+                            </span>
+                          </div>
+                          
+                          {op.entryValue !== undefined && op.finalValue !== undefined && (
+                            <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
+                              <span>Entrada: {formatCurrency(op.entryValue)}</span>
+                              <span>Saída: {formatCurrency(op.finalValue)}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </>
                   )}
                 </div>
