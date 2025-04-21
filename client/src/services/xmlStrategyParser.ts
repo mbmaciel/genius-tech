@@ -553,8 +553,8 @@ export class XmlStrategyParser {
     // 1. Valor encontrado no localStorage (mais confiável)
     // 2. Valor definido no userConfig (argumentos da função)
     // 3. Valor definido no XML
-    // 4. Valor padrão (0.35)
-    let amount = 0.35; // Valor padrão
+    // 4. Valor padrão (1.0) - CORREÇÃO: Valor default mais visível quando usado
+    let amount = 1.0; // Valor padrão alterado para ser mais perceptível
     
     if (valorConfigurado !== null) {
       // Prioridade 1: Usar valor definido pelo usuário no localStorage
