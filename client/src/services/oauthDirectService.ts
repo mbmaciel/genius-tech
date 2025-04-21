@@ -2192,7 +2192,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Executa compra de contrato
    */
-  private executeContractBuy(amount: number = 1): void {
+  private executeContractBuy(amount?: number): void {
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
       console.error('[OAUTH_DIRECT] 🔴 WebSocket não está conectado - Não é possível executar operação');
       this.notifyListeners({
