@@ -25,7 +25,7 @@ class OAuthTradingService {
   private eventListeners: Array<(event: TradingEvent) => void> = [];
   private currentContractId: string | number | null = null;
   private settings: TradingSettings = {
-    entryValue: 0.35,
+    entryValue: 1.0, // CORREÇÃO: Valor default mais visível
     profitTarget: 20,
     lossLimit: 20,
     martingaleFactor: 1.5,

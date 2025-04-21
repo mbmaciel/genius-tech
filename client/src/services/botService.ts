@@ -72,7 +72,7 @@ class BotService {
   
   private activeStrategy: StrategyConfig | null = null;
   private settings: BotSettings = {
-    entryValue: 0.35,
+    entryValue: 1.0, // CORREÇÃO: Valor default mais visível
     virtualLoss: 0,
     profitTarget: 10,
     lossLimit: 20,

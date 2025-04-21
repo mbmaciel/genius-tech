@@ -396,7 +396,7 @@ export class XmlStrategyParser {
       // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
       const valorInicial = this.userConfig.valorInicial !== undefined 
                          ? this.userConfig.valorInicial 
-                         : this.variables.valorInicial || 0.35;
+                         : this.variables.valorInicial || 1.0; // CORREÇÃO: Valor default mais visível;
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
@@ -477,7 +477,7 @@ export class XmlStrategyParser {
       // Obter valor inicial para a estratégia (prioridade: configuração do usuário > XML > valor padrão)
       const valorInicial = this.userConfig.valorInicial !== undefined 
                          ? this.userConfig.valorInicial 
-                         : this.variables.valorInicial || 0.35;
+                         : this.variables.valorInicial || 1.0; // CORREÇÃO: Valor default mais visível;
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
