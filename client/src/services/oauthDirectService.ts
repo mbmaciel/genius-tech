@@ -453,7 +453,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         this.webSocket.onopen = () => {
           clearTimeout(connectionTimeout);
           console.log('[OAUTH_DIRECT] Conexão WebSocket estabelecida com sucesso!');
-          console.log(`[OAUTH_DIRECT] Estado após conexão: ${this.getReadyStateText(this.webSocket.readyState)}`);
+          
+          // Verificar se o websocket ainda existe antes de acessar readyState
+          if (this.webSocket) {
+            console.log(`[OAUTH_DIRECT] Estado após conexão: ${this.getReadyStateText(this.webSocket.readyState)}`);
+          }
           
           // Configurar ping para manter conexão
           this.setupKeepAlive();
