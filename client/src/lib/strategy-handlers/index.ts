@@ -254,6 +254,28 @@ export async function evaluateEntryConditions(
       shouldEnter = result.shouldEnter;
       contractType = result.contractType;
       message = result.message;
+
+      // NOVO: Usar o flag shouldLog para registrar análises intermediárias
+      // Isso vai permitir que mesmo as operações não executadas apareçam no histórico
+      if (result.shouldLog) {
+        // Emitir um evento de análise para o relatório de operações
+        // Isso será gerenciado pelo oauthDirectService para adicionar ao histórico
+        console.log(`[STRATEGY_HANDLER] ADVANCE: Emitindo análise para histórico: ${message}`);
+        console.log(`[STRATEGY_HANDLER] ADVANCE: Análise com dígitos - 0: ${result.analysis.digit0}%, 1: ${result.analysis.digit1}%, limite: ${result.analysis.threshold}%`);
+        
+        // Estrutura de dados adicional será utilizada por oauthDirectService
+        // para incluir esta operação no histórico, mesmo sem execução
+        // O tipo explícito é uma boa prática para evitar erros
+        const analysisData = {
+          shouldLog: true,
+          isIntermediate: !shouldEnter, // Se não deve entrar, é uma análise intermediária
+          message: message,
+          analysis: result.analysis
+        };
+        
+        // Esta informação é passada via "message" e processada em oauthDirectService
+        message = JSON.stringify(analysisData);
+      }
       
       // Calcular valor de entrada considerando martingale para ADVANCE
       if (state.lastResult === 'loss') {

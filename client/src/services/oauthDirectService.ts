@@ -963,6 +963,51 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         );
         
         console.log(`[OAUTH_DIRECT] Avaliação de entrada para ${strategyId}: ${entryResult.message}`);
+        
+        // NOVO: Verificar se a mensagem contém dados JSON de análise da estratégia Advance
+        try {
+          if (strategyId.toLowerCase().includes('advance') && entryResult.message.startsWith('{')) {
+            // Tentar fazer parse dos dados JSON
+            const analysisData = JSON.parse(entryResult.message);
+            
+            // Verificar se devemos registrar esta análise no histórico
+            if (analysisData.shouldLog) {
+              console.log(`[OAUTH_DIRECT] Registrando análise intermediária da estratégia Advance no histórico`);
+              
+              // Criar uma operação virtual para o histórico (não será executada)
+              const intermediateOperation = {
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                symbol: this.settings.activeSymbol,
+                type: 'DIGITOVER',  // Tipo de contrato usado pela estratégia Advance
+                amount: this.settings.entryValue,
+                result: null,  // Não tem resultado, é só análise
+                profit: 0,
+                message: analysisData.message,
+                lastDigit: this.lastDigit,
+                isIntermediate: analysisData.isIntermediate, // Flag que indica operação intermediária
+                analysis: analysisData.analysis  // Dados da análise (0%, 1%, limite%)
+              };
+              
+              // Emitir evento para atualizar o histórico de operações
+              this.emit("operation_log", intermediateOperation);
+              
+              // Se não devemos entrar, retornar aqui para não executar a operação real
+              if (analysisData.isIntermediate) {
+                // Notificar sobre a decisão de não entrar
+                this.emit("info", `Estratégia Advance: Condições não atendidas, aguardando próximo tick`);
+                this.operationTimeout = setTimeout(async () => {
+                  // Tentar novamente após aguardar mais ticks
+                  await this.startNextOperation(isWin, lastContract);
+                }, 5000);
+                return; // Interromper a execução, não fazer entrada
+              }
+            }
+          }
+        } catch (error) {
+          // Ignorar silenciosamente se não for JSON válido ou se ocorrer erro ao processar
+          console.log('[OAUTH_DIRECT] Mensagem de análise não é JSON válido, continuando normalmente');
+        }
       } catch (error) {
         console.error('[OAUTH_DIRECT] Erro ao analisar com o parser XML:', error);
         
