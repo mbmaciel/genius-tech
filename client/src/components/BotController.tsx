@@ -750,13 +750,11 @@ export function BotController({
             selectedStrategy={selectedStrategy}
             onStart={() => {
               // Log especial para depuração do clique
-              console.log('[BOT_BUTTON] 🚀 Botão de início clicado - Estratégia:', selectedStrategy);
+              console.log('[BOT_BUTTON] 🚀🚀🚀 BOTÃO DE INÍCIO CLICADO 🚀🚀🚀');
+              console.log('[BOT_BUTTON] Estratégia selecionada:', selectedStrategy);
               
-              // TESTE DIRETO PARA IRON UNDER
-              if (selectedStrategy.toLowerCase().includes('iron') && selectedStrategy.toLowerCase().includes('under')) {
-                console.log('[IRON_UNDER_DEBUG] 🔴🔴🔴 TESTE DIRETO PARA IRON UNDER 🔴🔴🔴');
-                console.log('[IRON_UNDER_DEBUG] 📢 Definindo configurações otimizadas para IRON UNDER...');
-                
+              // Teste simplificado diretamente para compra
+              try {
                 // Definir configurações específicas para IRON UNDER
                 oauthDirectService.setSettings({
                   contractType: 'DIGITUNDER',
@@ -770,34 +768,33 @@ export function BotController({
                 // Definir estratégia ativa
                 oauthDirectService.setActiveStrategy('IRON UNDER');
                 
-                // Iniciar o serviço e forçar primeira operação
+                // Executar o teste assíncrono
                 (async () => {
                   try {
-                    // Iniciar serviço primeiro
-                    console.log('[IRON_UNDER_DEBUG] 📢 Iniciando serviço...');
+                    console.log('[BOT_TEST] Iniciando serviço...');
                     const success = await oauthDirectService.start();
                     
                     if (success) {
-                      console.log('[IRON_UNDER_DEBUG] 📢 Serviço iniciado, executando primeira operação de teste...');
+                      console.log('[BOT_TEST] Serviço iniciado com sucesso!');
+                      console.log('[BOT_TEST] Executando primeira operação de teste...');
                       
                       // Forçar execução da primeira operação
                       const started = await oauthDirectService.executeFirstOperation(0.35);
                       
-                      console.log('[IRON_UNDER_DEBUG] 📢 Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
+                      console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
                       
                       // Atualizar estados
                       setStatus('running');
                       onStatusChange('running');
                     } else {
-                      console.error('[IRON_UNDER_DEBUG] ❌ Falha ao iniciar serviço para IRON UNDER');
+                      console.error('[BOT_TEST] Falha ao iniciar serviço');
                     }
                   } catch (error) {
-                    console.error('[IRON_UNDER_DEBUG] ❌ Erro no teste direto IRON UNDER:', error);
+                    console.error('[BOT_TEST] Erro no teste:', error);
                   }
                 })();
-              } else {
-                // Chamar função normal para iniciar o bot
-                startBot();
+              } catch (error) {
+                console.error('[BOT_BUTTON] Erro ao executar teste:', error);
               }
             }}
             onStop={() => {
