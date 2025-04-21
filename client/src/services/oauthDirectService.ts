@@ -1001,15 +1001,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               // Emitir evento para atualizar o histórico de operações
               this.emit("operation_log", intermediateOperation);
               
-              // Se não devemos entrar, retornar aqui para não executar a operação real
+              // CORREÇÃO: Não interromper execução para a estratégia Advance
+              // Apenas registramos a análise intermediária e continuamos a execução
               if (analysisData.isIntermediate) {
-                // Notificar sobre a decisão de não entrar
-                this.emit("info", `Estratégia Advance: Condições não atendidas, aguardando próximo tick`);
-                this.operationTimeout = setTimeout(async () => {
-                  // Tentar novamente após aguardar mais ticks
-                  await this.startNextOperation(isWin, lastContract);
-                }, 5000);
-                return; // Interromper a execução, não fazer entrada
+                // Notificar sobre a análise intermediária
+                this.emit("info", `Estratégia Advance: Análise intermediária registrada no histórico. Verificando condições de entrada...`);
+                
+                // Verificar se temos ticks suficientes (25) para uma análise confiável
+                const stats = this.getDigitStats();
+                const ticksTotal = stats.reduce((sum, stat) => sum + stat.count, 0);
+                
+                if (ticksTotal < 25) {
+                  console.log(`[OAUTH_DIRECT] Estratégia ADVANCE precisa de pelo menos 25 ticks, aguardando mais dados (${ticksTotal}/25)`);
+                  this.operationTimeout = setTimeout(async () => {
+                    await this.startNextOperation(isWin, lastContract);
+                  }, 3000);
+                  return; // Aguardar mais ticks
+                }
+                
+                // IMPORTANTE: Não retornar aqui para permitir que a estratégia continue
+                // Vamos deixar o fluxo seguir para avaliar se devemos entrar baseado nas condições
+                console.log(`[OAUTH_DIRECT] Estratégia ADVANCE: Continuando avaliação após análise intermediária`);
               }
             }
           }
