@@ -37,6 +37,16 @@ const strategyStates: Record<string, StrategyState> = {};
 const xmlCache: Record<string, string> = {};
 
 /**
+ * Obtém o estado atual da estratégia pelo ID
+ * @param strategyId ID normalizado da estratégia
+ * @returns Estado atual da estratégia ou undefined se não existir
+ */
+export function getStrategyState(strategyId: string): StrategyState | undefined {
+  const normalizedId = strategyId.toLowerCase();
+  return strategyStates[normalizedId];
+}
+
+/**
  * Inicializa ou reseta o estado para uma estratégia
  */
 export function initializeStrategyState(
@@ -437,12 +447,7 @@ export async function evaluateEntryConditions(
   };
 }
 
-/**
- * Obtém o estado atual de uma estratégia
- */
-export function getStrategyState(strategyId: string): StrategyState | null {
-  return strategyStates[strategyId] || null;
-}
+
 
 /**
  * Reseta todas as estratégias

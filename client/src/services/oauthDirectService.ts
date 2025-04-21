@@ -22,7 +22,8 @@ import {
 import {
   evaluateEntryConditions,
   updateStrategyResult,
-  initializeStrategyState
+  initializeStrategyState,
+  getStrategyState
 } from '@/lib/strategy-handlers';
 
 interface TokenInfo {
@@ -1129,6 +1130,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   /**
    * Calcula o próximo valor de entrada com base no resultado anterior
+   * VERSÃO CORRIGIDA: Considera regra de martingale após X perdas consecutivas
    */
   private calculateNextAmount(isWin: boolean, lastContract: any): number {
     if (!lastContract || !lastContract.buy_price) {
@@ -1137,13 +1139,59 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     let buyPrice = Number(lastContract.buy_price);
     
+    // Buscar configurações da estratégia atual para aplicar martingale corretamente
+    const savedSettings = localStorage.getItem(`strategy_config_${this.strategyConfig.toLowerCase()}`);
+    let configuracoes = {
+      valorInicial: Number(this.settings.entryValue) || 1,
+      martingale: this.settings.martingaleFactor || 1.5,
+      usarMartingaleAposXLoss: 2 // Valor padrão - aplicar martingale após 2 perdas consecutivas
+    };
+    
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        
+        // Atualizar configurações com valores do usuário se presentes
+        if (settings.valorInicial !== undefined) configuracoes.valorInicial = parseFloat(settings.valorInicial);
+        if (settings.martingale !== undefined) configuracoes.martingale = parseFloat(settings.martingale);
+        if (settings.usarMartingaleAposXLoss !== undefined) configuracoes.usarMartingaleAposXLoss = parseInt(settings.usarMartingaleAposXLoss);
+        
+        // Log detalhado para debugging
+        console.log(`[OAUTH_DIRECT] 📊 Configurações carregadas para cálculo de próxima entrada:`, 
+          JSON.stringify(configuracoes, null, 2));
+      } catch (error) {
+        console.error('[OAUTH_DIRECT] Erro ao analisar configurações:', error);
+      }
+    }
+    
     if (isWin) {
       // Em caso de vitória, voltar ao valor inicial
-      return Number(this.settings.entryValue) || 1;
+      console.log(`[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial}`);
+      return configuracoes.valorInicial;
     } else {
-      // Em caso de perda, aplicar multiplicador martingale
-      const factor = this.settings.martingaleFactor || 1.5;
-      return Math.round(buyPrice * factor * 100) / 100;
+      // Obter o estado atual da estratégia para verificar perdas consecutivas
+      const strategyId = this.strategyConfig.toLowerCase();
+      const strategyState = getStrategyState(strategyId);
+      const consecutiveLosses = strategyState?.consecutiveLosses || 1;
+      
+      // CORREÇÃO CRÍTICA: Log detalhado para debug de martingale
+      console.log(`[OAUTH_DIRECT] 🔴 Resultado: Derrota - Estratégia ${this.strategyConfig} - Perdas consecutivas: ${consecutiveLosses}`);
+      console.log(`[OAUTH_DIRECT] 🔴 Configuração: Aplicar martingale após ${configuracoes.usarMartingaleAposXLoss} perdas`);
+      
+      // Verificar se já atingimos o número de perdas para aplicar martingale
+      if (consecutiveLosses >= configuracoes.usarMartingaleAposXLoss) {
+        // Aplicar martingale após X perdas consecutivas
+        let nextAmount = Math.round(buyPrice * (1 + configuracoes.martingale) * 100) / 100;
+        
+        console.log(`[OAUTH_DIRECT] 🔴 Aplicando martingale (${configuracoes.martingale}) após ${consecutiveLosses} perdas consecutivas`);
+        console.log(`[OAUTH_DIRECT] 🔴 Valor anterior: ${buyPrice}, Novo valor: ${nextAmount}`);
+        
+        return nextAmount;
+      } else {
+        // Ainda não atingiu o número de perdas para aplicar martingale
+        console.log(`[OAUTH_DIRECT] 🟠 Mantendo valor original (${buyPrice}) - Ainda não atingiu ${configuracoes.usarMartingaleAposXLoss} perdas consecutivas`);
+        return buyPrice; // Manter o mesmo valor até atingir o limite de perdas consecutivas
+      }
     }
   }
   
