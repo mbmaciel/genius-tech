@@ -764,6 +764,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] Registrando listener de eventos do oauthDirectService');
         oauthDirectService.addEventListener(handleEvents);
         
+        // Registrar manipulador para eventos de operações intermediárias da Advance
+        document.addEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
+        console.log('[BOT_PAGE] 🔄 Registrando listener para eventos advance_intermediate_operation');
+        
         // Forçar uma inscrição para ticks do R_100 - CORREÇÃO CRÍTICA
         console.log('[BOT_PAGE] Forçando inscrição para ticks de R_100');
         setTimeout(() => {
@@ -783,6 +787,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           // Limpar recursos ao desmontar
           console.log('[BOT_PAGE] Removendo listener de eventos do oauthDirectService');
           oauthDirectService.removeEventListener(handleEvents);
+          document.removeEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
+          console.log('[BOT_PAGE] 🔄 Removendo listener para eventos advance_intermediate_operation');
           
           // Parar serviço se estiver rodando
           if (botStatus === 'running') {
@@ -1222,6 +1228,47 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   
   // Use o useEffect para registrar ouvintes de eventos de operação e saldo
   useEffect(() => {
+    // NOVO: Manipulador dedicado para eventos intermediários da estratégia Advance
+    const handleAdvanceIntermediateOperation = (event: CustomEvent) => {
+      console.log('[BOT_PAGE] 🔄 Evento advance_intermediate_operation recebido diretamente:', event.detail);
+      
+      // Verificar se a estratégia selecionada é advance
+      if (selectedStrategy !== 'advance') {
+        console.log('[BOT_PAGE] Ignorando evento intermediário pois a estratégia atual não é Advance');
+        return;
+      }
+      
+      try {
+        // Extrair detalhes do evento
+        const { contractId, entry, exit, profit, status, analysis } = event.detail;
+        
+        // Gerar ID único para esta operação
+        const intermediateId = Math.floor(Math.random() * 1000000);
+        
+        // Criar objeto de operação intermediária
+        const intermediateOperation = {
+          id: intermediateId,
+          entryValue: entry || 0,
+          finalValue: exit || 0,
+          profit: profit || 0,
+          time: new Date(),
+          contractType: 'CALL', // A estratégia Advance usa CALL
+          notification: {
+            type: (status === 'won' ? 'success' : status === 'lost' ? 'error' : 'info') as ('success' | 'info' | 'warning' | 'error'),
+            message: `OPERAÇÃO INTERMEDIÁRIA | Valor: ${formatCurrency(entry || 0)} | Resultado: ${formatCurrency(exit || 0)} | Análise: ${analysis || 'N/A'}`
+          }
+        };
+        
+        console.log('[BOT_PAGE] ✅ Adicionando operação intermediária ao histórico via evento direto:', intermediateOperation);
+        
+        // Adicionar ao histórico de operações
+        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+      } catch (error) {
+        console.error('[BOT_PAGE] Erro ao processar evento avançado intermediário:', error);
+      }
+    };
+    
+    // Handler regular para eventos do oauthDirectService
     const handleEvents = (event: any) => {
       // Processar evento de compra de contrato (início da operação)
       if (event.type === 'contract_purchased') {
@@ -1609,14 +1656,18 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Registrar ouvinte de eventos
+    // Registrar ouvinte de eventos do serviço OAuth
     oauthDirectService.addEventListener(handleEvents);
     
-    // Limpar ouvinte ao desmontar
+    // Registrar ouvinte para eventos intermediários da estratégia Advance
+    document.addEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
+    
+    // Limpar ouvintes ao desmontar
     return () => {
       oauthDirectService.removeEventListener(handleEvents);
+      document.removeEventListener('advance_intermediate_operation', handleAdvanceIntermediateOperation as EventListener);
     };
-  }, []);
+  }, [selectedStrategy]); // Incluir selectedStrategy como dependência
 
   const renderActionButton = () => {
     // Usar o novo BotController para melhor feedback visual e controle

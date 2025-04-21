@@ -692,7 +692,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             // ADICIONAL: Verificar se estamos executando a estratégia Advance para emitir eventos intermediários
             if (this.strategyConfig.toLowerCase().includes('advance')) {
-              console.log(`[OAUTH_DIRECT] Estratégia ADVANCE detectada, emitindo evento intermediário para o contrato ${contract.contract_id}`);
+              console.log(`[OAUTH_DIRECT] 🔄 Estratégia ADVANCE detectada, emitindo evento intermediário para o contrato ${contract.contract_id}`);
               
               // Calcular valores para o evento intermediário
               const amount = contract.buy_price || 0;
@@ -703,6 +703,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               // Determinar porcentagem atual para análise (usada na estratégia Advance)
               const digit0Percentage = this.getDigitPercentage(0);
               const digit1Percentage = this.getDigitPercentage(1);
+              
+              // Log detalhado do evento que está sendo emitido
+              console.log(`[OAUTH_DIRECT] 📊 EMITINDO EVENTO INTERMEDIÁRIO: Contract ID: ${contract.contract_id}, Status: ${contract.status}, Valor: ${amount}, Resultado: ${result}, Profit: ${currentProfit}, Análise: Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`);
               
               // Emitir evento de operação intermediária para atualizar o histórico
               this.notifyListeners({
@@ -716,6 +719,28 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                   analysis: `Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`
                 }
               });
+              
+              // ADICIONAL: Emitir também um evento direto para o Document para garantir que seja capturado
+              try {
+                const intermediateEvent = new CustomEvent('advance_intermediate_operation', {
+                  detail: {
+                    timestamp: Date.now(),
+                    contractId: contract.contract_id,
+                    isWin: contract.status === 'won',
+                    profit: currentProfit,
+                    entry: amount,
+                    exit: result,
+                    status: contract.status,
+                    type: 'advance',
+                    isIntermediate: true,
+                    analysis: `Dígito 0: ${digit0Percentage}%, Dígito 1: ${digit1Percentage}%`
+                  }
+                });
+                document.dispatchEvent(intermediateEvent);
+                console.log(`[OAUTH_DIRECT] 📣 Evento advance_intermediate_operation disparado diretamente para o document!`);
+              } catch (err) {
+                console.error('[OAUTH_DIRECT] Erro ao emitir evento direto para o document:', err);
+              }
             }
             
             // Se o contrato foi finalizado, notificar resultado
