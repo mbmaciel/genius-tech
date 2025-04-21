@@ -344,15 +344,23 @@ export async function evaluateEntryConditions(
       }
       
     } else if (normalizedId.includes('iron_under') || normalizedId.includes('ironunder')) {
-      // Configuração para IRON UNDER
-      prediction = state.prediction || 4;
+      // Configuração para IRON UNDER - ATENÇÃO: A API Deriv requer que o digit esteja entre 1-9
+      
+      // IMPORTANTE: Verificar se prediction está dentro do intervalo válido (1-9)
+      // Anteriormente, usávamos 4 como padrão, mas agora garantimos que esteja entre 1-9
+      prediction = state.prediction || 5; // Mudado de 4 para 5 - valor inválido pode causar falha na operação
+      
+      if (prediction < 1 || prediction > 9) {
+        console.error(`[STRATEGY_HANDLER] ❌ IRON UNDER: Valor de previsão inválido: ${prediction}. A API Deriv aceita apenas 1-9. Ajustando para 5.`);
+        prediction = 5; // Valor seguro dentro do intervalo
+      }
       
       const martingaleAfterLosses = strategyConfig?.usarMartingaleAposXLoss 
         ? parseInt(strategyConfig.usarMartingaleAposXLoss.toString())
         : 2;
       
-      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Iniciando análise detalhada`);
-      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Prediction=${prediction}, ConsecutiveLosses=${state.consecutiveLosses}, martingaleAfterLosses=${martingaleAfterLosses}`);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Versão corrigida): Iniciando análise detalhada`);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Versão corrigida): Prediction=${prediction}, ConsecutiveLosses=${state.consecutiveLosses}, martingaleAfterLosses=${martingaleAfterLosses}`);
       
       const result = evaluateIronUnderStrategy(
         digitStats, 
@@ -361,7 +369,7 @@ export async function evaluateEntryConditions(
         martingaleAfterLosses
       );
       
-      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Resultado da análise:`, result);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Versão corrigida): Resultado da análise:`, result);
       
       shouldEnter = result.shouldEnter;
       contractType = result.contractType;

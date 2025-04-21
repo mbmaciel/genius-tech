@@ -141,13 +141,19 @@ export function evaluateIronOverStrategy(
 /**
  * Avalia a estratégia IRON UNDER
  * Similar à IRON OVER, mas com lógica invertida e usa DIGITUNDER
+ * IMPORTANTE: A API Deriv exige que o valor 'digit' esteja no range 1-9
  */
 export function evaluateIronUnderStrategy(
   digitStats: DigitStat[],
-  prediction: number = 4, // Mudamos para 4 como padrão
+  prediction: number = 5, // ATUALIZADO: Agora usamos 5 como padrão - API Deriv requer valores entre 1-9
   consecutiveLosses: number = 0,
   martingaleAfterLosses: number = 2
 ): { shouldEnter: boolean; contractType: ContractType; useMartingale: boolean; message: string } {
+  // Validação de segurança para garantir que prediction esteja no intervalo permitido
+  if (prediction < 1 || prediction > 9) {
+    console.warn(`[STRATEGY_RULES] IRON UNDER: Previsão ${prediction} fora do intervalo permitido (1-9). Ajustando para 5.`);
+    prediction = 5; // Valor seguro dentro do intervalo permitido
+  }
   // Log para debug - AMPLIADO para depuração
   console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Iniciando avaliação da estratégia`);
   console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Previsão: ${prediction}, Perdas consecutivas: ${consecutiveLosses}, Martingale após: ${martingaleAfterLosses}`);
