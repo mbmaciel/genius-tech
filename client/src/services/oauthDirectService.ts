@@ -1139,29 +1139,54 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     let buyPrice = Number(lastContract.buy_price);
     
-    // Buscar configurações da estratégia atual para aplicar martingale corretamente
-    const savedSettings = localStorage.getItem(`strategy_config_${this.strategyConfig.toLowerCase()}`);
+    // CORREÇÃO CRÍTICA: Buscar configurações do usuário antes de qualquer cálculo
+    // Isso garante que os valores do usuário tenham prioridade absoluta
+    const strategyCurrent = this.strategyConfig.toLowerCase();
+    console.log(`[OAUTH_DIRECT] 🔍 Estratégia atual para cálculo do próximo valor: ${strategyCurrent}`);
+    
+    const savedSettings = localStorage.getItem(`strategy_config_${strategyCurrent}`);
+    console.log(`[OAUTH_DIRECT] 🔍 Configurações salvas encontradas: ${savedSettings ? 'SIM' : 'NÃO'}`);
+    
+    // Valores padrão que serão sobrescritos se houver configuração do usuário
     let configuracoes = {
       valorInicial: Number(this.settings.entryValue) || 1,
       martingale: this.settings.martingaleFactor || 1.5,
-      usarMartingaleAposXLoss: 2 // Valor padrão - aplicar martingale após 2 perdas consecutivas
+      usarMartingaleAposXLoss: 2, // Valor padrão - aplicar martingale após 2 perdas consecutivas
+      // Adicionando mais parâmetros de configuração
+      metaGanho: this.settings.profitTarget || 20,
+      limitePerda: this.settings.lossLimit || 20,
+      valorAposVencer: Number(this.settings.entryValue) || 1,
+      parcelasMartingale: 1
     };
     
+    // Processar configurações salvas do usuário
     if (savedSettings) {
       try {
         const settings = JSON.parse(savedSettings);
+        console.log(`[OAUTH_DIRECT] 🔍 Configurações do usuário encontradas:`, settings);
         
-        // Atualizar configurações com valores do usuário se presentes
-        if (settings.valorInicial !== undefined) configuracoes.valorInicial = parseFloat(settings.valorInicial);
-        if (settings.martingale !== undefined) configuracoes.martingale = parseFloat(settings.martingale);
-        if (settings.usarMartingaleAposXLoss !== undefined) configuracoes.usarMartingaleAposXLoss = parseInt(settings.usarMartingaleAposXLoss);
+        // Iterar sobre todas as propriedades para garantir que pegamos todas
+        for (const [key, value] of Object.entries(settings)) {
+          if (value !== undefined && value !== null) {
+            // @ts-ignore - Ignorar erro de tipo pois estamos acessando de forma dinâmica
+            if (typeof configuracoes[key] === 'number') {
+              // @ts-ignore
+              configuracoes[key] = parseFloat(value);
+            } else {
+              // @ts-ignore
+              configuracoes[key] = value;
+            }
+          }
+        }
         
         // Log detalhado para debugging
-        console.log(`[OAUTH_DIRECT] 📊 Configurações carregadas para cálculo de próxima entrada:`, 
+        console.log(`[OAUTH_DIRECT] 📊 CONFIGURAÇÕES FINAIS APLICADAS (prioridade para valores do usuário):`, 
           JSON.stringify(configuracoes, null, 2));
       } catch (error) {
         console.error('[OAUTH_DIRECT] Erro ao analisar configurações:', error);
       }
+    } else {
+      console.log(`[OAUTH_DIRECT] ⚠️ Configurações do usuário não encontradas, usando valores padrão`);
     }
     
     if (isWin) {
@@ -2600,10 +2625,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       if (strategyConfigString) {
         try {
           userConfig = JSON.parse(strategyConfigString);
-          // Usar o valor inicial definido pela estratégia/usuário, não o padrão
+          // CORREÇÃO CRÍTICA: Usar o valor inicial definido pelo usuário com prioridade absoluta 
           if (userConfig.valorInicial !== undefined) {
-            finalAmount = userConfig.valorInicial;
-            console.log(`[OAUTH_DIRECT] Usando valor inicial da configuração de estratégia: ${finalAmount}`);
+            finalAmount = parseFloat(userConfig.valorInicial);
+            console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando valor inicial da configuração do usuário: ${finalAmount}`);
+            
+            // ATUALIZAÇÃO CRÍTICA: Garantir que todas as configurações do usuário são aplicadas
+            // para operações futuras
+            this.settings.entryValue = finalAmount;
+            
+            if (userConfig.martingale !== undefined) {
+              this.settings.martingaleFactor = parseFloat(userConfig.martingale);
+              console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Martingale configurado para ${this.settings.martingaleFactor}`);
+            }
+            
+            if (userConfig.metaGanho !== undefined) {
+              this.settings.profitTarget = parseFloat(userConfig.metaGanho);
+              console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Meta de ganho configurada para ${this.settings.profitTarget}`);
+            }
+            
+            if (userConfig.limitePerda !== undefined) {
+              this.settings.lossLimit = parseFloat(userConfig.limitePerda);
+              console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Limite de perda configurado para ${this.settings.lossLimit}`);
+            }
           }
         } catch (error) {
           console.error('[OAUTH_DIRECT] Erro ao analisar configuração de estratégia:', error);
