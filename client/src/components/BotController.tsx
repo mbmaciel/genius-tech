@@ -475,11 +475,13 @@ export function BotController({
   
   const startBot = async () => {
     try {
-      console.log('[BOT_CONTROLLER] 🚀 INICIANDO BOT - FUNÇÃO STARTBOT CHAMADA');
-      console.log('[BOT_CONTROLLER] Parâmetros:', {
+      console.log('[BOT_CONTROLLER] 🚀🚀🚀 INICIANDO BOT - FUNÇÃO STARTBOT CHAMADA 🚀🚀🚀');
+      console.log('[BOT_CONTROLLER] 🔍 PARÂMETROS DETALHADOS:', {
         estrategia: selectedStrategy,
         config: strategyConfig,
-        status: status
+        status: status,
+        balanceInfo: accountInfo,
+        tokenStatus: localStorage.getItem('deriv_oauth_token') ? 'Presente' : 'Ausente'
       });
       
       // Verificar se a estratégia foi selecionada

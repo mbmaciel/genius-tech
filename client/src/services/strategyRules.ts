@@ -148,11 +148,14 @@ export function evaluateIronUnderStrategy(
   consecutiveLosses: number = 0,
   martingaleAfterLosses: number = 2
 ): { shouldEnter: boolean; contractType: ContractType; useMartingale: boolean; message: string } {
-  // Log para debug
-  console.log(`[STRATEGY_RULES] IRON_UNDER: Avaliando com previsão ${prediction}, perdas consecutivas: ${consecutiveLosses}`);
+  // Log para debug - AMPLIADO para depuração
+  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Iniciando avaliação da estratégia`);
+  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Previsão: ${prediction}, Perdas consecutivas: ${consecutiveLosses}, Martingale após: ${martingaleAfterLosses}`);
+  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Estatísticas recebidas: ${digitStats?.length || 0} dígitos`);
   
   // Verificar se temos dados estatísticos suficientes
   if (!digitStats || digitStats.length === 0) {
+    console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Sem estatísticas suficientes, retornando shouldEnter=false`);
     return {
       shouldEnter: false,
       contractType: 'DIGITUNDER',
@@ -168,9 +171,15 @@ export function evaluateIronUnderStrategy(
   // Determinar se deve aplicar martingale baseado no número de perdas consecutivas
   const useMartingale = consecutiveLosses >= martingaleAfterLosses;
   
+  // Log detalhado para depuração
+  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): shouldEnter=${shouldEnter}, contractType=${contractType}, useMartingale=${useMartingale}`);
+  
   const message = useMartingale
     ? `IRON UNDER: Usando martingale após ${consecutiveLosses} perdas (limite: ${martingaleAfterLosses}). Previsão: DIGITUNDER ${prediction}`
     : `IRON UNDER: Operação normal sem martingale. Previsão: DIGITUNDER ${prediction}`;
+  
+  // Log da mensagem final para depuração
+  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Mensagem final: ${message}`);
   
   return {
     shouldEnter,

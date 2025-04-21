@@ -158,16 +158,30 @@ export async function evaluateEntryConditions(
   entryAmount: number;
   message: string;
 }> {
+  // Log de depuração detalhado ⬇️
+  console.log(`[STRATEGY_HANDLER] 🧪 Avaliando condições para estratégia: ${strategyId}`);
+  console.log(`[STRATEGY_HANDLER] 🧪 Configuração recebida:`, strategyConfig);
+  console.log(`[STRATEGY_HANDLER] 🧪 Quantidade de estatísticas de dígitos recebidas: ${digitStats.length}`);
+  
   // Garantir que o estado existe
   if (!strategyStates[strategyId]) {
+    console.log(`[STRATEGY_HANDLER] 🧪 Inicializando estado da estratégia: ${strategyId}`);
     initializeStrategyState(strategyId);
   }
   
   const state = strategyStates[strategyId];
   const normalizedId = strategyId.toLowerCase();
   
+  console.log(`[STRATEGY_HANDLER] 🧪 Estado atual da estratégia:`, {
+    consecutiveLosses: state.consecutiveLosses,
+    lastResult: state.lastResult,
+    currentAmount: state.currentAmount,
+    xmlDisponivel: !!state.strategyXml
+  });
+  
   // Verificar se temos o XML carregado ou precisamos carregar
   if (!state.strategyXml && xmlPath) {
+    console.log(`[STRATEGY_HANDLER] 🧪 Carregando XML da estratégia: ${xmlPath}`);
     await loadStrategyXml(strategyId, xmlPath);
   }
   
@@ -183,11 +197,14 @@ export async function evaluateEntryConditions(
     parcelasMartingale: strategyConfig?.parcelasMartingale ? parseInt(strategyConfig.parcelasMartingale.toString()) : undefined
   };
   
+  console.log(`[STRATEGY_HANDLER] 🧪 Configuração convertida para parser XML:`, userConfig);
+  
   // Aplicar configuração do usuário no parser
   xmlStrategyParser.setUserConfig(userConfig);
   
   // Verificar se podemos usar o parser XML
   const canUseXmlParser = state.strategyXml !== undefined;
+  console.log(`[STRATEGY_HANDLER] 🧪 Parser XML disponível: ${canUseXmlParser}`);
   
   // Configurações de entrada padrão (caso não use parser XML)
   let entryAmount = state.currentAmount || 0.35;
@@ -198,7 +215,12 @@ export async function evaluateEntryConditions(
   
   // ----- USO DO PARSER XML - SEGUE FIELMENTE OS COMANDOS DO XML -----
   if (canUseXmlParser) {
-    console.log(`[STRATEGY_HANDLER] Usando parser XML para estratégia: ${strategyId}`);
+    console.log(`[STRATEGY_HANDLER] 🧪 Usando parser XML para estratégia: ${strategyId}`);
+    
+    // Para IRON UNDER: forçar debug
+    if (normalizedId.includes('iron') && normalizedId.includes('under')) {
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER DETECTADO - Análise específica iniciada 🚨`);
+    }
     
     // Analisar estratégia usando o parser XML
     const result = xmlStrategyParser.analyzeStrategy(
