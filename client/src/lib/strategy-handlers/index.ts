@@ -217,9 +217,13 @@ export async function evaluateEntryConditions(
   if (canUseXmlParser) {
     console.log(`[STRATEGY_HANDLER] 🧪 Usando parser XML para estratégia: ${strategyId}`);
     
-    // Para IRON UNDER: forçar debug
+    // Para IRON UNDER: forçar debug detalhado
     if (normalizedId.includes('iron') && normalizedId.includes('under')) {
-      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER DETECTADO - Análise específica iniciada 🚨`);
+      console.log(`[STRATEGY_HANDLER] 🚨🚨🚨 IRON UNDER DETECTADO - Análise específica iniciada 🚨🚨🚨`);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER: Estado atual:`, state);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER: Últimas estatísticas:`, digitStats.slice(0, 5));
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER: XML disponível:`, !!state.strategyXml);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER: Configuração do usuário:`, strategyConfig);
     }
     
     // Analisar estratégia usando o parser XML
@@ -347,12 +351,17 @@ export async function evaluateEntryConditions(
         ? parseInt(strategyConfig.usarMartingaleAposXLoss.toString())
         : 2;
       
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Iniciando análise detalhada`);
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Prediction=${prediction}, ConsecutiveLosses=${state.consecutiveLosses}, martingaleAfterLosses=${martingaleAfterLosses}`);
+      
       const result = evaluateIronUnderStrategy(
         digitStats, 
         prediction, 
         state.consecutiveLosses,
         martingaleAfterLosses
       );
+      
+      console.log(`[STRATEGY_HANDLER] 🚨 IRON UNDER (Implementação antiga): Resultado da análise:`, result);
       
       shouldEnter = result.shouldEnter;
       contractType = result.contractType;

@@ -64,10 +64,18 @@ function BotButton({ status: externalStatus, selectedStrategy, onStart, onStop }
     return (
       <Button
         onClick={() => {
-          console.log('[BOT_BUTTON] 🚀 Iniciando bot...');
+          console.log('[BOT_BUTTON] 🚀🚀🚀 INICIANDO BOT - BOTÃO CLICADO 🚀🚀🚀');
+          console.log('[BOT_BUTTON] Tipo da função onStart:', typeof onStart);
           // Mudar estado imediatamente para feedback visual
           setInternalStatus('running');
-          onStart();
+          
+          try {
+            console.log('[BOT_BUTTON] Chamando função onStart...');
+            onStart();
+            console.log('[BOT_BUTTON] Função onStart executada com sucesso');
+          } catch (error) {
+            console.error('[BOT_BUTTON] ❌ ERRO AO CHAMAR FUNÇÃO onStart:', error);
+          }
         }}
         className="flex-1 bg-gradient-to-r from-green-800 to-green-900 hover:from-green-700 hover:to-green-800 text-white font-medium border border-green-900/50 shadow"
         disabled={!selectedStrategy}
@@ -743,8 +751,54 @@ export function BotController({
             onStart={() => {
               // Log especial para depuração do clique
               console.log('[BOT_BUTTON] 🚀 Botão de início clicado - Estratégia:', selectedStrategy);
-              // Chamar função para iniciar o bot
-              startBot();
+              
+              // TESTE DIRETO PARA IRON UNDER
+              if (selectedStrategy.toLowerCase().includes('iron') && selectedStrategy.toLowerCase().includes('under')) {
+                console.log('[IRON_UNDER_DEBUG] 🔴🔴🔴 TESTE DIRETO PARA IRON UNDER 🔴🔴🔴');
+                console.log('[IRON_UNDER_DEBUG] 📢 Definindo configurações otimizadas para IRON UNDER...');
+                
+                // Definir configurações específicas para IRON UNDER
+                oauthDirectService.setSettings({
+                  contractType: 'DIGITUNDER',
+                  prediction: 4,
+                  entryValue: 0.35,
+                  profitTarget: 20,
+                  lossLimit: 20,
+                  martingaleFactor: 1.5
+                });
+                
+                // Definir estratégia ativa
+                oauthDirectService.setActiveStrategy('IRON UNDER');
+                
+                // Iniciar o serviço e forçar primeira operação
+                (async () => {
+                  try {
+                    // Iniciar serviço primeiro
+                    console.log('[IRON_UNDER_DEBUG] 📢 Iniciando serviço...');
+                    const success = await oauthDirectService.start();
+                    
+                    if (success) {
+                      console.log('[IRON_UNDER_DEBUG] 📢 Serviço iniciado, executando primeira operação de teste...');
+                      
+                      // Forçar execução da primeira operação
+                      const started = await oauthDirectService.executeFirstOperation(0.35);
+                      
+                      console.log('[IRON_UNDER_DEBUG] 📢 Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
+                      
+                      // Atualizar estados
+                      setStatus('running');
+                      onStatusChange('running');
+                    } else {
+                      console.error('[IRON_UNDER_DEBUG] ❌ Falha ao iniciar serviço para IRON UNDER');
+                    }
+                  } catch (error) {
+                    console.error('[IRON_UNDER_DEBUG] ❌ Erro no teste direto IRON UNDER:', error);
+                  }
+                })();
+              } else {
+                // Chamar função normal para iniciar o bot
+                startBot();
+              }
             }}
             onStop={() => {
               // Log especial para depuração do clique
