@@ -2280,12 +2280,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // A estratégia agora é sempre uma string simples
       // Derivamos parâmetros do nome e configurações
       try {
-        // Identificar estratégia atual
-        const strategyId = this.strategyConfig.toLowerCase();
-        const strategyObj = getStrategyById(strategyId);
+        // Identificar estratégia atual (usar o strategyId já declarado acima)
+        const currentStrategyId = this.strategyConfig.toLowerCase();
+        const strategyObj = getStrategyById(currentStrategyId);
         
         // Buscar configuração salva pelo usuário
-        const userConfigObj = localStorage.getItem(`strategy_config_${strategyId}`);
+        const userConfigObj = localStorage.getItem(`strategy_config_${currentStrategyId}`);
         let userConfig: any = {};
         
         if (userConfigObj) {
@@ -2301,12 +2301,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         
         // Vamos usar o parser XML se a estratégia tiver um arquivo XML associado
         if (strategyObj?.xmlPath && digitStats.length > 0) {
-          console.log(`[OAUTH_DIRECT] Analisando primeira entrada com parser XML para estratégia ${strategyId}`);
+          console.log(`[OAUTH_DIRECT] Analisando primeira entrada com parser XML para estratégia ${currentStrategyId}`);
           
           try {
             // Avaliar entrada com o parser XML
             const xmlAnalysis = await evaluateEntryConditions(
-              strategyId,
+              currentStrategyId,
               digitStats,
               {
                 // Configurações do usuário
@@ -2365,9 +2365,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.error('[OAUTH_DIRECT] Erro ao processar parâmetros da estratégia:', error);
       }
       
+      // Obter o valor inicial da estratégia XML (valorInicial)
+      let finalAmount = amount;
+      
+      // Buscar configuração específica da estratégia (já temos strategyId definido acima)
+      const strategyConfigString = localStorage.getItem(`strategy_config_${this.strategyConfig.toLowerCase()}`);
+      let userConfig: any = {};
+      
+      if (strategyConfigString) {
+        try {
+          userConfig = JSON.parse(strategyConfigString);
+          // Usar o valor inicial definido pela estratégia/usuário, não o padrão
+          if (userConfig.valorInicial !== undefined) {
+            finalAmount = userConfig.valorInicial;
+            console.log(`[OAUTH_DIRECT] Usando valor inicial da configuração de estratégia: ${finalAmount}`);
+          }
+        } catch (error) {
+          console.error('[OAUTH_DIRECT] Erro ao analisar configuração de estratégia:', error);
+        }
+      }
+      
       // Construir parâmetros básicos
       const parameters: any = {
-        amount: amount,
+        amount: finalAmount, // Usar o valor correto do XML em vez do padrão
         basis: 'stake',
         contract_type: contractType,
         currency: 'USD',
@@ -2384,7 +2404,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Requisição de compra de contrato completa
       const buyRequest = {
         buy: 1,
-        price: amount,
+        price: finalAmount, // Usar o valor correto do XML aqui também
         parameters: parameters,
         subscribe: 1
       };
@@ -2397,7 +2417,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Notificar sobre a tentativa de compra e enviar evento de bot ativo para atualizar a interface
       this.notifyListeners({
         type: 'operation_started',
-        message: `Iniciando operação: ${contractType} em ${symbolCode}, valor: ${amount}`
+        message: `Iniciando operação: ${contractType} em ${symbolCode}, valor: ${finalAmount}`
       });
       
       // Enviar explicitamente um evento bot_started para garantir que a interface seja atualizada
