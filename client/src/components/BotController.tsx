@@ -757,9 +757,13 @@ export function BotController({
               
               // Teste simplificado diretamente para compra
               try {
-                // CORREÇÃO CRÍTICA: Obter o valor inicial configurado pelo usuário
-                const userConfigString = localStorage.getItem('strategy_config_iron under');
-                let userEntryValue = 1.0; // Valor padrão seguro
+                // CORREÇÃO COMPLETA: Usar a estratégia selecionada atualmente em vez de fixar em IRON UNDER
+                // Buscar configurações da estratégia atualmente selecionada
+                const currentStrategy = selectedStrategy?.toLowerCase() || 'advance';
+                console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando estratégia atual: ${currentStrategy}`);
+                
+                const userConfigString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+                let userEntryValue = entryValue || 1.0; // Usar entryValue passado por props como primeira opção
                 
                 if (userConfigString) {
                   try {
@@ -768,26 +772,38 @@ export function BotController({
                       const userValueAsNumber = parseFloat(userConfig.valorInicial);
                       if (!isNaN(userValueAsNumber) && userValueAsNumber > 0) {
                         userEntryValue = userValueAsNumber;
-                        console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando valor configurado pelo usuário nas configurações: ${userEntryValue}`);
+                        console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando valor configurado pelo usuário nas configurações da estratégia ${currentStrategy}: ${userEntryValue}`);
                       }
                     }
                   } catch (error) {
-                    console.error('[BOT_BUTTON] Erro ao analisar configuração do usuário para IRON UNDER:', error);
+                    console.error(`[BOT_BUTTON] Erro ao analisar configuração do usuário para ${currentStrategy}:`, error);
                   }
                 }
                 
-                // Definir configurações específicas para IRON UNDER com o valor do usuário
+                // Obter o tipo de contrato adequado para a estratégia selecionada
+                const contractType = getContractTypeForStrategy(currentStrategy) || 'DIGITOVER';
+                
+                // Obter previsão adequada para a estratégia (se usar predição de dígitos)
+                let prediction = 5;
+                if (usesDigitPrediction(currentStrategy)) {
+                  // Buscar previsão da configuração da estratégia se disponível
+                  if (strategyConfig && strategyConfig.prediction !== undefined) {
+                    prediction = parseInt(strategyConfig.prediction.toString()) || 5;
+                  }
+                }
+                
+                // Definir configurações específicas para a estratégia atual com o valor do usuário
                 oauthDirectService.setSettings({
-                  contractType: 'DIGITUNDER',
-                  prediction: 5, // IMPORTANTE: Alterado de 4 para 5 - API Deriv exige valores entre 1-9
+                  contractType: contractType,
+                  prediction: prediction,
                   entryValue: userEntryValue, // CORREÇÃO CRÍTICA: Usar valor do usuário
-                  profitTarget: 20,
-                  lossLimit: 20,
-                  martingaleFactor: 1.5
+                  profitTarget: profitTarget || strategyConfig?.metaGanho || 20,
+                  lossLimit: lossLimit || strategyConfig?.limitePerda || 20,
+                  martingaleFactor: strategyConfig?.martingale || 1.5
                 });
                 
                 // Definir estratégia ativa
-                oauthDirectService.setActiveStrategy('IRON UNDER');
+                oauthDirectService.setActiveStrategy(selectedStrategy || 'ADVANCE');
                 
                 // Executar o teste assíncrono
                 (async () => {
