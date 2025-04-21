@@ -710,22 +710,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               // Obter resultado final
               const isWin = contract.status === 'won';
               
-              // Certificar-se de usar o valor correto para o lucro
-              // Para operações ganhas: usar o valor de profit que vem da API
-              // Para operações perdidas: o profit pode vir como zero, então calculamos com base no preço de compra
-              let profit = contract.profit;
+              // Sempre recalcular o profit para garantir que seja o correto
+              // Para operações ganhas: calcular com base no payout - preço de compra
+              // Para operações perdidas: o profit deve ser -buy_price
+              let profit;
               
-              // Verificar se o profit está definido corretamente
-              if (profit === undefined || profit === null || profit === 0) {
-                // Se for uma vitória com profit zero, temos que calcular com base no payout
-                if (isWin && contract.payout && contract.buy_price) {
-                  profit = Number(contract.payout) - Number(contract.buy_price);
-                  console.log(`[OAUTH_DIRECT] Recalculando lucro: Payout ${contract.payout} - Preço de compra ${contract.buy_price} = ${profit}`);
-                } 
-                // Se for uma perda, o profit deve ser -buy_price
-                else if (!isWin && contract.buy_price) {
-                  profit = -Number(contract.buy_price);
-                }
+              // Para vitórias, SEMPRE calcular com base no payout
+              if (isWin && contract.payout && contract.buy_price) {
+                profit = Number(contract.payout) - Number(contract.buy_price);
+                console.log(`[OAUTH_DIRECT] Calculando lucro para operação vencedora: Payout ${contract.payout} - Preço de compra ${contract.buy_price} = ${profit}`);
+              }
+              // Para perdas, sempre usar o valor negativo do preço de compra
+              else if (!isWin && contract.buy_price) {
+                profit = -Number(contract.buy_price);
+                console.log(`[OAUTH_DIRECT] Calculando perda: -${contract.buy_price}`);
+              }
+              // Fallback (não deveria acontecer)
+              else {
+                profit = contract.profit || 0;
+                console.log(`[OAUTH_DIRECT] Usando profit da API (não foi possível calcular): ${profit}`);
               }
               
               console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} finalizado. Resultado: ${isWin ? 'Ganho' : 'Perda'}, Lucro: ${profit}, Payout: ${contract.payout}, Preço de compra: ${contract.buy_price}`);
@@ -770,15 +773,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         } else {
           console.log('[OAUTH_DIRECT] Contrato vendido com sucesso:', data.sell);
           
-          // Calcular corretamente o lucro na venda
-          let profit = data.sell.profit;
+          // Sempre calcular corretamente o lucro na venda
+          let profit;
           
-          // Se o lucro for zero ou não estiver definido, tentar calcular com base no preço de venda e compra
-          if (profit === undefined || profit === null || profit === 0) {
-            if (data.sell.sell_price && data.sell.buy_price) {
-              profit = Number(data.sell.sell_price) - Number(data.sell.buy_price);
-              console.log(`[OAUTH_DIRECT] Recalculando lucro na venda: ${data.sell.sell_price} - ${data.sell.buy_price} = ${profit}`);
-            }
+          // Calcular com base no preço de venda e compra
+          if (data.sell.sell_price && data.sell.buy_price) {
+            profit = Number(data.sell.sell_price) - Number(data.sell.buy_price);
+            console.log(`[OAUTH_DIRECT] Calculando lucro na venda: ${data.sell.sell_price} - ${data.sell.buy_price} = ${profit}`);
+          } else {
+            // Fallback para o valor fornecido pela API (não deveria ocorrer)
+            profit = data.sell.profit || 0;
+            console.log(`[OAUTH_DIRECT] Usando profit da API para venda: ${profit}`);
           }
           
           // Notificar interface sobre venda bem-sucedida

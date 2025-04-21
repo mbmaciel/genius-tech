@@ -1536,7 +1536,29 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           // Valores seguros com fallbacks para evitar valores undefined
           const buyPrice = contract.buy_price || event.entry_value || 0;
           const sellPrice = event.exit_value || event.sell_price || contract.sell_price || 0;
-          const profit = typeof event.profit === 'number' ? event.profit : 0;
+          
+          // CORREÇÃO: Calcular o lucro corretamente baseado nos valores de compra e payout
+          let profit = 0;
+          
+          // Se tivermos informação sobre o resultado (won/lost)
+          if (contract.status === 'won' || event.is_win === true) {
+            // Para operações ganhas, calcular baseado no payout - preço de compra
+            if (contract.payout && buyPrice) {
+              profit = Number(contract.payout) - Number(buyPrice);
+              console.log(`[BOT_PAGE] Calculando lucro para operação vencedora: ${contract.payout} - ${buyPrice} = ${profit}`);
+            } else if (typeof event.profit === 'number' && event.profit > 0) {
+              profit = event.profit;
+              console.log(`[BOT_PAGE] Usando lucro do evento: ${profit}`);
+            }
+          } else if (contract.status === 'lost' || event.is_win === false) {
+            // Para operações perdidas, o lucro é o valor negativo do preço de compra
+            profit = -Number(buyPrice);
+            console.log(`[BOT_PAGE] Calculando perda: -${buyPrice}`);
+          } else {
+            // Caso não tenhamos o status claro, usar o profit do evento
+            profit = typeof event.profit === 'number' ? event.profit : 0;
+            console.log(`[BOT_PAGE] Usando profit do evento (status indefinido): ${profit}`);
+          }
           
           // Determinar status e tipo de notificação baseados no resultado e tipo de operação
           let statusText = profit >= 0 ? "GANHOU" : "PERDEU";
