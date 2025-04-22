@@ -1721,10 +1721,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★★★ SYMBOL:', event.symbol);
         console.log('[BOT_PAGE] ★★★★★ PROFIT:', event.profit);
         
+        // ★★★ CORREÇÃO CRÍTICA: usar novos IDs para evitar conflitos ★★★
+        const uniqueId = `contract-${event.contract_id || Date.now()}-${Date.now()}`;
+        
         // FORÇAR adição de uma operação ao histórico independente de qualquer condição
         // para diagnóstico e garantir que o componente OperationHistoryCard está funcionando
         const forceOperation = {
-          id: Date.now(),
+          id: uniqueId, // Usar ID único para evitar duplicação
           contract_id: event.contract_id || Date.now(),
           entryValue: event.entry_value || 1,
           entry_value: event.entry_value || 1,
@@ -1736,49 +1739,70 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           contract_type: event.contract_type || "CALL",
           symbol: event.symbol || "R_100",
           strategy: event.strategy || selectedStrategy || "auto",
-          is_win: event.is_win,
+          is_win: event.is_win || false,
           // CRUCIAL: Garantir que não seja marcado como intermediário
           isIntermediate: false,
           notification: {
             type: 'success' as 'success' | 'info' | 'warning' | 'error',
-            message: `OPERAÇÃO REALIZADA: ID=${event.contract_id}, Profit=${event.profit}`
+            message: `OPERAÇÃO REALIZADA: ID=${event.contract_id}, Profit=${event.profit || 0}`
           }
         };
         
+        // Adicionamos uma operação de debug para sempre visualizar no console
+        console.log('[BOT_PAGE] ★★★ OPERAÇÃO A SER ADICIONADA AO HISTÓRICO: ★★★', forceOperation);
         console.log('[BOT_PAGE] ★★★ VERIFICANDO SE BOT ESTÁ RODANDO ANTES DE ADICIONAR OPERAÇÃO ★★★', botStatus);
         
-        // CORREÇÃO CRÍTICA: Verificar se o bot está rodando ou não foi explicitamente parado
-        // Um botStatus 'idle' significa que o bot está pronto mas ainda não foi iniciado
-        // Só devemos filtrar quando o bot foi explicitamente parado pelo usuário ('stopped')
-        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-          console.log('[BOT_PAGE] ★★★ BOT ESTÁ RODANDO, ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★');
+        // ★★★ MODIFICAÇÃO CRÍTICA: SIMPLIFICAR A CONDIÇÃO E SEMPRE ADICIONAR OPERAÇÕES ★★★
+        // O estado do botStatus pode estar inconsistente, vamos garantir que operações apareçam
+        console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★ (ignorando verificação de botStatus)');
+        
+        // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
+        setOperationHistory(prev => {
+          console.log('[BOT_PAGE] Histórico anterior:', prev.length);
           
-          // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
-          setOperationHistory(prev => {
-            console.log('[BOT_PAGE] Histórico anterior:', prev.length);
-            const newHistory = [forceOperation, ...prev].slice(0, 50);
-            console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
-            
-            // Forçar console.log de cada operação para diagnóstico
-            console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
-            newHistory.forEach((op, index) => {
-              console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
-                id: op.id,
-                type: op.contract_type,
-                strategy: op.strategy,
-                profit: op.profit,
-                is_win: op.is_win,
-                entry_value: op.entry_value || op.entryValue,
-                isIntermediate: op.isIntermediate,
-                time: op.time
-              });
+          // ★★★ MODIFICAÇÃO CRÍTICA: ADICIONAR NO INÍCIO DO ARRAY ★★★
+          const newHistory = [forceOperation, ...prev].slice(0, 50);
+          console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
+          
+          // Forçar console.log de cada operação para diagnóstico
+          console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
+          newHistory.forEach((op, index) => {
+            console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
+              id: op.id,
+              type: op.contract_type,
+              strategy: op.strategy,
+              profit: op.profit,
+              is_win: op.is_win,
+              entry_value: op.entry_value || op.entryValue,
+              isIntermediate: op.isIntermediate,
+              time: op.time
             });
-            
-            return newHistory;
           });
-        } else {
-          console.log('[BOT_PAGE] ★★★ BOT ESTÁ PARADO, IGNORANDO ADIÇÃO DE OPERAÇÃO AO HISTÓRICO ★★★');
-        }
+          
+          return newHistory;
+        });
+        
+        // ★★★ ATUALIZAÇÃO DE ESTATÍSTICAS ★★★
+        // Atualizar ganhos/perdas e lucro total
+        setStats(prev => {
+          console.log('[BOT_PAGE] Atualizando estatísticas com profit:', event.profit || 0);
+          const profit = event.profit || 0;
+          const totalProfit = (prev.totalProfit || 0) + profit;
+          
+          if (event.is_win) {
+            return { 
+              ...prev, 
+              wins: (prev.wins || 0) + 1, 
+              totalProfit 
+            };
+          } else {
+            return { 
+              ...prev, 
+              losses: (prev.losses || 0) + 1, 
+              totalProfit 
+            };
+          }
+        });
         
         // Adicionar operação normal ao histórico (caso o problema seja na extração de detalhes)
         const contract = event.contract_details;
