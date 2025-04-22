@@ -103,5 +103,22 @@
   "language": {
     "pt": "Portuguese",
     "en": "English"
+  },
+  "operations": {
+    "history": "Operations History",
+    "strategy": "Strategy",
+    "noOperations": "No operations recorded",
+    "profit": "Profit:",
+    "loss": "Loss:",
+    "operation": "Operation:",
+    "entry": "Entry",
+    "exit": "Exit",
+    "advanceAnalysis": "Advance Analysis",
+    "entryValue": "Entry value",
+    "digit0": "Digit 0",
+    "digit1": "Digit 1",
+    "entryThreshold": "Entry threshold",
+    "conditionMet": "Condition met",
+    "conditionNotMet": "Condition not met"
   }
 }

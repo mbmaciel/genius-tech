@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowUpIcon, ArrowDownIcon, InfoIcon, AlertTriangleIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
 import { getStrategyById } from '@/lib/strategiesConfig';
+import { useTranslation } from 'react-i18next';
 
 // Interface para o tipo de operação
 interface Operation {
@@ -27,21 +28,27 @@ interface RelatorioOperacoesProps {
 }
 
 export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOperacoesProps) {
-  // Função para formatar valores monetários
+  const { t, i18n } = useTranslation();
+  
+  // Obter o idioma atual
+  const currentLang = i18n.language;
+  const locale = currentLang === 'en' ? 'en-US' : 'pt-BR';
+  
+  // Função para formatar valores monetários com base no idioma atual
   const formatCurrency = (value: number | undefined) => {
     if (value === undefined) return '$0.00';
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2
     }).format(value);
   };
 
-  // Função para formatar horário
+  // Função para formatar horário com base no idioma atual
   const formatTime = (date: Date | string) => {
     try {
       const dateObj = typeof date === 'string' ? new Date(date) : date;
-      return dateObj.toLocaleTimeString('pt-BR', {
+      return dateObj.toLocaleTimeString(locale, {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
@@ -193,7 +200,7 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
     
     return (
       <div className="text-sm text-gray-400 mb-2">
-        Estratégia: <span className="font-bold text-indigo-400">{strategy.name}</span>
+        {t('operations.strategy', 'Estratégia')}: <span className="font-bold text-indigo-400">{strategy.name}</span>
       </div>
     );
   };
@@ -207,7 +214,7 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
   return (
     <div className="bg-[#13203a] rounded-lg shadow-lg p-4 h-full">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Histórico de Operações</h3>
+        <h3 className="text-lg font-semibold text-white">{t('operations.history', 'Histórico de Operações')}</h3>
         {getStrategyDisplay()}
       </div>
       
@@ -260,22 +267,22 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                           <div className="flex items-center gap-1">
                             <InfoIcon className="w-5 h-5 text-blue-500" />
                             <span className="font-medium text-blue-400">
-                              Análise Advance
+                              {t('operations.advanceAnalysis', 'Análise Advance')}
                             </span>
                             {op.entryValue !== undefined && (
                               <span className="text-xs text-gray-400 ml-2">
-                                Valor de entrada: <span className="text-yellow-400 font-semibold">{formatCurrency(op.entryValue)}</span>
+                                {t('operations.entryValue', 'Valor de entrada')}: <span className="text-yellow-400 font-semibold">{formatCurrency(op.entryValue)}</span>
                               </span>
                             )}
                           </div>
                           <div className="text-xs text-gray-300 mt-1 grid grid-cols-2 gap-x-2">
-                            <span className="font-medium">Dígito 0: <span className="text-cyan-400">{op.analysis.digit0}%</span></span>
-                            <span className="font-medium">Dígito 1: <span className="text-cyan-400">{op.analysis.digit1}%</span></span>
-                            <span className="font-medium col-span-2">Limite para entrada: <span className="text-yellow-400">{op.analysis.threshold}%</span></span>
+                            <span className="font-medium">{t('operations.digit0', 'Dígito 0')}: <span className="text-cyan-400">{op.analysis.digit0}%</span></span>
+                            <span className="font-medium">{t('operations.digit1', 'Dígito 1')}: <span className="text-cyan-400">{op.analysis.digit1}%</span></span>
+                            <span className="font-medium col-span-2">{t('operations.entryThreshold', 'Limite para entrada')}: <span className="text-yellow-400">{op.analysis.threshold}%</span></span>
                             <span className="font-medium col-span-2 mt-1">
                               {op.profit >= 0 
-                                ? <span className="text-green-400">✓ Condição atendida</span> 
-                                : <span className="text-amber-400">✗ Condição não atendida</span>}
+                                ? <span className="text-green-400">✓ {t('operations.conditionMet', 'Condição atendida')}</span> 
+                                : <span className="text-amber-400">✗ {t('operations.conditionNotMet', 'Condição não atendida')}</span>}
                             </span>
                           </div>
                         </div>
@@ -293,7 +300,11 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                               op.profit > 0 ? 'text-green-400' : 
                               op.profit < 0 ? 'text-red-400' : 'text-gray-400'
                             }`}>
-                              {op.profit > 0 ? 'Ganho:' : op.profit < 0 ? 'Perda:' : 'Operação:'}
+                              {op.profit > 0 
+                                ? t('operations.profit', 'Ganho:') 
+                                : op.profit < 0 
+                                  ? t('operations.loss', 'Perda:') 
+                                  : t('operations.operation', 'Operação:')}
                             </span>
                             <span className={`font-bold ${
                               op.profit > 0 ? 'text-green-400' : 
@@ -305,8 +316,8 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
                           
                           {op.entryValue !== undefined && op.finalValue !== undefined && (
                             <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
-                              <span>Entrada: {formatCurrency(op.entryValue)}</span>
-                              <span>Saída: {formatCurrency(op.finalValue)}</span>
+                              <span>{t('operations.entry', 'Entrada')}: {formatCurrency(op.entryValue)}</span>
+                              <span>{t('operations.exit', 'Saída')}: {formatCurrency(op.finalValue)}</span>
                             </div>
                           )}
                         </>
@@ -324,7 +335,7 @@ export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOp
           </div>
         ) : (
           <div className="text-center p-6 text-gray-500">
-            <p>Nenhuma operação registrada</p>
+            <p>{t('operations.noOperations', 'Nenhuma operação registrada')}</p>
           </div>
         )}
       </div>
