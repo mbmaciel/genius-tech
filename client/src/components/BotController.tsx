@@ -327,6 +327,122 @@ export function BotController({
         if (onTickReceived) {
           onTickReceived(event.price, event.lastDigit);
         }
+        
+        // CORREÇÃO 23/04/2025: Avaliar condições da estratégia e disparar operações
+        // quando as condições forem atendidas
+        if (status === 'running') {
+          try {
+            // Obter estatísticas dos dígitos para avaliação das condições
+            const digitStats = oauthDirectService.getDigitStats();
+            if (!digitStats || digitStats.length < 10) {
+              // Sem estatísticas suficientes para avaliação
+              return;
+            }
+            
+            // Obter porcentagem configurada pelo usuário (para estratégias como Advance)
+            let entryPercentage: number | undefined = undefined;
+            
+            if (strategyConfig?.porcentagemParaEntrar !== undefined) {
+              entryPercentage = typeof strategyConfig.porcentagemParaEntrar === 'string' ? 
+                parseFloat(strategyConfig.porcentagemParaEntrar) : 
+                (typeof strategyConfig.porcentagemParaEntrar === 'number' ? 
+                  strategyConfig.porcentagemParaEntrar : undefined);
+              console.log(`[BOT_CONTROLLER] Usando porcentagem de entrada configurada pelo usuário:`, entryPercentage);
+            }
+            
+            // Variáveis para resultado da análise
+            let shouldEnter = false;
+            let contractType = 'CALL';
+            let message = '';
+            let prediction: number | undefined = undefined;
+            
+            // Importar funções de avaliação de estratégias
+            const { 
+              evaluateAdvanceStrategy, 
+              evaluateIronOverStrategy, 
+              evaluateIronUnderStrategy,
+              evaluateMaxProStrategy,
+              evaluateDefaultStrategy
+            } = require('@/services/strategyRules');
+            
+            // Avaliar condições baseado na estratégia selecionada
+            if (selectedStrategy.toLowerCase().includes('advance')) {
+              // Estratégia Advance
+              const result = evaluateAdvanceStrategy(digitStats, entryPercentage);
+              if (result) {
+                ({ shouldEnter, contractType, message } = result);
+                console.log(`[BOT_CONTROLLER] Análise ADVANCE: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              }
+            } 
+            else if (selectedStrategy.toLowerCase().includes('iron_over') || 
+                    selectedStrategy.toLowerCase().includes('ironover')) {
+              // Estratégia Iron Over
+              const result = evaluateIronOverStrategy(digitStats, event.lastDigit);
+              if (result) {
+                ({ shouldEnter, contractType, prediction, message } = result);
+                console.log(`[BOT_CONTROLLER] Análise IRON OVER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              }
+            }
+            else if (selectedStrategy.toLowerCase().includes('iron_under') || 
+                    selectedStrategy.toLowerCase().includes('ironunder')) {
+              // Estratégia Iron Under
+              const result = evaluateIronUnderStrategy(digitStats, event.lastDigit);
+              if (result) {
+                ({ shouldEnter, contractType, prediction, message } = result);
+                console.log(`[BOT_CONTROLLER] Análise IRON UNDER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              }
+            }
+            else if (selectedStrategy.toLowerCase().includes('maxpro')) {
+              // Estratégia MaxPro
+              const result = evaluateMaxProStrategy(digitStats, event.lastDigit);
+              if (result) {
+                ({ shouldEnter, contractType, prediction, message } = result);
+                console.log(`[BOT_CONTROLLER] Análise MAXPRO: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              }
+            }
+            else {
+              // Estratégia padrão ou desconhecida
+              console.log(`[BOT_CONTROLLER] Usando análise padrão para estratégia: ${selectedStrategy}`);
+              const result = evaluateDefaultStrategy(digitStats, event.lastDigit);
+              if (result) {
+                ({ shouldEnter, contractType, message } = result);
+              }
+            }
+            
+            // Se as condições forem atendidas, executar operação
+            if (shouldEnter) {
+              console.log(`[BOT_CONTROLLER] 🚨 CONDIÇÕES ATENDIDAS! Iniciando operação ${contractType}`);
+              
+              // Obter valor de entrada configurado pelo usuário
+              const valorInicialStr = strategyConfig?.valorInicial;
+              const valueToUse = typeof valorInicialStr === 'string' ? 
+                parseFloat(valorInicialStr) : 
+                (typeof valorInicialStr === 'number' ? valorInicialStr : 0);
+                
+              if (!valueToUse || valueToUse <= 0) {
+                console.error('[BOT_CONTROLLER] Valor de entrada não encontrado ou inválido!');
+                return;
+              }
+              
+              // Definir tipo de contrato e previsão
+              oauthDirectService.setSettings({
+                contractType: contractType,
+                prediction: prediction
+              });
+              
+              // Executar operação via função específica do serviço
+              (oauthDirectService as any).executeContractBuy(valueToUse);
+              
+              // Exibir toast informativo
+              toast({
+                title: `Operação iniciada (${selectedStrategy})`,
+                description: `Condições atendidas: ${message}`,
+              });
+            }
+          } catch (error) {
+            console.error('[BOT_CONTROLLER] Erro ao avaliar condições da estratégia:', error);
+          }
+        }
       }
       
       if (event.type === 'contract_purchased') {
@@ -600,7 +716,17 @@ export function BotController({
           
           // Usar valores do parser XML se possível
           contractType = xmlAnalysis.contractType;
-          prediction = xmlAnalysis.prediction;
+          
+          // Converter prediction para garantir que seja number ou undefined
+          if (xmlAnalysis.prediction !== undefined) {
+            const predictValue = typeof xmlAnalysis.prediction === 'string' ?
+              parseInt(xmlAnalysis.prediction) :
+              (typeof xmlAnalysis.prediction === 'number' ? 
+                xmlAnalysis.prediction : undefined);
+                
+            prediction = predictValue;
+            console.log(`[BOT_CONTROLLER] Prediction convertido para número:`, prediction);
+          }
           
           console.log(`[BOT_CONTROLLER] ★ Análise XML da estratégia ${selectedStrategy}:`, {
             shouldEnter: xmlAnalysis.shouldEnter,
@@ -706,7 +832,10 @@ export function BotController({
           entryValue: exactUserValue,
           profitTarget: strategyConfig.metaGanho,
           lossLimit: strategyConfig.limitePerda,
-          martingaleFactor: strategyConfig.martingale,
+          martingaleFactor: typeof strategyConfig.martingale === 'string' ? 
+                parseFloat(strategyConfig.martingale) :
+                (typeof strategyConfig.martingale === 'number' ? 
+                  strategyConfig.martingale : 1),
           contractType: contractType,
           prediction: 5 // Valor padrão que será substituído pela análise da estratégia
         });
