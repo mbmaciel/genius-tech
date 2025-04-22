@@ -1,0 +1,107 @@
+{
+  "app": {
+    "title": "Genius Technology Trading",
+    "subtitle": "Advanced Automated Trading Platform"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "remember": "Remember me",
+    "forgotPassword": "Forgot password?"
+  },
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "bot": "Bot",
+    "statistics": "Statistics",
+    "settings": "Settings",
+    "account": "Account",
+    "help": "Help"
+  },
+  "bot": {
+    "title": "Trading Bot",
+    "start": "Start Trading",
+    "stop": "Stop Bot",
+    "status": {
+      "idle": "Ready",
+      "running": "Running",
+      "paused": "Paused",
+      "error": "Error"
+    },
+    "settings": {
+      "title": "Bot Settings",
+      "strategy": "Strategy",
+      "entryValue": "Entry Value",
+      "profitTarget": "Profit Target",
+      "lossLimit": "Loss Limit",
+      "martingale": "Martingale"
+    },
+    "statistics": {
+      "title": "Statistics",
+      "wins": "Wins",
+      "losses": "Losses",
+      "totalProfit": "Total Profit",
+      "winRate": "Win Rate"
+    },
+    "contract": {
+      "buy": "Buy",
+      "sell": "Sell",
+      "status": "Status",
+      "profit": "Profit",
+      "loss": "Loss",
+      "entry": "Entry",
+      "exit": "Exit"
+    }
+  },
+  "dashboard": {
+    "account": {
+      "title": "Account",
+      "balance": "Balance",
+      "name": "Name",
+      "email": "Email",
+      "loginId": "Login ID"
+    },
+    "market": {
+      "title": "Market",
+      "symbol": "Symbol",
+      "price": "Price",
+      "change": "Change",
+      "high": "High",
+      "low": "Low"
+    }
+  },
+  "digits": {
+    "title": "Digit Statistics",
+    "last": "Last digit",
+    "frequency": "Frequency",
+    "distribution": "Distribution",
+    "history": "History"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "notification": "Notifications",
+    "audio": "Sound"
+  },
+  "language": {
+    "pt": "Portuguese",
+    "en": "English"
+  }
+}

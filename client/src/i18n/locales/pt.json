@@ -1,0 +1,107 @@
+{
+  "app": {
+    "title": "Genius Technology Trading",
+    "subtitle": "Plataforma avançada de trading automatizado"
+  },
+  "common": {
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "yes": "Sim",
+    "no": "Não",
+    "back": "Voltar",
+    "next": "Próximo",
+    "search": "Buscar"
+  },
+  "auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "username": "Usuário",
+    "password": "Senha",
+    "remember": "Lembrar-me",
+    "forgotPassword": "Esqueceu a senha?"
+  },
+  "nav": {
+    "home": "Início",
+    "dashboard": "Dashboard",
+    "bot": "Robô",
+    "statistics": "Estatísticas",
+    "settings": "Configurações",
+    "account": "Conta",
+    "help": "Ajuda"
+  },
+  "bot": {
+    "title": "Robô de Trading",
+    "start": "Iniciar Operações",
+    "stop": "Parar Robô",
+    "status": {
+      "idle": "Pronto",
+      "running": "Em execução",
+      "paused": "Pausado",
+      "error": "Erro"
+    },
+    "settings": {
+      "title": "Configurações do Robô",
+      "strategy": "Estratégia",
+      "entryValue": "Valor de Entrada",
+      "profitTarget": "Meta de Lucro",
+      "lossLimit": "Limite de Perda",
+      "martingale": "Martingale"
+    },
+    "statistics": {
+      "title": "Estatísticas",
+      "wins": "Ganhos",
+      "losses": "Perdas",
+      "totalProfit": "Lucro Total",
+      "winRate": "Taxa de Acerto"
+    },
+    "contract": {
+      "buy": "Comprar",
+      "sell": "Vender",
+      "status": "Status",
+      "profit": "Lucro",
+      "loss": "Perda",
+      "entry": "Entrada",
+      "exit": "Saída"
+    }
+  },
+  "dashboard": {
+    "account": {
+      "title": "Conta",
+      "balance": "Saldo",
+      "name": "Nome",
+      "email": "Email",
+      "loginId": "ID de Login"
+    },
+    "market": {
+      "title": "Mercado",
+      "symbol": "Símbolo",
+      "price": "Preço",
+      "change": "Variação",
+      "high": "Máxima",
+      "low": "Mínima"
+    }
+  },
+  "digits": {
+    "title": "Estatísticas de Dígitos",
+    "last": "Último dígito",
+    "frequency": "Frequência",
+    "distribution": "Distribuição",
+    "history": "Histórico"
+  },
+  "settings": {
+    "title": "Configurações",
+    "theme": "Tema",
+    "language": "Idioma",
+    "notification": "Notificações",
+    "audio": "Som"
+  },
+  "language": {
+    "pt": "Português",
+    "en": "Inglês"
+  }
+}
