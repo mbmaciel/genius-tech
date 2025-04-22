@@ -21,6 +21,13 @@ interface BotControllerProps {
   onTickReceived?: (price: number, lastDigit: number) => void;
 }
 
+// Interface explícita para as estatísticas dos dígitos
+interface DigitStat {
+  digit: number;
+  count: number;
+  percentage: number;
+}
+
 interface AccountInfo {
   loginid?: string;
   balance?: number;
@@ -333,17 +340,10 @@ export function BotController({
         // CORREÇÃO 23/04/2025: Avaliar condições da estratégia e disparar operações
         // quando as condições forem atendidas
         if (status === 'running') {
-          // Função para garantir que o código não seja interrompido por undefined ou null
-          const safeExecute = (fn: () => void, context = 'unknown') => {
-            try {
-              fn();
-            } catch (e) {
-              console.error(`[BOT_CONTROLLER] ERRO CRÍTICO NO CONTEXTO: ${context}`, e);
-            }
-          };
-          
+          // Inicializar variáveis locais para avaliação
           try {
             console.log('[BOT_CONTROLLER] ==================== BLOCO TRY PRINCIPAL ====================');
+            
             // Verificar se o serviço está disponível
             if (!oauthDirectService) {
               console.error('[BOT_CONTROLLER] Serviço OAuth não disponível!');
@@ -356,8 +356,31 @@ export function BotController({
               return;
             }
             
-            // Obter estatísticas dos dígitos para avaliação das condições com tratamento seguro
-            const digitStats = safeExecute(() => oauthDirectService.getDigitStats(), 'getDigitStats') || [];
+            // Obter estatísticas dos dígitos diretamente com tipagem forte
+            let digitStats: DigitStat[] = [];
+            try {
+              // Aplicar tipagem forte e garantir que temos um array válido
+              const rawStats = oauthDirectService.getDigitStats() || [];
+              
+              // Validar e converter explicitamente para o tipo correto
+              if (Array.isArray(rawStats) && rawStats.length > 0) {
+                // Verificar se os elementos têm as propriedades necessárias
+                if ('digit' in rawStats[0] && 'percentage' in rawStats[0] && 'count' in rawStats[0]) {
+                  // É seguro fazer a conversão
+                  digitStats = rawStats as DigitStat[];
+                  console.log('[BOT_CONTROLLER] Obtidas estatísticas com sucesso:', digitStats.length, 'dígitos');
+                } else {
+                  console.error('[BOT_CONTROLLER] Formato de rawStats inválido:', rawStats[0]);
+                  return;
+                }
+              } else {
+                console.error('[BOT_CONTROLLER] Estatísticas vazias ou inválidas');
+                return;
+              }
+            } catch (statsError) {
+              console.error('[BOT_CONTROLLER] Erro ao obter estatísticas de dígitos:', statsError);
+              return;
+            }
             console.log('[BOT_CONTROLLER] Obtidas estatísticas:', digitStats?.length || 0, 'dígitos');
             
             if (!digitStats || digitStats.length < 10) {
@@ -624,9 +647,30 @@ export function BotController({
             }
           } catch (error) {
             console.error('[BOT_CONTROLLER] ==================== ERRO NO BLOCO TRY PRINCIPAL ====================');
-            console.error('[BOT_CONTROLLER] Erro ao avaliar condições da estratégia:', error);
-            console.error('[BOT_CONTROLLER] Tipo de erro:', typeof error);
-            console.error('[BOT_CONTROLLER] JSON do erro:', JSON.stringify(error, null, 2));
+            // Tentativa de capturar mais detalhes sobre o erro
+            console.error('[BOT_CONTROLLER] 🔴🔴🔴 ERRO DETALHADO AO AVALIAR ESTRATÉGIA 🔴🔴🔴');
+            console.error('[BOT_CONTROLLER] Erro:', error);
+            console.error('[BOT_CONTROLLER] Tipo do erro:', typeof error);
+            console.error('[BOT_CONTROLLER] Estratégia sendo avaliada:', selectedStrategy);
+            
+            // Tentar imprimir a estrutura do erro sem JSON.stringify
+            try {
+              const errorKeys = error && typeof error === 'object' ? Object.keys(error) : [];
+              console.error('[BOT_CONTROLLER] Propriedades do erro:', errorKeys);
+              
+              // Tentar imprimir cada propriedade individualmente
+              if (errorKeys.length > 0) {
+                errorKeys.forEach(key => {
+                  try {
+                    console.error(`[BOT_CONTROLLER] Erro.${key}:`, (error as any)[key]);
+                  } catch (nestedError) {
+                    console.error(`[BOT_CONTROLLER] Não foi possível acessar a propriedade ${key}:`, nestedError);
+                  }
+                });
+              }
+            } catch (structError) {
+              console.error('[BOT_CONTROLLER] Erro ao tentar extrair estrutura do erro:', structError);
+            }
             
             // Log adicional para diagnóstico
             if (error instanceof Error) {
@@ -637,13 +681,29 @@ export function BotController({
               });
             } else {
               console.error('[BOT_CONTROLLER] Erro não é uma instância de Error. Tipo:', typeof error);
-              console.error('[BOT_CONTROLLER] Conteúdo do erro:', error);
-              console.error('[BOT_CONTROLLER] Propriedades do erro (se houver):', Object.keys(error || {}));
+              console.error('[BOT_CONTROLLER] Conteúdo do erro:', String(error));
+              
+              try {
+                if (error && typeof error === 'object') {
+                  console.error('[BOT_CONTROLLER] Propriedades do erro:', Object.keys(error));
+                  console.error('[BOT_CONTROLLER] Valores das propriedades:', Object.values(error));
+                }
+              } catch (propError) {
+                console.error('[BOT_CONTROLLER] Erro ao tentar acessar propriedades do erro:', propError);
+              }
             }
             
             console.error('[BOT_CONTROLLER] Estratégia que causou o erro:', selectedStrategy);
             console.error('[BOT_CONTROLLER] Status do bot durante o erro:', status);
             console.error('[BOT_CONTROLLER] ==================== FIM DO LOG DE ERRO ====================');
+            
+            // Mostrar feedback para o usuário para que ele saiba que houve um problema
+            toast({
+              title: 'Erro na avaliação da estratégia',
+              description: `Ocorreu um erro ao avaliar as condições da estratégia "${selectedStrategy}". Por favor, tente novamente ou escolha outra estratégia.`,
+              variant: "destructive",
+              duration: 5000
+            });
           }
         }
       }
