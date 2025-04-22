@@ -2215,6 +2215,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Executa compra de contrato
    */
   private executeContractBuy(amount?: number): void {
+    // VERIFICAÇÃO CRÍTICA: Logar sempre que uma operação for solicitada
+    console.log(`[OAUTH_DIRECT] 🔍 executeContractBuy chamado com valor ${amount}`);
+    
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
       console.error('[OAUTH_DIRECT] 🔴 WebSocket não está conectado - Não é possível executar operação');
       this.notifyListeners({
@@ -2225,30 +2228,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // ⚠️⚠️⚠️ CORREÇÃO EMERGENCIAL - FORÇAR VALOR DA CONFIGURAÇÃO ⚠️⚠️⚠️ 
-      // Usar diretamente o valor configurado na interface (1.0 por padrão)
-      // Ignorar completamente valores hardcoded
+      // NOVA IMPLEMENTAÇÃO: Obter valor usando getUserDefinedAmount para garantir consistência
+      // Este método já implementa a busca em cascata, priorizando inputs da interface
+      let finalAmount = this.getUserDefinedAmount(amount);
       
-      // Definir valor padrão para evitar o 0.35 hardcoded
-      let finalAmount = 1.0; // Valor padrão explícito - NUNCA usar hardcoded 0.35
+      console.log(`[OAUTH_DIRECT] 💰 COMPRA: Usando valor final ${finalAmount} obtido de getUserDefinedAmount`);
       
-      // Verificar configurações - passo 1: settings.entryValue (configurado pelo usuário) 
-      if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
-        finalAmount = this.settings.entryValue;
-        console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Usando valor ${finalAmount} das configurações do serviço`);
-      }
-      
-      // Verificar opção 2: valor passado pelo método
-      if (amount !== undefined && amount > 0) {
-        finalAmount = amount;
-        console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Sobreescrevendo com valor ${finalAmount} passado como parâmetro`);
-      }
-      
-      // ⚠️⚠️⚠️ VERIFICAÇÃO ANTI-HARDCODED ⚠️⚠️⚠️
-      // Se o valor for exatamente 0.35 (suspeito de ser hardcoded), substituir por 1.0
-      if (finalAmount === 0.35) {
-        console.log(`[OAUTH_DIRECT] 🚨 ALERTA CRÍTICO: Detectado valor 0.35 suspeito de ser hardcoded. SUBSTITUINDO POR 1.0`);
-        finalAmount = 1.0;
+      // GARANTIA ADICIONAL CONTRA PROBLEMAS
+      // Mesmo que todas as outras verificações falhem, tentar buscar da interface
+      if (finalAmount <= 0) {
+        const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseFloat(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            finalAmount = valueFromInput;
+            console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO EMERGENCIAL: Usando valor ${finalAmount} diretamente do input`);
+          }
+        }
       }
       
       // Log detalhado para diagnóstico
