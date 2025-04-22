@@ -1440,10 +1440,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] ✅ Adicionando operação intermediária ao histórico via evento direto:', intermediateOperation);
+        console.log('[BOT_PAGE] ✅ Verificando se pode adicionar operação intermediária ao histórico (bot status):', botStatus);
         
-        // Adicionar ao histórico de operações
-        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+        // Adicionar ao histórico de operações APENAS se o bot estiver rodando
+        if (botStatus === 'running') {
+          console.log('[BOT_PAGE] ✅ Adicionando operação intermediária ao histórico (bot rodando)');
+          setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+        } else {
+          console.log('[BOT_PAGE] ❌ Ignorando operação intermediária porque o bot está parado');
+        }
       } catch (error) {
         console.error('[BOT_PAGE] Erro ao processar evento avançado intermediário:', error);
       }
@@ -1580,8 +1585,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             }
           };
           
-          console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico:', newNotification);
-          setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+          console.log('[BOT_PAGE] Verificando se pode adicionar comando ao histórico (bot status):', botStatus);
+          
+          // Adicionar ao histórico de operações APENAS se o bot estiver rodando
+          if (botStatus === 'running') {
+            console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico (bot rodando)');
+            setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
+          } else {
+            console.log('[BOT_PAGE] Ignorando comando de entrada pois o bot está parado');
+          }
         }
       }
       
@@ -1619,8 +1631,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico:', newOperation);
-        setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+        console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária Advance (bot status):', botStatus);
+        
+        // Adicionar operação apenas se o bot estiver em execução
+        if (botStatus === 'running') {
+          console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico (bot rodando)');
+          setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
+        } else {
+          console.log('[BOT_PAGE] Ignorando operação intermediária Advance porque o bot está parado');
+        }
       }
       
       // Processar eventos intermediários da estratégia Advance
@@ -1657,8 +1676,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico:', intermediateOperation);
-        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+        console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária (bot status):', botStatus);
+        
+        // Adicionar ao histórico SOMENTE se o bot estiver em execução
+        if (botStatus === 'running') {
+          console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico (bot rodando)');
+          setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
+        } else {
+          console.log('[BOT_PAGE] Ignorando operação intermediária porque o bot está parado');  
+        }
       }
       
       // Processar eventos de operação finalizada
@@ -1694,31 +1720,38 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES IMEDIATAMENTE ★★★');
+        console.log('[BOT_PAGE] ★★★ VERIFICANDO SE BOT ESTÁ RODANDO ANTES DE ADICIONAR OPERAÇÃO ★★★', botStatus);
         
-        // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
-        setOperationHistory(prev => {
-          console.log('[BOT_PAGE] Histórico anterior:', prev.length);
-          const newHistory = [forceOperation, ...prev].slice(0, 50);
-          console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
+        // CORREÇÃO CRÍTICA: Verificar se o bot está rodando antes de adicionar operação ao histórico
+        if (botStatus === 'running') {
+          console.log('[BOT_PAGE] ★★★ BOT ESTÁ RODANDO, ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★');
           
-          // Forçar console.log de cada operação para diagnóstico
-          console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
-          newHistory.forEach((op, index) => {
-            console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
-              id: op.id,
-              type: op.contract_type,
-              strategy: op.strategy,
-              profit: op.profit,
-              is_win: op.is_win,
-              entry_value: op.entry_value || op.entryValue,
-              isIntermediate: op.isIntermediate,
-              time: op.time
+          // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
+          setOperationHistory(prev => {
+            console.log('[BOT_PAGE] Histórico anterior:', prev.length);
+            const newHistory = [forceOperation, ...prev].slice(0, 50);
+            console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
+            
+            // Forçar console.log de cada operação para diagnóstico
+            console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
+            newHistory.forEach((op, index) => {
+              console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
+                id: op.id,
+                type: op.contract_type,
+                strategy: op.strategy,
+                profit: op.profit,
+                is_win: op.is_win,
+                entry_value: op.entry_value || op.entryValue,
+                isIntermediate: op.isIntermediate,
+                time: op.time
+              });
             });
+            
+            return newHistory;
           });
-          
-          return newHistory;
-        });
+        } else {
+          console.log('[BOT_PAGE] ★★★ BOT ESTÁ PARADO, IGNORANDO ADIÇÃO DE OPERAÇÃO AO HISTÓRICO ★★★');
+        }
         
         // Adicionar operação normal ao histórico (caso o problema seja na extração de detalhes)
         const contract = event.contract_details;
@@ -1863,28 +1896,35 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             }
           };
           
-          console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
+          console.log('[BOT_PAGE] Verificando se pode adicionar operação ao histórico (bot status):', botStatus);
           
-          // Verificar duplicação antes de adicionar ao histórico
-          setOperationHistory(prev => {
-            // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
-            if (newOperation.isIntermediate) {
-              console.log(`[BOT_PAGE] Operação ${contractId} classificada como intermediária, adicionando como nova`);
-              return [newOperation, ...prev].slice(0, 50);
-            }
+          // Verificar duplicação e adicionar ao histórico SOMENTE se o bot estiver em execução
+          if (botStatus === 'running') {
+            console.log('[BOT_PAGE] Bot está rodando, adicionando operação ao histórico:', newOperation);
             
-            // Para operações regulares, verificar se esta operação já existe
-            const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
-            if (exists) {
-              console.log(`[BOT_PAGE] Operação regular ${contractId} já existe no histórico, atualizando...`);
-              // Atualizar apenas operações regulares, manter intermediárias intactas
-              return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
-            } else {
-              // Adicionar nova operação no topo do histórico
-              console.log(`[BOT_PAGE] Operação regular ${contractId} é nova, adicionando ao topo do histórico`);
-              return [newOperation, ...prev].slice(0, 50);
-            }
-          });
+            // Verificar duplicação antes de adicionar ao histórico
+            setOperationHistory(prev => {
+              // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
+              if (newOperation.isIntermediate) {
+                console.log(`[BOT_PAGE] Operação ${contractId} classificada como intermediária, adicionando como nova`);
+                return [newOperation, ...prev].slice(0, 50);
+              }
+              
+              // Para operações regulares, verificar se esta operação já existe
+              const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
+              if (exists) {
+                console.log(`[BOT_PAGE] Operação regular ${contractId} já existe no histórico, atualizando...`);
+                // Atualizar apenas operações regulares, manter intermediárias intactas
+                return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
+              } else {
+                // Adicionar nova operação no topo do histórico
+                console.log(`[BOT_PAGE] Operação regular ${contractId} é nova, adicionando ao topo do histórico`);
+                return [newOperation, ...prev].slice(0, 50);
+              }
+            });
+          } else {
+            console.log('[BOT_PAGE] Bot está parado, ignorando adição de operação ao histórico:', newOperation);
+          }
           
           // Atualizar as estatísticas gerais quando uma operação é finalizada
           if (profit > 0) {
@@ -1928,12 +1968,19 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico:', newNotification);
-        setOperationHistory((prevHistory) => {
-          // Tipagem explícita para prevHistory
-          const updatedHistory = [newNotification, ...prevHistory];
-          return updatedHistory.slice(0, 50);
-        });
+        console.log('[BOT_PAGE] Verificando se pode adicionar notificação de limite (bot status):', botStatus);
+        
+        // Adicionar notificação ao histórico apenas se o bot estiver rodando
+        if (botStatus === 'running') {
+          console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico (bot rodando):', newNotification);
+          setOperationHistory((prevHistory) => {
+            // Tipagem explícita para prevHistory
+            const updatedHistory = [newNotification, ...prevHistory];
+            return updatedHistory.slice(0, 50);
+          });
+        } else {
+          console.log('[BOT_PAGE] Ignorando notificação de limite porque o bot está parado');
+        }
       }
       
       // Processar eventos de parada do bot
