@@ -63,7 +63,17 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
   React.useEffect(() => {
     const handleContractFinished = (event: CustomEvent) => {
       const contractData = event.detail;
-      console.log('[OperationHistoryCard] Evento contract_finished recebido diretamente:', contractData);
+      // Log mais detalhado para verificar classificação
+      console.log('[OperationHistoryCard] ★★★ Evento contract_finished recebido:', contractData);
+      console.log('[OperationHistoryCard] ★★★ isIntermediate:', contractData.isIntermediate || contractData.is_intermediate || false);
+      console.log('[OperationHistoryCard] ★★★ Strategy:', contractData.strategy);
+      
+      // Flag para classificação - verificando todas as variantes possíveis
+      const isIntermediateOp = contractData.isIntermediate || 
+                              contractData.is_intermediate || 
+                              false;
+      
+      console.log('[OperationHistoryCard] ★★★ Classificação final: isIntermediate =', isIntermediateOp);
       
       // Criar uma nova operação a partir dos dados do contrato
       const newOperation: Operation = {
@@ -80,8 +90,8 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
         symbol: contractData.symbol || 'R_100',
         strategy: contractData.strategy || '',
         is_win: contractData.is_win || false,
-        // Incluir flag isIntermediate vinda do evento (false por padrão)
-        isIntermediate: contractData.isIntermediate || contractData.is_intermediate || false,
+        // Definir flag isIntermediate - Garante consistência na classificação
+        isIntermediate: isIntermediateOp,
         notification: {
           type: contractData.is_win ? 'success' : 'error',
           message: `${contractData.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(contractData.entry_value || 0).toFixed(2)} | Resultado: $${(contractData.profit || 0).toFixed(2)}`

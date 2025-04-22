@@ -1641,7 +1641,16 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                             Math.floor(Math.random() * 1000000);
           
           // Verificar se é uma operação intermediária da estratégia Advance
-          const isIntermediate = event.is_intermediate || contract.is_intermediate || false;
+          // NOTA IMPORTANTE: Operações intermediárias aparecerão na aba "Análises", não na aba "Operações"
+          const isIntermediate = event.is_intermediate || event.isIntermediate || contract.is_intermediate || contract.isIntermediate || false;
+          
+          // Adicionar log para depuração da classificação de operações
+          console.log(`[BOT_PAGE] Classificação de operação ${contractId}: isIntermediate=${isIntermediate}, estratégia=${selectedStrategy}`);
+          
+          // Forçar que operações regulares não sejam classificadas como intermediárias exceto se for estratégia Advance
+          // ISSO GARANTE QUE AS OPERAÇÕES APAREÇAM NA ABA CORRETA
+          const forceRegularOperation = !isIntermediate || 
+                                      (selectedStrategy && selectedStrategy.toLowerCase() !== 'advance');
           
           // Valores seguros com fallbacks para evitar valores undefined
           const buyPrice = contract.buy_price || event.entry_value || 0;
@@ -1755,7 +1764,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             contract_type: contract.contract_type || 'desconhecido', // Duplicando para compatibilidade
             symbol: contract.symbol || event.symbol || 'R_100', // Adicionando símbolo
             strategy: selectedStrategy || 'desconhecida', // Adicionando estratégia selecionada
-            isIntermediate: isIntermediate,
+            // Usar forceRegularOperation para garantir que as operações apareçam na aba correta
+            isIntermediate: forceRegularOperation ? false : isIntermediate,
             entry_spot: contract.entry_spot || event.entry_spot,
             exit_spot: contract.exit_spot || event.exit_spot,
             barrier: contract.barrier || event.barrier,
@@ -1771,18 +1781,20 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           // Verificar duplicação antes de adicionar ao histórico
           setOperationHistory(prev => {
             // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
-            if (isIntermediate) {
+            if (newOperation.isIntermediate) {
+              console.log(`[BOT_PAGE] Operação ${contractId} classificada como intermediária, adicionando como nova`);
               return [newOperation, ...prev].slice(0, 50);
             }
             
-            // Para operações finais, verificar se esta operação já existe
+            // Para operações regulares, verificar se esta operação já existe
             const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
             if (exists) {
-              console.log(`[BOT_PAGE] Operação ${contractId} já existe no histórico, atualizando...`);
-              // Atualizar apenas operações finais, manter intermediárias intactas
+              console.log(`[BOT_PAGE] Operação regular ${contractId} já existe no histórico, atualizando...`);
+              // Atualizar apenas operações regulares, manter intermediárias intactas
               return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
             } else {
               // Adicionar nova operação no topo do histórico
+              console.log(`[BOT_PAGE] Operação regular ${contractId} é nova, adicionando ao topo do histórico`);
               return [newOperation, ...prev].slice(0, 50);
             }
           });
@@ -2246,6 +2258,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                       symbol: "R_100",
                       strategy: selectedStrategy || "botlow",
                       is_win: true,
+                      // Garantir que não seja intermediária para aparecer na aba "Operações"
+                      isIntermediate: false,
                       notification: {
                         type: 'success' as 'success' | 'info' | 'warning' | 'error',
                         message: `TESTE DIAGNÓSTICO | Entrada: $${currentEntryValue} | Resultado: $${currentEntryValue * 1.8}`
