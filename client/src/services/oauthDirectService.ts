@@ -1197,7 +1197,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private calculateNextAmount(isWin: boolean, lastContract: any): number {
     if (!lastContract || !lastContract.buy_price) {
-      return Number(this.settings.entryValue) || 1;
+      // CORREÇÃO CRÍTICA: Buscar valor diretamente do DOM primeiro
+      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputElement && inputElement.value) {
+        const valueFromInput = parseFloat(inputElement.value);
+        if (!isNaN(valueFromInput) && valueFromInput > 0) {
+          console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ CORREÇÃO RADICAL: Usando valor ${valueFromInput} do input para cálculo`);
+          return valueFromInput;
+        }
+      }
+      
+      // Se não encontrar no DOM, então tenta outras fontes
+      const configuredValue = Number(this.settings.entryValue) || 2; // Valor padrão aumentado para 2
+      console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ CORREÇÃO RADICAL: Usando valor configurado ${configuredValue} para cálculo`);
+      return configuredValue;
     }
     
     let buyPrice = Number(lastContract.buy_price);
@@ -1210,15 +1223,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     const savedSettings = localStorage.getItem(`strategy_config_${strategyCurrent}`);
     console.log(`[OAUTH_DIRECT] 🔍 Configurações salvas encontradas: ${savedSettings ? 'SIM' : 'NÃO'}`);
     
+    // CORREÇÃO CRÍTICA: Obter valor do DOM PRIMEIRO
+    let valorDoInput = null;
+    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    if (inputElement && inputElement.value) {
+      const valueFromInput = parseFloat(inputElement.value);
+      if (!isNaN(valueFromInput) && valueFromInput > 0) {
+        valorDoInput = valueFromInput;
+        console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ EMERGENCIAL: Lendo valor ${valorDoInput} diretamente do input visível`);
+      }
+    }
+    
     // Valores padrão que serão sobrescritos se houver configuração do usuário
     let configuracoes = {
-      valorInicial: Number(this.settings.entryValue) || 1,
+      valorInicial: valorDoInput || Number(this.settings.entryValue) || 2, // AUMENTAR padrão para 2
       martingale: this.settings.martingaleFactor || 1.5,
       usarMartingaleAposXLoss: 2, // Valor padrão - aplicar martingale após 2 perdas consecutivas
       // Adicionando mais parâmetros de configuração
       metaGanho: this.settings.profitTarget || 20,
       limitePerda: this.settings.lossLimit || 20,
-      valorAposVencer: Number(this.settings.entryValue) || 1,
+      valorAposVencer: valorDoInput || Number(this.settings.entryValue) || 2, // AUMENTAR padrão para 2
       parcelasMartingale: 1
     };
     

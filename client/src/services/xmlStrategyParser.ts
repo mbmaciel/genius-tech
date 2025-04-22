@@ -373,8 +373,8 @@ export class XmlStrategyParser {
     // Verificar se o input existe e tem valor
     const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
     
-    // Valor que será FORÇADO para a operação
-    let forcedAmount = 0;
+    // Valor que será FORÇADO para a operação - MUDANDO PARA 2.0 AO INVÉS DE 0
+    let forcedAmount = 2.0;
     
     if (inputElement && inputElement.value) {
       const valueFromInput = parseFloat(inputElement.value);
@@ -384,7 +384,7 @@ export class XmlStrategyParser {
         console.log(`[XML_PARSER] ✅✅✅ IRON OVER: FORÇANDO valor ${forcedAmount} do input`);
       } else {
         console.error(`[XML_PARSER] ❌ IRON OVER: Input tem valor inválido: "${inputElement.value}"`);
-        forcedAmount = 1.0; // Fallback apenas se o input existir mas tiver valor inválido
+        // Manter o valor de 2.0 como fallback se o input existir mas tiver valor inválido
       }
     } else {
       console.error(`[XML_PARSER] ❌ IRON OVER: Input #iron-bot-entry-value não encontrado na página!`);
