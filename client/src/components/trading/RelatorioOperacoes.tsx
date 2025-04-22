@@ -55,6 +55,31 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
     totalProfit: 0
   });
   
+  // Log de depuração para verificar as propriedades das operações
+  useEffect(() => {
+    console.log('[RELATORIO_OPERACOES] ★★★★★ DIAGNÓSTICO DO RELATÓRIO ★★★★★');
+    console.log('[RELATORIO_OPERACOES] Quantidade de operações:', operations.length);
+    
+    if (operations.length > 0) {
+      console.log('[RELATORIO_OPERACOES] ★★★★★ PRIMEIRA OPERAÇÃO ★★★★★');
+      const firstOp = operations[0];
+      
+      // Verificar quais propriedades estão presentes
+      console.log('[RELATORIO_OPERACOES] contract_id:', firstOp.contract_id);
+      console.log('[RELATORIO_OPERACOES] strategy:', firstOp.strategy);
+      console.log('[RELATORIO_OPERACOES] symbol:', firstOp.symbol);
+      console.log('[RELATORIO_OPERACOES] entry_value:', firstOp.entry_value);
+      console.log('[RELATORIO_OPERACOES] entryValue:', firstOp.entryValue);
+      console.log('[RELATORIO_OPERACOES] profit:', firstOp.profit);
+      
+      // Se for uma notificação de sistema, mostrar a mensagem
+      if (firstOp.notification) {
+        console.log('[RELATORIO_OPERACOES] Tipo de notificação:', firstOp.notification.type);
+        console.log('[RELATORIO_OPERACOES] Mensagem:', firstOp.notification.message);
+      }
+    }
+  }, [operations]);
+  
   // Obter estatísticas atualizadas ao carregar o componente ou quando as operações mudarem
   useEffect(() => {
     if (useDirectService) {

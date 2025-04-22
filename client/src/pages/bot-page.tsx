@@ -2156,6 +2156,37 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             {/* Histórico de Operações - Usando o novo componente RelatorioOperacoes */}
             <div className="rounded-lg border border-[#2a3756]">
               <div className="flex justify-between items-center px-4 pt-2">
+                {/* Botão de diagnóstico para testar o histórico */}
+                <button 
+                  onClick={() => {
+                    console.log('[BOT_PAGE] ★★★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO ★★★★★');
+                    const testOperation = {
+                      id: Date.now(),
+                      contract_id: Date.now(),
+                      entryValue: parseFloat(entryValue || "1"),
+                      entry_value: parseFloat(entryValue || "1"),
+                      finalValue: parseFloat(entryValue || "1") * 1.8,
+                      exit_value: parseFloat(entryValue || "1") * 1.8,
+                      profit: parseFloat(entryValue || "1") * 0.8,
+                      time: new Date(),
+                      timestamp: Date.now(),
+                      contract_type: "DIGITOVER",
+                      symbol: "R_100",
+                      strategy: selectedStrategy || "botlow",
+                      is_win: true,
+                      notification: {
+                        type: 'success' as 'success' | 'info' | 'warning' | 'error',
+                        message: `TESTE DIAGNÓSTICO | Entrada: $${parseFloat(entryValue || "1")} | Resultado: $${parseFloat(entryValue || "1") * 1.8}`
+                      }
+                    };
+                    
+                    setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
+                  }}
+                  className="px-2 py-1 text-xs text-white bg-amber-700 hover:bg-amber-600 rounded transition"
+                >
+                  + Adicionar Teste
+                </button>
+              
                 {operationHistory.length > 0 && (
                   <button 
                     onClick={() => setOperationHistory([])}
