@@ -767,27 +767,51 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // Resposta de compra de contrato
+      // Resposta de compra de contrato - MELHORADO
       if (data.msg_type === 'buy') {
         if (data.error) {
-          console.error('[OAUTH_DIRECT] Erro na compra de contrato:', data.error.message);
+          console.error('[OAUTH_DIRECT] ❌ ERRO NA COMPRA DE CONTRATO:', data.error.message);
+          console.error('[OAUTH_DIRECT] Detalhes do erro:', data.error);
+          
           this.notifyListeners({
             type: 'error',
-            message: `Erro na compra: ${data.error.message}`
+            message: `Erro na compra: ${data.error.message || "Falha na operação"}`,
+            details: data.error
           });
-        } else {
-          console.log('[OAUTH_DIRECT] Contrato comprado com sucesso:', data.buy.contract_id);
+        } else if (data.buy) {
+          console.log('[OAUTH_DIRECT] ✅ CONTRATO COMPRADO COM SUCESSO!');
+          console.log('[OAUTH_DIRECT] 📊 Detalhes da compra:', {
+            contract_id: data.buy.contract_id,
+            longcode: data.buy.longcode,
+            start_time: data.buy.start_time,
+            payout: data.buy.payout,
+            buy_price: data.buy.buy_price,
+            symbol: data.buy.shortcode?.split('_')[0]
+          });
+          
+          // Salvar ID do contrato atual
           this.currentContractId = data.buy.contract_id;
           
+          // Emitir evento de contrato comprado com todos os detalhes
           this.notifyListeners({
             type: 'contract_purchased',
             contract_id: data.buy.contract_id,
             buy_price: data.buy.buy_price,
+            longcode: data.buy.longcode,
+            payout: data.buy.payout,
             contract: data.buy
           });
           
-          // Inscrever para atualizações deste contrato
+          // Registrar estatísticas para este símbolo
+          const symbol = data.buy.shortcode?.split('_')[0] || 'R_100';
+          this.recordStatsForSymbol(symbol, data.buy.buy_price);
+          
+          // Inscrever para atualizações deste contrato - com retry em caso de falha
           this.subscribeToProposalOpenContract();
+        } else {
+          // Resposta inesperada - sem erro, mas também sem dados de compra
+          console.error('[OAUTH_DIRECT] ⚠️ RESPOSTA ANÔMALA: Mensagem de tipo buy sem objeto buy nem erro');
+          console.error('[OAUTH_DIRECT] Resposta completa:', data);
         }
       }
       
