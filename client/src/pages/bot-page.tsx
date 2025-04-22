@@ -1722,8 +1722,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         console.log('[BOT_PAGE] ★★★ VERIFICANDO SE BOT ESTÁ RODANDO ANTES DE ADICIONAR OPERAÇÃO ★★★', botStatus);
         
-        // CORREÇÃO CRÍTICA: Verificar se o bot está rodando antes de adicionar operação ao histórico
-        if (botStatus === 'running') {
+        // CORREÇÃO CRÍTICA: Verificar se o bot está rodando ou não foi explicitamente parado
+        // Um botStatus 'idle' significa que o bot está pronto mas ainda não foi iniciado
+        // Só devemos filtrar quando o bot foi explicitamente parado pelo usuário ('stopped')
+        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
           console.log('[BOT_PAGE] ★★★ BOT ESTÁ RODANDO, ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★');
           
           // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
@@ -1898,8 +1900,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           console.log('[BOT_PAGE] Verificando se pode adicionar operação ao histórico (bot status):', botStatus);
           
-          // Verificar duplicação e adicionar ao histórico SOMENTE se o bot estiver em execução
-          if (botStatus === 'running') {
+          // Verificar duplicação e adicionar ao histórico quando bot estiver rodando ou pronto
+          if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
             console.log('[BOT_PAGE] Bot está rodando, adicionando operação ao histórico:', newOperation);
             
             // Verificar duplicação antes de adicionar ao histórico
@@ -1970,8 +1972,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         console.log('[BOT_PAGE] Verificando se pode adicionar notificação de limite (bot status):', botStatus);
         
-        // Adicionar notificação ao histórico apenas se o bot estiver rodando
-        if (botStatus === 'running') {
+        // Adicionar notificação ao histórico se o bot estiver rodando ou pronto
+        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
           console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico (bot rodando):', newNotification);
           setOperationHistory((prevHistory) => {
             // Tipagem explícita para prevHistory
