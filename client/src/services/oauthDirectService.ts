@@ -643,8 +643,45 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       const data = JSON.parse(event.data);
       
+      // 📡📡📡 LOG COMPLETO DE TODAS AS MENSAGENS RECEBIDAS DO WEBSOCKET 📡📡📡
+      console.log(`[OAUTH_DIRECT] 🔍 MENSAGEM COMPLETA RECEBIDA: ${JSON.stringify(data)}`);
+      
       // Log resumido para depuração
       console.log(`[OAUTH_DIRECT] Mensagem recebida (${data.msg_type})`);
+      
+      // 💎 VERIFICAÇÃO ADICIONAL PARA PROPOSAL
+      if (data.proposal) {
+        console.log(`[OAUTH_DIRECT] 💎 PROPOSTA RECEBIDA: ID=${data.proposal.id}, Preço=${data.proposal.ask_price}`);
+      }
+      
+      // 💰 VERIFICAÇÃO ADICIONAL PARA BUY
+      if (data.buy) {
+        console.log(`[OAUTH_DIRECT] 💰 COMPRA CONFIRMADA: ID=${data.buy.contract_id}, Preço=${data.buy.buy_price}`);
+        
+        // Salvar o ID do contrato atual
+        this.currentContractId = data.buy.contract_id;
+        
+        // Inscrever para monitorar o contrato
+        this.subscribeToProposalOpenContract(data.buy.contract_id);
+        
+        // Notificar sobre a compra
+        this.notifyListeners({
+          type: 'contract_purchased',
+          contract_id: data.buy.contract_id,
+          details: data.buy
+        });
+      }
+      
+      // ❌ VERIFICAÇÃO ADICIONAL PARA ERROS
+      if (data.error) {
+        console.error(`[OAUTH_DIRECT] ❌ ERRO DA API: ${JSON.stringify(data.error)}`);
+        
+        // Notificar sobre o erro
+        this.notifyListeners({
+          type: 'error',
+          message: `Erro da API: ${data.error.message || JSON.stringify(data.error)}`
+        });
+      }
       
       // Resposta de autorização
       if (data.msg_type === 'authorize') {
