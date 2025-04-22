@@ -1474,25 +1474,40 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Validar se a operação deve continuar com base nos limites configurados
    */
   private validateOperationContinuation(isWin: boolean, lastContract: any): boolean {
-    // 🚨 Implementação corrigida de validação baseada no lucro/perda e limites configurados
+    // 🚨 IMPLEMENTAÇÃO EMERGENCIAL CORRIGIDA - 22/04/2025 🚨
     
-    console.log(`[OAUTH_DIRECT] 🔍 VALIDANDO CONTINUAÇÃO: isWin=${isWin}, último contrato:`, lastContract?.contract_id);
+    console.log(`[OAUTH_DIRECT] 🔍 VALIDANDO CONTINUAÇÃO DE OPERAÇÕES: isWin=${isWin}, último contrato:`, lastContract?.contract_id);
     
-    // CORREÇÃO: Verificar se o bot ainda está em execução
+    // ESTADO CRÍTICO #1: Verificar se o bot ainda está em execução
     if (!this.isRunning) {
-      console.log(`[OAUTH_DIRECT] ⚠️ Bot não está mais em execução, operações interrompidas`);
+      console.log(`[OAUTH_DIRECT] ⚠️ FALHA CRÍTICA: Bot não está mais em execução, operações interrompidas`);
       return false;
     }
     
-    // Verificar se temos configurações de limite de perda e meta de lucro
+    // ESTADO CRÍTICO #2: Verificar se o WebSocket está conectado
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      console.log(`[OAUTH_DIRECT] ⚠️ FALHA CRÍTICA: WebSocket não conectado (status: ${this.webSocket?.readyState})`);
+      
+      // Tentar reconectar ao WebSocket se estiver fechado
+      if (this.webSocket?.readyState === WebSocket.CLOSED) {
+        console.log(`[OAUTH_DIRECT] ⚠️ Tentando reconectar WebSocket...`);
+        this.setupWebSocket().catch(err => {
+          console.error(`[OAUTH_DIRECT] Falha na reconexão:`, err);
+        });
+      }
+      
+      return false;
+    }
+    
+    // VERIFICAÇÃO #3: Verificar se temos configurações de limite de perda e meta de lucro
     const profitTarget = this.settings.profitTarget;
     const lossLimit = this.settings.lossLimit;
     
-    console.log(`[OAUTH_DIRECT] Verificando limites - Meta de lucro: ${profitTarget}, Limite de perda: ${lossLimit}`);
+    console.log(`[OAUTH_DIRECT] Verificando limites - Meta de lucro: ${profitTarget || 'não definida'}, Limite de perda: ${lossLimit || 'não definido'}`);
     
-    if (!profitTarget && !lossLimit) {
-      // Se não houver limites, continuar operando
-      console.log(`[OAUTH_DIRECT] ✅ Sem limites definidos, continuando operações`);
+    // REGRA DE OURO: Se não houver limites, SEMPRE continuar operando
+    if ((!profitTarget || profitTarget <= 0) && (!lossLimit || lossLimit <= 0)) {
+      console.log(`[OAUTH_DIRECT] ✅ Sem limites definidos (ou limites inválidos), SEMPRE continuando operações`);
       return true;
     }
     

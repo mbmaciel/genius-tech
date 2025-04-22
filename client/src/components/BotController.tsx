@@ -859,20 +859,58 @@ export function BotController({
                     const success = await oauthDirectService.start();
                     
                     if (success) {
-                      console.log('[BOT_TEST] Serviço iniciado com sucesso!');
-                      console.log('[BOT_TEST] Executando primeira operação de teste...');
+                      console.log('[BOT_TEST] 🟢 Serviço iniciado com sucesso!');
+                      console.log('[BOT_TEST] 🟢 Executando primeira operação de teste...');
                       
-                      // Forçar execução da primeira operação usando o valor configurado pelo usuário
-                      // ÚLTIMA VERIFICAÇÃO CRUCIAL: Buscar valor diretamente do input em tempo real
-                      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+                      // SUPER LOG DIAGNÓSTICO - Listar todos os inputs da tela para encontrar o correto
+                      console.log('[BOT_DIAGNÓSTICO] 🔎 Procurando inputs na tela:');
+                      const allInputs = document.querySelectorAll('input');
+                      allInputs.forEach((input, index) => {
+                        console.log(`[BOT_DIAGNÓSTICO] Input #${index}: id=${input.id || 'sem-id'}, type=${input.type}, value=${input.value}, placeholder=${input.placeholder || 'sem-placeholder'}`);
+                      });
+                      
+                      // Tentar diferentes IDs possíveis para o input de valor
+                      const possibleIds = ['iron-bot-entry-value', 'entry-value', 'stake', 'amount', 'entry-amount', 'valor-entrada'];
+                      let foundInput = null;
+                      
+                      // Verificar cada ID possível
+                      for (const id of possibleIds) {
+                        const element = document.getElementById(id) as HTMLInputElement;
+                        if (element) {
+                          console.log(`[BOT_DIAGNÓSTICO] ✅ Encontrado input com ID '${id}': value=${element.value}`);
+                          foundInput = element;
+                          break;
+                        }
+                      }
+                      
+                      // Se não encontrou por ID, procurar por atributos ou classes
+                      if (!foundInput) {
+                        const numberInputs = document.querySelectorAll('input[type="number"]');
+                        if (numberInputs.length > 0) {
+                          console.log(`[BOT_DIAGNÓSTICO] 🔍 Encontrados ${numberInputs.length} inputs numéricos`);
+                          // Usar o primeiro input numérico com valor > 0
+                          for (let i = 0; i < numberInputs.length; i++) {
+                            const input = numberInputs[i] as HTMLInputElement;
+                            if (input.value && parseFloat(input.value) > 0) {
+                              console.log(`[BOT_DIAGNÓSTICO] ✅ Usando input numérico #${i}: value=${input.value}`);
+                              foundInput = input;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Agora usar o input encontrado ou fallback
                       let finalOperationAmount: number | undefined;
                       
-                      if (inputElement && inputElement.value) {
-                        const inputValue = parseFloat(inputElement.value);
+                      if (foundInput && foundInput.value) {
+                        const inputValue = parseFloat(foundInput.value);
                         if (!isNaN(inputValue) && inputValue > 0) {
                           finalOperationAmount = inputValue;
-                          console.log(`[BOT_TEST] 🚨 CORREÇÃO DEFINITIVA: Pegando valor ${finalOperationAmount} diretamente do input em tempo real`);
+                          console.log(`[BOT_TEST] 🚨 CORREÇÃO DEFINITIVA: Pegando valor ${finalOperationAmount} do input encontrado`);
                         }
+                      } else {
+                        console.log(`[BOT_DIAGNÓSTICO] ⚠️ Não foi possível encontrar um input válido na tela`);
                       }
                       
                       // Se não foi possível pegar do input, usar valor calculado anteriormente
@@ -881,10 +919,16 @@ export function BotController({
                         console.log(`[BOT_TEST] ⚠️ Usando valor de fallback: ${finalOperationAmount}`);
                       }
                       
+                      // GARANTIR que nunca usamos undefined ou null
+                      if (finalOperationAmount === undefined || finalOperationAmount === null) {
+                        finalOperationAmount = 1.0; // Último recurso absoluto
+                        console.log(`[BOT_TEST] ⚠️⚠️⚠️ VALOR CRÍTICO AUSENTE: Usando valor padrão ${finalOperationAmount} como último recurso`);
+                      }
+                      
                       console.log(`[BOT_TEST] 🚨 VALOR FINAL: Usando ${finalOperationAmount} para a primeira operação`);
                       const started = await oauthDirectService.executeFirstOperation(finalOperationAmount);
                       
-                      console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
+                      console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO ✅' : 'FALHA ❌');
                       
                       // Atualizar estados
                       setStatus('running');
