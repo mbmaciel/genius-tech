@@ -2635,23 +2635,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         prediction: prediction
       });
       
-      // 🚨🚨🚨 MUDANÇA CRÍTICA: IMPLEMENTAÇÃO DE FLUXO PROPOSAL -> BUY 🚨🚨🚨
+      // 🚨🚨🚨 CORREÇÃO CRÍTICA: IMPLEMENTAÇÃO CORRIGIDA DE FLUXO PROPOSAL -> BUY 🚨🚨🚨
       // Documentação: https://api.deriv.com/api-explorer/#proposal
       // É necessário primeiro obter uma proposta antes de fazer a compra
       
-      console.log(`[OAUTH_DIRECT] 🔄 NOVO FLUXO: Primeiro solicitando proposta (proposal) antes da compra`);
+      console.log(`[OAUTH_DIRECT] 🔄 FLUXO CORRIGIDO: Solicitando proposta (proposal) antes da compra`);
+      console.log(`[OAUTH_DIRECT] 💰 VALOR DE ENTRADA ORIGINAL: ${amount} USD (EXATAMENTE o valor configurado pelo usuário)`);
       
-      // Parse do valor para garantir que é numérico
-      const parsedAmount = parseFloat(amount.toString());
+      // Parse do valor para garantir que é numérico - PRESERVANDO O VALOR EXATO configurado pelo usuário
+      const parsedAmount = typeof amount === 'number' ? amount : parseFloat(amount.toString());
       
-      // Primeiro passo: criar a solicitação de proposta
+      // Verificar e registrar se o valor foi convertido corretamente
+      if (parsedAmount !== parseFloat(amount.toString())) {
+        console.error(`[OAUTH_DIRECT] ⚠️ ALERTA: Valor de entrada pode ter sido alterado na conversão: ${amount} -> ${parsedAmount}`);
+      }
+      
+      console.log(`[OAUTH_DIRECT] 💰 VALOR DE ENTRADA FINAL (após conversão): ${parsedAmount} USD`);
+      
+      // Primeiro passo: criar a solicitação de proposta com ID único
       const reqId = Date.now(); // ID único para essa solicitação
       
       // Montar objeto de proposta conforme documentação da API
       const proposalRequest: any = {
         proposal: 1,
         req_id: reqId,
-        amount: parsedAmount,
+        amount: parsedAmount, // Usar o valor exato convertido
         basis: "stake",
         contract_type: contractType,
         currency: "USD",
@@ -2663,39 +2671,70 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Adicionar barreira para contratos de dígito
       if (contractType.includes('DIGIT')) {
         proposalRequest.barrier = prediction.toString();
-        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito`);
+        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito ${contractType}`);
       }
       
       // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
-      console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA: ${JSON.stringify(proposalRequest, null, 2)}`);
+      console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA:`, proposalRequest);
+      
+      // Criar uma variável para controlar se já processamos a resposta
+      let proposalProcessed = false;
       
       // Enviar solicitação de proposta
-      this.webSocket.send(JSON.stringify(proposalRequest));
+      try {
+        this.webSocket.send(JSON.stringify(proposalRequest));
+        console.log(`[OAUTH_DIRECT] ✅ Proposta enviada com sucesso. Aguardando resposta...`);
+      } catch (wsError) {
+        console.error(`[OAUTH_DIRECT] ❌ ERRO AO ENVIAR PROPOSTA:`, wsError);
+        return; // Encerrar o fluxo se houver erro ao enviar
+      }
       
       // Adicionar listener para receber a resposta da proposta
       const handleProposalResponse = (event: MessageEvent) => {
+        // Evitar processamento duplicado
+        if (proposalProcessed) {
+          return;
+        }
+        
         try {
           const data = JSON.parse(event.data);
+          console.log(`[OAUTH_DIRECT] 📨 Mensagem recebida:`, data);
           
-          // Verificar se é a resposta à nossa proposta
+          // Verificar se é a resposta à nossa proposta pelo req_id
           if (data.req_id === reqId && data.proposal) {
-            console.log(`[OAUTH_DIRECT] ✅ PROPOSTA RECEBIDA COM SUCESSO:`, data.proposal);
+            // Marcar como processado para evitar duplicação
+            proposalProcessed = true;
             
-            // Remover o listener após receber a resposta
+            console.log(`[OAUTH_DIRECT] ✅ PROPOSTA ACEITA: ID=${data.proposal.id}, Preço=${data.proposal.ask_price}, Payout=${data.proposal.payout}`);
+            
+            // Remover o listener imediatamente
             this.webSocket.removeEventListener('message', handleProposalResponse);
             
             // Agora sim fazer a compra usando o ID da proposta recebida
             const buyRequest = {
               buy: data.proposal.id,
-              price: data.proposal.ask_price
+              price: data.proposal.ask_price,
+              req_id: Date.now() // Novo ID único para a compra
             };
             
-            console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`);
-            this.webSocket.send(JSON.stringify(buyRequest));
+            console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA:`, buyRequest);
+            
+            // Enviar a solicitação de compra
+            try {
+              this.webSocket.send(JSON.stringify(buyRequest));
+              console.log(`[OAUTH_DIRECT] ✅ Compra enviada com sucesso!`);
+            } catch (buyError) {
+              console.error(`[OAUTH_DIRECT] ❌ ERRO AO ENVIAR COMPRA:`, buyError);
+            }
           } 
           else if (data.error) {
+            // Marcar como processado se for um erro relacionado à nossa proposta
+            if (data.req_id === reqId) {
+              proposalProcessed = true;
+              this.webSocket.removeEventListener('message', handleProposalResponse);
+            }
+            
             console.error(`[OAUTH_DIRECT] ❌ ERRO NA PROPOSTA:`, data.error);
-            this.webSocket.removeEventListener('message', handleProposalResponse);
             
             // Notificar sobre o erro
             this.notifyListeners({
@@ -2704,8 +2743,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             });
           }
         } catch (error) {
-          console.error(`[OAUTH_DIRECT] ❌ ERRO AO PROCESSAR RESPOSTA DA PROPOSTA:`, error);
-          this.webSocket.removeEventListener('message', handleProposalResponse);
+          console.error(`[OAUTH_DIRECT] ❌ ERRO AO PROCESSAR RESPOSTA:`, error);
+          
+          // Remover listener apenas se for um erro grave de processamento
+          if (!proposalProcessed) {
+            proposalProcessed = true;
+            this.webSocket.removeEventListener('message', handleProposalResponse);
+          }
         }
       };
       
@@ -2714,9 +2758,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Adicionar um timeout para caso não receba resposta da proposta
       setTimeout(() => {
-        this.webSocket.removeEventListener('message', handleProposalResponse);
-        console.error(`[OAUTH_DIRECT] ⏱️ TIMEOUT NA PROPOSTA`);
-      }, 10000); // 10 segundos
+        if (!proposalProcessed) {
+          this.webSocket.removeEventListener('message', handleProposalResponse);
+          console.error(`[OAUTH_DIRECT] ⏱️ TIMEOUT: Nenhuma resposta para proposta após 15 segundos`);
+          
+          // Notificar sobre o timeout
+          this.notifyListeners({
+            type: 'error',
+            message: `Timeout: Servidor não respondeu à proposta em tempo hábil.`
+          });
+        }
+      }, 15000); // 15 segundos (aumentado para dar mais tempo)
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao executar compra de contrato:', error);
       this.notifyListeners({
