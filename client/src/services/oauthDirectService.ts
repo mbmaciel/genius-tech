@@ -760,6 +760,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             // Salvar o último dígito recebido
             this.lastDigit = lastDigit;
             
+            // CORREÇÃO CRÍTICA: Salvar ticks no localStorage para uso pela estratégia
+            this.saveTickToLocalStorage(symbol, {
+              lastDigit,
+              price,
+              timestamp: Date.now(),
+              epoch
+            });
+            
             // IMPLEMENTAÇÃO CRÍTICA: Avaliar condições da estratégia a cada tick
             // Este é o ponto central que permite que o robô opere automaticamente
             if (this.isRunning && this.activeStrategy) {
@@ -1187,15 +1195,30 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   public getDigitStats(): DigitStat[] {
     try {
       // Obter dados de digits dos últimos ticks recebidos
-      const localData = localStorage.getItem(`deriv_ticks_${this.activeSymbol}`);
+      const localDataKey = `deriv_ticks_${this.activeSymbol}`;
+      console.log('[OAUTH_DIRECT] 🔍 Buscando histórico de ticks na chave:', localDataKey);
+      
+      const localData = localStorage.getItem(localDataKey);
       if (!localData) {
-        console.log('[OAUTH_DIRECT] Nenhum histórico de ticks disponível ainda');
+        console.log('[OAUTH_DIRECT] ⚠️ Nenhum histórico de ticks disponível ainda na chave:', localDataKey);
+        
+        // CORREÇÃO CRÍTICA: Usar independentDerivService para obter dados de ticks se não houver dados no localStorage
+        if (window.independentDerivService) {
+          console.log('[OAUTH_DIRECT] 🔄 Tentando obter histórico do independentDerivService');
+          const independentStats = window.independentDerivService.getDigitStats(this.activeSymbol, 25);
+          
+          if (independentStats && independentStats.length > 0) {
+            console.log('[OAUTH_DIRECT] ✅ Histórico obtido do independentDerivService:', independentStats);
+            return independentStats;
+          }
+        }
+        
         return [];
       }
       
       const lastTicksData = JSON.parse(localData);
       if (!Array.isArray(lastTicksData) || lastTicksData.length < 10) {
-        console.log('[OAUTH_DIRECT] Histórico de ticks insuficiente para análise');
+        console.log('[OAUTH_DIRECT] ⚠️ Histórico de ticks insuficiente para análise:', lastTicksData?.length || 0, 'ticks');
         return [];
       }
       
