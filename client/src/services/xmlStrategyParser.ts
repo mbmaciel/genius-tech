@@ -372,9 +372,9 @@ export class XmlStrategyParser {
     
     // PASSO 1: Obter valores iniciais a partir da hierarquia correta
     
-    // Obter valor do input diretamente
+    // MODIFICAÇÃO CRÍTICA - APENAS valor do usuário, sem fallbacks!
     const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
-    let valorInicial = 0.35; // Valor padrão do XML IRON OVER
+    let valorInicial = 0; // Inicializado com zero, será rejeitado se não for modificado
     
     if (botValueElement && botValueElement.value) {
       const valueFromDOM = parseFloat(botValueElement.value);
@@ -496,9 +496,9 @@ export class XmlStrategyParser {
     
     // PASSO 1: Obter valores iniciais a partir da hierarquia correta
     
-    // Obter valor do input diretamente
+    // MODIFICAÇÃO CRÍTICA - APENAS valor do usuário, sem fallbacks!
     const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
-    let valorInicial = 0.35; // Valor padrão do XML IRON UNDER
+    let valorInicial = 0; // Inicializado com zero, será rejeitado se não for modificado
     
     if (botValueElement && botValueElement.value) {
       const valueFromDOM = parseFloat(botValueElement.value);
@@ -649,62 +649,52 @@ export class XmlStrategyParser {
    * Implementa a hierarquia correta: configs do usuário > XML
    */
   private getFinalAmount(): number {
-    // ✅ IMPLEMENTAÇÃO CORRETA - PRIORIZA CONFIGURAÇÕES DO USUÁRIO, MAS SEGUE O XML
-    console.log('[XML_PARSER] === LÓGICA PARA CALCULAR VALOR DA OPERAÇÃO ===');
+    // 🔴🔴🔴 IMPLEMENTAÇÃO REESCRITA - SOLUÇÃO DEFINITIVA 22/04/2025 🔴🔴🔴
+    // USAR EXCLUSIVAMENTE O VALOR CONFIGURADO PELO USUÁRIO
+    // NUNCA USAR VALORES DO XML OU PADRÃO
     
-    // HIERARQUIA DE DECISÃO:
-    // 1. Configuração do usuário na interface (mais alta prioridade)
-    // 2. Configuração do usuário salva no localStorage
-    // 3. Valores do XML da estratégia (se disponíveis)
-    // 4. Valor padrão seguro (0.35 conforme IRON OVER.xml e IRON UNDER.xml)
+    console.log('[XML_PARSER] === LÓGICA DEFINITIVA PARA VALOR DA OPERAÇÃO ===');
     
-    // PASSO 1: Buscar valor na interface (maior prioridade)
+    // HIERARQUIA DE DECISÃO ATUALIZADA:
+    // 1. APENAS configuração do usuário na interface (ÚNICA fonte aceita)
+    
+    // ÚNICA FONTE: Input no DOM (prioridade EXCLUSIVA)
     const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
     if (botValueElement && botValueElement.value) {
       const valueFromDOM = parseFloat(botValueElement.value);
       if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
-        console.log(`[XML_PARSER] ✅ Priorizando valor ${valueFromDOM} configurado pelo usuário na interface`);
+        console.log(`[XML_PARSER] ✅ VALOR ÚNICO: ${valueFromDOM} configurado pelo usuário na interface`);
+        
+        // Assegurar que este valor seja salvo também no localStorage para 
+        // garantir consistência em todo o sistema
+        const currentStrategy = this.detectCurrentStrategy();
+        if (currentStrategy) {
+          try {
+            const configKey = `strategy_config_${currentStrategy}`;
+            const savedConfig = localStorage.getItem(configKey);
+            if (savedConfig) {
+              // Atualizar o valor no localStorage
+              const parsedConfig = JSON.parse(savedConfig);
+              parsedConfig.valorInicial = valueFromDOM;
+              localStorage.setItem(configKey, JSON.stringify(parsedConfig));
+              console.log(`[XML_PARSER] ✅ Valor ${valueFromDOM} sincronizado com localStorage`);
+            }
+          } catch (e) {
+            console.error('[XML_PARSER] Erro ao atualizar localStorage:', e);
+          }
+        }
+        
         return valueFromDOM;
       }
     }
     
-    // PASSO 2: Buscar nas configurações da estratégia atual no localStorage
-    const currentStrategy = this.detectCurrentStrategy();
-    if (currentStrategy) {
-      try {
-        // Verificar configurações salvas pelo usuário
-        const configKey = `strategy_config_${currentStrategy}`;
-        const savedConfig = localStorage.getItem(configKey);
-        if (savedConfig) {
-          const parsedConfig = JSON.parse(savedConfig);
-          if (parsedConfig.valorInicial && !isNaN(parseFloat(parsedConfig.valorInicial.toString()))) {
-            const savedValue = parseFloat(parsedConfig.valorInicial.toString());
-            console.log(`[XML_PARSER] ✅ Usando valor ${savedValue} das configurações salvas para ${currentStrategy}`);
-            return savedValue;
-          }
-        }
-      } catch (e) {
-        console.error('[XML_PARSER] Erro ao ler configurações salvas:', e);
-      }
-    }
+    // ERRO FATAL: Se não encontrou valor configurado pelo usuário
+    console.error('[XML_PARSER] ❌ ERRO FATAL: NENHUM VALOR CONFIGURADO PELO USUÁRIO ENCONTRADO');
     
-    // PASSO 3: Usar valores do XML (via this.variables) - agora implementando fielmente
-    if (this.variables.valorInicial !== undefined) {
-      try {
-        const xmlValue = parseFloat(this.variables.valorInicial.toString());
-        if (!isNaN(xmlValue) && xmlValue > 0) {
-          console.log(`[XML_PARSER] ✅ Seguindo valor ${xmlValue} definido no XML da estratégia`);
-          return xmlValue;
-        }
-      } catch (e) {
-        console.error('[XML_PARSER] Erro ao converter valor do XML:', e);
-      }
-    }
-    
-    // PASSO 4: Usar valor padrão seguro como último recurso
-    // Valor 0.35 é o padrão definido nos XMLs fornecidos
-    console.log(`[XML_PARSER] ⚠️ Nenhuma configuração encontrada, usando valor padrão de segurança: 0.35`);
-    return 0.35; // Valor padrão consistente com os XMLs
+    // Usar valor seguro apenas para evitar erro de tipo e timeout
+    // Este valor NÃO será usado em operações reais pois bloquearemos
+    // a operação se não houver valor configurado pelo usuário
+    return 0;
   }
   
   /**
