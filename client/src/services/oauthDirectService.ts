@@ -4185,6 +4185,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private notifyListeners(event: TradingEvent): void {
     console.log(`[OAUTH_DIRECT] Notificando ${this.eventListeners.length} listeners sobre: ${event.type}`);
     
+    // Para eventos contract_finished, emitir também para o DOM
+    if (event.type === 'contract_finished' && typeof window !== 'undefined') {
+      try {
+        console.log(`[OAUTH_DIRECT] 📢 Emitindo evento DOM: contract_finished`, event);
+        const domEvent = new CustomEvent('contract_finished', { 
+          detail: {
+            ...event,
+            timestamp: Date.now(),
+            strategy: this.strategyConfig || '',
+            entry_value: event.entry_value || this.settings.entryValue || 0
+          }
+        });
+        window.dispatchEvent(domEvent);
+      } catch (e) {
+        console.error(`[OAUTH_DIRECT] Erro ao emitir evento DOM:`, e);
+      }
+    }
+    
     // Fazer uma cópia da lista de listeners para evitar problemas se um listener se remover durante a notificação
     const listeners = [...this.eventListeners];
     
