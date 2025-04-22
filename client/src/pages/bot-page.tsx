@@ -779,6 +779,32 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
             }
             
+            // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações
+            const operationRecord = {
+              id: event.contract_id || Date.now(),
+              contract_id: event.contract_id,
+              entryValue: event.entry_value || event.contract_details?.buy_price || 0,
+              entry_value: event.entry_value || event.contract_details?.buy_price || 0,
+              finalValue: event.exit_value || event.contract_details?.sell_price || 0,
+              exit_value: event.exit_value || event.contract_details?.sell_price || 0,
+              profit: event.profit || 0,
+              time: new Date(),
+              timestamp: Date.now(),
+              contract_type: event.contract_type || event.contract_details?.contract_type || '',
+              symbol: event.symbol || event.contract_details?.underlying_symbol || 'R_100',
+              strategy: event.strategy || selectedStrategy || '',
+              is_win: event.is_win || false,
+              notification: {
+                type: event.is_win ? 'success' : 'error',
+                message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
+              }
+            };
+            
+            console.log('[BOT_PAGE] Adicionando operação ao histórico:', operationRecord);
+            
+            // Atualizar o histórico de operações
+            setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
+            
             // Atualizar estado da operação
             setOperation({
               entry: operation.entry,
