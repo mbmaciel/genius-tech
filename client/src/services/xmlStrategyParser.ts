@@ -564,59 +564,79 @@ export class XmlStrategyParser {
    * Obtém o valor final para entrada considerando configurações do usuário
    */
   private getFinalAmount(): number {
-    // CORREÇÃO CRÍTICA: Priorizar SEMPRE configurações do usuário sobre valores do XML
+    // ⚠️⚠️⚠️ MÉTODO COMPLETAMENTE REESCRITO - SOLUÇÃO DEFINITIVA ⚠️⚠️⚠️
     
-    // Buscar configuração definida pelo usuário no localStorage
-    // Esta abordagem é mais confiável porque pega diretamente do localStorage
-    // em vez de confiar apenas no this.userConfig que pode estar desatualizado
+    // 1. IGNORAR COMPLETAMENTE valores hardcoded do XML
+    // 2. SEMPRE usar o valor configurado pelo usuário
+    // 3. Quando não houver valor do usuário, usar 1.0 como padrão seguro
+    
+    // Obter o valor da estratégia ativa no DOM (interface visual)
+    // Esta é a fonte mais confiável porque representa o que o usuário está vendo na interface
+    const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    if (botValueElement && botValueElement.value) {
+      const valueFromDOM = parseFloat(botValueElement.value);
+      if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+        console.log(`[XML_PARSER] ⚠️ SOLUÇÃO FINAL: Usando valor ${valueFromDOM} diretamente do DOM (interface)`);
+        return valueFromDOM;
+      }
+    }
+    
+    // ALTERNATIVA: Estratégia específica - Iron Over, Iron Under e Advance
     let strategies = ['ironover', 'ironunder', 'advance'];
-    let valorConfigurado = null;
+    let activeStrategy = '';
     
-    // Verificar para cada estratégia possível
+    // Detectar estratégia ativa no DOM
+    const botStrategyElement = document.getElementById('bot-strategy-display');
+    if (botStrategyElement && botStrategyElement.textContent) {
+      const displayedStrategy = botStrategyElement.textContent.toLowerCase();
+      if (displayedStrategy.includes('iron over')) {
+        activeStrategy = 'ironover';
+      } else if (displayedStrategy.includes('iron under')) {
+        activeStrategy = 'ironunder';
+      } else if (displayedStrategy.includes('advance')) {
+        activeStrategy = 'advance';
+      }
+    }
+    
+    // Priorizar a estratégia ativa, se detectada
+    if (activeStrategy) {
+      strategies = [activeStrategy, ...strategies.filter(s => s !== activeStrategy)];
+    }
+    
+    // Verificar valor no localStorage para cada estratégia possível
     for (const strategyId of strategies) {
       try {
         const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
         if (configStr) {
           const config = JSON.parse(configStr);
           if (config.valorInicial !== undefined) {
-            valorConfigurado = parseFloat(config.valorInicial);
-            console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Encontrado valor inicial ${valorConfigurado} configurado pelo usuário para ${strategyId}`);
-            break; // Usar o primeiro valor encontrado
+            const valorConfigurado = parseFloat(config.valorInicial.toString());
+            if (!isNaN(valorConfigurado) && valorConfigurado > 0) {
+              console.log(`[XML_PARSER] ⚠️ SOLUÇÃO FINAL: Encontrado valor ${valorConfigurado} no localStorage para ${strategyId}`);
+              return valorConfigurado;
+            }
           }
         }
       } catch (e) {
-        console.error(`[XML_PARSER] Erro ao ler configuração salva para ${strategyId}:`, e);
+        console.error(`[XML_PARSER] Erro ao ler configuração: ${e}`);
       }
     }
     
-    // CORREÇÃO CRÍTICA:
-    // O valor hardcoded no XML (0.35) nunca deve ter prioridade sobre as configurações do usuário
-    
-    // Força o uso do valor padrão 1.0 quando não houver configuração do usuário 
-    // (para evitar o valor hardcoded 0.35 do XML)
-    let amount = 1.0; // Valor padrão alterado para NUNCA usar o valor do XML
-    
-    // IGNORAR COMPLETAMENTE o valor do XML (0.35) se houver QUALQUER outro valor definido
-    if (valorConfigurado !== null) {
-      // Prioridade 1: Usar valor definido pelo usuário no localStorage
-      amount = valorConfigurado;
-      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Usando valor ${amount} definido pelo usuário no localStorage`);
-    } else if (this.userConfig.valorInicial !== undefined) {
-      // Prioridade 2: Usar valor definido no userConfig
-      amount = this.userConfig.valorInicial;
-      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Usando valor ${amount} definido no userConfig`);
-    } else {
-      // Prioridade 3: Usar valor padrão FORÇADO (ignorando valor 0.35 do XML)
-      console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Ignorando valor ${this.variables.valorInicial} do XML. Usando valor padrão: ${amount}`);
+    // Última alternativa: verificar userConfig (valores passados via API)
+    if (this.userConfig.valorInicial !== undefined) {
+      const valorUserConfig = parseFloat(this.userConfig.valorInicial.toString());
+      if (!isNaN(valorUserConfig) && valorUserConfig > 0) {
+        console.log(`[XML_PARSER] ⚠️ SOLUÇÃO FINAL: Usando valor ${valorUserConfig} de userConfig`);
+        return valorUserConfig;
+      }
     }
     
-    // NUNCA permitir valor inferior a 0.35 para evitar problemas com mínimo da plataforma
-    if (amount < 0.35) {
-      amount = 0.35;
-      console.log(`[XML_PARSER] Ajustando valor para o mínimo permitido: ${amount}`);
-    }
+    // Valor padrão SEGURO
+    const valorPadrao = 1.0;
+    console.log(`[XML_PARSER] ⚠️ SOLUÇÃO FINAL: Nenhum valor configurado encontrado. Usando padrão seguro: ${valorPadrao}`);
     
-    return amount;
+    // NUNCA usar o valor hardcoded do XML
+    return valorPadrao;
   }
   
   /**
