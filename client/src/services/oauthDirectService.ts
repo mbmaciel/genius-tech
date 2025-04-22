@@ -5,6 +5,7 @@
  * VERSÃO ATUALIZADA: Suporta múltiplos tokens e contas do usuário
  */
 import { 
+  BotStats,
   TradingEvent, 
   TradingSettings, 
   OAuthDirectServiceInterface 
@@ -952,7 +953,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 is_first_operation: isFirstOperation,
                 // Informações adicionais para o histórico
                 strategy: this.activeStrategy,
-                strategy_settings: this.tradingSettings,
+                strategy_settings: this.settings,
                 symbol: contract.underlying_symbol || contract.display_name,
                 contract_type: contract.contract_type,
                 entry_spot: contract.entry_spot,
@@ -4314,6 +4315,74 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao obter histórico de operações:', error);
       return [];
+    }
+  }
+
+  /**
+   * Obtém as estatísticas atuais de vitorias, derrotas e lucro total
+   * @returns Estatísticas atualizadas do robô trading
+   */
+  public getStats(): BotStats {
+    try {
+      // Inicializar estatísticas padrão
+      const defaultStats: BotStats = {
+        wins: 0,
+        losses: 0,
+        totalProfit: 0
+      };
+      
+      // Tentar restaurar estatísticas do localStorage
+      const statsKey = 'deriv_bot_stats';
+      const statsString = localStorage.getItem(statsKey);
+      if (statsString) {
+        try {
+          const parsed = JSON.parse(statsString);
+          if (parsed && typeof parsed === 'object') {
+            // Aplicar somente propriedades válidas
+            return {
+              wins: typeof parsed.wins === 'number' ? parsed.wins : 0,
+              losses: typeof parsed.losses === 'number' ? parsed.losses : 0,
+              totalProfit: typeof parsed.totalProfit === 'number' ? parsed.totalProfit : 0
+            };
+          }
+        } catch (e) {
+          console.error('[OAUTH_DIRECT] Erro ao restaurar estatísticas do bot:', e);
+        }
+      }
+      
+      // Se não houver estatísticas salvas ou ocorrer erro, calcular com base no histórico
+      const history = this.getOperationsHistory(1000); // Pegar um histórico maior para cálculos precisos
+      
+      if (history.length > 0) {
+        // Calcular estatísticas com base no histórico de operações
+        const calculated = history.reduce((stats, op) => {
+          // Verificar se é uma operação válida com resultado
+          if (op.is_win !== undefined && op.profit !== undefined) {
+            if (op.is_win) {
+              stats.wins++;
+            } else {
+              stats.losses++;
+            }
+            stats.totalProfit += (typeof op.profit === 'number') ? op.profit : 0;
+          }
+          return stats;
+        }, {...defaultStats});
+        
+        // Salvar estatísticas calculadas para uso futuro
+        localStorage.setItem(statsKey, JSON.stringify(calculated));
+        
+        return calculated;
+      }
+      
+      // Retornar estatísticas padrão se não houver histórico
+      return defaultStats;
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao calcular estatísticas:', error);
+      return {
+        wins: 0,
+        losses: 0,
+        totalProfit: 0
+      };
     }
   }
 }

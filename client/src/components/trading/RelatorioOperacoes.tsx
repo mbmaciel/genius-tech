@@ -20,14 +20,31 @@ interface Operation {
     digit1: number;
     threshold: number;
   };
+  // Novos campos para suportar as operações do serviço OAuth
+  contract_id?: string | number;
+  strategy?: string;
+  symbol?: string;
+  contract_type?: string;
+  entry_value?: number;
+  exit_value?: number;
+  is_win?: boolean;
+  entry_spot?: number | string;
+  exit_spot?: number | string;
+  entry_time?: number;
+  exit_time?: number;
+  duration?: number;
+  barrier?: string | number;
+  payout?: number;
+  timestamp?: number;
 }
 
 interface RelatorioOperacoesProps {
   operations: Operation[];
   selectedStrategy?: string;
+  useDirectService?: boolean; // Flag para usar o serviço direto OAuth para operações
 }
 
-export function RelatorioOperacoes({ operations, selectedStrategy }: RelatorioOperacoesProps) {
+export function RelatorioOperacoes({ operations, selectedStrategy, useDirectService = false }: RelatorioOperacoesProps) {
   const { t, i18n } = useTranslation();
   
   // Obter o idioma atual

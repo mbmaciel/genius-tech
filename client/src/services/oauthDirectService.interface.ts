@@ -17,6 +17,12 @@ export type TradingEventType =
   | 'account_changed'    // Conta trocada
   | 'token_validated';   // Token validado com sucesso
 
+export interface BotStats {
+  wins: number;
+  losses: number;
+  totalProfit: number;
+}
+
 export interface TradingEvent {
   type: TradingEventType | string;
   message?: string;
