@@ -1609,7 +1609,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★★★ PROFIT:', event.profit);
         
         // FORÇAR adição de uma operação ao histórico independente de qualquer condição
-        // para diagnóstico e garantir que o componente RelatorioOperacoes está funcionando
+        // para diagnóstico e garantir que o componente OperationHistoryCard está funcionando
         const forceOperation = {
           id: Date.now(),
           contract_id: event.contract_id || Date.now(),
@@ -1624,14 +1624,25 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           symbol: event.symbol || "R_100",
           strategy: event.strategy || selectedStrategy || "auto",
           is_win: event.is_win,
+          // CRUCIAL: Garantir que não seja marcado como intermediário
+          isIntermediate: false,
           notification: {
             type: 'success' as 'success' | 'info' | 'warning' | 'error',
-            message: `OPERAÇÃO FORÇADA (DEBUG): ID=${event.contract_id}, Profit=${event.profit}`
+            message: `OPERAÇÃO REALIZADA: ID=${event.contract_id}, Profit=${event.profit}`
           }
         };
         
-        console.log('[BOT_PAGE] FORÇANDO adição de operação ao histórico:', forceOperation);
-        setOperationHistory(prev => [forceOperation, ...prev].slice(0, 50));
+        console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★');
+        
+        // Usar timeout para garantir que a atualização ocorra após o processamento do evento
+        setTimeout(() => {
+          setOperationHistory(prev => {
+            console.log('[BOT_PAGE] Histórico anterior:', prev.length);
+            const newHistory = [forceOperation, ...prev].slice(0, 50);
+            console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
+            return newHistory;
+          });
+        }, 10);
         
         // Adicionar operação normal ao histórico (caso o problema seja na extração de detalhes)
         const contract = event.contract_details;
