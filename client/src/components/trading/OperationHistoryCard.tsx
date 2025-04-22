@@ -53,7 +53,7 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
   
   // Atualizar o estado interno quando as operações mudam
   React.useEffect(() => {
-    console.log('[OperationHistoryCard] Recebidas operações externas:', operations.length);
+    console.log('[OperationHistoryCard] 📊 Recebidas operações externas:', operations.length, operations);
     if (operations && operations.length > 0) {
       setInternalOperations(operations);
     }
@@ -92,12 +92,24 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     
     // Registrar o listener para eventos de contrato finalizado
     if (typeof window !== 'undefined') {
+      console.log('[OperationHistoryCard] 🔄 Registrando listener para eventos contract_finished');
       window.addEventListener('contract_finished', handleContractFinished as EventListener);
+      
+      // Teste de evento ao montar
+      try {
+        console.log('[OperationHistoryCard] Testando sistema de eventos...');
+        const testEvent = new CustomEvent('test_event');
+        window.dispatchEvent(testEvent);
+        console.log('[OperationHistoryCard] ✅ Sistema de eventos funcionando');
+      } catch (e) {
+        console.error('[OperationHistoryCard] ❌ Erro no sistema de eventos:', e);
+      }
     }
     
     // Limpar o listener quando o componente for desmontado
     return () => {
       if (typeof window !== 'undefined') {
+        console.log('[OperationHistoryCard] 🔄 Removendo listener de eventos contract_finished');
         window.removeEventListener('contract_finished', handleContractFinished as EventListener);
       }
     };
