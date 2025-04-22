@@ -1014,16 +1014,48 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private async startNextOperation(isWin: boolean, lastContract: any): Promise<void> {
     try {
+      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 INICIANDO PRÓXIMA OPERAÇÃO 🚨🚨🚨`);
+      console.log(`[OAUTH_DIRECT] Resultado anterior: ${isWin ? 'VITÓRIA ✅' : 'DERROTA ❌'}`);
+      console.log(`[OAUTH_DIRECT] Contrato anterior: ${lastContract?.contract_id || 'N/A'}`);
+      console.log(`[OAUTH_DIRECT] Estado do robô: ${this.isRunning ? 'EXECUTANDO' : 'PARADO'}`);
+      console.log(`[OAUTH_DIRECT] WebSocket status: ${this.webSocket?.readyState || 'DESCONECTADO'}`);
+      
+      // CORREÇÃO CRÍTICA: Garantir que estamos em execução
+      if (!this.isRunning) {
+        console.log(`[OAUTH_DIRECT] ⚠️ ALERTA: Bot não está em execução. Próxima operação cancelada.`);
+        return;
+      }
+      
       // Se temos uma operação agendada, limpar
       if (this.operationTimeout) {
         clearTimeout(this.operationTimeout);
+        this.operationTimeout = null;
+      }
+      
+      // VERIFICAÇÃO CRUCIAL: Verificar se o WebSocket está conectado
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        console.log(`[OAUTH_DIRECT] ⚠️ ALERTA: WebSocket não está conectado (status: ${this.webSocket?.readyState}). Tentando reconectar...`);
+        
+        try {
+          await this.setupWebSocket();
+          console.log(`[OAUTH_DIRECT] ✅ WebSocket reconectado com sucesso!`);
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] ❌ Falha ao reconectar WebSocket:`, error);
+          
+          // Se falhar, tentar novamente em 5 segundos
+          this.operationTimeout = setTimeout(() => {
+            this.startNextOperation(isWin, lastContract);
+          }, 5000);
+          
+          return;
+        }
       }
       
       // Verificar se podemos continuar com base nas configurações
       const shouldContinue = this.validateOperationContinuation(isWin, lastContract);
       
       if (!shouldContinue) {
-        console.log('[OAUTH_DIRECT] Estratégia finalizada devido às condições de parada');
+        console.log('[OAUTH_DIRECT] 🛑 Estratégia finalizada devido às condições de parada');
         
         this.notifyListeners({
           type: 'bot_stopped',
@@ -1033,6 +1065,42 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         // Parar a execução
         this.stop();
         return;
+      }
+      
+      // DIAGNÓSTICO: Verificar valor de entrada para próxima operação
+      // Usar o mesmo mecanismo que o executeFirstOperation para garantir consistência
+      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      let entryAmount: number | undefined = undefined;
+      
+      if (inputElement && inputElement.value) {
+        const valueFromDOM = parseFloat(inputElement.value);
+        if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+          entryAmount = valueFromDOM;
+          console.log(`[OAUTH_DIRECT] ✅ Usando valor ${entryAmount} do DOM para próxima operação`);
+        }
+      }
+      
+      // Se não encontrou no DOM, usar valor das configurações
+      if (entryAmount === undefined) {
+        entryAmount = this.settings.entryValue;
+        console.log(`[OAUTH_DIRECT] ✅ Usando valor ${entryAmount} das configurações para próxima operação`);
+      }
+      
+      // VERIFICAÇÃO FINAL: Garantir que temos um valor de entrada
+      if (entryAmount === undefined || entryAmount === null || entryAmount === 0) {
+        console.error(`[OAUTH_DIRECT] ❌ ERRO CRÍTICO: Valor de entrada inválido (${entryAmount}). Usando valor de fallback.`);
+        
+        // ÚLTIMO RECURSO: Usar 1.0 como valor de fallback em caso de erro catastrófico
+        entryAmount = 1.0;
+        console.log(`[OAUTH_DIRECT] ✅ CORREÇÃO EMERGENCIAL: Usando valor de fallback ${entryAmount} para próxima operação`);
+        
+        // Atualizar configurações para garantir consistência
+        this.settings.entryValue = entryAmount;
+        
+        this.notifyListeners({
+          type: 'warning',
+          message: 'Valor de entrada foi resetado para 1.0. Verifique as configurações.'
+        });
       }
       
       // Obter a estratégia atual
