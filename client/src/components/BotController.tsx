@@ -763,7 +763,25 @@ export function BotController({
                 console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando estratégia atual: ${currentStrategy}`);
                 
                 const userConfigString = localStorage.getItem(`strategy_config_${currentStrategy}`);
-                let userEntryValue = entryValue || 1.0; // Usar entryValue passado por props como primeira opção
+                // CORREÇÃO CRÍTICA: NUNCA USAR VALOR FIXO, nem mesmo como fallback
+                // Buscar valor do DOM para garantir 100% de consistência com a interface
+                let userEntryValue: number | null = null;
+                
+                // 1. Valor do input na tela (mais alta prioridade)
+                const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+                if (inputElement && inputElement.value) {
+                  const valueFromInput = parseFloat(inputElement.value);
+                  if (!isNaN(valueFromInput) && valueFromInput > 0) {
+                    userEntryValue = valueFromInput;
+                    console.log(`[BOT_BUTTON] 🔥 CORREÇÃO DEFINITIVA: Usando valor ${userEntryValue} diretamente do input da interface`);
+                  }
+                }
+                
+                // 2. Ou valor passado por props (segunda prioridade)
+                if (userEntryValue === null && entryValue !== undefined && entryValue > 0) {
+                  userEntryValue = entryValue;
+                  console.log(`[BOT_BUTTON] 🔥 CORREÇÃO DEFINITIVA: Usando valor ${userEntryValue} passado por props`);
+                }
                 
                 if (userConfigString) {
                   try {
@@ -796,7 +814,7 @@ export function BotController({
                 oauthDirectService.setSettings({
                   contractType: contractType,
                   prediction: prediction,
-                  entryValue: userEntryValue, // CORREÇÃO CRÍTICA: Usar valor do usuário
+                  entryValue: userEntryValue || Number(entryValue) || undefined, // CORREÇÃO CRÍTICA: Usar valor do usuário
                   profitTarget: profitTarget || strategyConfig?.metaGanho || 20,
                   lossLimit: lossLimit || strategyConfig?.limitePerda || 20,
                   martingaleFactor: strategyConfig?.martingale || 1.5
@@ -817,8 +835,10 @@ export function BotController({
                       
                       // Forçar execução da primeira operação usando o valor configurado pelo usuário
                       // CORREÇÃO: Reutilizar o mesmo userEntryValue calculado anteriormente
-                      console.log(`[BOT_TEST] 🚨 CORREÇÃO CRÍTICA: Reutilizando valor ${userEntryValue} para a primeira operação`);
-                      const started = await oauthDirectService.executeFirstOperation(userEntryValue);
+                      // Garantir que temos um valor não nulo para a operação
+                      const operationAmount = userEntryValue !== null ? userEntryValue : Number(entryValue) || undefined;
+                      console.log(`[BOT_TEST] 🚨 CORREÇÃO CRÍTICA: Usando valor ${operationAmount} para a primeira operação`);
+                      const started = await oauthDirectService.executeFirstOperation(operationAmount);
                       
                       console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
                       

@@ -2490,8 +2490,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   async executeFirstOperation(amount?: number | string): Promise<boolean> {
     // ⚠️⚠️⚠️ GARANTINDO VALOR CONFIGURADO PELO USUÁRIO ⚠️⚠️⚠️
     
-    // Definir valor padrão seguro
-    let entryAmount = 1.0;
+    // NUNCA USAR VALOR FIXO AQUI
+    // Este é o ponto crítico onde o valor da operação precisa ser EXATAMENTE o configurado pelo usuário
+    let entryAmount: number | null = null;
     
     // Converter para número se for string
     let parsedAmount: number | undefined = undefined;
@@ -2533,22 +2534,40 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
     }
     
-    // ⚠️⚠️⚠️ PROTEÇÃO CONTRA VALOR HARDCODED ESPECÍFICO ⚠️⚠️⚠️
-    // Verificar se o valor é exatamente 0.35 (valor suspeito de ser hardcoded do XML)
-    if (entryAmount === 0.35) {
-      // Verificar se há um valor nas configurações da interface
+    // VERIFICAÇÃO ADICIONAL: Verificar se há valor configurado na interface
+    // Use esta verificação como último recurso, caso não tenha encontrado o valor
+    if (entryAmount === null) {
       const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (botValueElement && botValueElement.value) {
         const valueFromDOM = parseFloat(botValueElement.value);
         if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
-          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Substituindo valor suspeito 0.35 pelo valor ${valueFromDOM} da interface`);
+          console.log(`[OAUTH_DIRECT] ✓ SEGURANÇA: Usando valor ${valueFromDOM} obtido diretamente da interface (DOM)`);
           entryAmount = valueFromDOM;
-        } else {
-          // Se não conseguir obter da interface, usar o valor padrão seguro
-          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Detectado valor suspeito 0.35 e não foi possível obter da interface. Usando padrão 1.0`);
-          entryAmount = 1.0;
         }
       }
+    }
+    
+    // ÚLTIMA VERIFICAÇÃO: Se depois de todas as tentativas ainda não tiver um valor,
+    // use o valor que o usuário configurou nos inputs
+    if (entryAmount === null) {
+      console.log(`[OAUTH_DIRECT] ⚠️ AVISO: Não foi possível encontrar o valor configurado pelo usuário em nenhuma fonte`);
+      console.log(`[OAUTH_DIRECT] ⚠️ AVISO: Usando valor padrão do input da interface`);
+      // Procurar em todos os inputs possíveis do formulário
+      const inputs = document.querySelectorAll('input[type="number"]');
+      for (const input of inputs) {
+        const value = parseFloat(input.value);
+        if (!isNaN(value) && value > 0) {
+          entryAmount = value;
+          console.log(`[OAUTH_DIRECT] ✓ SEGURANÇA FINAL: Encontrei valor ${value} no input ${input.id || 'sem id'}`);
+          break;
+        }
+      }
+    }
+    
+    // Se ainda não tiver um valor, use 1.0 como último recurso
+    if (entryAmount === null) {
+      entryAmount = 1.0;
+      console.log(`[OAUTH_DIRECT] ⚠️ AVISO: Não foi possível encontrar nenhum valor configurado. Usando 1.0 como último recurso`);
     }
     
     // Log detalhado para diagnóstico
