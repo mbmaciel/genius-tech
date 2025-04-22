@@ -363,108 +363,108 @@ export class XmlStrategyParser {
    * Analisa a estratégia Iron Over
    * Condição: Usar DIGITOVER e controlar martingale após X perdas
    */
+  /**
+   * Analisa a estratégia Iron Over - Implementação FIEL ao XML mas com prioridade ao usuário
+   * Segue exatamente o que está no XML do IRON OVER.xml fornecido
+   */
   public analyzeIronOverStrategy(consecutiveLosses: number): StrategyAnalysisResult {
-    console.log(`[XML_PARSER] 🔴 DIAGNOSTICO EMERGENCIAL IRON OVER - LEIA OS LOGS ABAIXO`);
-    console.log(`[XML_PARSER] 🔴 Perdas consecutivas: ${consecutiveLosses}`);
+    console.log(`[XML_PARSER] 🔄 Analisando estratégia IRON OVER com ${consecutiveLosses} perdas consecutivas`);
     
-    // ⚠️⚠️⚠️ CORREÇÃO RADICAL: VALOR FIXADO DIRETAMENTE DO INPUT ⚠️⚠️⚠️
-    // Buscar valor APENAS do campo de entrada na interface - ÚNICA fonte de verdade
+    // PASSO 1: Obter valores iniciais a partir da hierarquia correta
     
-    // Verificar se o input existe e tem valor
-    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    // Obter valor do input diretamente
+    const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    let valorInicial = 0.35; // Valor padrão do XML IRON OVER
     
-    // Valor que será FORÇADO para a operação - MUDANDO PARA 2.0 AO INVÉS DE 0
-    let forcedAmount = 2.0;
-    
-    if (inputElement && inputElement.value) {
-      const valueFromInput = parseFloat(inputElement.value);
-      if (!isNaN(valueFromInput) && valueFromInput > 0) {
-        // ESTE É O VALOR QUE DEVE SER USADO - DIRETO DO INPUT
-        forcedAmount = valueFromInput;
-        console.log(`[XML_PARSER] ✅✅✅ IRON OVER: FORÇANDO valor ${forcedAmount} do input`);
-      } else {
-        console.error(`[XML_PARSER] ❌ IRON OVER: Input tem valor inválido: "${inputElement.value}"`);
-        // Manter o valor de 2.0 como fallback se o input existir mas tiver valor inválido
+    if (botValueElement && botValueElement.value) {
+      const valueFromDOM = parseFloat(botValueElement.value);
+      if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+        valorInicial = valueFromDOM;
+        console.log(`[XML_PARSER] ✅ IRON OVER: Usando valor ${valorInicial} configurado pelo usuário na interface`);
       }
     } else {
-      console.error(`[XML_PARSER] ❌ IRON OVER: Input #iron-bot-entry-value não encontrado na página!`);
-      
-      // Buscar QUALQUER input como último recurso
-      const inputs = document.querySelectorAll('input[type="number"]');
-      if (inputs.length > 0) {
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i] as HTMLInputElement;
-          if (input && input.value) {
-            const value = parseFloat(input.value);
-            if (!isNaN(value) && value > 0) {
-              forcedAmount = value;
-              console.log(`[XML_PARSER] ⚠️ IRON OVER: Usando valor ${value} do input alternativo: ${input.id || 'sem id'}`);
-              break;
-            }
+      // Se não encontrar na interface, buscar no localStorage
+      try {
+        const configStr = localStorage.getItem('strategy_config_ironover');
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial && !isNaN(parseFloat(config.valorInicial.toString()))) {
+            valorInicial = parseFloat(config.valorInicial.toString());
+            console.log(`[XML_PARSER] ✅ IRON OVER: Usando valor ${valorInicial} das configurações salvas`);
           }
         }
-      }
-      
-      // Se ainda não tiver um valor, usar 1.0 como último recurso
-      if (forcedAmount <= 0) {
-        forcedAmount = 1.0;
-        console.log(`[XML_PARSER] ⚠️ IRON OVER: Nenhum input encontrado! Usando valor padrão: ${forcedAmount}`);
+      } catch (e) {
+        console.error('[XML_PARSER] Erro ao ler configurações salvas:', e);
       }
     }
     
-    // Obter valor para martingale após X perdas
-    let usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
+    // Definir valor amount inicial
+    let amount = valorInicial;
     
-    // Se o usuário definiu um valor, substituir o padrão
+    // Obter valor configurado para martingale - prioridade: configs do usuário > XML > padrão
+    let martingaleFator = 0.5; // Valor padrão do XML
+    
+    if (this.userConfig.martingale !== undefined) {
+      martingaleFator = this.userConfig.martingale;
+    } else if (this.variables.martingale !== undefined) {
+      martingaleFator = this.variables.martingale;
+    }
+    
+    console.log(`[XML_PARSER] IRON OVER: Fator martingale: ${martingaleFator}`);
+    
+    // Obter valor configurado para martingale após X perdas
+    let usarMartingaleAposXLoss = 1; // Valor padrão do XML
+    
     if (this.userConfig.usarMartingaleAposXLoss !== undefined) {
       usarMartingaleAposXLoss = this.userConfig.usarMartingaleAposXLoss;
-      console.log(`[XML_PARSER] Usando limite de perdas para martingale definido pelo usuário: ${usarMartingaleAposXLoss}`);
+    } else if (this.variables.usarMartingaleAposXLoss !== undefined) {
+      usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
     }
     
-    // Se não estiver definido, usar valor padrão 1
-    if (usarMartingaleAposXLoss === undefined) {
-      usarMartingaleAposXLoss = 1;
+    console.log(`[XML_PARSER] IRON OVER: Usar martingale após: ${usarMartingaleAposXLoss} perdas`);
+    
+    // Obter previsão configurada (DIGITOVER precisa de um valor entre 1-9)
+    let prediction = 5; // Valor padrão do XML IRON OVER
+    
+    if (this.userConfig.previsao !== undefined) {
+      prediction = this.userConfig.previsao;
+    } else if (this.variables.previsao !== undefined) {
+      prediction = this.variables.previsao;
     }
     
-    // Verificar se deve usar martingale
+    // Validar que prediction é um número válido entre 1-9
+    if (typeof prediction !== 'number' || prediction < 1 || prediction > 9) {
+      prediction = 5; // Valor padrão seguro para DIGITOVER
+      console.log(`[XML_PARSER] IRON OVER: Usando previsão padrão: ${prediction}`);
+    } else {
+      console.log(`[XML_PARSER] IRON OVER: Usando previsão configurada: ${prediction}`);
+    }
+        
+    // PASSO 2: Aplicar a lógica exata do XML para calcular o valor da entrada
+    
+    // Em IRON OVER.xml, a lógica é:
+    // 1. Se não houver perdas consecutivas ou não atingiu o limite para martingale, usa valor inicial
+    // 2. Se atingiu o limite para martingale, usa valorInicial * (1 + martingaleFator)
+    
+    // Verificar se deve usar martingale com base nas perdas consecutivas
     const useMartingale = consecutiveLosses >= usarMartingaleAposXLoss;
     
     // IRON OVER sempre entra, mas controla o martingale
-    // Esta linha é CRÍTICA - shouldEnter = true significa que o bot DEVE executar operações
     const shouldEnter = true;
-    console.log(`[XML_PARSER] 🟢 IRON OVER: shouldEnter = ${shouldEnter} - O BOT DEVE ENTRAR NESTA OPERAÇÃO`);
+    console.log(`[XML_PARSER] IRON OVER: shouldEnter = ${shouldEnter} - Sempre entra na operação`);
     
-    // CORREÇÃO EMERGENCIAL: Ignorar todas as fontes de dados e usar APENAS o valor forçado
-    // Esta é a solução final e definitiva para os valores de entrada fixos
-    let amount = forcedAmount;
-    
-    // Se for usar martingale, ajustar valor - usando FORCEDAMOUNT como base
+    // Aplicar martingale conforme definido no XML, se necessário
     if (useMartingale && consecutiveLosses > 0) {
-      // IRON OVER usa uma lógica de martingale diferente:
-      // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
-      // é o valor inicial multiplicado pelo número de perdas consecutivas
+      // IRON OVER usa uma lógica de martingale conforme XML:
+      // Após X perdas consecutivas (usarMartingaleAposXLoss), aplica o fator martingale
       
-      // CORREÇÃO RADICAL: Usar APENAS forcedAmount como valor base
-      const valorInicial = forcedAmount;
-      console.log(`[XML_PARSER] 🚨 IRON OVER utilizando valor FORÇADO ${valorInicial} do input da interface`);
-      // Este é o ÚNICO VALOR PERMITIDO para a operação
-      
-      // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
-      const martingaleFator = this.userConfig.martingale !== undefined
-                            ? this.userConfig.martingale
-                            : this.variables.martingale || 0.5;
-      
-      // CORREÇÃO CRÍTICA: Implementar corretamente o martingale conforme a lógica do XML
-      // Usando a fórmula correta: valorInicial * (1 + martingaleFator * (consecutiveLosses - usarMartingaleAposXLoss + 1))
+      // Aplicar martingale conforme XML (valorInicial * (1 + martingaleFator))
       const martingaleMultiplier = 1 + martingaleFator;
       amount = Math.round((valorInicial * martingaleMultiplier) * 100) / 100;
       
-      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale específico após ${consecutiveLosses} perdas.`);
+      console.log(`[XML_PARSER] IRON OVER: Aplicando martingale após ${consecutiveLosses} perdas.`);
       console.log(`[XML_PARSER] IRON OVER: Valor inicial: ${valorInicial}, Fator: ${martingaleFator}, Novo valor: ${amount}`);
     }
-    
-    // Obter previsão do XML ou configuração do usuário
-    let prediction = this.variables.previsao;
     
     // CORREÇÃO CRÍTICA: Validar e garantir que prediction tenha um valor válido entre 1-9 para DIGITOVER
     if (prediction === undefined || prediction === null || prediction < 1 || prediction > 9) {
@@ -607,26 +607,104 @@ export class XmlStrategyParser {
    * Obtém o valor final para entrada considerando configurações do usuário
    * NOVO MÉTODO SIMPLIFICADO: Retorna SOMENTE o valor da interface
    */
+  /**
+   * Detecta a estratégia ativa no momento
+   * @returns string com o ID da estratégia ou undefined se não encontrar
+   */
+  private detectCurrentStrategy(): string | undefined {
+    // Estratégias reconhecidas
+    const strategies = ['ironover', 'ironunder', 'advance'];
+    
+    // Verificar qual estratégia está ativa via DOM
+    const botStrategyElement = document.getElementById('bot-strategy-display');
+    if (botStrategyElement && botStrategyElement.textContent) {
+      const displayedStrategy = botStrategyElement.textContent.toLowerCase();
+      
+      if (displayedStrategy.includes('iron over')) {
+        return 'ironover';
+      } else if (displayedStrategy.includes('iron under')) {
+        return 'ironunder';
+      } else if (displayedStrategy.includes('advance')) {
+        return 'advance';
+      }
+    }
+    
+    // Segunda verificação: tentar inferir pelo XML carregado
+    if (this.xmlContent) {
+      const lowerXml = this.xmlContent.toLowerCase();
+      
+      if (lowerXml.includes('digitover')) {
+        return 'ironover';
+      } else if (lowerXml.includes('digitunder')) {
+        return 'ironunder';
+      }
+    }
+    
+    // Se não conseguir determinar, retornar undefined
+    return undefined;
+  }
+
+  /**
+   * Obtém o valor final para entrada considerando configurações do usuário
+   * Implementa a hierarquia correta: configs do usuário > XML
+   */
   private getFinalAmount(): number {
-    // ⚠️⚠️⚠️ MÉTODO RADICAL - SOLUÇÃO DEFINITIVA ⚠️⚠️⚠️
+    // ✅ IMPLEMENTAÇÃO CORRETA - PRIORIZA CONFIGURAÇÕES DO USUÁRIO, MAS SEGUE O XML
+    console.log('[XML_PARSER] === LÓGICA PARA CALCULAR VALOR DA OPERAÇÃO ===');
     
-    // DIRETRIZ PRIMORDIAL:
-    // - Usar APENAS o valor da interface (o que o usuário está vendo no momento)
-    // - Ignorar completamente valores hardcoded, XML, localStorage, userConfig, etc.
+    // HIERARQUIA DE DECISÃO:
+    // 1. Configuração do usuário na interface (mais alta prioridade)
+    // 2. Configuração do usuário salva no localStorage
+    // 3. Valores do XML da estratégia (se disponíveis)
+    // 4. Valor padrão seguro (0.35 conforme IRON OVER.xml e IRON UNDER.xml)
     
-    // Buscar valor no DOM (ÚNICO PONTO DE VERDADE)
+    // PASSO 1: Buscar valor na interface (maior prioridade)
     const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
     if (botValueElement && botValueElement.value) {
       const valueFromDOM = parseFloat(botValueElement.value);
       if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
-        console.log(`[XML_PARSER] ⚠️⚠️⚠️ VALOR DEFINITIVO: ${valueFromDOM} do input do usuário`);
+        console.log(`[XML_PARSER] ✅ Priorizando valor ${valueFromDOM} configurado pelo usuário na interface`);
         return valueFromDOM;
       }
     }
     
-    // Se não encontrar na interface, usar 1.0 como padrão SEGURO
-    console.log(`[XML_PARSER] ⚠️⚠️⚠️ VALOR PADRÃO: 1.0 (input não encontrado)`);
-    return 1.0;
+    // PASSO 2: Buscar nas configurações da estratégia atual no localStorage
+    const currentStrategy = this.detectCurrentStrategy();
+    if (currentStrategy) {
+      try {
+        // Verificar configurações salvas pelo usuário
+        const configKey = `strategy_config_${currentStrategy}`;
+        const savedConfig = localStorage.getItem(configKey);
+        if (savedConfig) {
+          const parsedConfig = JSON.parse(savedConfig);
+          if (parsedConfig.valorInicial && !isNaN(parseFloat(parsedConfig.valorInicial.toString()))) {
+            const savedValue = parseFloat(parsedConfig.valorInicial.toString());
+            console.log(`[XML_PARSER] ✅ Usando valor ${savedValue} das configurações salvas para ${currentStrategy}`);
+            return savedValue;
+          }
+        }
+      } catch (e) {
+        console.error('[XML_PARSER] Erro ao ler configurações salvas:', e);
+      }
+    }
+    
+    // PASSO 3: Usar valores do XML (via this.variables) - agora implementando fielmente
+    if (this.variables.valorInicial !== undefined) {
+      try {
+        const xmlValue = parseFloat(this.variables.valorInicial.toString());
+        if (!isNaN(xmlValue) && xmlValue > 0) {
+          console.log(`[XML_PARSER] ✅ Seguindo valor ${xmlValue} definido no XML da estratégia`);
+          return xmlValue;
+        }
+      } catch (e) {
+        console.error('[XML_PARSER] Erro ao converter valor do XML:', e);
+      }
+    }
+    
+    // PASSO 4: Usar valor padrão seguro como último recurso
+    // Valor 0.35 é o padrão definido nos XMLs fornecidos
+    console.log(`[XML_PARSER] ⚠️ Nenhuma configuração encontrada, usando valor padrão de segurança: 0.35`);
+    return 0.35; // Valor padrão consistente com os XMLs
     
     /* CÓDIGO REMOVIDO INTENCIONALMENTE - NUNCA CHEGAR AQUI
     // ALTERNATIVA: Estratégia específica - Iron Over, Iron Under e Advance */
