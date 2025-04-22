@@ -50,62 +50,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private getUserDefinedAmount(userConfigValue?: string | number): number {
     try {
-      // PRIORIDADE 1: Valor diretamente do campo de entrada na interface
+      // ⚠️⚠️⚠️ MÉTODO RADICALMENTE SIMPLIFICADO ⚠️⚠️⚠️
+      // ÚNICA PRIORIDADE: Valor do input na interface (apenas este)
+      
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (inputElement && inputElement.value) {
         const valueFromInput = parseFloat(inputElement.value);
         if (!isNaN(valueFromInput) && valueFromInput > 0) {
-          console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 1: Usando valor ${valueFromInput} diretamente do input na interface`);
+          console.log(`[OAUTH_DIRECT] 💯 VALOR DEFINITIVO: ${valueFromInput} do input do usuário!`);
           return valueFromInput;
         }
       }
       
-      // PRIORIDADE 2: Valor fornecido pelo parâmetro (normalmente vem do controller)
-      if (userConfigValue !== undefined) {
-        const parsedValue = parseFloat(userConfigValue.toString());
-        if (!isNaN(parsedValue) && parsedValue > 0) {
-          console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 2: Usando valor ${parsedValue} fornecido por parâmetro`);
-          return parsedValue;
-        }
-      }
-
-      // PRIORIDADE 3: Configuração salva no localStorage para a estratégia ativa
-      const strategyId = this.strategyConfig.toLowerCase();
-      const savedConfigStr = localStorage.getItem(`strategy_config_${strategyId}`);
-      if (savedConfigStr) {
-        const savedConfig = JSON.parse(savedConfigStr);
-        if (savedConfig.valorInicial !== undefined) {
-          const parsedValue = parseFloat(savedConfig.valorInicial);
-          if (!isNaN(parsedValue) && parsedValue > 0) {
-            console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 3: Usando valor ${parsedValue} do localStorage para estratégia ${strategyId}`);
-            // Atualizar settings para manter consistência
-            this.settings.entryValue = parsedValue;
-            return parsedValue;
-          }
-        }
-      }
-
-      // PRIORIDADE 4: Valor atual nas configurações do serviço
-      if (typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
-        console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 4: Usando valor ${this.settings.entryValue} das configurações do serviço`);
-        return this.settings.entryValue;
-      }
-      
-      // PRIORIDADE 5: Buscar em todos os inputs de número na página
-      const numberInputs = document.querySelectorAll('input[type="number"]');
-      for (let i = 0; i < numberInputs.length; i++) {
-        const input = numberInputs[i] as HTMLInputElement;
-        if (input && input.value) {
-          const valueFromDOM = parseFloat(input.value);
-          if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
-            console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 5: Encontrado valor ${valueFromDOM} no input ${input.id || 'sem id'}`);
-            return valueFromDOM;
-          }
-        }
-      }
-
-      // ÚLTIMO RECURSO: Valor padrão (não deveria chegar aqui)
-      console.log(`[OAUTH_DIRECT] ⚠️ ATENÇÃO: Não foi possível encontrar NENHUM valor definido pelo usuário. Usando 1.0 como último recurso.`);
+      // VALOR PADRÃO SEGURO se não encontrar na interface
+      console.log(`[OAUTH_DIRECT] ⚠️ Input não encontrado! Usando valor padrão 1.0`);
       return 1.0;
     } catch (error) {
       console.error(`[OAUTH_DIRECT] Erro em getUserDefinedAmount:`, error);
@@ -2228,23 +2186,22 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // NOVA IMPLEMENTAÇÃO: Obter valor usando getUserDefinedAmount para garantir consistência
-      // Este método já implementa a busca em cascata, priorizando inputs da interface
-      let finalAmount = this.getUserDefinedAmount(amount);
+      // ⚠️⚠️⚠️ NOVA IMPLEMENTAÇÃO DEFINITIVA ⚠️⚠️⚠️
+      // SEMPRE usar o valor definido pelo usuário na configuração
+      // Não usar NENHUMA lógica complexa de cascata - apenas o valor da interface
       
-      console.log(`[OAUTH_DIRECT] 💰 COMPRA: Usando valor final ${finalAmount} obtido de getUserDefinedAmount`);
+      let finalAmount = 1.0; // Valor padrão seguro
       
-      // GARANTIA ADICIONAL CONTRA PROBLEMAS
-      // Mesmo que todas as outras verificações falhem, tentar buscar da interface
-      if (finalAmount <= 0) {
-        const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
-        if (inputElement && inputElement.value) {
-          const valueFromInput = parseFloat(inputElement.value);
-          if (!isNaN(valueFromInput) && valueFromInput > 0) {
-            finalAmount = valueFromInput;
-            console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO EMERGENCIAL: Usando valor ${finalAmount} diretamente do input`);
-          }
+      // PRIORIDADE 1: Buscar diretamente do input do usuário na interface (máxima prioridade)
+      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputElement && inputElement.value) {
+        const valueFromInput = parseFloat(inputElement.value);
+        if (!isNaN(valueFromInput) && valueFromInput > 0) {
+          finalAmount = valueFromInput;
+          console.log(`[OAUTH_DIRECT] ✅ CORREÇÃO FINAL: Usando valor ${finalAmount} DIRETAMENTE do input do usuário`);
         }
+      } else {
+        console.log(`[OAUTH_DIRECT] ❌ Input do usuário não encontrado, usando valor padrão: ${finalAmount}`);
       }
       
       // Log detalhado para diagnóstico
@@ -2506,6 +2463,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
   async executeFirstOperation(amount?: number | string): Promise<boolean> {
+    console.log(`[OAUTH_DIRECT] 🔴🔴 DIAGNÓSTICO EMERGENCIAL: executeFirstOperation chamado com valor: ${amount}`);
+    console.log(`[OAUTH_DIRECT] 🔴🔴 isRunning: ${this.isRunning}`);
+    console.log(`[OAUTH_DIRECT] 🔴🔴 Estratégia ativa: ${this.activeStrategy}`);
+    console.log(`[OAUTH_DIRECT] 🔴🔴 WebSocket readyState: ${this.webSocket ? this.webSocket.readyState : 'null'}`);
+    
     // ⚠️⚠️⚠️ GARANTINDO VALOR CONFIGURADO PELO USUÁRIO ⚠️⚠️⚠️
     
     // NUNCA USAR VALOR FIXO AQUI

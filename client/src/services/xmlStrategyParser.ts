@@ -364,21 +364,38 @@ export class XmlStrategyParser {
    * Condição: Usar DIGITOVER e controlar martingale após X perdas
    */
   public analyzeIronOverStrategy(consecutiveLosses: number): StrategyAnalysisResult {
-    // CORREÇÃO CRÍTICA: Buscar primeiro o valor definido pelo usuário no localStorage
-    // Esta é a fonte mais confiável e atual do valor configurado
+    console.log(`[XML_PARSER] 🔴 DIAGNÓSTICO IRON OVER: Análise iniciada com ${consecutiveLosses} perdas consecutivas`);
+    
+    // CORREÇÃO CRÍTICA: Primeiro buscar o valor diretamente do campo na interface
     let valorConfiguradoUsuario: number | null = null;
     
-    try {
-      const configStr = localStorage.getItem('strategy_config_ironover');
-      if (configStr) {
-        const config = JSON.parse(configStr);
-        if (config.valorInicial !== undefined) {
-          valorConfiguradoUsuario = parseFloat(config.valorInicial);
-          console.log(`[XML_PARSER] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário para IRON OVER`);
-        }
+    // PRIORIDADE 1: Valor do input na interface (maior prioridade)
+    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    if (inputElement && inputElement.value) {
+      const valueFromInput = parseFloat(inputElement.value);
+      if (!isNaN(valueFromInput) && valueFromInput > 0) {
+        valorConfiguradoUsuario = valueFromInput;
+        console.log(`[XML_PARSER] 🔴 IRON OVER: Valor ${valorConfiguradoUsuario} obtido diretamente do input`);
       }
-    } catch (e) {
-      console.error(`[XML_PARSER] Erro ao ler configuração salva para IRON OVER:`, e);
+    }
+    
+    // PRIORIDADE 2: Valor salvo no localStorage
+    if (valorConfiguradoUsuario === null) {
+      try {
+        const configStr = localStorage.getItem('strategy_config_ironover');
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial !== undefined) {
+            const parsedValue = parseFloat(config.valorInicial);
+            if (!isNaN(parsedValue) && parsedValue > 0) {
+              valorConfiguradoUsuario = parsedValue;
+              console.log(`[XML_PARSER] 🔴 IRON OVER: Valor ${valorConfiguradoUsuario} obtido do localStorage`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[XML_PARSER] Erro ao ler configuração salva para IRON OVER:`, e);
+      }
     }
     
     // Obter valor para martingale após X perdas
@@ -399,7 +416,9 @@ export class XmlStrategyParser {
     const useMartingale = consecutiveLosses >= usarMartingaleAposXLoss;
     
     // IRON OVER sempre entra, mas controla o martingale
+    // Esta linha é CRÍTICA - shouldEnter = true significa que o bot DEVE executar operações
     const shouldEnter = true;
+    console.log(`[XML_PARSER] 🟢 IRON OVER: shouldEnter = ${shouldEnter} - O BOT DEVE ENTRAR NESTA OPERAÇÃO`);
     
     // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
     let amount = valorConfiguradoUsuario !== null 
@@ -562,27 +581,31 @@ export class XmlStrategyParser {
   
   /**
    * Obtém o valor final para entrada considerando configurações do usuário
+   * NOVO MÉTODO SIMPLIFICADO: Retorna SOMENTE o valor da interface
    */
   private getFinalAmount(): number {
-    // ⚠️⚠️⚠️ MÉTODO COMPLETAMENTE REESCRITO - SOLUÇÃO DEFINITIVA ⚠️⚠️⚠️
+    // ⚠️⚠️⚠️ MÉTODO RADICAL - SOLUÇÃO DEFINITIVA ⚠️⚠️⚠️
     
-    // SISTEMA REVISADO PARA USAR EXATAMENTE O VALOR CONFIGURADO PELO USUÁRIO
-    // 1. IGNORAR COMPLETAMENTE valores hardcoded do XML
-    // 2. SEMPRE usar o valor configurado pelo usuário
-    // 3. Quando não houver valor do usuário, usar 1.0 como padrão seguro
+    // DIRETRIZ PRIMORDIAL:
+    // - Usar APENAS o valor da interface (o que o usuário está vendo no momento)
+    // - Ignorar completamente valores hardcoded, XML, localStorage, userConfig, etc.
     
-    // Obter o valor da estratégia ativa no DOM (interface visual)
-    // Esta é a fonte mais confiável porque representa o que o usuário está vendo na interface
+    // Buscar valor no DOM (ÚNICO PONTO DE VERDADE)
     const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
     if (botValueElement && botValueElement.value) {
       const valueFromDOM = parseFloat(botValueElement.value);
       if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
-        console.log(`[XML_PARSER] ⚠️ SOLUÇÃO FINAL: Usando valor ${valueFromDOM} diretamente do DOM (interface)`);
+        console.log(`[XML_PARSER] ⚠️⚠️⚠️ VALOR DEFINITIVO: ${valueFromDOM} do input do usuário`);
         return valueFromDOM;
       }
     }
     
-    // ALTERNATIVA: Estratégia específica - Iron Over, Iron Under e Advance
+    // Se não encontrar na interface, usar 1.0 como padrão SEGURO
+    console.log(`[XML_PARSER] ⚠️⚠️⚠️ VALOR PADRÃO: 1.0 (input não encontrado)`);
+    return 1.0;
+    
+    /* CÓDIGO REMOVIDO INTENCIONALMENTE - NUNCA CHEGAR AQUI
+    // ALTERNATIVA: Estratégia específica - Iron Over, Iron Under e Advance */
     let strategies = ['ironover', 'ironunder', 'advance'];
     let activeStrategy = '';
     
