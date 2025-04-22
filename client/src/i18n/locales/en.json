@@ -38,11 +38,41 @@
     "title": "Trading Bot",
     "start": "Start Trading",
     "stop": "Stop Bot",
+    "starting": "Starting bot...",
+    "connecting": "Establishing dedicated connection with Deriv...",
+    "started": "Bot started",
+    "executingStrategy": "Running strategy \"{{name}}\" with entry value {{value}}",
+    "stopping": "Stopping bot",
+    "operationsStopped": "Operations stopped successfully.",
+    "stopped": "Bot stopped",
+    "none": "None",
+    "activeStrategy": "Active Strategy:",
+    "target": {
+      "reached": "Profit target reached!"
+    },
+    "limit": {
+      "reached": "Loss limit reached!"
+    },
+    "contract": {
+      "buy": "Buy",
+      "sell": "Sell",
+      "status": "Status",
+      "profit": "Profit",
+      "loss": "Loss",
+      "entry": "Entry",
+      "exit": "Exit",
+      "purchased": "Contract purchased",
+      "details": "ID: {{id}}, Value: ${{value}}",
+      "wonOperation": "Operation won!",
+      "lostOperation": "Operation lost",
+      "result": "Result: ${{profit}}"
+    },
     "status": {
       "idle": "Ready",
       "running": "Running",
       "paused": "Paused",
-      "error": "Error"
+      "error": "Error",
+      "operating": "Operating"
     },
     "settings": {
       "title": "Bot Settings",
@@ -59,14 +89,19 @@
       "totalProfit": "Total Profit",
       "winRate": "Win Rate"
     },
-    "contract": {
-      "buy": "Buy",
-      "sell": "Sell",
-      "status": "Status",
-      "profit": "Profit",
-      "loss": "Loss",
-      "entry": "Entry",
-      "exit": "Exit"
+    "error": {
+      "noStrategy": "No strategy selected",
+      "selectStrategy": "Please select a strategy before starting the bot.",
+      "incompleteConfig": "Incomplete configuration",
+      "configureParams": "Please configure the strategy parameters before starting.",
+      "authRequired": "Authentication required",
+      "loginRequired": "You need to login with your Deriv account to trade with real values.",
+      "startFailed": "Failed to start bot",
+      "checkSession": "Please check if your session is active and try again.",
+      "errorStarting": "Error starting bot",
+      "tryAgain": "An error occurred while starting the bot. Please try again.",
+      "stopError": "Error stopping bot",
+      "stopErrorMessage": "An error occurred while stopping the bot. Please try again."
     }
   },
   "dashboard": {

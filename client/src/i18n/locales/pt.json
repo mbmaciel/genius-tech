@@ -38,11 +38,41 @@
     "title": "Robô de Trading",
     "start": "Iniciar Operações",
     "stop": "Parar Robô",
+    "starting": "Iniciando robô...",
+    "connecting": "Estabelecendo conexão dedicada com Deriv...",
+    "started": "Bot iniciado",
+    "executingStrategy": "Executando estratégia \"{{name}}\" com entrada de {{value}}",
+    "stopping": "Parando robô",
+    "operationsStopped": "Operações interrompidas com sucesso.",
+    "stopped": "Bot parado",
+    "none": "Nenhuma",
+    "activeStrategy": "Estratégia Ativa:",
+    "target": {
+      "reached": "Meta de lucro atingida!"
+    },
+    "limit": {
+      "reached": "Limite de perda atingido!"
+    },
+    "contract": {
+      "buy": "Comprar",
+      "sell": "Vender",
+      "status": "Status",
+      "profit": "Lucro",
+      "loss": "Perda",
+      "entry": "Entrada",
+      "exit": "Saída",
+      "purchased": "Contrato comprado",
+      "details": "ID: {{id}}, Valor: ${{value}}",
+      "wonOperation": "Operação vencedora!",
+      "lostOperation": "Operação perdedora",
+      "result": "Resultado: ${{profit}}"
+    },
     "status": {
       "idle": "Pronto",
       "running": "Em execução",
       "paused": "Pausado",
-      "error": "Erro"
+      "error": "Erro",
+      "operating": "Operando"
     },
     "settings": {
       "title": "Configurações do Robô",
@@ -59,14 +89,19 @@
       "totalProfit": "Lucro Total",
       "winRate": "Taxa de Acerto"
     },
-    "contract": {
-      "buy": "Comprar",
-      "sell": "Vender",
-      "status": "Status",
-      "profit": "Lucro",
-      "loss": "Perda",
-      "entry": "Entrada",
-      "exit": "Saída"
+    "error": {
+      "noStrategy": "Estratégia não selecionada",
+      "selectStrategy": "Por favor, selecione uma estratégia antes de iniciar o robô.",
+      "incompleteConfig": "Configuração incompleta",
+      "configureParams": "Por favor, configure os parâmetros da estratégia antes de iniciar.",
+      "authRequired": "Autenticação necessária",
+      "loginRequired": "É necessário fazer login com sua conta Deriv para operar com valores reais.",
+      "startFailed": "Falha ao iniciar bot",
+      "checkSession": "Verifique se sua sessão está ativa e tente novamente.",
+      "errorStarting": "Erro ao iniciar bot",
+      "tryAgain": "Ocorreu um erro ao iniciar o bot. Tente novamente.",
+      "stopError": "Erro ao parar bot",
+      "stopErrorMessage": "Ocorreu um erro ao parar o bot. Tente novamente."
     }
   },
   "dashboard": {

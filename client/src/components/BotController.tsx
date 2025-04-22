@@ -462,7 +462,7 @@ export function BotController({
           
           // Mostrar toast com a razão da parada
           toast({
-            title: "Bot parado",
+            title: t('bot.stopped', 'Bot parado'),
             description: reason,
             variant: toastVariant || "default",
             duration: 5000
@@ -505,8 +505,8 @@ export function BotController({
       // Verificar se a estratégia foi selecionada
       if (!selectedStrategy || !currentBotStrategy) {
         toast({
-          title: "Estratégia não selecionada",
-          description: "Por favor, selecione uma estratégia antes de iniciar o robô.",
+          title: t('bot.error.noStrategy', 'Estratégia não selecionada'),
+          description: t('bot.error.selectStrategy', 'Por favor, selecione uma estratégia antes de iniciar o robô.'),
           variant: "destructive"
         });
         return;
@@ -515,8 +515,8 @@ export function BotController({
       // Verificar se temos a configuração da estratégia
       if (!strategyConfig) {
         toast({
-          title: "Configuração incompleta",
-          description: "Por favor, configure os parâmetros da estratégia antes de iniciar.",
+          title: t('bot.error.incompleteConfig', 'Configuração incompleta'),
+          description: t('bot.error.configureParams', 'Por favor, configure os parâmetros da estratégia antes de iniciar.'),
           variant: "destructive"
         });
         return;
@@ -526,8 +526,8 @@ export function BotController({
       const token = localStorage.getItem('deriv_oauth_token');
       if (!token) {
         toast({
-          title: "Autenticação necessária",
-          description: "É necessário fazer login com sua conta Deriv para operar com valores reais.",
+          title: t('bot.error.authRequired', 'Autenticação necessária'),
+          description: t('bot.error.loginRequired', 'É necessário fazer login com sua conta Deriv para operar com valores reais.'),
           variant: "destructive",
         });
         return;
@@ -535,8 +535,8 @@ export function BotController({
       
       // Feedback visual imediato
       toast({
-        title: "Iniciando robô...",
-        description: "Estabelecendo conexão dedicada com Deriv...",
+        title: t('bot.starting', 'Iniciando robô...'),
+        description: t('bot.connecting', 'Estabelecendo conexão dedicada com Deriv...'),
       });
       
       // Configurar bot com os parâmetros da estratégia específica
@@ -702,16 +702,19 @@ export function BotController({
         
         // Atualização de status também ocorre via evento bot_started
         toast({
-          title: "Bot iniciado",
-          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${exactUserValue}`,
+          title: t('bot.started', 'Bot iniciado'),
+          description: t('bot.executingStrategy', 'Executando estratégia "{{name}}" com entrada de {{value}}', {
+            name: currentBotStrategy?.name,
+            value: exactUserValue
+          }),
         });
       } else {
         console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');
         setStatus('idle');
         onStatusChange('idle');
         toast({
-          title: "Falha ao iniciar bot",
-          description: "Verifique se sua sessão está ativa e tente novamente.",
+          title: t('bot.error.startFailed', 'Falha ao iniciar bot'),
+          description: t('bot.error.checkSession', 'Verifique se sua sessão está ativa e tente novamente.'),
           variant: "destructive"
         });
       }
@@ -721,8 +724,8 @@ export function BotController({
       setStatus('idle');
       onStatusChange('idle');
       toast({
-        title: "Erro ao iniciar bot",
-        description: "Ocorreu um erro ao iniciar o bot. Tente novamente.",
+        title: t('bot.error.errorStarting', 'Erro ao iniciar bot'),
+        description: t('bot.error.tryAgain', 'Ocorreu um erro ao iniciar o bot. Tente novamente.'),
         variant: "destructive"
       });
     }
@@ -742,14 +745,14 @@ export function BotController({
       
       // Atualização de status também ocorre via evento bot_stopped
       toast({
-        title: "Parando robô",
-        description: "Operações interrompidas com sucesso.",
+        title: t('bot.stopping', 'Parando robô'),
+        description: t('bot.operationsStopped', 'Operações interrompidas com sucesso.'),
       });
     } catch (error) {
       console.error('[BOT_CONTROLLER] Erro ao parar bot:', error);
       toast({
-        title: "Erro ao parar bot",
-        description: "Ocorreu um erro ao parar o bot. Tente novamente.",
+        title: t('bot.error.stopError', 'Erro ao parar bot'),
+        description: t('bot.error.stopErrorMessage', 'Ocorreu um erro ao parar o bot. Tente novamente.'),
         variant: "destructive"
       });
     }
@@ -766,7 +769,7 @@ export function BotController({
           {status === 'running' && (
             <div className="flex items-center bg-green-600/10 py-2 px-4 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-              <span className="text-sm text-green-400 font-medium">Operando</span>
+              <span className="text-sm text-green-400 font-medium">{t('bot.status.operating', 'Operando')}</span>
             </div>
           )}
         </div>
@@ -780,8 +783,8 @@ export function BotController({
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
               </svg>
-              <span className="text-sm text-white font-medium">Estratégia Ativa:</span>
-              <span className="ml-2 text-sm text-blue-400 font-bold">{currentBotStrategy?.name || "Nenhuma"}</span>
+              <span className="text-sm text-white font-medium">{t('bot.activeStrategy', 'Estratégia Ativa:')}</span>
+              <span className="ml-2 text-sm text-blue-400 font-bold">{currentBotStrategy?.name || t('bot.none', 'Nenhuma')}</span>
             </div>
           </div>
         </div>
