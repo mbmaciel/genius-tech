@@ -21,10 +21,12 @@ import { oauthDirectService } from "@/services/oauthDirectService";
 import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
+import { useTranslation } from 'react-i18next';
 
-// Função para formatar valores monetários
+// Função para formatar valores monetários com base no idioma atual
 const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', {
+  const locale = window.localStorage.getItem('i18nextLng') === 'en' ? 'en-US' : 'pt-BR';
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
@@ -70,10 +72,18 @@ console.log('[BOT_PAGE] Usando nova página de bot que usa exclusivamente servi�
 
 export function BotPage() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   
   // Função para recarregar a página forçadamente
   const forceFullReload = () => {
     console.log('[BOT_PAGE] Forçando recarregamento completo da página...');
+    
+    // Obter o idioma atual
+    const currentLang = window.localStorage.getItem('i18nextLng') || 'pt';
+    
+    // Textos com base no idioma
+    const updateText = currentLang === 'en' ? 'UPDATING PAGE' : 'ATUALIZANDO PÁGINA';
+    const reloadingText = currentLang === 'en' ? 'Reloading application...' : 'Recarregando aplicação...';
     
     // Criar elemento visual de carregamento
     const loadingElement = document.createElement('div');
@@ -92,8 +102,8 @@ export function BotPage() {
     loadingElement.style.fontSize = '24px';
     loadingElement.style.fontWeight = 'bold';
     loadingElement.innerHTML = `
-      <div style="margin-bottom: 20px;">ATUALIZANDO PÁGINA</div>
-      <div style="font-size: 18px; margin-bottom: 30px;">Recarregando aplicação...</div>
+      <div style="margin-bottom: 20px;">${updateText}</div>
+      <div style="font-size: 18px; margin-bottom: 30px;">${reloadingText}</div>
       <div style="width: 60px; height: 60px; border: 5px solid #1E3A8A; border-top: 5px solid #00E5B3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
     `;
     

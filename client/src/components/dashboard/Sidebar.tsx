@@ -9,9 +9,11 @@ import {
   Users,
   Menu,
   X,
-  Calculator as CalculatorIcon
+  Calculator as CalculatorIcon,
+  Globe
 } from 'lucide-react';
 import { DirectHTMLSwitcher } from './DirectHTMLSwitcher';
+import { LanguageSwitcher } from '../LanguageSwitcher';
 
 interface SidebarProps {
   className?: string;
@@ -127,8 +129,10 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
             </nav>
           </div>
           
-          {/* Área vazia no rodapé da sidebar */}
-          <div className="p-2"></div>
+          {/* Área do rodapé da sidebar com seletor de idioma */}
+          <div className="p-4 border-t border-[#1c3654]">
+            <LanguageSwitcher />
+          </div>
         </aside>
       )}
 
@@ -165,8 +169,13 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
             </nav>
           </div>
           
-          {/* Área vazia no rodapé da sidebar */}
-          <div className={`border-t border-[#1c3654] ${isHovered ? 'p-4' : 'p-3 flex justify-center'}`}></div>
+          {/* Área do rodapé da sidebar com seletor de idioma */}
+          <div className={`border-t border-[#1c3654] ${isHovered ? 'p-4' : 'p-3 flex justify-center'}`}>
+            {isHovered 
+              ? <LanguageSwitcher /> 
+              : <Globe className="h-4 w-4 text-muted-foreground" />
+            }
+          </div>
         </aside>
       )}
     </>
