@@ -411,15 +411,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       
       if (shouldAddTestOperation) {
         const isWin = Math.random() > 0.5; // 50% de chance de ganho
-        const entryValue = selectedEntryValue || 5;
+        const amountValue = 5; // Valor fixo para teste
         
         // Criar evento simulado de contrato finalizado
         const testEvent = {
           type: 'contract_finished',
           contract_id: Date.now(),
-          entry_value: entryValue,
-          exit_value: isWin ? (entryValue * 1.9) : 0,
-          profit: isWin ? (entryValue * 0.9) : -entryValue,
+          entry_value: amountValue,
+          exit_value: isWin ? (amountValue * 1.9) : 0,
+          profit: isWin ? (amountValue * 0.9) : -amountValue,
           contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
           symbol: 'R_100',
           strategy: selectedStrategy || 'auto',
@@ -427,32 +427,31 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           contract_details: {
             contract_id: Date.now(),
             contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
-            buy_price: entryValue,
+            buy_price: amountValue,
             symbol: 'R_100',
             status: isWin ? 'won' : 'lost',
             entry_spot: 1234.56,
             exit_spot: 5678.90,
-            profit: isWin ? (entryValue * 0.9) : -entryValue,
-            payout: isWin ? (entryValue * 1.9) : 0
+            profit: isWin ? (amountValue * 0.9) : -amountValue,
+            payout: isWin ? (amountValue * 1.9) : 0
           }
         };
         
         console.log('[BOT_PAGE] ★★★ GERANDO OPERAÇÃO DE TESTE (EVENTO COMPLETO) ★★★', testEvent);
         
-        // Criar evento customizado
-        const simulatedEvent = new CustomEvent('contract_finished', { detail: testEvent });
-        
-        // Disparar o evento para testar o pipeline completo
-        window.dispatchEvent(simulatedEvent);
+        // Criar evento customizado para teste
+        // CORREÇÃO: Vamos evitar disparar eventos customizados para não interferir no fluxo normal
+        // const simulatedEvent = new CustomEvent('contract_finished', { detail: testEvent });
+        // window.dispatchEvent(simulatedEvent);
         
         // Operação de fallback para garantir que algo apareça no histórico
         const testOperation: Operation = {
           id: Date.now(),
-          entryValue: entryValue,
-          entry_value: entryValue,
-          finalValue: isWin ? entryValue * 1.9 : 0,
-          exit_value: isWin ? entryValue * 1.9 : 0,
-          profit: isWin ? entryValue * 0.9 : -entryValue,
+          entryValue: amountValue,
+          entry_value: amountValue,
+          finalValue: isWin ? amountValue * 1.9 : 0,
+          exit_value: isWin ? amountValue * 1.9 : 0,
+          profit: isWin ? amountValue * 0.9 : -amountValue,
           time: new Date(),
           timestamp: Date.now(),
           contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
@@ -461,7 +460,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           is_win: isWin,
           notification: {
             type: isWin ? 'success' : 'error',
-            message: `${isWin ? 'GANHO' : 'PERDA'} | Entrada: $${entryValue.toFixed(2)} | Resultado: ${isWin ? '$' + (entryValue * 0.9).toFixed(2) : '-$' + entryValue.toFixed(2)}`
+            message: `${isWin ? 'GANHO' : 'PERDA'} | Entrada: $${amountValue.toFixed(2)} | Resultado: ${isWin ? '$' + (amountValue * 0.9).toFixed(2) : '-$' + amountValue.toFixed(2)}`
           }
         };
         
@@ -476,7 +475,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       console.log('[BOT_PAGE] Limpando intervalo de auto-refresh do histórico');
       clearInterval(refreshInterval);
     };
-  }, [selectedStrategy, selectedEntryValue]);
+  }, [selectedStrategy]);
   
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
@@ -635,10 +634,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         setSelectedAccount(dashboardAccount);
         console.log('[BOT] Autenticação verificada com sucesso');
         
-        // Configurar valores iniciais
+        // Configurar valores iniciais (usa o valor atual)
         setOperation(prev => ({
           ...prev,
-          buyPrice: parseFloat(entryValue) || 0
+          buyPrice: prev?.buyPrice || 5
         }));
         
         // Configurar listener para atualização de conta no localStorage
