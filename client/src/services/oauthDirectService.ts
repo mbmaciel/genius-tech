@@ -1064,7 +1064,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // Implementar lógica para cada estratégia
-      let result;
+      type GenericStrategyResult = {
+        shouldEnter: boolean;
+        contractType: string;
+        message: string;
+        prediction?: number;
+      };
+      
+      let result: GenericStrategyResult | undefined;
       
       switch (strategyId) {
         case 'advance':
@@ -1078,28 +1085,56 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           
           console.log(`[OAUTH_DIRECT] Avaliando estratégia ADVANCE com porcentagem ${userPercentage}%`);
           
-          result = evaluateAdvanceStrategy(digitStats, userPercentage, 'CALL');
+          const advanceResult = evaluateAdvanceStrategy(digitStats, userPercentage);
+          result = {
+            shouldEnter: advanceResult.shouldEnter,
+            contractType: advanceResult.contractType,
+            message: advanceResult.message
+          };
           break;
         
         case 'ironover':
           console.log(`[OAUTH_DIRECT] Avaliando estratégia IRON OVER`);
-          result = evaluateIronOverStrategy(digitStats, lastDigit);
+          const ironOverResult = evaluateIronOverStrategy(digitStats, 5); // Valor padrão seguro
+          result = {
+            shouldEnter: ironOverResult.shouldEnter,
+            contractType: ironOverResult.contractType,
+            message: ironOverResult.message,
+            prediction: 5
+          };
           break;
         
         case 'ironunder':
           console.log(`[OAUTH_DIRECT] Avaliando estratégia IRON UNDER`);
-          result = evaluateIronUnderStrategy(digitStats, lastDigit);
+          const ironUnderResult = evaluateIronUnderStrategy(digitStats, 5); // Valor padrão seguro
+          result = {
+            shouldEnter: ironUnderResult.shouldEnter,
+            contractType: ironUnderResult.contractType,
+            message: ironUnderResult.message,
+            prediction: 5
+          };
           break;
         
         case 'maxpro':
           console.log(`[OAUTH_DIRECT] Avaliando estratégia MAXPRO`);
-          result = evaluateMaxProStrategy(digitStats, lastDigit);
+          const maxProResult = evaluateMaxProStrategy(digitStats);
+          result = {
+            shouldEnter: maxProResult.shouldEnter,
+            contractType: maxProResult.contractType,
+            message: maxProResult.message,
+            prediction: maxProResult.prediction
+          };
           break;
         
         default:
           // Usar avaliação genérica para outras estratégias
           console.log(`[OAUTH_DIRECT] Avaliando estratégia padrão para ${strategyId}`);
-          result = evaluateDefaultStrategy(digitStats, lastDigit);
+          const defaultResult = evaluateDefaultStrategy(digitStats, 5); // Valor padrão seguro
+          result = {
+            shouldEnter: defaultResult.shouldEnter,
+            contractType: defaultResult.contractType,
+            message: defaultResult.message
+          };
           break;
       }
       
@@ -1111,7 +1146,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         // Configurar tipo de contrato e possível valor de previsão
         this.settings.contractType = result.contractType;
         
-        if ('prediction' in result && typeof result.prediction === 'number') {
+        if (result.prediction !== undefined) {
           this.settings.prediction = result.prediction;
           console.log(`[OAUTH_DIRECT] ✅ Previsão específica: ${result.prediction}`);
         }
@@ -2646,7 +2681,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Executa compra de contrato
    */
-  private executeContractBuy(amount?: number): void {
+  public executeContractBuy(amount?: number): void {
     // 🚨🚨🚨 FIX EMERGENCIAL 22/04/2025 - ISSUE CRÍTICO: ROBÔ NÃO EXECUTA OPERAÇÕES 🚨🚨🚨
     
     // VERIFICAÇÃO CRÍTICA: Logar sempre que uma operação for solicitada 

@@ -72,6 +72,14 @@ export interface OAuthDirectServiceInterface {
   authorizeActiveToken(): Promise<boolean>; // Método para autorizar o token ativo
   getTicksHistory(symbol: string, count?: number): Promise<any>; // Método para obter histórico de ticks
   
+  // Métodos para estatísticas e análise
+  getDigitStats(): any[]; // Método para obter estatísticas de dígitos
+  getDigitPercentage(digit: number): number; // Método para obter porcentagem de um dígito específico
+  
+  // Métodos para operação
+  executeFirstOperation(amount?: number | string): Promise<boolean>; // Iniciar primeira operação
+  executeContractBuy(amount?: number): void; // Executar compra de contrato
+  
   // Métodos para eventos
   addEventListener(listener: (event: TradingEvent) => void): void;
   removeEventListener(listener: (event: TradingEvent) => void): void;
