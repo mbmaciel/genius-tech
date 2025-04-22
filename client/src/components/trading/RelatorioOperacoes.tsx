@@ -61,7 +61,16 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
       try {
         // Obter estatísticas do serviço OAuth
         const stats = oauthDirectService.getStats();
-        setBotStats(stats);
+        console.log('[RELATORIO] Estatísticas obtidas do serviço OAuth:', stats);
+        
+        // Garantir que as estatísticas não sejam indefinidas
+        const safeStats = {
+          wins: typeof stats.wins === 'number' ? stats.wins : 0,
+          losses: typeof stats.losses === 'number' ? stats.losses : 0,
+          totalProfit: typeof stats.totalProfit === 'number' ? stats.totalProfit : 0
+        };
+        
+        setBotStats(safeStats);
       } catch (error) {
         console.error('[RELATORIO] Erro ao obter estatísticas do serviço OAuth:', error);
       }
@@ -409,8 +418,15 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                           {/* Exibir dados de entrada/saída - compatível com ambos formatos */}
                           <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
                             {/* Suporta tanto o formato antigo quanto o novo */}
-                            {(op.entryValue !== undefined || op.entry_value !== undefined) && (
-                              <span>{t('operations.entry', 'Entrada')}: {formatCurrency(op.entryValue || op.entry_value)}</span>
+                            {(op.entry_value !== undefined || op.entryValue !== undefined) && (
+                              <span>{t('operations.entry', 'Entrada')}: {
+                                // Garantir que valores válidos sejam mostrados, maior que zero
+                                op.entry_value !== undefined && op.entry_value > 0
+                                  ? formatCurrency(op.entry_value)
+                                  : op.entryValue !== undefined && op.entryValue > 0
+                                    ? formatCurrency(op.entryValue)
+                                    : formatCurrency(1) // Valor mínimo de entrada
+                              }</span>
                             )}
                             {(op.finalValue !== undefined || op.exit_value !== undefined) && (
                               <span>{t('operations.exit', 'Saída')}: {formatCurrency(op.finalValue || op.exit_value)}</span>
