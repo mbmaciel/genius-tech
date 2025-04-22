@@ -50,12 +50,37 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private getUserDefinedAmount(userConfigValue?: string | number): number {
     try {
-      // PRIORIDADE 1: Valor do input na interface (tem a mais alta prioridade)
+      // ⚠️⚠️⚠️ MÉTODO TOTALMENTE REFATORADO PARA GARANTIR CONSISTÊNCIA DEFINITIVA ⚠️⚠️⚠️
+      
+      // PRIORIDADE 1: Valor do input na interface (mais alta prioridade)
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (inputElement && inputElement.value) {
         const valueFromInput = parseFloat(inputElement.value);
         if (!isNaN(valueFromInput) && valueFromInput > 0) {
           console.log(`[OAUTH_DIRECT] 💯 VALOR DEFINITIVO: ${valueFromInput} do input do usuário!`);
+          
+          // ✅✅✅ NOVA CORREÇÃO CRÍTICA: Forçar persistência do valor do input no localStorage
+          try {
+            // Obter estratégia atual
+            const currentStrategy = this.strategyConfig.toLowerCase();
+            if (currentStrategy) {
+              const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+              if (configString) {
+                let config = JSON.parse(configString);
+                // Atualizar valor inicial com valor do input
+                config.valorInicial = valueFromInput;
+                localStorage.setItem(`strategy_config_${currentStrategy}`, JSON.stringify(config));
+                console.log(`[OAUTH_DIRECT] ⭐ PERSISTÊNCIA FORÇADA: Valor do input ${valueFromInput} salvo no localStorage para ${currentStrategy}`);
+              }
+            }
+          } catch (e) {
+            console.error(`[OAUTH_DIRECT] Erro ao tentar forçar persistência do valor:`, e);
+          }
+          
+          // Garantir que o valor é refletido também nas settings globais
+          this.settings.entryValue = valueFromInput;
+          
+          // Retornar o valor do input imediatamente
           return valueFromInput;
         }
       }
@@ -67,18 +92,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         
         if (!isNaN(valueFromConfig) && valueFromConfig > 0) {
           console.log(`[OAUTH_DIRECT] 💯 VALOR DAS CONFIGURAÇÕES: ${valueFromConfig}!`);
+          // Atualizar settings globais
+          this.settings.entryValue = valueFromConfig;
           return valueFromConfig;
         }
       }
       
       // PRIORIDADE 3: Valor configurado nas configurações gerais
-      if (this.settings.entryValue !== undefined && this.settings.entryValue > 0) {
-        console.log(`[OAUTH_DIRECT] 💯 VALOR DAS CONFIGURAÇÕES GERAIS: ${this.settings.entryValue}!`);
-        return this.settings.entryValue;
+      if (this.settings.entryValue !== undefined && Number(this.settings.entryValue) > 0) {
+        const valueAsNumber = Number(this.settings.entryValue);
+        console.log(`[OAUTH_DIRECT] 💯 VALOR DAS CONFIGURAÇÕES GERAIS: ${valueAsNumber}!`);
+        return valueAsNumber;
       }
       
       // VALOR PADRÃO SEGURO se não encontrar em nenhum lugar
-      console.log(`[OAUTH_DIRECT] ⚠️ Nenhum valor válido encontrado! Usando valor padrão 1.0`);
+      console.log(`[OAUTH_DIRECT] ⚠️ FIXME: Nenhum valor válido encontrado! Usando valor padrão 1.0`);
       return 1.0;
     } catch (error) {
       console.error(`[OAUTH_DIRECT] Erro em getUserDefinedAmount:`, error);
@@ -1211,21 +1239,56 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * VERSÃO CORRIGIDA: Considera regra de martingale após X perdas consecutivas
    */
   private calculateNextAmount(isWin: boolean, lastContract: any): number {
-    if (!lastContract || !lastContract.buy_price) {
-      // CORREÇÃO CRÍTICA: Buscar valor diretamente do DOM primeiro
-      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
-      if (inputElement && inputElement.value) {
-        const valueFromInput = parseFloat(inputElement.value);
-        if (!isNaN(valueFromInput) && valueFromInput > 0) {
-          console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ CORREÇÃO RADICAL: Usando valor ${valueFromInput} do input para cálculo`);
-          return valueFromInput;
+    // 🧠 MÉTODO REFATORADO PARA RESOLVER PROBLEMAS DE VARIÁVEIS DUPLICADAS E GARANTIR USO DO VALOR CORRETO
+    
+    // FUNÇÃO AUXILIAR: Pegar valor do input com maior prioridade
+    const getValueFromInput = (): number | null => {
+      const inputEl = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputEl && inputEl.value) {
+        const value = parseFloat(inputEl.value);
+        if (!isNaN(value) && value > 0) {
+          console.log(`[OAUTH_DIRECT] 💎💎💎 CORREÇÃO FINAL: Valor ${value} obtido diretamente do input`);
+          
+          // Atualizar configurações para garantir consistência
+          this.settings.entryValue = value;
+          
+          // Persistir no localStorage
+          try {
+            const strategyKey = this.strategyConfig.toLowerCase();
+            if (strategyKey) {
+              const configString = localStorage.getItem(`strategy_config_${strategyKey}`);
+              if (configString) {
+                let config = JSON.parse(configString);
+                config.valorInicial = value;
+                localStorage.setItem(`strategy_config_${strategyKey}`, JSON.stringify(config));
+                console.log(`[OAUTH_DIRECT] 💎 Valor ${value} persistido no localStorage para estratégia ${strategyKey}`);
+              }
+            }
+          } catch (e) {
+            console.error('[OAUTH_DIRECT] Erro ao persistir valor no localStorage:', e);
+          }
+          
+          return value;
         }
       }
-      
-      // Se não encontrar no DOM, então tenta outras fontes
-      const configuredValue = Number(this.settings.entryValue) || 2; // Valor padrão aumentado para 2
-      console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ CORREÇÃO RADICAL: Usando valor configurado ${configuredValue} para cálculo`);
-      return configuredValue;
+      return null;
+    };
+    
+    // PASSO 1: Verificar o valor do input com MAIS ALTA PRIORIDADE
+    const inputValue = getValueFromInput();
+    
+    // Se encontramos um valor válido no input e estamos em uma das condições de retorno simples
+    if (inputValue !== null && (!lastContract || !lastContract.buy_price || isWin)) {
+      console.log(`[OAUTH_DIRECT] ✅ Usando valor ${inputValue} do input para operação`);
+      return inputValue;
+    }
+    
+    // PASSO 2: Se não tivermos um contrato anterior ou ele não tiver valor, pegar um valor de fallback
+    if (!lastContract || !lastContract.buy_price) {
+      // Usar o valor já obtido do input, ou o valor das configurações, ou um valor padrão
+      const fallbackValue = inputValue || Number(this.settings.entryValue) || 3;
+      console.log(`[OAUTH_DIRECT] ⚠️ FALLBACK: Usando valor ${fallbackValue} para cálculo (nenhum contrato anterior)`);
+      return fallbackValue;
     }
     
     let buyPrice = Number(lastContract.buy_price);
@@ -1240,9 +1303,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // CORREÇÃO CRÍTICA: Obter valor do DOM PRIMEIRO
     let valorDoInput = null;
-    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
-    if (inputElement && inputElement.value) {
-      const valueFromInput = parseFloat(inputElement.value);
+    const inputElementDOM = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    if (inputElementDOM && inputElementDOM.value) {
+      const valueFromInput = parseFloat(inputElementDOM.value);
       if (!isNaN(valueFromInput) && valueFromInput > 0) {
         valorDoInput = valueFromInput;
         console.log(`[OAUTH_DIRECT] ⚠️⚠️⚠️ EMERGENCIAL: Lendo valor ${valorDoInput} diretamente do input visível`);
@@ -1292,10 +1355,54 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     if (isWin) {
-      // CORREÇÃO CRÍTICA: Em caso de vitória, voltar ao valor inicial CONFIGURADO pelo usuário
-      // Este valor vem do localStorage e tem prioridade absoluta
+      // ⚠️⚠️⚠️ CORREÇÃO DEFINITIVA APÓS VITÓRIA ⚠️⚠️⚠️
+      // Verificar se já temos um valor do input da função auxiliar acima (inputValue)
+      if (inputValue !== null) {
+        console.log(`[OAUTH_DIRECT] 🔴🔴🔴 CORREÇÃO FINAL APÓS VITÓRIA: Usando valor ${inputValue} já lido do input`);
+        
+        // Forçar atualização em todos os lugares
+        this.settings.entryValue = inputValue;
+        configuracoes.valorInicial = inputValue;
+        
+        // Retornar o valor do input com certeza absoluta
+        return inputValue;
+      }
+      
+      // BACKUP: Verificar novamente o input para garantir (segunda tentativa)
+      const inputWinElem = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputWinElem && inputWinElem.value) {
+        const valueFromInput = parseFloat(inputWinElem.value);
+        if (!isNaN(valueFromInput) && valueFromInput > 0) {
+          console.log(`[OAUTH_DIRECT] 🔴🔴🔴 SEGUNDA TENTATIVA APÓS VITÓRIA: Usando valor ${valueFromInput} do input`);
+          
+          // Forçar atualização em todos os lugares
+          this.settings.entryValue = valueFromInput;
+          configuracoes.valorInicial = valueFromInput;
+          
+          // Atualizar também no localStorage para próximas operações
+          try {
+            const currentStrategy = this.strategyConfig.toLowerCase();
+            if (currentStrategy) {
+              const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+              if (configString) {
+                let config = JSON.parse(configString);
+                config.valorInicial = valueFromInput;
+                localStorage.setItem(`strategy_config_${currentStrategy}`, JSON.stringify(config));
+                console.log(`[OAUTH_DIRECT] 🔴🔴🔴 PERSISTÊNCIA: Valor ${valueFromInput} atualizado no localStorage após vitória`);
+              }
+            }
+          } catch (e) {
+            console.error(`[OAUTH_DIRECT] Erro ao atualizar valor no localStorage:`, e);
+          }
+          
+          // Retornar o valor do input com certeza absoluta
+          return valueFromInput;
+        }
+      }
+
+      // Se não encontrou no input, só então usar valor das configurações
       console.log(`[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial}`);
-      console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Garantindo uso do valor exato configurado pelo usuário: ${configuracoes.valorInicial}. Valor anterior de entrada: ${lastContract?.buy_price}`);
+      console.log(`[OAUTH_DIRECT] ⚠️ Valor do input não encontrado, usando configurações: ${configuracoes.valorInicial}`);
       
       // Atualizar também o valor na configuração global para garantir consistência
       this.settings.entryValue = configuracoes.valorInicial;

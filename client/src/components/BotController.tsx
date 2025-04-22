@@ -767,13 +767,29 @@ export function BotController({
                 // Buscar valor do DOM para garantir 100% de consistência com a interface
                 let userEntryValue: number | null = null;
                 
-                // 1. Valor do input na tela (mais alta prioridade)
+                // 1. Valor do input na tela (mais alta prioridade SEMPRE)
                 const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
                 if (inputElement && inputElement.value) {
                   const valueFromInput = parseFloat(inputElement.value);
                   if (!isNaN(valueFromInput) && valueFromInput > 0) {
                     userEntryValue = valueFromInput;
                     console.log(`[BOT_BUTTON] 🔥 CORREÇÃO DEFINITIVA: Usando valor ${userEntryValue} diretamente do input da interface`);
+                    
+                    // ✅ NOVA CORREÇÃO CRÍTICA: Forçar atualização do localStorage com valor do input 
+                    // para garantir que todos os componentes usem o valor correto
+                    try {
+                      if (userConfigString) {
+                        let updatedConfig = JSON.parse(userConfigString);
+                        updatedConfig.valorInicial = valueFromInput;
+                        localStorage.setItem(`strategy_config_${currentStrategy}`, JSON.stringify(updatedConfig));
+                        console.log(`[BOT_BUTTON] 🚨 ATUALIZAÇÃO CRÍTICA: Salvando valor do input (${valueFromInput}) no localStorage para estratégia ${currentStrategy}`);
+                      }
+                    } catch (e) {
+                      console.error('[BOT_BUTTON] Erro ao atualizar localStorage:', e);
+                    }
+                    
+                    // RETORNAR IMEDIATAMENTE para evitar que outro valor sobrescreva
+                    // Nunca chegará nas próximas opções se o input tiver valor
                   }
                 }
                 
@@ -783,14 +799,15 @@ export function BotController({
                   console.log(`[BOT_BUTTON] 🔥 CORREÇÃO DEFINITIVA: Usando valor ${userEntryValue} passado por props`);
                 }
                 
-                if (userConfigString) {
+                // 3. Ou valor configurado no localStorage (terceira prioridade)
+                if (userEntryValue === null && userConfigString) {
                   try {
                     const userConfig = JSON.parse(userConfigString);
                     if (userConfig.valorInicial !== undefined) {
                       const userValueAsNumber = parseFloat(userConfig.valorInicial);
                       if (!isNaN(userValueAsNumber) && userValueAsNumber > 0) {
                         userEntryValue = userValueAsNumber;
-                        console.log(`[BOT_BUTTON] 🚨 CORREÇÃO CRÍTICA: Usando valor configurado pelo usuário nas configurações da estratégia ${currentStrategy}: ${userEntryValue}`);
+                        console.log(`[BOT_BUTTON] ⚠️ Usando valor do localStorage para estratégia ${currentStrategy}: ${userEntryValue}`);
                       }
                     }
                   } catch (error) {
@@ -834,11 +851,26 @@ export function BotController({
                       console.log('[BOT_TEST] Executando primeira operação de teste...');
                       
                       // Forçar execução da primeira operação usando o valor configurado pelo usuário
-                      // CORREÇÃO: Reutilizar o mesmo userEntryValue calculado anteriormente
-                      // Garantir que temos um valor não nulo para a operação
-                      const operationAmount = userEntryValue !== null ? userEntryValue : Number(entryValue) || undefined;
-                      console.log(`[BOT_TEST] 🚨 CORREÇÃO CRÍTICA: Usando valor ${operationAmount} para a primeira operação`);
-                      const started = await oauthDirectService.executeFirstOperation(operationAmount);
+                      // ÚLTIMA VERIFICAÇÃO CRUCIAL: Buscar valor diretamente do input em tempo real
+                      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+                      let finalOperationAmount: number | undefined;
+                      
+                      if (inputElement && inputElement.value) {
+                        const inputValue = parseFloat(inputElement.value);
+                        if (!isNaN(inputValue) && inputValue > 0) {
+                          finalOperationAmount = inputValue;
+                          console.log(`[BOT_TEST] 🚨 CORREÇÃO DEFINITIVA: Pegando valor ${finalOperationAmount} diretamente do input em tempo real`);
+                        }
+                      }
+                      
+                      // Se não foi possível pegar do input, usar valor calculado anteriormente
+                      if (finalOperationAmount === undefined) {
+                        finalOperationAmount = userEntryValue !== null ? userEntryValue : Number(entryValue) || undefined;
+                        console.log(`[BOT_TEST] ⚠️ Usando valor de fallback: ${finalOperationAmount}`);
+                      }
+                      
+                      console.log(`[BOT_TEST] 🚨 VALOR FINAL: Usando ${finalOperationAmount} para a primeira operação`);
+                      const started = await oauthDirectService.executeFirstOperation(finalOperationAmount);
                       
                       console.log('[BOT_TEST] Primeira operação executada:', started ? 'SUCESSO' : 'FALHA');
                       
