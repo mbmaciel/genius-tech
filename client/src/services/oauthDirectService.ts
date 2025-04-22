@@ -2598,27 +2598,36 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         prediction: prediction
       });
       
-      // Preparar solicitação de compra de contrato
+      // 🚨🚨🚨 FORMATO EXATO DA API DERIV CONFORME DOCUMENTAÇÃO 🚨🚨🚨
+      // https://api.deriv.com/api-explorer/#buy
+      console.log(`[OAUTH_DIRECT] 🚀 Usando formato exato conforme API Deriv`);
+      
+      // IMPORTANTE: construir exatamente conforme o esquema JSON da API
       const parameters: any = {
-        amount: amount,
-        basis: 'stake',
+        // Campos obrigatórios conforme esquema
         contract_type: contractType,
         currency: 'USD',
+        symbol: 'R_100',
+        
+        // Outros campos importantes 
+        amount: parseFloat(amount.toString()), // Garantir que seja número
+        basis: 'stake',
         duration: 5,
         duration_unit: 't',
-        symbol: 'R_100',
       };
       
-      // Adicionar predição se for tipo de contrato com dígito
+      // Adicionar previsão para contratos com dígito
       if (contractType.includes('DIGIT')) {
         parameters.barrier = prediction.toString();
         console.log(`[OAUTH_DIRECT] 🚀 Definindo barreira (previsão) para ${prediction}`);
       }
       
+      // CORREÇÃO CRÍTICA: Formato exato conforme documentação da API
       const buyRequest = {
-        buy: 1,
-        price: amount,
-        parameters
+        buy: "1", // String conforme documentação - ID=1 quando parameters é fornecido
+        price: parseFloat(amount.toString()),
+        parameters: parameters,
+        subscribe: 1 // Solicitar atualizações do contrato
       };
       
       console.log('[OAUTH_DIRECT] 🚀 Enviando solicitação de compra de contrato:', JSON.stringify(buyRequest, null, 2));
@@ -3259,19 +3268,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // Construir parâmetros básicos
+      // 🚨🚨🚨 CORREÇÃO CRÍTICA: FORMATO EXATO DA API DERIV CONFORME DOCUMENTAÇÃO 🚨🚨🚨
+      // https://api.deriv.com/api-explorer/#buy
+      console.log(`[OAUTH_DIRECT] 🚨 Usando formato exato conforme API Deriv para compra`);
+      
+      // IMPORTANTE: Construir exatamente conforme o esquema JSON da API
       const parameters: any = {
-        amount: finalAmount, // Usar o valor correto do XML em vez do padrão
-        basis: 'stake', // Usar sempre 'stake' para garantir o cálculo correto do payout
+        // Campos obrigatórios conforme esquema
         contract_type: contractType,
         currency: 'USD',
-        duration: 5, // Corrigir para 5 ticks independente da variável duration 
-        duration_unit: 't', // Usar sempre 't' (ticks) para duração padronizada
-        symbol: symbolCode
+        symbol: symbolCode,
+        
+        // Outros campos importantes 
+        amount: parseFloat(finalAmount.toString()), // Garantir que seja número
+        basis: 'stake',
+        duration: 5,
+        duration_unit: 't',
       };
       
-      // 🚨🚨🚨 CORREÇÃO EMERGENCIAL - FORÇAR OPERAÇÃO DIRETA VIA BUY 🚨🚨🚨
-      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 CORREÇÃO SUPER EMERGENCIAL: Executando compra direta!`);
+      // Adicionar predição para contratos com dígito
+      if (contractType.includes('DIGIT')) {
+        parameters.barrier = prediction.toString();
+        console.log(`[OAUTH_DIRECT] 🚨 Definindo barreira (previsão) para ${prediction}`);
+      }
+      
+      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 CORREÇÃO SUPER EMERGENCIAL: Executando compra direta com formato oficial!`);
       console.log(`[OAUTH_DIRECT] 🚨 DADOS DA OPERAÇÃO: ${JSON.stringify({
         contractType,
         finalAmount,
@@ -3279,11 +3300,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         prediction
       })}`);
       
-      // Preparar solicitação direta via buy
+      // CORREÇÃO CRÍTICA: Formato exato conforme documentação da API
       const buyRequest = {
-        buy: 1,
-        price: finalAmount,
-        parameters
+        buy: "1", // String conforme documentação - ID=1 quando parameters é fornecido
+        price: parseFloat(finalAmount.toString()),
+        parameters: parameters,
+        subscribe: 1 // Solicitar atualizações do contrato
       };
       
       console.log(`[OAUTH_DIRECT] 🚨 Enviando solicitação DIRETA de compra:`, JSON.stringify(buyRequest, null, 2));
