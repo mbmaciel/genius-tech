@@ -91,9 +91,14 @@ export function evaluateAdvanceStrategy(
     };
   }
   
-  // CRÍTICO: Usar a variável percentageToUse que foi definida no início com tratamento adequado
+  // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
+  console.log(`[STRATEGY_RULES] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
+  
   // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
+  // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
   const shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
+  
+  console.log(`[STRATEGY_RULES] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);  // Log o resultado para depuração
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 

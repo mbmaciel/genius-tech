@@ -68,7 +68,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
     id: 'iron_over',
     name: 'IRON OVER',
     description: 'Estratégia IRON otimizada para contratos CALL/ACIMA',
-    xmlPath: '/client/public/IRON_OVER.xml', // MODIFICADO: Usando XML corrigido
+    xmlPath: '/attached_assets/IRON OVER.xml', // Correção: Caminho corrigido para o arquivo XML
     type: 'RISE',
     config: {
       initialStake: 1.0, // CORREÇÃO: Valor default mais visível
