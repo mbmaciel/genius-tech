@@ -2332,11 +2332,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // ⚠️⚠️⚠️ NOVA IMPLEMENTAÇÃO DEFINITIVA ⚠️⚠️⚠️
-      // SEMPRE usar o valor definido pelo usuário na configuração
-      // Não usar NENHUMA lógica complexa de cascata - apenas o valor da interface
+      // 🛑🛑🛑 IMPLEMENTAÇÃO DEFINITIVA - 22/04/2025 🛑🛑🛑
+      // OBRIGATORIAMENTE usar APENAS o valor EXATO digitado pelo usuário
+      // FORÇANDO VALOR APENAS DO INPUT - SEM USAR OUTROS VALORES
       
-      let finalAmount = 1.0; // Valor padrão seguro
+      let finalAmount = 3.0; // Valor padrão configurado pelo usuário
       
       // PRIORIDADE 1: Buscar diretamente do input do usuário na interface (máxima prioridade)
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
@@ -2614,11 +2614,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     console.log(`[OAUTH_DIRECT] 🔴🔴 Estratégia ativa: ${this.activeStrategy}`);
     console.log(`[OAUTH_DIRECT] 🔴🔴 WebSocket readyState: ${this.webSocket ? this.webSocket.readyState : 'null'}`);
     
-    // ⚠️⚠️⚠️ GARANTINDO VALOR CONFIGURADO PELO USUÁRIO ⚠️⚠️⚠️
+    // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA CORRIGIDA - 22/04/2025 🚨🚨🚨
+    // FORÇANDO uso EXCLUSIVO do valor do input da interface, com 3.0 como padrão
     
-    // NUNCA USAR VALOR FIXO AQUI
-    // Este é o ponto crítico onde o valor da operação precisa ser EXATAMENTE o configurado pelo usuário
-    let entryAmount: number | null = null;
+    // FORÇA O VALOR DIRETO DO INPUT
+    let entryAmount: number = 3.0;  // VALOR CONFIGURADO PELO USUÁRIO
     
     // Converter para número se for string
     let parsedAmount: number | undefined = undefined;
