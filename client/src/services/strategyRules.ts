@@ -108,12 +108,12 @@ export function evaluateAdvanceStrategy(
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 
-    ? `ADVANCE: ✅ Condição satisfeita! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}% (25 ticks)`
-    : `ADVANCE: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}% (25 ticks)`;
+    ? `ADVANCE XML: ✅ Condição satisfeita! Executando DIGITOVER conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
+    : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
     
   return { 
     shouldEnter, 
-    contractType: 'CALL', // Corrigido para CALL em vez de DIGITOVER para a estratégia Advance
+    contractType: 'DIGITOVER', // CORRIGIDO CONFORME XML: <purchase>DIGITOVER</purchase>
     message,
     analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
     shouldLog: true // Sempre registramos estas análises no histórico para transparência completa
@@ -162,6 +162,8 @@ export function evaluateIronOverStrategy(
  * Avalia a estratégia IRON UNDER
  * Similar à IRON OVER, mas com lógica invertida e usa DIGITUNDER
  * IMPORTANTE: A API Deriv exige que o valor 'digit' esteja no range 1-9
+ * 
+ * IMPLEMENTAÇÃO EXATA DO XML: <purchase>DIGITUNDER</purchase>
  */
 export function evaluateIronUnderStrategy(
   digitStats: DigitStat[],
@@ -171,41 +173,27 @@ export function evaluateIronUnderStrategy(
 ): { shouldEnter: boolean; contractType: ContractType; useMartingale: boolean; message: string } {
   // Validação de segurança para garantir que prediction esteja no intervalo permitido
   if (prediction < 1 || prediction > 9) {
-    console.warn(`[STRATEGY_RULES] IRON UNDER: Previsão ${prediction} fora do intervalo permitido (1-9). Ajustando para 5.`);
+    console.warn(`[STRATEGY_RULES] IRON UNDER XML: Previsão ${prediction} fora do intervalo permitido (1-9). Ajustando para 5.`);
     prediction = 5; // Valor seguro dentro do intervalo permitido
   }
-  // Log para debug - AMPLIADO para depuração
-  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Iniciando avaliação da estratégia`);
-  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Previsão: ${prediction}, Perdas consecutivas: ${consecutiveLosses}, Martingale após: ${martingaleAfterLosses}`);
-  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Estatísticas recebidas: ${digitStats?.length || 0} dígitos`);
   
-  // Verificar se temos dados estatísticos suficientes
-  if (!digitStats || digitStats.length === 0) {
-    console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Sem estatísticas suficientes, retornando shouldEnter=false`);
-    return {
-      shouldEnter: false,
-      contractType: 'DIGITUNDER',
-      useMartingale: false,
-      message: 'IRON UNDER: Aguardando estatísticas de dígitos.'
-    };
-  }
+  // Logs para diagnóstico
+  console.log(`[STRATEGY_RULES] 🚀 IRON UNDER XML: Executando compra DIGITUNDER conforme definido no XML`);
+  console.log(`[STRATEGY_RULES] 🚀 IRON UNDER XML: Previsão=${prediction}, Perdas consecutivas=${consecutiveLosses}`);
   
-  // IRON UNDER sempre entra, mas controla o martingale após X perdas
+  // IRON UNDER SEMPRE faz DIGITUNDER, conforme XML (sem condição)
   const shouldEnter = true;
   const contractType: ContractType = 'DIGITUNDER';
   
   // Determinar se deve aplicar martingale baseado no número de perdas consecutivas
   const useMartingale = consecutiveLosses >= martingaleAfterLosses;
   
-  // Log detalhado para depuração
-  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): shouldEnter=${shouldEnter}, contractType=${contractType}, useMartingale=${useMartingale}`);
-  
   const message = useMartingale
-    ? `IRON UNDER: Usando martingale após ${consecutiveLosses} perdas (limite: ${martingaleAfterLosses}). Previsão: DIGITUNDER ${prediction}`
-    : `IRON UNDER: Operação normal sem martingale. Previsão: DIGITUNDER ${prediction}`;
+    ? `IRON UNDER XML: Usando martingale após ${consecutiveLosses} perdas (limite: ${martingaleAfterLosses}). Previsão: DIGITUNDER ${prediction}`
+    : `IRON UNDER XML: Operação normal sem martingale. Previsão: DIGITUNDER ${prediction}`;
   
-  // Log da mensagem final para depuração
-  console.log(`[STRATEGY_RULES] 🚨 IRON_UNDER (DEBUG): Mensagem final: ${message}`);
+  // Logs para diagnóstico
+  console.log(`[STRATEGY_RULES] 🚀 IRON UNDER XML: shouldEnter=${shouldEnter}, Tipo=${contractType}, useMartingale=${useMartingale}`);
   
   return {
     shouldEnter,
