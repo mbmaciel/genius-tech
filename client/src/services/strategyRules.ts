@@ -94,18 +94,16 @@ export function evaluateAdvanceStrategy(
   // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
   console.log(`[STRATEGY_RULES] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
   
-  // ⚠️⚠️⚠️ CORREÇÃO CRÍTICA - 22/04/2025 ⚠️⚠️⚠️
-  // O problema era verificar se AMBOS os dígitos estavam abaixo do limite.
-  // Agora verificamos apenas o dígito 0, pois esse é o critério que tem funcionado melhor.
-  
-  const shouldEnter = digit0Percentage <= percentageToUse;
+  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
+  // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
+  const shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
   
   console.log(`[STRATEGY_RULES] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);
-  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA! Decisão baseada apenas no dígito 0: ${digit0Percentage}% <= ${percentageToUse}%`); 
+  console.log(`[STRATEGY_RULES] 🔍 Verificando ambos os dígitos: 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
   
   // Notificar usuário no console para diagnóstico
   if (shouldEnter) {
-    console.log(`[STRATEGY_RULES] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígito 0 (${digit0Percentage}%) <= ${percentageToUse}%`);
+    console.log(`[STRATEGY_RULES] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
   }
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
@@ -125,6 +123,8 @@ export function evaluateAdvanceStrategy(
 /**
  * Avalia a estratégia IRON OVER
  * Regra: Usa contratos DIGITOVER e respeita o número de perdas para aplicar martingale
+ * 
+ * IMPLEMENTAÇÃO EXATA DO XML: <purchase>DIGITOVER</purchase>
  */
 export function evaluateIronOverStrategy(
   digitStats: DigitStat[],
@@ -132,7 +132,11 @@ export function evaluateIronOverStrategy(
   consecutiveLosses: number = 0,
   martingaleAfterLosses: number = 2
 ): { shouldEnter: boolean; contractType: ContractType; useMartingale: boolean; message: string } {
-  // IRON OVER sempre entra, mas controla o martingale após X perdas
+  // Logs para diagnóstico
+  console.log(`[STRATEGY_RULES] 🚀 IRON OVER XML: Executando compra DIGITOVER conforme definido no XML`);
+  console.log(`[STRATEGY_RULES] 🚀 IRON OVER XML: Previsão=${prediction}, Perdas consecutivas=${consecutiveLosses}`);
+  
+  // IRON OVER SEMPRE faz DIGITOVER, conforme XML (sem condição)
   const shouldEnter = true;
   const contractType: ContractType = 'DIGITOVER';
   
@@ -140,8 +144,11 @@ export function evaluateIronOverStrategy(
   const useMartingale = consecutiveLosses >= martingaleAfterLosses;
   
   const message = useMartingale
-    ? `IRON OVER: Usando martingale após ${consecutiveLosses} perdas (limite: ${martingaleAfterLosses}). Previsão: DIGITOVER ${prediction}`
-    : `IRON OVER: Operação normal sem martingale. Previsão: DIGITOVER ${prediction}`;
+    ? `IRON OVER XML: Usando martingale após ${consecutiveLosses} perdas (limite: ${martingaleAfterLosses}). Previsão: DIGITOVER ${prediction}`
+    : `IRON OVER XML: Operação normal sem martingale. Previsão: DIGITOVER ${prediction}`;
+  
+  // Logs para diagnóstico
+  console.log(`[STRATEGY_RULES] 🚀 IRON OVER XML: shouldEnter=${shouldEnter}, Tipo=${contractType}, useMartingale=${useMartingale}`);
   
   return {
     shouldEnter,
