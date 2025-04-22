@@ -970,7 +970,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         // Registrar handler no serviço OAuth
         console.log('[BOT_PAGE] Registrando listener de eventos do oauthDirectService');
-        oauthDirectService.addEventListener(handleEvents);
+        // CORREÇÃO CRÍTICA: Removido o addEventListener daqui para evitar duplicação
+        // O evento já está sendo registrado em outro local do código (linha ~2112)
+        console.log('[BOT_PAGE] *** ALERTA: Event listener removido desta localização para evitar conflitos ***');
         
         // Forçar uma inscrição para ticks do R_100 - CORREÇÃO CRÍTICA
         console.log('[BOT_PAGE] Forçando inscrição para ticks de R_100');
@@ -990,7 +992,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         return () => {
           // Limpar recursos ao desmontar
           console.log('[BOT_PAGE] Removendo listener de eventos do oauthDirectService');
-          oauthDirectService.removeEventListener(handleEvents);
+          // CORREÇÃO CRÍTICA: Não remover o listener aqui pois ele já não está mais sendo adicionado
+          // O event listener central é gerenciado no useEffect principal
+          console.log('[BOT_PAGE] *** ALERTA: removeEventListener removido desta localização para evitar erros ***');
           
           // Parar serviço se estiver rodando
           if (botStatus === 'running') {
@@ -2411,7 +2415,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               
               {/* Adicionar log para depuração do estado atual das operações */}
               <div className="hidden">
-                {console.log('[BOT_PAGE] RENDERING OPERATION HISTORY CARD WITH OPERATIONS:', operationHistory.length, operationHistory)}
+                {/* Log de depuração comentado para evitar erros */}
+                {/* O conteúdo era console.log que estava causando erro de renderização */}
               </div>
               
               <OperationHistoryCard 
