@@ -533,10 +533,22 @@ export class XmlStrategyParser {
     // IRON UNDER sempre entra, mas controla o martingale
     const shouldEnter = true;
     
-    // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
-    let amount = valorConfiguradoUsuario !== null 
-      ? valorConfiguradoUsuario 
-      : this.getFinalAmount();
+    // CORREÇÃO RADICAL: Aplicar a mesma solução do Iron Over
+    // Buscar valor APENAS do campo de entrada na interface
+    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    let amount = 1.0; // Valor padrão temporário 
+    
+    if (inputElement && inputElement.value) {
+      const valueFromInput = parseFloat(inputElement.value);
+      if (!isNaN(valueFromInput) && valueFromInput > 0) {
+        amount = valueFromInput;
+        console.log(`[XML_PARSER] ✅✅✅ IRON UNDER: FORÇANDO valor ${amount} do input`);
+      } else {
+        console.log(`[XML_PARSER] ❌ IRON UNDER: Input tem valor inválido: "${inputElement.value}"`);
+      }
+    } else {
+      console.log(`[XML_PARSER] ❌ IRON UNDER: Input #iron-bot-entry-value não encontrado!`);
+    }
     
     // Se for usar martingale, ajustar valor
     if (useMartingale && consecutiveLosses > 0) {
@@ -544,11 +556,11 @@ export class XmlStrategyParser {
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // CORREÇÃO CRÍTICA: IGNORAR valor hardcoded (0.35) no XML e priorizar configuração do usuário
-      // Usando getFinalAmount para garantir consistência em todas as estratégias
-      const valorInicial = this.getFinalAmount();
-      console.log(`[XML_PARSER] 🚨 IRON UNDER utilizando valor ${valorInicial} de getFinalAmount`);
-      // Este método já implementa a lógica de priorização completa
+      // CORREÇÃO RADICAL: Usar APENAS o valor do input como valor inicial
+      // Ignorar completamente qualquer outro valor
+      const valorInicial = amount; // Usar o valor já obtido do input
+      console.log(`[XML_PARSER] 🚨 IRON UNDER utilizando valor FORÇADO ${valorInicial} do input da interface`);
+      // Essa é a única fonte de verdade para o valor inicial
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
