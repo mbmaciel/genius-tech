@@ -14,6 +14,7 @@ import { WebSocketDiagnostic } from "@/components/WebSocketDiagnostic";
 import { TokenPermissionAlert } from "@/components/TokenPermissionAlert";
 import { DerivLoginRequired } from "@/components/DerivLoginRequired";
 import { RelatorioOperacoes } from "@/components/trading/RelatorioOperacoes";
+import { OperationHistoryCard } from "@/components/trading/OperationHistoryCard";
 import { DigitBarChart } from "@/components/ui/DigitBarChart";
 import { IndependentDigitBarChart } from "@/components/IndependentDigitBarChart";
 import derivApiService from "@/services/derivApiService";
@@ -2223,9 +2224,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 )}
               </div>
               
-              <RelatorioOperacoes 
-                operations={operationHistory} 
-                selectedStrategy={selectedStrategy} 
+              <OperationHistoryCard 
+                operations={operationHistory}
+                stats={stats}
               />
             </div>
             
