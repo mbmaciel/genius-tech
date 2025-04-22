@@ -44,8 +44,64 @@ interface OperationHistoryCardProps {
 }
 
 export function OperationHistoryCard({ operations, stats }: OperationHistoryCardProps) {
+  // Log para depuração das operações
   console.log('[OperationHistoryCard] Renderizando com operações:', operations.length, operations);
+  
+  // Referência ao estado interno do componente
+  const [internalOperations, setInternalOperations] = React.useState<Operation[]>(operations || []);
   const { t } = useTranslation();
+  
+  // Atualizar o estado interno quando as operações mudam
+  React.useEffect(() => {
+    console.log('[OperationHistoryCard] Recebidas operações externas:', operations.length);
+    if (operations && operations.length > 0) {
+      setInternalOperations(operations);
+    }
+  }, [operations]);
+  
+  // Adicionar listener para eventos de contrato finalizado em tempo real
+  React.useEffect(() => {
+    const handleContractFinished = (event: CustomEvent) => {
+      const contractData = event.detail;
+      console.log('[OperationHistoryCard] Evento contract_finished recebido diretamente:', contractData);
+      
+      // Criar uma nova operação a partir dos dados do contrato
+      const newOperation: Operation = {
+        id: contractData.contract_id || Date.now(),
+        contract_id: contractData.contract_id,
+        entryValue: contractData.entry_value || contractData.buy_price || 0,
+        entry_value: contractData.entry_value || contractData.buy_price || 0,
+        finalValue: contractData.exit_value || contractData.sell_price || 0,
+        exit_value: contractData.exit_value || contractData.sell_price || 0,
+        profit: contractData.profit || 0,
+        time: new Date(),
+        timestamp: Date.now(),
+        contract_type: contractData.contract_type || '',
+        symbol: contractData.symbol || 'R_100',
+        strategy: contractData.strategy || '',
+        is_win: contractData.is_win || false,
+        notification: {
+          type: contractData.is_win ? 'success' : 'error',
+          message: `${contractData.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(contractData.entry_value || 0).toFixed(2)} | Resultado: $${(contractData.profit || 0).toFixed(2)}`
+        }
+      };
+      
+      // Adicionar a nova operação ao início do array
+      setInternalOperations(prev => [newOperation, ...prev].slice(0, 50));
+    };
+    
+    // Registrar o listener para eventos de contrato finalizado
+    if (typeof window !== 'undefined') {
+      window.addEventListener('contract_finished', handleContractFinished as EventListener);
+    }
+    
+    // Limpar o listener quando o componente for desmontado
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('contract_finished', handleContractFinished as EventListener);
+      }
+    };
+  }, []);
   
   // Função para formatar valores monetários
   const formatCurrency = (value: number | undefined) => {
@@ -61,9 +117,9 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     return format(time, 'HH:mm:ss');
   };
 
-  // Separar operações por tipo
-  const regularOperations = operations.filter(op => !op.isIntermediate);
-  const intermediateOperations = operations.filter(op => op.isIntermediate);
+  // Separar operações por tipo usando o estado interno
+  const regularOperations = internalOperations.filter(op => !op.isIntermediate);
+  const intermediateOperations = internalOperations.filter(op => op.isIntermediate);
 
   return (
     <Card className="h-full shadow-md border border-[#2a3756] bg-[#13203A]">
