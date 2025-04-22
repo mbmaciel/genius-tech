@@ -2212,6 +2212,54 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
 
   /**
+   * Salva tick no localStorage para uso pela avaliação de estratégias
+   * @param symbol Símbolo do mercado (ex: R_100)
+   * @param tickData Dados do tick (objeto com lastDigit, price, etc)
+   */
+  private saveTickToLocalStorage(symbol: string, tickData: any): void {
+    try {
+      // Chave para armazenar os ticks no localStorage
+      const storageKey = `deriv_ticks_${symbol}`;
+      
+      // Buscar dados existentes ou iniciar com array vazio
+      const existingData = localStorage.getItem(storageKey);
+      let ticks = [];
+      
+      if (existingData) {
+        try {
+          ticks = JSON.parse(existingData);
+          if (!Array.isArray(ticks)) {
+            console.error(`[OAUTH_DIRECT] Dados inválidos no localStorage para ${storageKey}, reiniciando`);
+            ticks = [];
+          }
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] Erro ao parsear dados do localStorage para ${storageKey}:`, error);
+          ticks = [];
+        }
+      }
+      
+      // Adicionar novo tick no início do array (mais recente primeiro)
+      ticks.unshift(tickData);
+      
+      // Limitar a 500 ticks para não consumir muito localStorage
+      const maxTicks = 500;
+      if (ticks.length > maxTicks) {
+        ticks = ticks.slice(0, maxTicks);
+      }
+      
+      // Salvar de volta no localStorage
+      localStorage.setItem(storageKey, JSON.stringify(ticks));
+      
+      // Log a cada 50 ticks para não poluir o console
+      if (ticks.length % 50 === 0) {
+        console.log(`[OAUTH_DIRECT] ✅ ${ticks.length} ticks salvos no localStorage para ${symbol}`);
+      }
+    } catch (error) {
+      console.error(`[OAUTH_DIRECT] Erro ao salvar tick no localStorage:`, error);
+    }
+  }
+
+  /**
    * Solicita o saldo atual sem criar uma assinatura
    * Método privado utilizado por getAccountBalance
    */
