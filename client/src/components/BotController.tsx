@@ -609,9 +609,23 @@ export function BotController({
         console.log(`[BOT_CONTROLLER] Usando previsão de dígito: ${prediction}`);
       }
       
+      // 🚨🚨🚨 CORREÇÃO DEFINITIVA - 22/04/2025 🚨🚨🚨
+      // Garantir que o input no DOM esteja sempre atualizado com o valor definido 
+      // na configuração antes de qualquer operação
+      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputElement && strategyConfig.valorInicial) {
+        console.log(`[BOT_CONTROLLER] ✅ GARANTINDO valor ${strategyConfig.valorInicial} no DOM`);
+        inputElement.value = strategyConfig.valorInicial.toString();
+      }
+      
+      // Adicionar valor como variável global para garantir acesso em todas as funções
+      (window as any).ironBotEntryValue = strategyConfig.valorInicial;
+      
       // Configurar serviço com os parâmetros da configuração atual da estratégia
+      // USAR EXATAMENTE o valor da estratégia como valor inicial
+      console.log(`[BOT_CONTROLLER] 🚨 Configurando serviço com valor EXATO: ${strategyConfig.valorInicial}`);
       oauthDirectService.setSettings({
-        entryValue: strategyConfig.valorInicial,
+        entryValue: strategyConfig.valorInicial, // Valor EXATO da configuração
         profitTarget: strategyConfig.metaGanho,
         lossLimit: strategyConfig.limitePerda,
         martingaleFactor: parseFloat(strategyConfig.martingale.toString()),
@@ -635,13 +649,11 @@ export function BotController({
         console.log('[BOT_CONTROLLER] 🔄 Estado atual definido como: running');
 
         // Forçar a primeira operação após iniciar o serviço
-        console.log('[BOT_CONTROLLER] Serviço iniciado, iniciando primeira operação...');
-        
-        // Executar a primeira operação com base na estratégia e no valor de entrada configurado
-        // CORREÇÃO CRÍTICA: Usar método getUserDefinedAmount para garantir a prioridade correta
-        const userConfiguredAmount = strategyConfig.valorInicial;
-        console.log(`[BOT_CONTROLLER] 🚨 CORREÇÃO: Usando método getUserDefinedAmount para valor ${userConfiguredAmount}`);
-        const operationStarted = await oauthDirectService.executeFirstOperation(userConfiguredAmount);
+        // USAR EXATAMENTE o valor da estratégia, sem qualquer processamento adicional
+        console.log('[BOT_CONTROLLER] 🔴 Iniciando primeira operação com valor EXATO do usuário...');
+        const exactUserValue = strategyConfig.valorInicial;
+        console.log(`[BOT_CONTROLLER] 🔴 VALOR EXATO DE ENTRADA: ${exactUserValue}`);
+        const operationStarted = await oauthDirectService.executeFirstOperation(exactUserValue);
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
@@ -655,7 +667,7 @@ export function BotController({
         // Atualização de status também ocorre via evento bot_started
         toast({
           title: "Bot iniciado",
-          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${userConfiguredAmount}`,
+          description: `Executando estratégia "${currentBotStrategy?.name}" com entrada de ${exactUserValue}`,
         });
       } else {
         console.log('[BOT_CONTROLLER] Bot não iniciou com sucesso, resetando estado');

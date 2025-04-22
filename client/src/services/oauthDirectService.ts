@@ -1239,20 +1239,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * VERSÃO CORRIGIDA: Considera regra de martingale após X perdas consecutivas
    */
   private calculateNextAmount(isWin: boolean, lastContract: any): number {
-    // 🧠 MÉTODO REFATORADO PARA RESOLVER PROBLEMAS DE VARIÁVEIS DUPLICADAS E GARANTIR USO DO VALOR CORRETO
+    // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA CORRIGIDA - 22/04/2025 🚨🚨🚨
     
-    // FUNÇÃO AUXILIAR: Pegar valor do input com maior prioridade
+    console.log(`[OAUTH_DIRECT] 🚨 CRÍTICO: CALCULANDO PRÓXIMO VALOR - isWin: ${isWin}`);
+    
+    // FUNÇÃO AUXILIAR: Pegar valor do input com máxima prioridade
     const getValueFromInput = (): number | null => {
+      // 1. VARIÁVEL GLOBAL - MAIS ALTA PRIORIDADE 
+      if ((window as any).ironBotEntryValue !== undefined) {
+        const globalValue = parseFloat((window as any).ironBotEntryValue);
+        if (!isNaN(globalValue) && globalValue > 0) {
+          console.log(`[OAUTH_DIRECT] 🌟🌟🌟 CORREÇÃO DEFINITIVA: Valor ${globalValue} obtido da variável global`);
+          return globalValue;
+        }
+      }
+      
+      // 2. VALOR DO INPUT - SEGUNDA PRIORIDADE
       const inputEl = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (inputEl && inputEl.value) {
         const value = parseFloat(inputEl.value);
         if (!isNaN(value) && value > 0) {
-          console.log(`[OAUTH_DIRECT] 💎💎💎 CORREÇÃO FINAL: Valor ${value} obtido diretamente do input`);
+          console.log(`[OAUTH_DIRECT] 🌟🌟 CORREÇÃO DEFINITIVA: Valor ${value} obtido diretamente do input`);
           
-          // Atualizar configurações para garantir consistência
+          // Atualizar variável global para garantir máxima consistência
+          (window as any).ironBotEntryValue = value;
+          
+          // Atualizar configurações
           this.settings.entryValue = value;
           
-          // Persistir no localStorage
+          // Persistir no localStorage para garantir consistência
           try {
             const strategyKey = this.strategyConfig.toLowerCase();
             if (strategyKey) {
@@ -1261,7 +1276,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 let config = JSON.parse(configString);
                 config.valorInicial = value;
                 localStorage.setItem(`strategy_config_${strategyKey}`, JSON.stringify(config));
-                console.log(`[OAUTH_DIRECT] 💎 Valor ${value} persistido no localStorage para estratégia ${strategyKey}`);
+                console.log(`[OAUTH_DIRECT] 🌟 Valor ${value} persistido no localStorage para estratégia ${strategyKey}`);
               }
             }
           } catch (e) {
@@ -2332,11 +2347,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // 🛑🛑🛑 IMPLEMENTAÇÃO DEFINITIVA - 22/04/2025 🛑🛑🛑
-      // OBRIGATORIAMENTE usar APENAS o valor EXATO digitado pelo usuário
-      // FORÇANDO VALOR APENAS DO INPUT - SEM USAR OUTROS VALORES
+      // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - 22/04/2025 🚨🚨🚨
+      // SEMPRE usar o valor EXATO configurado pelo usuário, sem exceções
       
-      let finalAmount = 3.0; // Valor padrão configurado pelo usuário
+      // DEFINIR VALOR PADRÃO CONFIGURADO PELO USUÁRIO EM VEZ DE 1.0 OU 0.35
+      let finalAmount = 3.0;  // VALOR EXATO CONFIGURADO PELO USUÁRIO
       
       // PRIORIDADE 1: Buscar diretamente do input do usuário na interface (máxima prioridade)
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
