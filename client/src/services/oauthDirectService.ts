@@ -942,8 +942,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               
               // Incluir todos os detalhes relevantes do contrato para histórico
               // Registrar detalhes completos da operação finalizada
+              // IMPORTANTE: Definir flag isIntermediate como false por padrão para operações normais
               const detailedContractInfo = {
                 type: 'contract_finished',
+                isIntermediate: false, // Garantir que operações regulares NÃO sejam marcadas como intermediárias
+                is_intermediate: false, // Duplicar flag para compatibilidade
                 contract_id: contract.contract_id,
                 is_win: isWin,
                 profit: profit,
@@ -1023,6 +1026,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           // Notificar interface sobre venda bem-sucedida
           this.notifyListeners({
             type: 'contract_finished',
+            // Garantir que operações regulares NÃO sejam marcadas como intermediárias
+            isIntermediate: false,
+            is_intermediate: false,
             contract_id: this.currentContractId || 0,
             sold: true,
             profit: profit,
@@ -4190,8 +4196,22 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       try {
         console.log(`[OAUTH_DIRECT] 📢 Emitindo evento DOM: contract_finished`, event);
         
-        // Garantir que isIntermediate seja considerado corretamente
-        const isIntermediate = event.isIntermediate || event.is_intermediate || false;
+        // ★★★ CORREÇÃO CRÍTICA ★★★ 
+        // Forçar isIntermediate como false para todas as operações que NÃO sejam da estratégia ADVANCE
+        // Isso garante que as operações apareçam na aba "Operações", não na aba "Análises"
+        const strategyId = this.activeStrategy?.toLowerCase() || '';
+        const isAdvanceStrategy = strategyId === 'advance';
+        
+        // Apenas estratégia Advance pode ter operações intermediárias
+        const originalIsIntermediate = event.isIntermediate || event.is_intermediate || false;
+        const isIntermediate = isAdvanceStrategy ? originalIsIntermediate : false;
+        
+        console.log(`[OAUTH_DIRECT] ★★★ Classificação de operação:
+          Estratégia: ${strategyId}
+          É estratégia Advance? ${isAdvanceStrategy}
+          isIntermediate original: ${originalIsIntermediate}
+          isIntermediate final: ${isIntermediate}
+        `);
         
         const domEvent = new CustomEvent('contract_finished', { 
           detail: {
@@ -4199,7 +4219,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             timestamp: Date.now(),
             strategy: this.strategyConfig || '',
             entry_value: event.entry_value || this.settings.entryValue || 0,
-            // Incluir flag isIntermediate de forma consistente
+            // Incluir flag isIntermediate de forma consistente, 
+            // forçando como false para operações não-Advance
             isIntermediate: isIntermediate,
             is_intermediate: isIntermediate
           }
