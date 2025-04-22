@@ -141,8 +141,9 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     return format(time, 'HH:mm:ss');
   };
 
-  // Separar operações por tipo usando o estado interno
-  const regularOperations = internalOperations.filter(op => !op.isIntermediate);
+  // Mostrar TODAS as operações na aba principal "Operações"
+  // A aba "Análises" agora exibe apenas operações marcadas explicitamente como intermediárias
+  const regularOperations = internalOperations; // Todas as operações
   const intermediateOperations = internalOperations.filter(op => op.isIntermediate);
 
   return (
@@ -178,8 +179,8 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
       <CardContent className="px-4 pb-4">
         <Tabs defaultValue="regular" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-3 bg-[#1a2b4c]">
-            <TabsTrigger value="regular">Operações</TabsTrigger>
-            <TabsTrigger value="intermediate">Análises</TabsTrigger>
+            <TabsTrigger value="regular">Todas Operações</TabsTrigger>
+            <TabsTrigger value="intermediate">Análises Advance</TabsTrigger>
           </TabsList>
           
           <TabsContent value="regular" className="mt-0">
@@ -242,7 +243,7 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                 </div>
               ) : (
                 <div className="text-center py-4 text-gray-400">
-                  Nenhuma operação realizada ainda.
+                  Nenhuma operação registrada. Inicie o robô para começar a operar.
                 </div>
               )}
             </div>
@@ -273,7 +274,7 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                 </div>
               ) : (
                 <div className="text-center py-4 text-gray-400">
-                  Nenhuma análise intermediária disponível.
+                  Nenhuma análise Advance disponível. Utilize a estratégia Advance para ver análises detalhadas aqui.
                 </div>
               )}
             </div>
