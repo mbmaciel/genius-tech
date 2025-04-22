@@ -1245,26 +1245,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // FUNÇÃO AUXILIAR: Pegar valor do input com máxima prioridade
     const getValueFromInput = (): number | null => {
-      // 1. VARIÁVEL GLOBAL - MAIS ALTA PRIORIDADE 
-      if ((window as any).ironBotEntryValue !== undefined) {
-        const globalValue = parseFloat((window as any).ironBotEntryValue);
-        if (!isNaN(globalValue) && globalValue > 0) {
-          console.log(`[OAUTH_DIRECT] 🌟🌟🌟 CORREÇÃO DEFINITIVA: Valor ${globalValue} obtido da variável global`);
-          return globalValue;
-        }
-      }
-      
-      // 2. VALOR DO INPUT - SEGUNDA PRIORIDADE
+      // PRIORIDADE 1: VALOR DO ELEMENTO DOM - MÁXIMA PRIORIDADE
       const inputEl = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (inputEl && inputEl.value) {
         const value = parseFloat(inputEl.value);
         if (!isNaN(value) && value > 0) {
-          console.log(`[OAUTH_DIRECT] 🌟🌟 CORREÇÃO DEFINITIVA: Valor ${value} obtido diretamente do input`);
+          console.log(`[OAUTH_DIRECT] 🌟🌟🌟 CORREÇÃO CRÍTICA: Valor ${value} obtido DIRETAMENTE do input da interface`);
           
-          // Atualizar variável global para garantir máxima consistência
-          (window as any).ironBotEntryValue = value;
-          
-          // Atualizar configurações
+          // Atualizar configurações para consistência em operações futuras
           this.settings.entryValue = value;
           
           // Persistir no localStorage para garantir consistência
@@ -1486,14 +1474,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * Validar se a operação deve continuar com base nos limites configurados
    */
   private validateOperationContinuation(isWin: boolean, lastContract: any): boolean {
-    // Implementação de validação baseada no lucro/perda e limites configurados
+    // 🚨 Implementação corrigida de validação baseada no lucro/perda e limites configurados
+    
+    console.log(`[OAUTH_DIRECT] 🔍 VALIDANDO CONTINUAÇÃO: isWin=${isWin}, último contrato:`, lastContract?.contract_id);
+    
+    // CORREÇÃO: Verificar se o bot ainda está em execução
+    if (!this.isRunning) {
+      console.log(`[OAUTH_DIRECT] ⚠️ Bot não está mais em execução, operações interrompidas`);
+      return false;
+    }
     
     // Verificar se temos configurações de limite de perda e meta de lucro
     const profitTarget = this.settings.profitTarget;
     const lossLimit = this.settings.lossLimit;
     
+    console.log(`[OAUTH_DIRECT] Verificando limites - Meta de lucro: ${profitTarget}, Limite de perda: ${lossLimit}`);
+    
     if (!profitTarget && !lossLimit) {
       // Se não houver limites, continuar operando
+      console.log(`[OAUTH_DIRECT] ✅ Sem limites definidos, continuando operações`);
       return true;
     }
     
@@ -1519,6 +1518,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           this.sessionStats.totalProfit += calculatedAmount;
         }
       }
+      
+      console.log(`[OAUTH_DIRECT] ✅ Vitória registrada! Total: ${this.sessionStats.wins} vitórias, lucro: ${this.sessionStats.totalProfit.toFixed(2)}`);
     } else {
       // Atualizar estatísticas para derrota
       this.sessionStats.losses++;
@@ -1528,16 +1529,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         calculatedAmount = Number(lastContract.buy_price);
         this.sessionStats.totalLoss += calculatedAmount;
       }
+      
+      console.log(`[OAUTH_DIRECT] ❌ Derrota registrada! Total: ${this.sessionStats.losses} derrotas, perda: ${this.sessionStats.totalLoss.toFixed(2)}`);
     }
     
     // Calcular o lucro líquido
     this.sessionStats.netProfit = this.sessionStats.totalProfit - this.sessionStats.totalLoss;
+    console.log(`[OAUTH_DIRECT] Lucro líquido atual: ${this.sessionStats.netProfit.toFixed(2)}`);
+    
+    // CORREÇÃO CRÍTICA: Converter valores para números com garantia
+    const profitTargetNum = profitTarget ? parseFloat(String(profitTarget)) : 0;
+    const lossLimitNum = lossLimit ? parseFloat(String(lossLimit)) : 0;
+    
+    // Verificar explicitamente se existe um valor numérico válido configurado
+    const hasProfitTarget = profitTargetNum && !isNaN(profitTargetNum) && profitTargetNum > 0;
+    const hasLossLimit = lossLimitNum && !isNaN(lossLimitNum) && lossLimitNum > 0;
+    
+    console.log(`[OAUTH_DIRECT] Meta de lucro configurada: ${hasProfitTarget ? profitTargetNum : 'Não definida'}`);
+    console.log(`[OAUTH_DIRECT] Limite de perda configurado: ${hasLossLimit ? lossLimitNum : 'Não definido'}`);
     
     // Se atingiu a meta de lucro, parar
-    const profitTargetNum = typeof profitTarget === 'string' ? parseFloat(profitTarget) : profitTarget;
-    if (profitTargetNum && !isNaN(profitTargetNum) && this.sessionStats.netProfit >= profitTargetNum) {
+    if (hasProfitTarget && this.sessionStats.netProfit >= profitTargetNum) {
       const targetMessage = `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
-      console.log(`[OAUTH_DIRECT] Meta de lucro atingida: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTargetNum}`);
+      console.log(`[OAUTH_DIRECT] 🎯 META DE LUCRO ATINGIDA: ${this.sessionStats.netProfit.toFixed(2)} / ${profitTargetNum}`);
       
       // Notificar interface sobre o atingimento da meta
       this.notifyListeners({
@@ -1554,10 +1568,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     // Se atingiu o limite de perda, parar
-    const lossLimitNum = typeof lossLimit === 'string' ? parseFloat(lossLimit) : lossLimit;
-    if (lossLimitNum && !isNaN(lossLimitNum) && this.sessionStats.totalLoss >= lossLimitNum) {
+    if (hasLossLimit && this.sessionStats.totalLoss >= lossLimitNum) {
       const limitMessage = `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
-      console.log(`[OAUTH_DIRECT] Limite de perda atingido: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitNum}`);
+      console.log(`[OAUTH_DIRECT] ⚠️ LIMITE DE PERDA ATINGIDO: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitNum}`);
       
       // Notificar interface sobre o limite atingido
       this.notifyListeners({
@@ -1572,6 +1585,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       return false; // Parar operações
     }
+    
+    // CORREÇÃO: Adicionar logs para diagnóstico de continuação
+    console.log(`[OAUTH_DIRECT] ✅ Validação bem-sucedida, continuando operações. Situação: ${this.sessionStats.wins} vitórias, ${this.sessionStats.losses} derrotas, lucro líquido: ${this.sessionStats.netProfit.toFixed(2)}`);
     
     // Se ainda não atingiu nenhum limite, continuar operando
     return true;
@@ -2366,7 +2382,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - 22/04/2025 🚨🚨🚨
+      // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - CORREÇÃO 22/04/2025 🚨🚨🚨
       // USAR EXCLUSIVAMENTE o valor configurado pelo usuário, sem exceções ou valores padrão
       
       // NUNCA USAR VALOR PADRÃO - APENAS o valor do usuário
@@ -2380,8 +2396,41 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           finalAmount = valueFromInput;
           console.log(`[OAUTH_DIRECT] ✅ CORREÇÃO FINAL: Usando valor ${finalAmount} DIRETAMENTE do input do usuário`);
         }
-      } else {
-        console.log(`[OAUTH_DIRECT] ❌ Input do usuário não encontrado, usando valor padrão: ${finalAmount}`);
+      } 
+      
+      // PRIORIDADE 2: Se não encontrar no input, buscar no localStorage
+      if (!finalAmount || finalAmount <= 0) {
+        try {
+          let configKey = 'strategy_config_';
+          if (this.activeStrategy) {
+            configKey += this.activeStrategy.toLowerCase().replace(/\s+/g, '');
+          } else {
+            configKey += 'default';
+          }
+          
+          const configStr = localStorage.getItem(configKey);
+          if (configStr) {
+            const config = JSON.parse(configStr);
+            if (config.valorInicial && !isNaN(parseFloat(config.valorInicial.toString()))) {
+              finalAmount = parseFloat(config.valorInicial.toString());
+              console.log(`[OAUTH_DIRECT] ✅ Usando valor ${finalAmount} salvo no localStorage`);
+            }
+          }
+        } catch (e) {
+          console.error('[OAUTH_DIRECT] Erro ao ler configuração do localStorage:', e);
+        }
+      }
+      
+      // PRIORIDADE 3: Se especificado um valor como parâmetro desta função
+      if ((!finalAmount || finalAmount <= 0) && amount !== undefined && amount > 0) {
+        finalAmount = amount;
+        console.log(`[OAUTH_DIRECT] ✅ Usando valor ${finalAmount} passado como parâmetro`);
+      }
+      
+      // PRIORIDADE 4: Se ainda não tiver valor, usar entryValue das configurações
+      if ((!finalAmount || finalAmount <= 0) && this.settings.entryValue && this.settings.entryValue > 0) {
+        finalAmount = this.settings.entryValue;
+        console.log(`[OAUTH_DIRECT] ✅ Usando valor ${finalAmount} das configurações`);
       }
       
       // Log detalhado para diagnóstico
@@ -2392,6 +2441,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       console.log(`[OAUTH_DIRECT] Estratégia atual: ${this.activeStrategy}`);
       console.log(`[OAUTH_DIRECT] =======================================`);
       
+      // CORREÇÃO CRÍTICA: Verificar se temos um valor final válido!
+      if (!finalAmount || finalAmount <= 0) {
+        console.error('[OAUTH_DIRECT] ❌ ERRO FATAL: Nenhum valor válido encontrado para executar operação');
+        this.notifyListeners({
+          type: 'error',
+          message: 'Valor de entrada não configurado. Por favor, verifique as configurações.'
+        });
+        return; // Não continuar sem valor válido
+      }
+      
+      // Atualizar configurações com o valor para uso em operações subsequentes
+      this.settings.entryValue = finalAmount;
       
       // Definir o amount para o valor final após aplicar as prioridades
       amount = finalAmount;
@@ -2648,49 +2709,83 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     console.log(`[OAUTH_DIRECT] 🔴🔴 Estratégia ativa: ${this.activeStrategy}`);
     console.log(`[OAUTH_DIRECT] 🔴🔴 WebSocket readyState: ${this.webSocket ? this.webSocket.readyState : 'null'}`);
     
-    // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA CORRIGIDA - 22/04/2025 🚨🚨🚨
+    // 🚨🚨🚨 IMPLEMENTAÇÃO EMERGENCIAL CORRIGIDA - 22/04/2025 🚨🚨🚨
     // USAR EXCLUSIVAMENTE o valor configurado pelo usuário, sem exceções ou valores padrão
     
-    // SEM VALOR PADRÃO - APENAS valor do usuário
+    // PRIORIDADE MÁXIMA: VERIFICAR O ELEMENTO DOM PRIMEIRO
+    // ÚLTIMO FIX CRÍTICO: Utilizar EXCLUSIVAMENTE valor do DOM
     let entryAmount: number | undefined = undefined;
     
-    // Converter para número se for string
-    let parsedAmount: number | undefined = undefined;
-    if (amount !== undefined) {
-      parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    // ALTAMENTE PRIORITÁRIO: LER DIRETAMENTE DO DOM
+    const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    if (inputElement && inputElement.value) {
+      const valueFromDOM = parseFloat(inputElement.value);
+      if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+        entryAmount = valueFromDOM;
+        console.log(`[OAUTH_DIRECT] 🚨🚨🚨 CORREÇÃO FINAL: Usando valor ${entryAmount} DIRETAMENTE do input do usuário`);
+        
+        // Atualizar todas as fontes possíveis para garantir consistência
+        this.settings.entryValue = entryAmount;
+        
+        // Persistir no localStorage para garantir consistência em todas as operações
+        try {
+          if (this.activeStrategy) {
+            const strategyKey = this.activeStrategy.toLowerCase().replace(/\s+/g, '');
+            const configString = localStorage.getItem(`strategy_config_${strategyKey}`);
+            if (configString) {
+              let config = JSON.parse(configString);
+              config.valorInicial = entryAmount;
+              localStorage.setItem(`strategy_config_${strategyKey}`, JSON.stringify(config));
+              console.log(`[OAUTH_DIRECT] ✅ Valor ${entryAmount} persistido no localStorage para estratégia ${strategyKey}`);
+            }
+          }
+        } catch (e) {
+          console.error('[OAUTH_DIRECT] Erro ao persistir valor no localStorage:', e);
+        }
+      }
     }
     
-    // ORDEM DE PRIORIDADE PARA O VALOR:
-    // 1. Valor configurado nas configurações do serviço (maior prioridade - vem da interface)
-    if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
-      entryAmount = this.settings.entryValue;
-      console.log(`[OAUTH_DIRECT] 🔄 Prioridade 1: Usando valor ${entryAmount} das configurações do serviço (interface)`);
-    }
-    // 2. Valor passado como parâmetro para esta função
-    else if (parsedAmount !== undefined && parsedAmount > 0) {
-      entryAmount = parsedAmount;
-      console.log(`[OAUTH_DIRECT] 🔄 Prioridade 2: Usando valor ${entryAmount} passado como parâmetro`);
-    }
-    // 3. Valor das configurações salvas no localStorage
-    else {
-      try {
-        // Tentar obter a estratégia ativa
-        const currentStrategy = this.activeStrategy || '';
-        if (currentStrategy) {
-          const configStr = localStorage.getItem(`strategy_config_${currentStrategy.toLowerCase()}`);
-          if (configStr) {
-            const config = JSON.parse(configStr);
-            if (config.valorInicial !== undefined) {
-              const valorSalvo = parseFloat(config.valorInicial.toString());
-              if (!isNaN(valorSalvo) && valorSalvo > 0) {
-                entryAmount = valorSalvo;
-                console.log(`[OAUTH_DIRECT] 🔄 Prioridade 3: Usando valor ${entryAmount} do localStorage`);
+    // Se não encontrou no DOM, tentar outras fontes (BAIXA PRIORIDADE)
+    if (entryAmount === undefined) {
+      console.log(`[OAUTH_DIRECT] ⚠️ Valor não encontrado no DOM, tentando fontes alternativas...`);
+      
+      // Converter para número se for string
+      let parsedAmount: number | undefined = undefined;
+      if (amount !== undefined) {
+        parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+      }
+      
+      // 1. Valor configurado nas configurações do serviço
+      if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
+        entryAmount = this.settings.entryValue;
+        console.log(`[OAUTH_DIRECT] 🔄 Alternativa 1: Usando valor ${entryAmount} das configurações do serviço`);
+      }
+      // 2. Valor passado como parâmetro para esta função
+      else if (parsedAmount !== undefined && parsedAmount > 0) {
+        entryAmount = parsedAmount;
+        console.log(`[OAUTH_DIRECT] 🔄 Alternativa 2: Usando valor ${entryAmount} passado como parâmetro`);
+      }
+      // 3. Valor das configurações salvas no localStorage
+      else {
+        try {
+          // Tentar obter a estratégia ativa
+          const currentStrategy = this.activeStrategy || '';
+          if (currentStrategy) {
+            const configStr = localStorage.getItem(`strategy_config_${currentStrategy.toLowerCase()}`);
+            if (configStr) {
+              const config = JSON.parse(configStr);
+              if (config.valorInicial !== undefined) {
+                const valorSalvo = parseFloat(config.valorInicial.toString());
+                if (!isNaN(valorSalvo) && valorSalvo > 0) {
+                  entryAmount = valorSalvo;
+                  console.log(`[OAUTH_DIRECT] 🔄 Alternativa 3: Usando valor ${entryAmount} do localStorage`);
+                }
               }
             }
           }
+        } catch (e) {
+          console.error('[OAUTH_DIRECT] Erro ao carregar valor de entrada do localStorage:', e);
         }
-      } catch (e) {
-        console.error('[OAUTH_DIRECT] Erro ao carregar valor de entrada do localStorage:', e);
       }
     }
     
