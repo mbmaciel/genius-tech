@@ -397,77 +397,17 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     console.log('[BOT_PAGE] Configurando auto-refresh para histórico de operações...');
     
     // Definir intervalo de atualização a cada 5 segundos
+    // Apenas atualizar o estado para manter os dados sincronizados
     const refreshInterval = setInterval(() => {
-      console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado');
+      console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado (sem gerar operações de teste)');
       
-      // Forçar re-render do histórico garantindo que seja o mesmo array para não perder operações
-      setOperationHistory(prev => [...prev]);
-      
-      // Atualizar estatísticas
-      setStats(prev => ({ ...prev }));
-      
-      // Simular uma operação a cada 10 segundos (a cada 2 ciclos) para diagnóstico
-      const shouldAddTestOperation = Date.now() % 10000 < 5000;
-      
-      if (shouldAddTestOperation) {
-        const isWin = Math.random() > 0.5; // 50% de chance de ganho
-        const amountValue = 5; // Valor fixo para teste
+      // Só atualizamos o estado quando o bot está rodando - isso previne operações fake
+      if (botStatus === 'running') {
+        // Forçar re-render do histórico garantindo que seja o mesmo array para não perder operações
+        setOperationHistory(prev => [...prev]);
         
-        // Criar evento simulado de contrato finalizado
-        const testEvent = {
-          type: 'contract_finished',
-          contract_id: Date.now(),
-          entry_value: amountValue,
-          exit_value: isWin ? (amountValue * 1.9) : 0,
-          profit: isWin ? (amountValue * 0.9) : -amountValue,
-          contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
-          symbol: 'R_100',
-          strategy: selectedStrategy || 'auto',
-          is_win: isWin,
-          contract_details: {
-            contract_id: Date.now(),
-            contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
-            buy_price: amountValue,
-            symbol: 'R_100',
-            status: isWin ? 'won' : 'lost',
-            entry_spot: 1234.56,
-            exit_spot: 5678.90,
-            profit: isWin ? (amountValue * 0.9) : -amountValue,
-            payout: isWin ? (amountValue * 1.9) : 0
-          }
-        };
-        
-        console.log('[BOT_PAGE] ★★★ GERANDO OPERAÇÃO DE TESTE (EVENTO COMPLETO) ★★★', testEvent);
-        
-        // Criar evento customizado para teste
-        // CORREÇÃO: Vamos evitar disparar eventos customizados para não interferir no fluxo normal
-        // const simulatedEvent = new CustomEvent('contract_finished', { detail: testEvent });
-        // window.dispatchEvent(simulatedEvent);
-        
-        // Operação de fallback para garantir que algo apareça no histórico
-        const testOperation: Operation = {
-          id: Date.now(),
-          entryValue: amountValue,
-          entry_value: amountValue,
-          finalValue: isWin ? amountValue * 1.9 : 0,
-          exit_value: isWin ? amountValue * 1.9 : 0,
-          profit: isWin ? amountValue * 0.9 : -amountValue,
-          time: new Date(),
-          timestamp: Date.now(),
-          contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
-          symbol: 'R_100',
-          strategy: selectedStrategy || 'auto',
-          is_win: isWin,
-          notification: {
-            type: isWin ? 'success' : 'error',
-            message: `${isWin ? 'GANHO' : 'PERDA'} | Entrada: $${amountValue.toFixed(2)} | Resultado: ${isWin ? '$' + (amountValue * 0.9).toFixed(2) : '-$' + amountValue.toFixed(2)}`
-          }
-        };
-        
-        console.log('[BOT_PAGE] ★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO (FALLBACK DIRETO) ★★★', testOperation);
-        
-        // Adicionar operação de teste ao histórico (fallback direto)
-        setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
+        // Atualizar estatísticas
+        setStats(prev => ({ ...prev }));
       }
     }, 5000);
     
@@ -924,45 +864,51 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           if (event.type === 'contract_finished') {
             console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
             
-            // Atualizar lucro total
-            setStats(prev => {
-              // Calcular o lucro total
-              const profit = event.profit || 0;
-              const totalProfit = prev.totalProfit + profit;
+            // CORREÇÃO CRÍTICA: Só atualizar estatísticas e adicionar ao histórico se o bot estiver rodando
+            // Isso previne que operações apareçam no histórico quando o bot está parado
+            if (botStatus === 'running') {
+              // Atualizar lucro total
+              setStats(prev => {
+                // Calcular o lucro total
+                const profit = event.profit || 0;
+                const totalProfit = prev.totalProfit + profit;
+                
+                // Atualizar ganhos ou perdas
+                if (event.is_win) {
+                  return { ...prev, wins: prev.wins + 1, totalProfit };
+                } else {
+                  return { ...prev, losses: prev.losses + 1, totalProfit };
+                }
+              });
               
-              // Atualizar ganhos ou perdas
-              if (event.is_win) {
-                return { ...prev, wins: prev.wins + 1, totalProfit };
-              } else {
-                return { ...prev, losses: prev.losses + 1, totalProfit };
-              }
-            });
-            
-            // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações
-            const operationRecord = {
-              id: event.contract_id || Date.now(),
-              contract_id: event.contract_id,
-              entryValue: event.entry_value || event.contract_details?.buy_price || 0,
-              entry_value: event.entry_value || event.contract_details?.buy_price || 0,
-              finalValue: event.exit_value || event.contract_details?.sell_price || 0,
-              exit_value: event.exit_value || event.contract_details?.sell_price || 0,
-              profit: event.profit || 0,
-              time: new Date(),
-              timestamp: Date.now(),
-              contract_type: event.contract_type || event.contract_details?.contract_type || '',
-              symbol: event.symbol || event.contract_details?.underlying_symbol || 'R_100',
-              strategy: event.strategy || selectedStrategy || '',
-              is_win: event.is_win || false,
-              notification: {
-                type: event.is_win ? 'success' : 'error',
-                message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
-              }
-            };
-            
-            console.log('[BOT_PAGE] Adicionando operação ao histórico:', operationRecord);
-            
-            // Atualizar o histórico de operações
-            setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
+              // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações apenas se o bot estiver rodando
+              const operationRecord = {
+                id: event.contract_id || Date.now(),
+                contract_id: event.contract_id,
+                entryValue: event.entry_value || event.contract_details?.buy_price || 0,
+                entry_value: event.entry_value || event.contract_details?.buy_price || 0,
+                finalValue: event.exit_value || event.contract_details?.sell_price || 0,
+                exit_value: event.exit_value || event.contract_details?.sell_price || 0,
+                profit: event.profit || 0,
+                time: new Date(),
+                timestamp: Date.now(),
+                contract_type: event.contract_type || event.contract_details?.contract_type || '',
+                symbol: event.symbol || event.contract_details?.underlying_symbol || 'R_100',
+                strategy: event.strategy || selectedStrategy || '',
+                is_win: event.is_win || false,
+                notification: {
+                  type: event.is_win ? 'success' : 'error',
+                  message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
+                }
+              };
+              
+              console.log('[BOT_PAGE] Adicionando operação ao histórico (bot rodando):', operationRecord);
+              
+              // Atualizar o histórico de operações
+              setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
+            } else {
+              console.log('[BOT_PAGE] Ignorando operação finalizada porque o bot está parado');
+            }
             
             // Atualizar estado da operação
             setOperation({
@@ -2378,66 +2324,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             {/* Histórico de Operações - Usando o novo componente RelatorioOperacoes */}
             <div className="rounded-lg border border-[#2a3756]">
               <div className="flex justify-between items-center px-4 pt-2">
-                {/* Botão de diagnóstico para testar o histórico */}
-                <button 
-                  onClick={() => {
-                    console.log('[BOT_PAGE] ★★★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO ★★★★★');
-                    const currentEntryValue = parseFloat(entryValue || "1");
-                    
-                    // Criar operação de teste
-                    const testOperation = {
-                      id: Date.now(),
-                      contract_id: Date.now(),
-                      entryValue: currentEntryValue,
-                      entry_value: currentEntryValue,
-                      finalValue: currentEntryValue * 1.8,
-                      exit_value: currentEntryValue * 1.8,
-                      profit: currentEntryValue * 0.8,
-                      time: new Date(),
-                      timestamp: Date.now(),
-                      contract_type: "DIGITOVER",
-                      symbol: "R_100",
-                      strategy: selectedStrategy || "botlow",
-                      is_win: true,
-                      // Garantir que não seja intermediária para aparecer na aba "Operações"
-                      isIntermediate: false,
-                      notification: {
-                        type: 'success' as 'success' | 'info' | 'warning' | 'error',
-                        message: `TESTE DIAGNÓSTICO | Entrada: $${currentEntryValue} | Resultado: $${currentEntryValue * 1.8}`
-                      }
-                    };
-                    
-                    // Método 1: Adicionar diretamente ao estado
-                    setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
-                    
-                    // Método 2: Emitir evento de contrato finalizado para o DOM (novo método)
-                    try {
-                      console.log('[BOT_PAGE] Emitindo evento contract_finished de teste');
-                      const domEvent = new CustomEvent('contract_finished', { 
-                        detail: {
-                          timestamp: Date.now(),
-                          contract_id: testOperation.id,
-                          entry_value: currentEntryValue,
-                          exit_value: currentEntryValue * 1.8,
-                          profit: currentEntryValue * 0.8,
-                          symbol: "R_100",
-                          contract_type: "DIGITOVER",
-                          strategy: selectedStrategy || "botlow",
-                          is_win: true,
-                          // Garantir que a operação de teste não seja intermediária
-                          isIntermediate: false,
-                          is_intermediate: false
-                        }
-                      });
-                      window.dispatchEvent(domEvent);
-                    } catch (e) {
-                      console.error('[BOT_PAGE] Erro ao emitir evento de teste:', e);
-                    }
-                  }}
-                  className="px-2 py-1 text-xs text-white bg-amber-700 hover:bg-amber-600 rounded transition"
-                >
-                  + Adicionar Teste
-                </button>
               
                 {operationHistory.length > 0 && (
                   <button 
