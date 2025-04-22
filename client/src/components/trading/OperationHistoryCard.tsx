@@ -83,10 +83,28 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     // O mecanismo de auto-refresh já é suficiente para manter o histórico atualizado
     console.log('[OperationHistoryCard] Sistema simplificado de atualização ativado');
     
+    // Exibir informações detalhadas das operações no histórico quando o componente é montado
+    console.log('[OperationHistoryCard] ★★★ INFORMAÇÕES DETALHADAS DO HISTÓRICO ★★★');
+    console.log('[OperationHistoryCard] Quantidade de operações:', internalOperations.length);
+    
+    // Listar detalhadamente cada operação para verificar se estão sendo recebidas corretamente
+    internalOperations.forEach((op, index) => {
+      console.log(`[OperationHistoryCard] Operação #${index + 1}:`, {
+        id: op.id,
+        type: op.contract_type,
+        strategy: op.strategy,
+        profit: op.profit,
+        is_win: op.is_win,
+        entry_value: op.entry_value || op.entryValue,
+        isIntermediate: op.isIntermediate,
+        time: op.time
+      });
+    });
+    
     return () => {
       console.log('[OperationHistoryCard] Sistema simplificado de atualização desativado');
     };
-  }, []);
+  }, [internalOperations]);
   
   // Função para formatar valores monetários
   const formatCurrency = (value: number | undefined) => {

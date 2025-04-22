@@ -352,6 +352,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   
   // Estado para histórico de operações com operação de teste inicial para verificar
   const [operationHistory, setOperationHistory] = useState<Array<Operation>>([
+    // Operação de exemplo com ganho
     {
       id: Date.now(),
       entryValue: 10,
@@ -367,7 +368,26 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       is_win: true,
       notification: {
         type: 'success',
-        message: `TESTE | Entrada: $10.00 | Resultado: $8.70`
+        message: `GANHO | Entrada: $10.00 | Resultado: $8.70`
+      }
+    },
+    // Operação de exemplo com perda
+    {
+      id: Date.now() - 1000, // ID diferente
+      entryValue: 5,
+      entry_value: 5,
+      finalValue: 0,
+      exit_value: 0,
+      profit: -5,
+      time: new Date(Date.now() - 30000), // 30 segundos atrás
+      timestamp: Date.now() - 30000,
+      contract_type: 'DIGITUNDER',
+      symbol: 'R_100',
+      strategy: 'botlow',
+      is_win: false,
+      notification: {
+        type: 'error',
+        message: `PERDA | Entrada: $5.00 | Resultado: -$5.00`
       }
     }
   ]);
