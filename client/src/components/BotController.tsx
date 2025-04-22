@@ -356,29 +356,34 @@ export function BotController({
               return;
             }
             
-            // Obter estatísticas dos dígitos diretamente com tipagem forte
+            // Obter estatísticas dos dígitos com abordagem simplificada
             let digitStats: DigitStat[] = [];
             try {
-              // Aplicar tipagem forte e garantir que temos um array válido
-              const rawStats = oauthDirectService.getDigitStats() || [];
+              // Obter dados brutos diretamente, sem try-catch aninhado
+              const rawStats = oauthDirectService.getDigitStats();
               
-              // Validar e converter explicitamente para o tipo correto
-              if (Array.isArray(rawStats) && rawStats.length > 0) {
-                // Verificar se os elementos têm as propriedades necessárias
-                if ('digit' in rawStats[0] && 'percentage' in rawStats[0] && 'count' in rawStats[0]) {
-                  // É seguro fazer a conversão
-                  digitStats = rawStats as DigitStat[];
-                  console.log('[BOT_CONTROLLER] Obtidas estatísticas com sucesso:', digitStats.length, 'dígitos');
-                } else {
-                  console.error('[BOT_CONTROLLER] Formato de rawStats inválido:', rawStats[0]);
-                  return;
-                }
-              } else {
-                console.error('[BOT_CONTROLLER] Estatísticas vazias ou inválidas');
+              if (!rawStats || !Array.isArray(rawStats) || rawStats.length === 0) {
+                console.error('[BOT_CONTROLLER] Estatísticas inválidas ou vazias:', rawStats);
                 return;
               }
+              
+              // Simplificar processamento - converter dados diretamente para o formato necessário
+              digitStats = rawStats.map(stat => ({
+                digit: Number(stat.digit || 0),
+                percentage: Number(stat.percentage || 0),
+                count: Number(stat.count || 0)
+              }));
+              
+              console.log('[BOT_CONTROLLER] Obtidas estatísticas com sucesso:', digitStats.length, 'dígitos');
             } catch (statsError) {
-              console.error('[BOT_CONTROLLER] Erro ao obter estatísticas de dígitos:', statsError);
+              console.error('[BOT_CONTROLLER] Erro ao processar estatísticas de dígitos:', statsError);
+              
+              // Mostrar feedback útil ao usuário
+              toast({
+                title: 'Erro ao processar dados',
+                description: 'Ocorreu um erro ao processar as estatísticas. Tente novamente ou selecione outra estratégia.',
+                variant: "destructive",
+              });
               return;
             }
             console.log('[BOT_CONTROLLER] Obtidas estatísticas:', digitStats?.length || 0, 'dígitos');
@@ -615,35 +620,83 @@ export function BotController({
               }
             }
             
-            // Se as condições forem atendidas, executar operação
+            // If conditions are met, execute the operation
             if (shouldEnter) {
-              console.log(`[BOT_CONTROLLER] 🚨 CONDIÇÕES ATENDIDAS! Iniciando operação ${contractType}`);
+              console.log(`[BOT_CONTROLLER] 🚨 CONDITIONS MET! Starting operation ${contractType}`);
               
-              // Obter valor de entrada configurado pelo usuário
-              const valorInicialStr = strategyConfig?.valorInicial;
-              const valueToUse = typeof valorInicialStr === 'string' ? 
-                parseFloat(valorInicialStr) : 
-                (typeof valorInicialStr === 'number' ? valorInicialStr : 0);
+              // Get entry value EXACTLY as configured by the user - critical part
+              const entryValueFromConfig = strategyConfig?.valorInicial;
+              
+              // Critical logs for debugging
+              console.log(`[BOT_CONTROLLER] ⚠️ ENTRY VALUE CHECK:`);
+              console.log(`[BOT_CONTROLLER] Raw entry value from config:`, entryValueFromConfig);
+              console.log(`[BOT_CONTROLLER] Type of entry value:`, typeof entryValueFromConfig);
+              
+              // Convert string to number if needed, NEVER use default values
+              let valueToUse: number;
+              
+              if (typeof entryValueFromConfig === 'string') {
+                valueToUse = parseFloat(entryValueFromConfig);
+                console.log(`[BOT_CONTROLLER] Parsed string value to number:`, valueToUse);
+              } else if (typeof entryValueFromConfig === 'number') {
+                valueToUse = entryValueFromConfig;
+                console.log(`[BOT_CONTROLLER] Using numeric value directly:`, valueToUse);
+              } else {
+                console.error('[BOT_CONTROLLER] ❌ CRITICAL ERROR: Entry value not found or invalid!');
+                console.error('[BOT_CONTROLLER] Strategy config:', strategyConfig);
                 
-              if (!valueToUse || valueToUse <= 0) {
-                console.error('[BOT_CONTROLLER] Valor de entrada não encontrado ou inválido!');
+                toast({
+                  title: 'Configuration Error',
+                  description: 'Entry value not found or invalid. Please check strategy configuration.',
+                  variant: "destructive",
+                });
                 return;
               }
               
-              // Definir tipo de contrato e previsão
-              oauthDirectService.setSettings({
-                contractType: contractType,
-                prediction: prediction
-              });
+              if (isNaN(valueToUse) || valueToUse <= 0) {
+                console.error('[BOT_CONTROLLER] ❌ CRITICAL ERROR: Entry value is not a valid positive number:', valueToUse);
+                
+                toast({
+                  title: 'Invalid Entry Value',
+                  description: 'The entry value must be a positive number.',
+                  variant: "destructive",
+                });
+                return;
+              }
               
-              // Executar operação via função específica do serviço
-              (oauthDirectService as any).executeContractBuy(valueToUse);
-              
-              // Exibir toast informativo
-              toast({
-                title: `Operação iniciada (${selectedStrategy})`,
-                description: `Condições atendidas: ${message}`,
-              });
+              // Set exact contract type and prediction from XML strategy
+              try {
+                console.log(`[BOT_CONTROLLER] Setting operation parameters: Contract Type=${contractType}, Prediction=${prediction}`);
+                oauthDirectService.setSettings({
+                  contractType: contractType,
+                  prediction: prediction
+                });
+                
+                // Execute buy operation with EXACT entry value from user config
+                console.log(`[BOT_CONTROLLER] 🚀 Executing buy with exact entry value: ${valueToUse}`);
+                (oauthDirectService as any).executeContractBuy(valueToUse);
+                
+                // Notify user
+                toast({
+                  title: `Operation Started (${selectedStrategy})`,
+                  description: `Conditions met: ${message}`,
+                });
+              } catch (buyError) {
+                console.error('[BOT_CONTROLLER] Error executing buy operation:', buyError);
+                if (buyError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Error details:', {
+                    message: buyError.message,
+                    stack: buyError.stack,
+                    name: buyError.name
+                  });
+                }
+                
+                toast({
+                  title: 'Operation Error',
+                  description: String(buyError),
+                  variant: "destructive",
+                });
+              }
             }
           } catch (error) {
             console.error('[BOT_CONTROLLER] ==================== ERRO NO BLOCO TRY PRINCIPAL ====================');
