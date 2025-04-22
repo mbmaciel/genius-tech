@@ -50,24 +50,34 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private getUserDefinedAmount(userConfigValue?: string | number): number {
     try {
-      // 1. Prioridade máxima: Valor diretamente fornecido pelo userConfig (parâmetro)
+      // PRIORIDADE 1: Valor diretamente do campo de entrada na interface
+      const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (inputElement && inputElement.value) {
+        const valueFromInput = parseFloat(inputElement.value);
+        if (!isNaN(valueFromInput) && valueFromInput > 0) {
+          console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 1: Usando valor ${valueFromInput} diretamente do input na interface`);
+          return valueFromInput;
+        }
+      }
+      
+      // PRIORIDADE 2: Valor fornecido pelo parâmetro (normalmente vem do controller)
       if (userConfigValue !== undefined) {
         const parsedValue = parseFloat(userConfigValue.toString());
-        if (!isNaN(parsedValue)) {
-          console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor do parâmetro: ${parsedValue}`);
+        if (!isNaN(parsedValue) && parsedValue > 0) {
+          console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 2: Usando valor ${parsedValue} fornecido por parâmetro`);
           return parsedValue;
         }
       }
 
-      // 2. Segunda prioridade: Configuração atual no localStorage para a estratégia ativa
+      // PRIORIDADE 3: Configuração salva no localStorage para a estratégia ativa
       const strategyId = this.strategyConfig.toLowerCase();
       const savedConfigStr = localStorage.getItem(`strategy_config_${strategyId}`);
       if (savedConfigStr) {
         const savedConfig = JSON.parse(savedConfigStr);
         if (savedConfig.valorInicial !== undefined) {
           const parsedValue = parseFloat(savedConfig.valorInicial);
-          if (!isNaN(parsedValue)) {
-            console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor do localStorage: ${parsedValue}`);
+          if (!isNaN(parsedValue) && parsedValue > 0) {
+            console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 3: Usando valor ${parsedValue} do localStorage para estratégia ${strategyId}`);
             // Atualizar settings para manter consistência
             this.settings.entryValue = parsedValue;
             return parsedValue;
@@ -75,15 +85,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
 
-      // 3. Terceira prioridade: Valor atual nas settings (verificar se é um número válido)
-      // Usar parseFloat para garantir que sempre obtemos um número válido
+      // PRIORIDADE 4: Valor atual nas configurações do serviço
       if (typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
-        console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando settings.entryValue: ${this.settings.entryValue}`);
+        console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 4: Usando valor ${this.settings.entryValue} das configurações do serviço`);
         return this.settings.entryValue;
       }
+      
+      // PRIORIDADE 5: Buscar em todos os inputs de número na página
+      const numberInputs = document.querySelectorAll('input[type="number"]');
+      for (let i = 0; i < numberInputs.length; i++) {
+        const input = numberInputs[i] as HTMLInputElement;
+        if (input && input.value) {
+          const valueFromDOM = parseFloat(input.value);
+          if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+            console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE 5: Encontrado valor ${valueFromDOM} no input ${input.id || 'sem id'}`);
+            return valueFromDOM;
+          }
+        }
+      }
 
-      // 4. Último recurso: Valor padrão
-      console.log(`[OAUTH_DIRECT] 🚨 getUserDefinedAmount: Usando valor padrão: 1.0`);
+      // ÚLTIMO RECURSO: Valor padrão (não deveria chegar aqui)
+      console.log(`[OAUTH_DIRECT] ⚠️ ATENÇÃO: Não foi possível encontrar NENHUM valor definido pelo usuário. Usando 1.0 como último recurso.`);
       return 1.0;
     } catch (error) {
       console.error(`[OAUTH_DIRECT] Erro em getUserDefinedAmount:`, error);
