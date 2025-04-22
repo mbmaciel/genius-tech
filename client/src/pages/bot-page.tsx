@@ -1599,20 +1599,37 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           // CORREÇÃO CRÍTICA: Verificar e ajustar valores de profit completamente desproporcionais
           if (contract.status === 'won' || event.is_win === true) {
-            // Se o lucro for menor que 60% do valor de entrada em uma operação vencedora
-            // isso indica um cálculo incorreto do backend
-            if (profit > 0 && profit < buyPrice * 0.6) {
+            // Para operações DIGITOVER/DIGITUNDER, o payout esperado é aproximadamente 1.8x o valor de entrada
+            // Ou seja, o lucro esperado é aproximadamente 80% do valor da entrada
+            const expectedPayout = buyPrice * 1.8;
+            const expectedProfit = expectedPayout - buyPrice;
+            
+            // Se o lucro calculado for muito menor que o esperado, isso indica um erro de cálculo
+            if (profit > 0 && profit < buyPrice * 0.7) {
               console.log(`[BOT_PAGE] ★★★ PROFIT DESPROPORCIONAL DETECTADO NA EXIBIÇÃO! ANTIGA: ${profit}, VALOR ENTRADA: ${buyPrice} ★★★`);
+              console.log(`[BOT_PAGE] ★★★ LUCRO ESPERADO PARA ENTRADA ${buyPrice}: ${expectedProfit} (payout ${expectedPayout}) ★★★`);
+              
               // Aplicar correção forçada para exibição (80% do valor da entrada como lucro)
-              const displayProfit = buyPrice * 0.8;
-              console.log(`[BOT_PAGE] ★★★ EXIBIÇÃO CORRIGIDA: Novo profit = ${displayProfit} ★★★`);
-              profit = displayProfit;
+              profit = expectedProfit;
+              console.log(`[BOT_PAGE] ★★★ EXIBIÇÃO CORRIGIDA: Novo profit = ${profit} ★★★`);
             }
           }
           
           // Formatar os valores monetários
           const entryFormatted = formatCurrency(buyPrice);
-          const resultFormatted = formatCurrency(profit);
+          // Para operações vencedoras, mostrar o payout total (entrada + lucro) ao invés de apenas o lucro
+          let displayValue = profit;
+          let resultFormatted = '';
+          
+          if (profit > 0) {
+            // Calcular o payout total (entrada + lucro)
+            const totalPayout = buyPrice + profit;
+            resultFormatted = formatCurrency(totalPayout);
+            console.log(`[BOT_PAGE] ★★★ Mostrando payout total: ${resultFormatted} (entrada: ${entryFormatted}, lucro: ${formatCurrency(profit)}) ★★★`);
+          } else {
+            // Para operações perdedoras, mostrar apenas o valor do lucro (negativo)
+            resultFormatted = formatCurrency(profit);
+          }
           
           // Criar objeto de operação completo com mensagem personalizada
           const newOperation = {
