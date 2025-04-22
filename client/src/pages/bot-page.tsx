@@ -1479,8 +1479,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Handler regular para eventos do oauthDirectService
-    const handleEvents = (event: any) => {
+    // CORRIGIDO: Renomeando para evitar duplicação com o handleEvents já definido anteriormente
+    const handleBotEvents = (event: any) => {
       // Processar evento de compra de contrato (início da operação)
       if (event.type === 'contract_purchased') {
         // Adicionar informação sobre o comando de entrada ao histórico
@@ -2136,12 +2136,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Registrar ouvinte de eventos do serviço OAuth
-    oauthDirectService.addEventListener(handleEvents);
+    // Registrar ouvinte de eventos do serviço OAuth - usando o novo nome da função
+    oauthDirectService.addEventListener(handleBotEvents);
     
-    // Limpar ouvintes ao desmontar
+    // Limpar ouvintes ao desmontar - usando o novo nome da função
     return () => {
-      oauthDirectService.removeEventListener(handleEvents);
+      oauthDirectService.removeEventListener(handleBotEvents);
     };
   }, [selectedStrategy]); // Incluir selectedStrategy como dependência
 
