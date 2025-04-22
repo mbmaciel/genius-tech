@@ -401,8 +401,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     const refreshInterval = setInterval(() => {
       console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado (sem gerar operações de teste)');
       
-      // Só atualizamos o estado quando o bot está rodando - isso previne operações fake
-      if (botStatus === 'running') {
+      // Atualizamos o estado quando o bot está rodando ou pronto - isso previne operações fake
+      if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
         // Forçar re-render do histórico garantindo que seja o mesmo array para não perder operações
         setOperationHistory(prev => [...prev]);
         
@@ -864,9 +864,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           if (event.type === 'contract_finished') {
             console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
             
-            // CORREÇÃO CRÍTICA: Só atualizar estatísticas e adicionar ao histórico se o bot estiver rodando
-            // Isso previne que operações apareçam no histórico quando o bot está parado
-            if (botStatus === 'running') {
+            // CORREÇÃO CRÍTICA: Atualizar estatísticas e adicionar ao histórico se o bot não estiver explicitamente parado
+            // Isso permite operações aparecerem no histórico em estado 'idle' ou 'paused' mas não em 'stopped'
+            if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
               // Atualizar lucro total
               setStats(prev => {
                 // Calcular o lucro total
@@ -1633,9 +1633,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária Advance (bot status):', botStatus);
         
-        // Adicionar operação apenas se o bot estiver em execução
-        if (botStatus === 'running') {
-          console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico (bot rodando)');
+        // Adicionar operação se o bot estiver em execução ou pronto
+        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
+          console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico (status do bot permite)');
           setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
         } else {
           console.log('[BOT_PAGE] Ignorando operação intermediária Advance porque o bot está parado');
@@ -1678,9 +1678,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária (bot status):', botStatus);
         
-        // Adicionar ao histórico SOMENTE se o bot estiver em execução
-        if (botStatus === 'running') {
-          console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico (bot rodando)');
+        // Adicionar ao histórico se o bot estiver em execução ou pronto
+        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
+          console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico (status do bot permite)');
           setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
         } else {
           console.log('[BOT_PAGE] Ignorando operação intermediária porque o bot está parado');  
