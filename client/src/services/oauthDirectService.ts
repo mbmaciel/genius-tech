@@ -757,6 +757,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             // Atualizar o timestamp do último tick para o controle de notificações symbol_update
             this.lastTickTime = Date.now();
             
+            // Salvar o último dígito recebido
+            this.lastDigit = lastDigit;
+            
+            // IMPLEMENTAÇÃO CRÍTICA: Avaliar condições da estratégia a cada tick
+            // Este é o ponto central que permite que o robô opere automaticamente
+            if (this.isRunning && this.activeStrategy) {
+              this.evaluateStrategyOnTick(lastDigit, price);
+            }
+            
             // Notificar listners para atualização de interface
             this.notifyListeners(tickEvent);
           } else {
@@ -997,6 +1006,127 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
   }
   
+  /**
+   * Avalia a estratégia atual com base no último tick recebido e executa operação se necessário
+   * FUNÇÃO CRÍTICA: Esta é a função central que decide quando executar operações automaticamente
+   * 
+   * @param lastDigit O último dígito recebido no tick atual
+   * @param price O preço completo do tick atual
+   */
+  private evaluateStrategyOnTick(lastDigit: number, price: number): void {
+    try {
+      // Verificar se temos uma estratégia ativa e o bot está rodando
+      if (!this.activeStrategy || !this.isRunning) {
+        return;
+      }
+      
+      // Obter as estatísticas de dígitos atuais para análise
+      const digitStats = this.getDigitStats();
+      if (!digitStats || digitStats.length === 0) {
+        console.log('[OAUTH_DIRECT] Estatísticas de dígitos insuficientes para avaliação');
+        return;
+      }
+      
+      // Obter informações sobre a estratégia em uso
+      const strategyId = this.activeStrategy.toLowerCase();
+      const strategy = getStrategyById(strategyId);
+      
+      if (!strategy) {
+        console.log(`[OAUTH_DIRECT] Estratégia não encontrada: ${strategyId}`);
+        return;
+      }
+      
+      console.log(`[OAUTH_DIRECT] Avaliando estratégia ${strategy.name} para o dígito ${lastDigit}`);
+      
+      // NOVO SISTEMA: Usar o sistema unificado de avaliação de estratégias
+      // Obter o valor de entrada configurado pelo usuário
+      let entryAmount: number | undefined = undefined;
+      
+      if (typeof this.settings.entryValue === 'number') {
+        entryAmount = this.settings.entryValue;
+      } else if (typeof this.settings.entryValue === 'string') {
+        entryAmount = parseFloat(this.settings.entryValue);
+        if (isNaN(entryAmount)) {
+          console.error('[OAUTH_DIRECT] Valor de entrada inválido:', this.settings.entryValue);
+          return;
+        }
+      }
+      
+      if (entryAmount === undefined || entryAmount <= 0) {
+        console.error('[OAUTH_DIRECT] Valor de entrada não configurado corretamente.');
+        return;
+      }
+      
+      // Evitar operações se já existe um contrato em andamento
+      if (this.currentContractId) {
+        // console.log(`[OAUTH_DIRECT] Contrato em andamento (ID: ${this.currentContractId}), aguardando resultado...`);
+        return;
+      }
+      
+      // Implementar lógica para cada estratégia
+      let result;
+      
+      switch (strategyId) {
+        case 'advance':
+          // Obter a porcentagem de entrada configurada pelo usuário (padrão 10%)
+          let userPercentage = this.advancePercentage;
+          
+          // Verificar se há uma configuração específica
+          if (strategy.config && typeof strategy.config.entryPercentage === 'number') {
+            userPercentage = strategy.config.entryPercentage;
+          }
+          
+          console.log(`[OAUTH_DIRECT] Avaliando estratégia ADVANCE com porcentagem ${userPercentage}%`);
+          
+          result = evaluateAdvanceStrategy(digitStats, userPercentage, 'CALL');
+          break;
+        
+        case 'ironover':
+          console.log(`[OAUTH_DIRECT] Avaliando estratégia IRON OVER`);
+          result = evaluateIronOverStrategy(digitStats, lastDigit);
+          break;
+        
+        case 'ironunder':
+          console.log(`[OAUTH_DIRECT] Avaliando estratégia IRON UNDER`);
+          result = evaluateIronUnderStrategy(digitStats, lastDigit);
+          break;
+        
+        case 'maxpro':
+          console.log(`[OAUTH_DIRECT] Avaliando estratégia MAXPRO`);
+          result = evaluateMaxProStrategy(digitStats, lastDigit);
+          break;
+        
+        default:
+          // Usar avaliação genérica para outras estratégias
+          console.log(`[OAUTH_DIRECT] Avaliando estratégia padrão para ${strategyId}`);
+          result = evaluateDefaultStrategy(digitStats, lastDigit);
+          break;
+      }
+      
+      // Se a estratégia indica que devemos entrar em uma operação
+      if (result && result.shouldEnter) {
+        console.log(`[OAUTH_DIRECT] ✅ CONDIÇÃO DE ENTRADA DETECTADA: ${result.message}`);
+        console.log(`[OAUTH_DIRECT] ✅ Tipo de contrato: ${result.contractType}`);
+        
+        // Configurar tipo de contrato e possível valor de previsão
+        this.settings.contractType = result.contractType;
+        
+        if ('prediction' in result && typeof result.prediction === 'number') {
+          this.settings.prediction = result.prediction;
+          console.log(`[OAUTH_DIRECT] ✅ Previsão específica: ${result.prediction}`);
+        }
+        
+        // Executar a operação com o valor de entrada configurado
+        this.executeContractBuy(entryAmount);
+      } else if (result) {
+        // Apenas log informativo se não devemos entrar
+        console.log(`[OAUTH_DIRECT] Condição não atendida: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao avaliar estratégia:', error);
+    }
+  }
+
   /**
    * Retorna a porcentagem de ocorrência de um dígito específico
    * @param digit Dígito para verificar porcentagem (0-9)
