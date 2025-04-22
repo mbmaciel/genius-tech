@@ -14,6 +14,7 @@ import DigitDisplayFixed from "@/pages/digit-display-fixed";
 import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
 import DigitStatsPage from "@/pages/digit-stats-page";
+import { useTranslation } from 'react-i18next';
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -53,6 +54,25 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
 };
 
 function App() {
+  // Adicionar hook do i18n para garantir que a renderização seja atualizada quando o idioma mudar
+  const { t, i18n } = useTranslation();
+  
+  // Efeito para registrar mudanças de idioma
+  useEffect(() => {
+    console.log(`[App] Idioma atual: ${i18n.language}`);
+    
+    // Evento de mudança de idioma
+    const handleLanguageChange = (lng: string) => {
+      console.log(`[App] Idioma alterado para: ${lng}`);
+    };
+    
+    i18n.on('languageChanged', handleLanguageChange);
+    
+    return () => {
+      i18n.off('languageChanged', handleLanguageChange);
+    };
+  }, [i18n]);
+  
   return (
     <div className="App">
       <Toaster />
