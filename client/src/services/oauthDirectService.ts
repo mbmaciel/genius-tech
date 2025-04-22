@@ -2488,12 +2488,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
   async executeFirstOperation(amount?: number | string): Promise<boolean> {
-    // ⚠️⚠️⚠️ CORREÇÃO EMERGENCIAL - FORÇAR VALOR DA CONFIGURAÇÃO ⚠️⚠️⚠️ 
-    // Usar diretamente o valor configurado na interface (1.0 por padrão)
-    // Ignorar completamente valores hardcoded
+    // ⚠️⚠️⚠️ GARANTINDO VALOR CONFIGURADO PELO USUÁRIO ⚠️⚠️⚠️
     
-    // Definir valor padrão para evitar o 0.35 hardcoded
-    let entryAmount = 1.0; // Valor padrão explícito - NUNCA usar hardcoded 0.35
+    // Definir valor padrão seguro
+    let entryAmount = 1.0;
     
     // Converter para número se for string
     let parsedAmount: number | undefined = undefined;
@@ -2501,23 +2499,56 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     }
     
-    // Verificar configurações - passo 1: settings.entryValue (configurado pelo usuário)
+    // ORDEM DE PRIORIDADE PARA O VALOR:
+    // 1. Valor configurado nas configurações do serviço (maior prioridade - vem da interface)
     if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
       entryAmount = this.settings.entryValue;
-      console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Usando valor ${entryAmount} das configurações do serviço`);
+      console.log(`[OAUTH_DIRECT] 🔄 Prioridade 1: Usando valor ${entryAmount} das configurações do serviço (interface)`);
     }
-    
-    // Verificar opção 2: valor passado pelo método
-    if (parsedAmount !== undefined && parsedAmount > 0) {
+    // 2. Valor passado como parâmetro para esta função
+    else if (parsedAmount !== undefined && parsedAmount > 0) {
       entryAmount = parsedAmount;
-      console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Sobreescrevendo com valor ${entryAmount} passado como parâmetro`);
+      console.log(`[OAUTH_DIRECT] 🔄 Prioridade 2: Usando valor ${entryAmount} passado como parâmetro`);
+    }
+    // 3. Valor das configurações salvas no localStorage
+    else {
+      try {
+        // Tentar obter a estratégia ativa
+        const currentStrategy = this.activeStrategy || '';
+        if (currentStrategy) {
+          const configStr = localStorage.getItem(`strategy_config_${currentStrategy.toLowerCase()}`);
+          if (configStr) {
+            const config = JSON.parse(configStr);
+            if (config.valorInicial !== undefined) {
+              const valorSalvo = parseFloat(config.valorInicial.toString());
+              if (!isNaN(valorSalvo) && valorSalvo > 0) {
+                entryAmount = valorSalvo;
+                console.log(`[OAUTH_DIRECT] 🔄 Prioridade 3: Usando valor ${entryAmount} do localStorage`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[OAUTH_DIRECT] Erro ao carregar valor de entrada do localStorage:', e);
+      }
     }
     
-    // ⚠️⚠️⚠️ VERIFICAÇÃO ANTI-HARDCODED ⚠️⚠️⚠️
-    // Se o valor for exatamente 0.35 (suspeito de ser hardcoded), substituir por 1.0
+    // ⚠️⚠️⚠️ PROTEÇÃO CONTRA VALOR HARDCODED ESPECÍFICO ⚠️⚠️⚠️
+    // Verificar se o valor é exatamente 0.35 (valor suspeito de ser hardcoded do XML)
     if (entryAmount === 0.35) {
-      console.log(`[OAUTH_DIRECT] 🚨 ALERTA CRÍTICO: Detectado valor 0.35 suspeito de ser hardcoded. SUBSTITUINDO POR 1.0`);
-      entryAmount = 1.0;
+      // Verificar se há um valor nas configurações da interface
+      const botValueElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+      if (botValueElement && botValueElement.value) {
+        const valueFromDOM = parseFloat(botValueElement.value);
+        if (!isNaN(valueFromDOM) && valueFromDOM > 0) {
+          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Substituindo valor suspeito 0.35 pelo valor ${valueFromDOM} da interface`);
+          entryAmount = valueFromDOM;
+        } else {
+          // Se não conseguir obter da interface, usar o valor padrão seguro
+          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Detectado valor suspeito 0.35 e não foi possível obter da interface. Usando padrão 1.0`);
+          entryAmount = 1.0;
+        }
+      }
     }
     
     // Log detalhado para diagnóstico
