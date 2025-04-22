@@ -50,9 +50,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private getUserDefinedAmount(userConfigValue?: string | number): number {
     try {
-      // ⚠️⚠️⚠️ MÉTODO RADICALMENTE SIMPLIFICADO ⚠️⚠️⚠️
-      // ÚNICA PRIORIDADE: Valor do input na interface (apenas este)
-      
+      // PRIORIDADE 1: Valor do input na interface (tem a mais alta prioridade)
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
       if (inputElement && inputElement.value) {
         const valueFromInput = parseFloat(inputElement.value);
@@ -62,8 +60,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // VALOR PADRÃO SEGURO se não encontrar na interface
-      console.log(`[OAUTH_DIRECT] ⚠️ Input não encontrado! Usando valor padrão 1.0`);
+      // PRIORIDADE 2: Valor passado nas configurações do usuário (segunda prioridade)
+      if (userConfigValue !== undefined) {
+        const valueFromConfig = typeof userConfigValue === 'string' ? 
+            parseFloat(userConfigValue) : userConfigValue;
+        
+        if (!isNaN(valueFromConfig) && valueFromConfig > 0) {
+          console.log(`[OAUTH_DIRECT] 💯 VALOR DAS CONFIGURAÇÕES: ${valueFromConfig}!`);
+          return valueFromConfig;
+        }
+      }
+      
+      // PRIORIDADE 3: Valor configurado nas configurações gerais
+      if (this.settings.entryValue !== undefined && this.settings.entryValue > 0) {
+        console.log(`[OAUTH_DIRECT] 💯 VALOR DAS CONFIGURAÇÕES GERAIS: ${this.settings.entryValue}!`);
+        return this.settings.entryValue;
+      }
+      
+      // VALOR PADRÃO SEGURO se não encontrar em nenhum lugar
+      console.log(`[OAUTH_DIRECT] ⚠️ Nenhum valor válido encontrado! Usando valor padrão 1.0`);
       return 1.0;
     } catch (error) {
       console.error(`[OAUTH_DIRECT] Erro em getUserDefinedAmount:`, error);
