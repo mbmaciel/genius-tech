@@ -193,11 +193,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     status: null
   });
   
-  // Estado para estatísticas
+  // Estado para estatísticas com valores iniciais para teste
   const [stats, setStats] = useState({
-    wins: 0,
+    wins: 1,
     losses: 0,
-    totalProfit: 0
+    totalProfit: 8.70
   });
   
   // Estado para saldo em tempo real
@@ -350,7 +350,27 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     };
   }
   
-  const [operationHistory, setOperationHistory] = useState<Array<Operation>>([]);
+  // Estado para histórico de operações com operação de teste inicial para verificar
+  const [operationHistory, setOperationHistory] = useState<Array<Operation>>([
+    {
+      id: Date.now(),
+      entryValue: 10,
+      entry_value: 10,
+      finalValue: 18.70,
+      exit_value: 18.70,
+      profit: 8.70,
+      time: new Date(),
+      timestamp: Date.now(),
+      contract_type: 'DIGITOVER',
+      symbol: 'R_100',
+      strategy: 'botlow',
+      is_win: true,
+      notification: {
+        type: 'success',
+        message: `TESTE | Entrada: $10.00 | Resultado: $8.70`
+      }
+    }
+  ]);
   
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
