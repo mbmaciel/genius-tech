@@ -969,8 +969,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               // Salvar histórico localmente para persistência
               this.saveOperationToHistory(detailedContractInfo);
               
-              // Notificar listeners com detalhes completos
-              this.notifyListeners(detailedContractInfo);
+              // Notificar listeners com detalhes completos e garantir que o evento seja do tipo correto
+              this.notifyListeners({
+                ...detailedContractInfo,
+                type: 'contract_finished', // CORREÇÃO CRÍTICA: Garantir que o tipo de evento seja contract_finished
+                contract_id: contract.contract_id,
+                is_win: isWin,
+                profit: isWin ? (contract.payout - contract.buy_price) : -contract.buy_price
+              });
               
               // Iniciar próxima operação após resultado
               this.startNextOperation(isWin, contract);
@@ -1017,15 +1023,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           // Notificar interface sobre venda bem-sucedida
           this.notifyListeners({
             type: 'contract_finished',
-            contract_id: this.currentContractId || undefined,
+            contract_id: this.currentContractId || 0,
             sold: true,
             profit: profit,
+            entry_value: data.sell.buy_price || 0,
+            exit_value: data.sell.sell_price || 0,
+            symbol: this.activeSymbol || 'R_100',
+            strategy: this.activeStrategy || 'unknown',
+            is_win: profit > 0,
             contract_details: {
               contract_id: this.currentContractId || 0,
-              status: 'sold',
+              status: profit > 0 ? 'won' : 'lost',
               profit: profit,
               buy_price: data.sell.buy_price,
-              sell_price: data.sell.sell_price
+              sell_price: data.sell.sell_price,
+              underlying_symbol: this.activeSymbol || 'R_100'
             }
           });
         }

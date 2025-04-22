@@ -1556,7 +1556,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           strategy: event.strategy || selectedStrategy || "auto",
           is_win: event.is_win,
           notification: {
-            type: 'success',
+            type: 'success' as 'success' | 'info' | 'warning' | 'error',
             message: `OPERAÇÃO FORÇADA (DEBUG): ID=${event.contract_id}, Profit=${event.profit}`
           }
         };
