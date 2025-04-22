@@ -3270,6 +3270,46 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         symbol: symbolCode
       };
       
+      // 🚨🚨🚨 CORREÇÃO EMERGENCIAL - FORÇAR OPERAÇÃO DIRETA VIA BUY 🚨🚨🚨
+      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 CORREÇÃO SUPER EMERGENCIAL: Executando compra direta!`);
+      console.log(`[OAUTH_DIRECT] 🚨 DADOS DA OPERAÇÃO: ${JSON.stringify({
+        contractType,
+        finalAmount,
+        symbolCode,
+        prediction
+      })}`);
+      
+      // Preparar solicitação direta via buy
+      const buyRequest = {
+        buy: 1,
+        price: finalAmount,
+        parameters
+      };
+      
+      console.log(`[OAUTH_DIRECT] 🚨 Enviando solicitação DIRETA de compra:`, JSON.stringify(buyRequest, null, 2));
+      
+      // Enviar solicitação diretamente, ignorando o restante do processamento
+      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        try {
+          this.webSocket.send(JSON.stringify(buyRequest));
+          console.log(`[OAUTH_DIRECT] ✅✅✅ COMPRA ENVIADA DIRETAMENTE COM SUCESSO! ✅✅✅`);
+          
+          // Notificar que a operação foi iniciada
+          this.notifyListeners({
+            type: 'operation_started',
+            amount: finalAmount,
+            contract_type: contractType,
+            prediction: prediction
+          });
+          
+          return true; // Operação enviada com sucesso
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] ❌ ERRO AO ENVIAR COMPRA DIRETA:`, error);
+        }
+      } else {
+        console.error(`[OAUTH_DIRECT] ❌ WEBSOCKET NÃO DISPONÍVEL PARA COMPRA DIRETA!`);
+      }
+      
       // Adicionar log detalhado da requisição
       console.log(`[OAUTH_DIRECT] ★★★ Parâmetros da primeira operação: Valor=${finalAmount}, Tipo=${contractType}, Duração=5t ★★★`);
       
@@ -3278,8 +3318,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         parameters.barrier = prediction;
       }
       
-      // Requisição de compra de contrato completa
-      const buyRequest = {
+      // ⚠️⚠️⚠️ CÓDIGO DESABILITADO PARA EVITAR DUPLICAÇÃO DE SOLICITAÇÕES DE COMPRA
+      /* 
+      // Requisição de compra de contrato completa (DESABILITADA - JÁ ENVIAMOS ACIMA)
+      const buyRequestDisabled = {
         buy: 1,
         price: finalAmount, // Usar o valor correto do XML para price também
         parameters: parameters,
@@ -3289,11 +3331,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         },
         subscribe: 1 // Manter inscrição para atualizações
       };
+      */
       
       console.log('[OAUTH_DIRECT] Enviando solicitação de compra:', buyRequest);
       
+      /* DESABILITADO - JÁ ENVIAMOS UMA SOLICITAÇÃO ACIMA
       // Enviar solicitação
       this.webSocket.send(JSON.stringify(buyRequest));
+      */
       
       // Notificar sobre a tentativa de compra e enviar evento de bot ativo para atualizar a interface
       this.notifyListeners({

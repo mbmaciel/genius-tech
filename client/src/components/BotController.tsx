@@ -648,12 +648,38 @@ export function BotController({
         onStatusChange('running');
         console.log('[BOT_CONTROLLER] 🔄 Estado atual definido como: running');
 
-        // Forçar a primeira operação após iniciar o serviço
+        // Forçar a primeira operação após iniciar o serviço - VERSÃO SUPER FORÇADA
         // USAR EXATAMENTE o valor da estratégia, sem qualquer processamento adicional
-        console.log('[BOT_CONTROLLER] 🔴 Iniciando primeira operação com valor EXATO do usuário...');
-        const exactUserValue = strategyConfig.valorInicial;
-        console.log(`[BOT_CONTROLLER] 🔴 VALOR EXATO DE ENTRADA: ${exactUserValue}`);
+        console.log('[BOT_CONTROLLER] 🚨🚨🚨 CORREÇÃO EMERGENCIAL: Forçando primeira operação com modo direto!');
+        const exactUserValue = strategyConfig.valorInicial || 1.0; // Sempre garantir um valor mesmo se undefined
+        console.log(`[BOT_CONTROLLER] 🚨 VALOR EXATO DE ENTRADA: ${exactUserValue}`);
+        
+        // ALTERAÇÃO EMERGENCIAL: Forçar execução direta com valor fixo pelo WebSocket
+        console.log(`[BOT_CONTROLLER] 🚨 CHAMANDO EXECUTAR PRIMEIRA OPERAÇÃO`);
         const operationStarted = await oauthDirectService.executeFirstOperation(exactUserValue);
+        
+        // PLANO B: Forçar execução direta via executeContractBuy se a primeira tentativa falhar
+        if (!operationStarted) {
+          console.log(`[BOT_CONTROLLER] 🚨 PRIMEIRA OPERAÇÃO NÃO INICIADA, TENTANDO MÉTODO ALTERNATIVO`);
+          
+          // Verificar se o WebSocket está disponível
+          if ((oauthDirectService as any).webSocket && (oauthDirectService as any).webSocket.readyState === 1) {
+            console.log(`[BOT_CONTROLLER] 🚨 WebSocket disponível, enviando operação DIRETAMENTE`);
+            
+            // Tentar executar operação diretamente pelo método interno
+            (oauthDirectService as any).executeContractBuy(exactUserValue);
+            console.log(`[BOT_CONTROLLER] 🚨 OPERAÇÃO ENVIADA DIRETAMENTE!`);
+          } else {
+            console.log(`[BOT_CONTROLLER] 🚨 WebSocket não disponível, tentando forçar reconexão`);
+            
+            // Tentar forçar reconexão e tentar novamente
+            await (oauthDirectService as any).reconnect();
+            setTimeout(() => {
+              console.log(`[BOT_CONTROLLER] 🚨 Tentando novamente após reconexão forçada`);
+              (oauthDirectService as any).executeContractBuy(exactUserValue);
+            }, 2000);
+          }
+        }
         
         if (operationStarted) {
           console.log('[BOT_CONTROLLER] Primeira operação iniciada com sucesso!');
