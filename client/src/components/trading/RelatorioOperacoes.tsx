@@ -415,11 +415,17 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                             )}
                           </div>
                           
-                          {/* Exibir dados de entrada/saída - compatível com ambos formatos */}
-                          <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
-                            {/* Suporta tanto o formato antigo quanto o novo */}
-                            {(op.entry_value !== undefined || op.entryValue !== undefined) && (
-                              <span>{t('operations.entry', 'Entrada')}: {
+                          {/* Exibir ID do contrato sempre no topo para fácil referência */}
+                          <div className="text-xs bg-[#1e2d4d] text-white px-2 py-1 rounded-sm mb-2 inline-block">
+                            {t('operations.id', 'ID')}: <span className="font-semibold">{op.contract_id || op.id}</span>
+                          </div>
+                          
+                          {/* Exibir dados de entrada/saída em grade melhorada */}
+                          <div className="text-xs text-gray-300 grid grid-cols-2 gap-x-4 gap-y-1 mb-1 bg-[#1d2a45] p-2 rounded">
+                            {/* Valor de entrada - Mostrado com destaque */}
+                            <div className="flex items-center">
+                              <span className="text-gray-400 mr-1">{t('operations.entry', 'Entrada')}:</span>
+                              <span className="text-yellow-400 font-semibold">{
                                 // Garantir que valores válidos sejam mostrados, maior que zero
                                 op.entry_value !== undefined && op.entry_value > 0
                                   ? formatCurrency(op.entry_value)
@@ -427,24 +433,55 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                                     ? formatCurrency(op.entryValue)
                                     : formatCurrency(1) // Valor mínimo de entrada
                               }</span>
-                            )}
-                            {(op.finalValue !== undefined || op.exit_value !== undefined) && (
-                              <span>{t('operations.exit', 'Saída')}: {formatCurrency(op.finalValue || op.exit_value)}</span>
-                            )}
+                            </div>
+                            
+                            {/* Valor de saída/resultado com formatação condicional */}
+                            <div className="flex items-center">
+                              <span className="text-gray-400 mr-1">{t('operations.result', 'Resultado Final')}:</span>
+                              <span className={`font-semibold ${op.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(op.finalValue !== undefined || op.exit_value !== undefined) 
+                                  ? formatCurrency(op.finalValue || op.exit_value)
+                                  : formatCurrency(op.profit)}
+                              </span>
+                            </div>
+                            
+                            {/* Tipo de contrato sempre visível */}
+                            <div className="flex items-center">
+                              <span className="text-gray-400 mr-1">{t('operations.contractType', 'Tipo')}:</span>
+                              <span className="text-purple-400 font-semibold">{op.contract_type || '—'}</span>
+                            </div>
+                            
+                            {/* Símbolo/Mercado sempre visível */}
+                            <div className="flex items-center">
+                              <span className="text-gray-400 mr-1">{t('operations.symbol', 'Símbolo')}:</span>
+                              <span className="text-blue-400 font-semibold">{op.symbol || 'R_100'}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Seção de especificações da estratégia */}
+                          <div className="text-xs text-gray-400 bg-[#1d2a45] p-2 rounded mt-1">
+                            <div className="flex items-center mb-1">
+                              <span className="text-yellow-400 font-semibold">{t('operations.strategySpecs', 'Especificações da Estratégia')}:</span>
+                            </div>
+                            
+                            {/* Nome da estratégia com destaque */}
+                            <div className="ml-2">
+                              <span className="text-gray-400 mr-1">{t('operations.strategyUsed', 'Estratégia')}:</span>
+                              <span className="text-yellow-400 font-semibold">{op.strategy || selectedStrategy || '—'}</span>
+                            </div>
+                            
+                            {/* Comando da estratégia - específico por tipo */}
+                            <div className="ml-2 mt-1">
+                              <span className="text-gray-400 mr-1">{t('operations.command', 'Comando')}:</span>
+                              <span className="text-green-400 font-semibold">{strategyCommand}</span>
+                            </div>
                           </div>
                           
                           {/* Informações adicionais para contratos do formato novo */}
                           {useDirectService && op.entry_spot && op.exit_spot && (
-                            <div className="text-xs text-gray-500 mt-1 grid grid-cols-2 gap-x-4">
-                              <span>{t('operations.entrySpot', 'Spot Entrada')}: <span className="text-cyan-400">{op.entry_spot}</span></span>
-                              <span>{t('operations.exitSpot', 'Spot Saída')}: <span className="text-cyan-400">{op.exit_spot}</span></span>
-                            </div>
-                          )}
-                          
-                          {/* Exibir estratégia usada (novo formato) */}
-                          {op.strategy && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              <span>{t('operations.strategyUsed', 'Estratégia')}: <span className="text-yellow-400">{op.strategy}</span></span>
+                            <div className="text-xs text-gray-400 mt-1 grid grid-cols-2 gap-x-4 bg-[#1d2a45] p-2 rounded">
+                              <span>{t('operations.entrySpot', 'Spot Entrada')}: <span className="text-cyan-400 font-semibold">{op.entry_spot}</span></span>
+                              <span>{t('operations.exitSpot', 'Spot Saída')}: <span className="text-cyan-400 font-semibold">{op.exit_spot}</span></span>
                             </div>
                           )}
                         </>
