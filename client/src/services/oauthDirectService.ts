@@ -802,9 +802,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             contract: data.buy
           });
           
-          // Registrar estatísticas para este símbolo
+          // Registrar símbolo e valor da operação nos logs
           const symbol = data.buy.shortcode?.split('_')[0] || 'R_100';
-          this.recordStatsForSymbol(symbol, data.buy.buy_price);
+          console.log(`[OAUTH_DIRECT] ✅ Operação em ${symbol} com valor de entrada ${data.buy.buy_price}`);
           
           // Inscrever para atualizações deste contrato - com retry em caso de falha
           this.subscribeToProposalOpenContract();
@@ -1635,7 +1635,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     console.log(`[OAUTH_DIRECT] Verificando limites - Meta de lucro: ${profitTarget || 'não definida'}, Limite de perda: ${lossLimit || 'não definido'}`);
     
     // REGRA DE OURO: Se não houver limites, SEMPRE continuar operando
-    if ((!profitTarget || profitTarget <= 0) && (!lossLimit || lossLimit <= 0)) {
+    if ((!profitTarget || (typeof profitTarget === 'number' && profitTarget <= 0)) && 
+        (!lossLimit || (typeof lossLimit === 'number' && lossLimit <= 0))) {
       console.log(`[OAUTH_DIRECT] ✅ Sem limites definidos (ou limites inválidos), SEMPRE continuando operações`);
       return true;
     }
@@ -1884,20 +1885,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   /**
    * Assina atualizações do contrato aberto atual
+   * @param contractId ID opcional do contrato (usa o currentContractId se não informado)
    */
-  private subscribeToProposalOpenContract(): void {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN || !this.currentContractId) {
+  private subscribeToProposalOpenContract(contractId?: number | string): void {
+    // Usar o ID passado ou o ID atual armazenado
+    const targetContractId = contractId || this.currentContractId;
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN || !targetContractId) {
       console.error('[OAUTH_DIRECT] WebSocket não está conectado ou não há contrato atual');
       return;
     }
     
     const request = {
       proposal_open_contract: 1,
-      contract_id: this.currentContractId,
+      contract_id: targetContractId,
       subscribe: 1
     };
     
-    console.log(`[OAUTH_DIRECT] Inscrevendo-se para atualizações do contrato ${this.currentContractId}`);
+    console.log(`[OAUTH_DIRECT] Inscrevendo-se para atualizações do contrato ${targetContractId}`);
     this.webSocket.send(JSON.stringify(request));
   }
   
@@ -2648,8 +2652,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       console.log(`[OAUTH_DIRECT] 🚀 Estratégia ativa: ${this.activeStrategy}`);
       console.log(`[OAUTH_DIRECT] 🚀 Tipo de contrato (CORRIGIDO): ${contractType}`);
       console.log(`[OAUTH_DIRECT] 🚀 Previsão: ${prediction}`);
-      console.log(`[OAUTH_DIRECT] 🚀 Valor da entrada: ${amount}`);
+      console.log(`[OAUTH_DIRECT] 🚀 Valor da entrada EXATO: ${amount} (preservando valor configurado pelo usuário)`);
       console.log(`[OAUTH_DIRECT] 🚀 Status da conexão: ${this.webSocket.readyState}`);
+      console.log(`[OAUTH_DIRECT] 💡 VALIDAÇÃO CRÍTICA: O valor da entrada deve ser exatamente o configurado pelo usuário`);
       
       // Notificar início da operação
       this.notifyListeners({
