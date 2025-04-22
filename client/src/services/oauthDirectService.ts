@@ -1298,12 +1298,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       return inputValue;
     }
     
-    // PASSO 2: Se não tivermos um contrato anterior ou ele não tiver valor, pegar um valor de fallback
+    // PASSO 2: Se não tivermos um contrato anterior ou ele não tiver valor
     if (!lastContract || !lastContract.buy_price) {
-      // Usar o valor já obtido do input, ou o valor das configurações, ou um valor padrão
-      const fallbackValue = inputValue || Number(this.settings.entryValue) || 3;
-      console.log(`[OAUTH_DIRECT] ⚠️ FALLBACK: Usando valor ${fallbackValue} para cálculo (nenhum contrato anterior)`);
-      return fallbackValue;
+      // Verificar se temos um valor do input ou das configurações
+      if (inputValue !== null) {
+        console.log(`[OAUTH_DIRECT] ✅ Usando valor ${inputValue} do input (nenhum contrato anterior)`);
+        return inputValue;
+      }
+      
+      if (this.settings.entryValue) {
+        console.log(`[OAUTH_DIRECT] ✅ Usando valor ${this.settings.entryValue} das configurações (nenhum contrato anterior)`);
+        return Number(this.settings.entryValue);
+      }
+      
+      // Se não tiver valor configurado, reportar erro
+      console.error(`[OAUTH_DIRECT] ❌ ERRO: Nenhum valor configurado para a entrada.`);
+      this.notifyListeners({
+        type: 'error',
+        message: 'Nenhum valor configurado para a entrada. Por favor, verifique as configurações.'
+      });
+      
+      // Parar o bot em caso de erro (sem valor configurado)
+      this.stop('Nenhum valor configurado para a entrada', 'error');
+      
+      // Retornar um valor válido apenas para evitar erro de tipo
+      return 0;
     }
     
     let buyPrice = Number(lastContract.buy_price);
@@ -2348,10 +2367,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     try {
       // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - 22/04/2025 🚨🚨🚨
-      // SEMPRE usar o valor EXATO configurado pelo usuário, sem exceções
+      // USAR EXCLUSIVAMENTE o valor configurado pelo usuário, sem exceções ou valores padrão
       
-      // DEFINIR VALOR PADRÃO CONFIGURADO PELO USUÁRIO EM VEZ DE 1.0 OU 0.35
-      let finalAmount = 3.0;  // VALOR EXATO CONFIGURADO PELO USUÁRIO
+      // NUNCA USAR VALOR PADRÃO - APENAS o valor do usuário
+      let finalAmount: number | undefined = undefined;
       
       // PRIORIDADE 1: Buscar diretamente do input do usuário na interface (máxima prioridade)
       const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
@@ -2630,10 +2649,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     console.log(`[OAUTH_DIRECT] 🔴🔴 WebSocket readyState: ${this.webSocket ? this.webSocket.readyState : 'null'}`);
     
     // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA CORRIGIDA - 22/04/2025 🚨🚨🚨
-    // FORÇANDO uso EXCLUSIVO do valor do input da interface, com 3.0 como padrão
+    // USAR EXCLUSIVAMENTE o valor configurado pelo usuário, sem exceções ou valores padrão
     
-    // FORÇA O VALOR DIRETO DO INPUT
-    let entryAmount: number = 3.0;  // VALOR CONFIGURADO PELO USUÁRIO
+    // SEM VALOR PADRÃO - APENAS valor do usuário
+    let entryAmount: number | undefined = undefined;
     
     // Converter para número se for string
     let parsedAmount: number | undefined = undefined;
@@ -2705,10 +2724,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
     }
     
-    // Se ainda não tiver um valor, use 1.0 como último recurso
-    if (entryAmount === null) {
-      entryAmount = 1.0;
-      console.log(`[OAUTH_DIRECT] ⚠️ AVISO: Não foi possível encontrar nenhum valor configurado. Usando 1.0 como último recurso`);
+    // NUNCA usar valor padrão - abortar operação se não encontrar valor configurado pelo usuário
+    if (entryAmount === null || entryAmount === undefined) {
+      console.error(`[OAUTH_DIRECT] ❌ ERRO FATAL: Não foi possível encontrar o valor configurado pelo usuário`);
+      this.notifyListeners({
+        type: 'error',
+        message: 'Valor de entrada não configurado. Por favor, verifique as configurações.'
+      });
+      return false; // Não continue com a operação
     }
     
     // Log detalhado para diagnóstico
