@@ -364,37 +364,51 @@ export class XmlStrategyParser {
    * Condição: Usar DIGITOVER e controlar martingale após X perdas
    */
   public analyzeIronOverStrategy(consecutiveLosses: number): StrategyAnalysisResult {
-    console.log(`[XML_PARSER] 🔴 DIAGNÓSTICO IRON OVER: Análise iniciada com ${consecutiveLosses} perdas consecutivas`);
+    console.log(`[XML_PARSER] 🔴 DIAGNOSTICO EMERGENCIAL IRON OVER - LEIA OS LOGS ABAIXO`);
+    console.log(`[XML_PARSER] 🔴 Perdas consecutivas: ${consecutiveLosses}`);
     
-    // CORREÇÃO CRÍTICA: Primeiro buscar o valor diretamente do campo na interface
-    let valorConfiguradoUsuario: number | null = null;
+    // ⚠️⚠️⚠️ CORREÇÃO RADICAL: VALOR FIXADO DIRETAMENTE DO INPUT ⚠️⚠️⚠️
+    // Buscar valor APENAS do campo de entrada na interface - ÚNICA fonte de verdade
     
-    // PRIORIDADE 1: Valor do input na interface (maior prioridade)
+    // Verificar se o input existe e tem valor
     const inputElement = document.getElementById('iron-bot-entry-value') as HTMLInputElement;
+    
+    // Valor que será FORÇADO para a operação
+    let forcedAmount = 0;
+    
     if (inputElement && inputElement.value) {
       const valueFromInput = parseFloat(inputElement.value);
       if (!isNaN(valueFromInput) && valueFromInput > 0) {
-        valorConfiguradoUsuario = valueFromInput;
-        console.log(`[XML_PARSER] 🔴 IRON OVER: Valor ${valorConfiguradoUsuario} obtido diretamente do input`);
+        // ESTE É O VALOR QUE DEVE SER USADO - DIRETO DO INPUT
+        forcedAmount = valueFromInput;
+        console.log(`[XML_PARSER] ✅✅✅ IRON OVER: FORÇANDO valor ${forcedAmount} do input`);
+      } else {
+        console.error(`[XML_PARSER] ❌ IRON OVER: Input tem valor inválido: "${inputElement.value}"`);
+        forcedAmount = 1.0; // Fallback apenas se o input existir mas tiver valor inválido
       }
-    }
-    
-    // PRIORIDADE 2: Valor salvo no localStorage
-    if (valorConfiguradoUsuario === null) {
-      try {
-        const configStr = localStorage.getItem('strategy_config_ironover');
-        if (configStr) {
-          const config = JSON.parse(configStr);
-          if (config.valorInicial !== undefined) {
-            const parsedValue = parseFloat(config.valorInicial);
-            if (!isNaN(parsedValue) && parsedValue > 0) {
-              valorConfiguradoUsuario = parsedValue;
-              console.log(`[XML_PARSER] 🔴 IRON OVER: Valor ${valorConfiguradoUsuario} obtido do localStorage`);
+    } else {
+      console.error(`[XML_PARSER] ❌ IRON OVER: Input #iron-bot-entry-value não encontrado na página!`);
+      
+      // Buscar QUALQUER input como último recurso
+      const inputs = document.querySelectorAll('input[type="number"]');
+      if (inputs.length > 0) {
+        for (let i = 0; i < inputs.length; i++) {
+          const input = inputs[i] as HTMLInputElement;
+          if (input && input.value) {
+            const value = parseFloat(input.value);
+            if (!isNaN(value) && value > 0) {
+              forcedAmount = value;
+              console.log(`[XML_PARSER] ⚠️ IRON OVER: Usando valor ${value} do input alternativo: ${input.id || 'sem id'}`);
+              break;
             }
           }
         }
-      } catch (e) {
-        console.error(`[XML_PARSER] Erro ao ler configuração salva para IRON OVER:`, e);
+      }
+      
+      // Se ainda não tiver um valor, usar 1.0 como último recurso
+      if (forcedAmount <= 0) {
+        forcedAmount = 1.0;
+        console.log(`[XML_PARSER] ⚠️ IRON OVER: Nenhum input encontrado! Usando valor padrão: ${forcedAmount}`);
       }
     }
     
@@ -420,22 +434,20 @@ export class XmlStrategyParser {
     const shouldEnter = true;
     console.log(`[XML_PARSER] 🟢 IRON OVER: shouldEnter = ${shouldEnter} - O BOT DEVE ENTRAR NESTA OPERAÇÃO`);
     
-    // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
-    let amount = valorConfiguradoUsuario !== null 
-      ? valorConfiguradoUsuario 
-      : this.getFinalAmount();
+    // CORREÇÃO EMERGENCIAL: Ignorar todas as fontes de dados e usar APENAS o valor forçado
+    // Esta é a solução final e definitiva para os valores de entrada fixos
+    let amount = forcedAmount;
     
-    // Se for usar martingale, ajustar valor
+    // Se for usar martingale, ajustar valor - usando FORCEDAMOUNT como base
     if (useMartingale && consecutiveLosses > 0) {
       // IRON OVER usa uma lógica de martingale diferente:
       // Após X perdas consecutivas (usarMartingaleAposXLoss), o valor da entrada
       // é o valor inicial multiplicado pelo número de perdas consecutivas
       
-      // CORREÇÃO CRÍTICA: IGNORAR valor hardcoded (0.35) no XML e priorizar configuração do usuário
-      // Usando getFinalAmount para garantir consistência em todas as estratégias
-      const valorInicial = this.getFinalAmount();
-      console.log(`[XML_PARSER] 🚨 IRON OVER utilizando valor ${valorInicial} de getFinalAmount`);
-      // Este método já implementa a lógica de priorização completa
+      // CORREÇÃO RADICAL: Usar APENAS forcedAmount como valor base
+      const valorInicial = forcedAmount;
+      console.log(`[XML_PARSER] 🚨 IRON OVER utilizando valor FORÇADO ${valorInicial} do input da interface`);
+      // Este é o ÚNICO VALOR PERMITIDO para a operação
       
       // Obter fator de martingale (prioridade: configuração do usuário > XML > valor padrão)
       const martingaleFator = this.userConfig.martingale !== undefined
