@@ -581,10 +581,16 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     
     if (storedAccountInfo && storedAuthToken) {
       try {
-        const parsedInfo = JSON.parse(storedAccountInfo);
-        setAccountInfo(parsedInfo);
-        setAuthToken(storedAuthToken);
-        setIsAuthenticated(true);
+        const parsedInfo = storedAccountInfo ? JSON.parse(storedAccountInfo) : null;
+        if (parsedInfo && storedAuthToken) {
+          setAccountInfo(parsedInfo);
+          setAuthToken(storedAuthToken);
+          setIsAuthenticated(true);
+        } else {
+          console.log('[BOT] Informações da conta incompletas');
+          setIsAuthenticated(false);
+          return;
+        }
         
         // Carregar dados da conta da dashboard
         const dashboardAccount: DerivAccount = {
@@ -646,7 +652,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           if (event.key === 'dashboard_account' && event.newValue) {
             try {
               console.log('[BOT_PAGE] Detectada mudança na conta selecionada na dashboard');
-              const newAccount = JSON.parse(event.newValue);
+              const newAccount = event.newValue ? JSON.parse(event.newValue) : null;
+              if (!newAccount || !newAccount.loginid || !newAccount.token) {
+                console.error('[BOT_PAGE] Dados da conta inválidos ou incompletos:', newAccount);
+                return;
+              }
               
               // Atualizar a conta selecionada no estado
               setSelectedAccount({
@@ -802,15 +812,16 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 email: event.account.email || ''
               });
               
-              // Atualizar conta selecionada
-              setSelectedAccount({
-                account: loginid,
+              // Atualizar conta selecionada, evitando propriedades erradas
+              const derivAccount: DerivAccount = {
                 loginid: loginid,
+                token: event.account.token || '',
                 currency: currency,
                 isVirtual: isVirtual,
-                accountType: isVirtual ? 'demo' : 'real',
                 balance: balance
-              });
+              };
+              
+              setSelectedAccount(derivAccount);
               
               // Atualizar saldo em tempo real
               setRealTimeBalance({
