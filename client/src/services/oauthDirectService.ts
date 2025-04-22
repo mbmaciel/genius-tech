@@ -3391,13 +3391,17 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.webSocket.send(JSON.stringify(proposalRequest));
       
       // Adicionar listener para receber a resposta da proposta e fazer a compra
+      // 🔍🔍🔍 CORREÇÃO CRÍTICA: Listener especializado para capturar QUALQUER tipo de resposta 🔍🔍🔍
       const handleProposalResponse = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           
-          // Verificar se é a resposta à nossa proposta
+          // 📝 Log completo para TODAS as mensagens recebidas durante período de espera
+          console.log(`[OAUTH_DIRECT] 🔍🔍🔍 MENSAGEM DURANTE ESPERA DE PROPOSTA: ${JSON.stringify(data)}`);
+          
+          // Verificar se é a resposta à nossa proposta - VERSÃO MAIS ROBUSTA
           if (data.req_id === reqId && data.proposal) {
-            console.log(`[OAUTH_DIRECT] ✅ PROPOSTA RECEBIDA COM SUCESSO:`, data.proposal);
+            console.log(`[OAUTH_DIRECT] ✅✅✅ PROPOSTA RECEBIDA COM SUCESSO:`, JSON.stringify(data.proposal));
             
             // Remover o listener após receber a resposta
             this.webSocket.removeEventListener('message', handleProposalResponse);
@@ -3405,10 +3409,51 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             // Agora sim fazer a compra usando o ID da proposta recebida
             const buyRequest = {
               buy: data.proposal.id,
-              price: data.proposal.ask_price
+              price: data.proposal.ask_price,
+              // 🔑 Adicionar req_id único para poder rastrear esta compra
+              req_id: `buy_${Date.now()}`
             };
             
-            console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`);
+            console.log(`[OAUTH_DIRECT] 🛒🛒🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`);
+            
+            // 🚨 CORREÇÃO CRÍTICA: Adicionar um listener específico para esta compra
+            const handleBuyResponse = (buyEvent: MessageEvent) => {
+              try {
+                const buyData = JSON.parse(buyEvent.data);
+                console.log(`[OAUTH_DIRECT] 🔍 MENSAGEM DURANTE ESPERA DE COMPRA: ${JSON.stringify(buyData)}`);
+                
+                // Verificar se é uma resposta de compra
+                if (buyData.msg_type === 'buy' || buyData.buy) {
+                  console.log(`[OAUTH_DIRECT] ✅✅✅ COMPRA CONFIRMADA:`, JSON.stringify(buyData));
+                  this.webSocket.removeEventListener('message', handleBuyResponse);
+                }
+                
+                // Verificar se é um erro
+                if (buyData.error) {
+                  console.error(`[OAUTH_DIRECT] ❌ ERRO NA COMPRA:`, buyData.error);
+                  this.webSocket.removeEventListener('message', handleBuyResponse);
+                  
+                  // Notificar sobre o erro
+                  this.notifyListeners({
+                    type: 'error',
+                    message: `Erro na compra: ${buyData.error.message || JSON.stringify(buyData.error)}`
+                  });
+                }
+              } catch (e) {
+                console.error('[OAUTH_DIRECT] Erro ao processar resposta de compra:', e);
+              }
+            };
+            
+            // Adicionar listener para a resposta da compra
+            this.webSocket.addEventListener('message', handleBuyResponse);
+            
+            // Define timeout para o listener de compra
+            setTimeout(() => {
+              this.webSocket.removeEventListener('message', handleBuyResponse);
+              console.log(`[OAUTH_DIRECT] ⏱️ Timeout removeu listener de compra`);
+            }, 10000);
+            
+            // Enviar a requisição de compra
             this.webSocket.send(JSON.stringify(buyRequest));
             
             // Marcar que estamos processando uma compra
