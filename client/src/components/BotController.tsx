@@ -479,25 +479,30 @@ export function BotController({
                 // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
                 console.log(`[BOT_CONTROLLER] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
                 
-                // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
-                // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
+                // Check if BOTH digits 0 AND 1 are with percentage LESS THAN OR EQUAL to the user defined threshold
+                // CRITICAL: This is the main condition that determines entry according to XML strategy
                 shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
-                contractType = 'DIGITOVER';
+                contractType = 'DIGITOVER';  // ADVANCE strategy uses DIGITOVER (from XML)
+                prediction = 5;  // Barrier 5 is fixed in the XML strategy
                 
-                console.log(`[BOT_CONTROLLER] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);
-                console.log(`[BOT_CONTROLLER] 🔍 Verificando ambos os dígitos: 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+                // CRITICAL: Detailed strategy execution logs
+                console.log(`[BOT_CONTROLLER] ADVANCE STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType}`);
+                console.log(`[BOT_CONTROLLER] - Prediction/Barrier: ${prediction}`);
+                console.log(`[BOT_CONTROLLER] - Condition Check: 0 (${digit0Percentage}%) AND 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? 'ENTER' : 'WAIT'}`);
                 
-                // Notificar usuário no console para diagnóstico
+                // Notify detection of entry condition in console for diagnostics
                 if (shouldEnter) {
-                  console.log(`[BOT_CONTROLLER] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+                  console.log(`[BOT_CONTROLLER] 🚀🚀🚀 ENTRY CONDITION DETECTED! Digits 0 (${digit0Percentage}%) and 1 (${digit1Percentage}%) are both <= ${percentageToUse}%`);
                 }
                 
-                // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
+                // Determine explicit feedback message including user-defined value
                 message = shouldEnter 
-                  ? `ADVANCE XML: ✅ Condição satisfeita! Executando DIGITOVER conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
-                  : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
+                  ? `ADVANCE XML: ✅ Condition satisfied! Executing DIGITOVER with barrier 5. Digits 0 (${digit0Percentage}%) and 1 (${digit1Percentage}%) both <= ${percentageToUse}%`
+                  : `ADVANCE XML: ❌ Condition not met. Digit 0 (${digit0Percentage}%) or 1 (${digit1Percentage}%) > ${percentageToUse}%`;
                   
-                console.log(`[BOT_CONTROLLER] ${message}`);
+                console.log(`[BOT_CONTROLLER] Message: ${message}`);
                 
               } catch (advanceError) {
                 console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA ADVANCE (implementação direta):', advanceError);
@@ -517,13 +522,18 @@ export function BotController({
               // Estratégia Iron Over - Implementação direta para evitar problemas de importação
               console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON OVER');
               try {
-                // IRON OVER SEMPRE faz DIGITOVER
+                // IRON OVER ALWAYS uses DIGITOVER (specific barrier value from XML)
                 shouldEnter = true;
                 contractType = 'DIGITOVER';
-                prediction = 5; // Valor padrão para dígitos
-                message = `IRON OVER XML: Operação normal. Previsão: DIGITOVER ${prediction}`;
+                prediction = 5; // Hard-coded value from IRON OVER XML strategy
+                message = `IRON OVER XML: Direct operation. Prediction: DIGITOVER ${prediction} (barrier 5)`;
                 
-                console.log(`[BOT_CONTROLLER] Análise IRON OVER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+                // CRITICAL: Log exact parameters - this must match XML strategy
+                console.log(`[BOT_CONTROLLER] IRON OVER STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType}`);
+                console.log(`[BOT_CONTROLLER] - Prediction/Barrier: ${prediction}`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? 'ENTER' : 'WAIT'}`);
+                console.log(`[BOT_CONTROLLER] - Message: ${message}`);
               } catch (ironOverError) {
                 console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON OVER (implementação direta):', ironOverError);
                 if (ironOverError instanceof Error) {
@@ -540,13 +550,18 @@ export function BotController({
               // Estratégia Iron Under - Implementação direta para evitar problemas de importação
               console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER');
               try {
-                // IRON UNDER SEMPRE faz DIGITUNDER
+                // IRON UNDER ALWAYS uses DIGITUNDER (specific barrier value from XML)
                 shouldEnter = true;
                 contractType = 'DIGITUNDER';
-                prediction = 5; // Valor padrão para dígitos
-                message = `IRON UNDER XML: Operação normal. Previsão: DIGITUNDER ${prediction}`;
+                prediction = 5; // Hard-coded value from IRON UNDER XML strategy
+                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction} (barrier 5)`;
                 
-                console.log(`[BOT_CONTROLLER] Análise IRON UNDER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+                // CRITICAL: Log exact parameters - this must match XML strategy
+                console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType}`);
+                console.log(`[BOT_CONTROLLER] - Prediction/Barrier: ${prediction}`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? 'ENTER' : 'WAIT'}`);
+                console.log(`[BOT_CONTROLLER] - Message: ${message}`);
               } catch (ironUnderError) {
                 console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):', ironUnderError);
                 if (ironUnderError instanceof Error) {
