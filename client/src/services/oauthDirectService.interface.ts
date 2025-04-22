@@ -83,4 +83,8 @@ export interface OAuthDirectServiceInterface {
   // Métodos para eventos
   addEventListener(listener: (event: TradingEvent) => void): void;
   removeEventListener(listener: (event: TradingEvent) => void): void;
+  
+  // Métodos para histórico de operações
+  getOperationsHistory(limit?: number): any[]; // Obter histórico de operações
+  getStats(): BotStats; // Obter estatísticas de operações
 }

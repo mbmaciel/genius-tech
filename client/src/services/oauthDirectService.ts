@@ -940,7 +940,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               }
               
               // Incluir todos os detalhes relevantes do contrato para histórico
-              this.notifyListeners({
+              // Registrar detalhes completos da operação finalizada
+              const detailedContractInfo = {
                 type: 'contract_finished',
                 contract_id: contract.contract_id,
                 is_win: isWin,
@@ -948,8 +949,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 contract_details: contract,
                 entry_value: contract.buy_price || 0,
                 exit_value: contract.sell_price || 0,
-                is_first_operation: isFirstOperation
-              });
+                is_first_operation: isFirstOperation,
+                // Informações adicionais para o histórico
+                strategy: this.activeStrategy,
+                strategy_settings: this.tradingSettings,
+                symbol: contract.underlying_symbol || contract.display_name,
+                contract_type: contract.contract_type,
+                entry_spot: contract.entry_spot,
+                exit_spot: contract.exit_spot_value || contract.exit_tick_display_value,
+                entry_time: contract.date_start,
+                exit_time: contract.sell_time || contract.date_expiry,
+                duration: (contract.sell_time || contract.date_expiry || 0) - contract.date_start,
+                barrier: contract.barrier,
+                payout: contract.payout,
+                timestamp: Date.now()
+              };
+              
+              // Salvar histórico localmente para persistência
+              this.saveOperationToHistory(detailedContractInfo);
+              
+              // Notificar listeners com detalhes completos
+              this.notifyListeners(detailedContractInfo);
               
               // Iniciar próxima operação após resultado
               this.startNextOperation(isWin, contract);
@@ -4166,6 +4186,135 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       });
     }, 0);
+  }
+  
+  /**
+   * Salva detalhes completos de uma operação finalizada no histórico local
+   * @param operation Dados da operação finalizada
+   */
+  private saveOperationToHistory(operation: any): void {
+    try {
+      // Obter histórico existente
+      const historyKey = 'deriv_operations_history';
+      let history: any[] = [];
+      
+      const existingHistory = localStorage.getItem(historyKey);
+      if (existingHistory) {
+        try {
+          const parsed = JSON.parse(existingHistory);
+          if (Array.isArray(parsed)) {
+            history = parsed;
+          }
+        } catch (e) {
+          console.error('[OAUTH_DIRECT] Erro ao restaurar histórico de operações:', e);
+        }
+      }
+      
+      // Adicionar nova operação ao início do histórico
+      history.unshift({
+        ...operation,
+        saved_at: Date.now()
+      });
+      
+      // Limitar o tamanho do histórico para evitar exceder o armazenamento local (manter últimas 100 operações)
+      if (history.length > 100) {
+        history = history.slice(0, 100);
+      }
+      
+      // Salvar histórico atualizado
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      
+      // Enviar via API para armazenamento externo se disponível
+      this.sendOperationToAPI(operation);
+      
+      console.log(`[OAUTH_DIRECT] ✅ Operação ID:${operation.contract_id} salva no histórico local`);
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao salvar operação no histórico:', error);
+    }
+  }
+  
+  /**
+   * Envia detalhes da operação para API externa (se configurada)
+   * @param operation Dados da operação para enviar
+   */
+  private sendOperationToAPI(operation: any): void {
+    try {
+      // Verificar se há URL de API configurada
+      const apiUrl = localStorage.getItem('operations_api_url');
+      if (!apiUrl) {
+        // API não configurada, não enviar
+        return;
+      }
+      
+      // Criar objeto para envio com dados essenciais
+      const payload = {
+        contract_id: operation.contract_id,
+        strategy: operation.strategy,
+        symbol: operation.symbol,
+        contract_type: operation.contract_type,
+        entry_value: operation.entry_value,
+        exit_value: operation.exit_value,
+        profit: operation.profit,
+        is_win: operation.is_win,
+        barrier: operation.barrier,
+        entry_spot: operation.entry_spot,
+        exit_spot: operation.exit_spot,
+        entry_time: operation.entry_time,
+        exit_time: operation.exit_time,
+        timestamp: operation.timestamp
+      };
+      
+      // Enviar dados em background sem aguardar resposta
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      }).then(response => {
+        if (response.ok) {
+          console.log(`[OAUTH_DIRECT] ✅ Operação ID:${operation.contract_id} enviada para API externa`);
+        } else {
+          console.error(`[OAUTH_DIRECT] ❌ Erro ao enviar operação para API: ${response.status}`);
+        }
+      }).catch(error => {
+        console.error('[OAUTH_DIRECT] ❌ Erro ao enviar operação para API:', error);
+      });
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao tentar enviar operação para API:', error);
+    }
+  }
+
+  /**
+   * Obtém o histórico completo de operações realizadas
+   * @param limit Número máximo de operações para retornar
+   * @returns Array com histórico de operações
+   */
+  public getOperationsHistory(limit: number = 50): any[] {
+    try {
+      const historyKey = 'deriv_operations_history';
+      const existingHistory = localStorage.getItem(historyKey);
+      
+      if (!existingHistory) {
+        return [];
+      }
+      
+      try {
+        const history = JSON.parse(existingHistory);
+        if (!Array.isArray(history)) {
+          return [];
+        }
+        
+        // Retornar apenas o número solicitado de operações mais recentes
+        return history.slice(0, limit);
+      } catch (e) {
+        console.error('[OAUTH_DIRECT] Erro ao parsear histórico de operações:', e);
+        return [];
+      }
+    } catch (error) {
+      console.error('[OAUTH_DIRECT] Erro ao obter histórico de operações:', error);
+      return [];
+    }
   }
 }
 
