@@ -7,6 +7,7 @@ import { BinaryBotStrategy } from '@/lib/automationService';
 import { StrategyConfigPanel, StrategyConfiguration } from '@/components/StrategyConfigPanel';
 import { getStrategyById, getContractTypeForStrategy, usesDigitPrediction } from '@/lib/strategiesConfig';
 import { loadStrategyXml, evaluateEntryConditions, getStrategyState } from '@/lib/strategy-handlers';
+import { useTranslation } from 'react-i18next';
 
 interface BotControllerProps {
   entryValue: number;
@@ -34,6 +35,7 @@ interface BotButtonProps {
 }
 
 function BotButton({ status: externalStatus, selectedStrategy, onStart, onStop }: BotButtonProps) {
+  const { t } = useTranslation();
   // Estado interno para garantir que o botão mude visualmente de forma imediata
   const [internalStatus, setInternalStatus] = useState<'idle' | 'running' | 'paused'>(externalStatus);
   
@@ -57,7 +59,7 @@ function BotButton({ status: externalStatus, selectedStrategy, onStart, onStop }
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
         </svg>
-        Parar Robô
+        {t('bot.stop', 'Parar Robô')}
       </Button>
     );
   } else {
@@ -83,7 +85,7 @@ function BotButton({ status: externalStatus, selectedStrategy, onStart, onStop }
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="5 3 19 12 5 21 5 3"></polygon>
         </svg>
-        Iniciar Operações
+        {t('bot.start', 'Iniciar Operações')}
       </Button>
     );
   }
@@ -99,6 +101,7 @@ export function BotController({
   onTickReceived
 }: BotControllerProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [status, setStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   const [stats, setStats] = useState({ wins: 0, losses: 0, totalProfit: 0 });
   const [accountInfo, setAccountInfo] = useState<AccountInfo>({
@@ -232,7 +235,7 @@ export function BotController({
       if (event.type === 'error') {
         // Mostrar erro para o usuário
         toast({
-          title: "Erro no robô",
+          title: t('common.error', 'Erro no robô'),
           description: event.message,
           variant: "destructive"
         });
@@ -243,7 +246,7 @@ export function BotController({
         const severity = event.type === 'token_permission_error' ? 'high' : 'medium';
         
         toast({
-          title: severity === 'high' ? "Erro de permissão" : "Aviso de permissão",
+          title: severity === 'high' ? t('bot.error.permissionError', 'Erro de permissão') : t('bot.error.permissionWarning', 'Aviso de permissão'),
           description: event.message,
           variant: severity === 'high' ? "destructive" : "default",
           duration: 10000, // 10 segundos para ler
@@ -253,8 +256,8 @@ export function BotController({
         if (severity === 'high') {
           setTimeout(() => {
             toast({
-              title: "Como resolver",
-              description: "Você precisa autorizar a aplicação com permissões de trading. Clique no botão de login na dashboard para autorizar novamente.",
+              title: t('bot.error.howToFix', 'Como resolver'),
+              description: t('bot.error.authorizationNeeded', 'Você precisa autorizar a aplicação com permissões de trading. Clique no botão de login na dashboard para autorizar novamente.'),
               duration: 15000,
             });
           }, 2000);
@@ -329,8 +332,11 @@ export function BotController({
       if (event.type === 'contract_purchased') {
         // Mostrar notificação de compra
         toast({
-          title: "Contrato comprado",
-          description: `ID: ${event.contract_id}, Valor: $${event.buy_price}`,
+          title: t('bot.contract.purchased', 'Contrato comprado'),
+          description: t('bot.contract.details', 'ID: {{id}}, Valor: ${{value}}', { 
+            id: event.contract_id, 
+            value: event.buy_price 
+          }),
         });
       }
       
@@ -350,8 +356,12 @@ export function BotController({
         
         // Mostrar notificação de resultado
         toast({
-          title: event.is_win ? "Operação vencedora!" : "Operação perdedora",
-          description: `Resultado: $${event.profit.toFixed(2)}`,
+          title: event.is_win 
+            ? t('bot.contract.wonOperation', 'Operação vencedora!') 
+            : t('bot.contract.lostOperation', 'Operação perdedora'),
+          description: t('bot.contract.result', 'Resultado: ${{profit}}', { 
+            profit: event.profit.toFixed(2) 
+          }),
           variant: event.is_win ? "default" : "destructive",
         });
         
@@ -410,7 +420,7 @@ export function BotController({
       if (event.type === 'bot_target_reached') {
         console.log('[BOT_CONTROLLER] 🎯 Meta de lucro atingida:', event.message);
         toast({
-          title: "Meta de lucro atingida!",
+          title: t('bot.target.reached', 'Meta de lucro atingida!'),
           description: event.message,
           variant: "default",
           duration: 10000, // 10 segundos para visibilidade
@@ -424,7 +434,7 @@ export function BotController({
       if (event.type === 'bot_limit_reached') {
         console.log('[BOT_CONTROLLER] 🛑 Limite de perda atingido:', event.message);
         toast({
-          title: "Limite de perda atingido!",
+          title: t('bot.limit.reached', 'Limite de perda atingido!'),
           description: event.message,
           variant: "destructive",
           duration: 10000, // 10 segundos para visibilidade
