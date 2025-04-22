@@ -8,6 +8,14 @@ import { StrategyConfigPanel, StrategyConfiguration } from '@/components/Strateg
 import { getStrategyById, getContractTypeForStrategy, usesDigitPrediction } from '@/lib/strategiesConfig';
 import { loadStrategyXml, evaluateEntryConditions, getStrategyState } from '@/lib/strategy-handlers';
 import { useTranslation } from 'react-i18next';
+// Importação direta de todas as funções de avaliação de estratégias
+import { 
+  evaluateAdvanceStrategy, 
+  evaluateIronOverStrategy, 
+  evaluateIronUnderStrategy,
+  evaluateMaxProStrategy,
+  evaluateDefaultStrategy
+} from '@/services/strategyRules';
 
 interface BotControllerProps {
   entryValue: number;
@@ -356,15 +364,6 @@ export function BotController({
             let message = '';
             let prediction: number | undefined = undefined;
             
-            // Importar funções de avaliação de estratégias
-            const { 
-              evaluateAdvanceStrategy, 
-              evaluateIronOverStrategy, 
-              evaluateIronUnderStrategy,
-              evaluateMaxProStrategy,
-              evaluateDefaultStrategy
-            } = require('@/services/strategyRules');
-            
             // Avaliar condições baseado na estratégia selecionada
             if (selectedStrategy.toLowerCase().includes('advance')) {
               // Estratégia Advance
@@ -379,7 +378,9 @@ export function BotController({
               // Estratégia Iron Over
               const result = evaluateIronOverStrategy(digitStats, event.lastDigit);
               if (result) {
-                ({ shouldEnter, contractType, prediction, message } = result);
+                ({ shouldEnter, contractType, message } = result);
+                // prediction não está disponível nesta função, então usamos um valor padrão
+                prediction = 5; // Valor padrão para dígitos
                 console.log(`[BOT_CONTROLLER] Análise IRON OVER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
               }
             }
@@ -388,13 +389,15 @@ export function BotController({
               // Estratégia Iron Under
               const result = evaluateIronUnderStrategy(digitStats, event.lastDigit);
               if (result) {
-                ({ shouldEnter, contractType, prediction, message } = result);
+                ({ shouldEnter, contractType, message } = result);
+                // prediction não está disponível nesta função, então usamos um valor padrão
+                prediction = 5; // Valor padrão para dígitos
                 console.log(`[BOT_CONTROLLER] Análise IRON UNDER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
               }
             }
             else if (selectedStrategy.toLowerCase().includes('maxpro')) {
               // Estratégia MaxPro
-              const result = evaluateMaxProStrategy(digitStats, event.lastDigit);
+              const result = evaluateMaxProStrategy(digitStats);
               if (result) {
                 ({ shouldEnter, contractType, prediction, message } = result);
                 console.log(`[BOT_CONTROLLER] Análise MAXPRO: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
@@ -403,7 +406,7 @@ export function BotController({
             else {
               // Estratégia padrão ou desconhecida
               console.log(`[BOT_CONTROLLER] Usando análise padrão para estratégia: ${selectedStrategy}`);
-              const result = evaluateDefaultStrategy(digitStats, event.lastDigit);
+              const result = evaluateDefaultStrategy(digitStats);
               if (result) {
                 ({ shouldEnter, contractType, message } = result);
               }
@@ -441,6 +444,17 @@ export function BotController({
             }
           } catch (error) {
             console.error('[BOT_CONTROLLER] Erro ao avaliar condições da estratégia:', error);
+            
+            // Log adicional para diagnóstico
+            if (error instanceof Error) {
+              console.error('[BOT_CONTROLLER] Detalhes do erro:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+              });
+            } else {
+              console.error('[BOT_CONTROLLER] Erro não é uma instância de Error:', typeof error);
+            }
           }
         }
       }
