@@ -658,36 +658,100 @@ export function BotController({
         onStatusChange('running');
         console.log('[BOT_CONTROLLER] 🔄 Estado atual definido como: running');
 
-        // Forçar a primeira operação após iniciar o serviço - VERSÃO SUPER FORÇADA
-        // USAR EXATAMENTE o valor da estratégia, sem qualquer processamento adicional
-        console.log('[BOT_CONTROLLER] 🚨🚨🚨 CORREÇÃO EMERGENCIAL: Forçando primeira operação com modo direto!');
-        const exactUserValue = strategyConfig.valorInicial || 1.0; // Sempre garantir um valor mesmo se undefined
-        console.log(`[BOT_CONTROLLER] 🚨 VALOR EXATO DE ENTRADA: ${exactUserValue}`);
+        // CORREÇÃO 23/04/2025
+        // PLANO DEFINITIVO: Garantir execução correta para TODAS as estratégias
         
-        // ALTERAÇÃO EMERGENCIAL: Forçar execução direta com valor fixo pelo WebSocket
-        console.log(`[BOT_CONTROLLER] 🚨 CHAMANDO EXECUTAR PRIMEIRA OPERAÇÃO`);
-        const operationStarted = await oauthDirectService.executeFirstOperation(exactUserValue);
+        // Etapa 1: Obter valor exato da configuração do usuário
+        console.log('[BOT_CONTROLLER] 🚨🚨🚨 CORREÇÃO CRÍTICA 23/04: Forçando execução com valor EXATO do usuário!');
+        const exactUserValue = strategyConfig.valorInicial; 
+        console.log(`[BOT_CONTROLLER] 🚨 VALOR EXATO DE ENTRADA CONFIGURADO PELO USUÁRIO: ${exactUserValue}`);
         
-        // PLANO B: Forçar execução direta via executeContractBuy se a primeira tentativa falhar
+        // EXTREMAMENTE IMPORTANTE: Definir variável global para garantir acesso ao valor correto em qualquer ponto
+        (window as any).ironBotEntryValue = exactUserValue;
+        
+        // Etapa 2: Configurar explicitamente o tipo de contrato adequado para cada estratégia
+        let contractType = 'CALL'; // Tipo padrão
+        
+        // Função auxiliar para determinar o tipo de contrato com base na estratégia
+        const getContractTypeForStrategy = (strategyName: string): string => {
+          const strategy = strategyName.toLowerCase();
+          if (strategy.includes('iron_under') || strategy.includes('ironunder')) {
+            return 'DIGITUNDER';
+          } else if (strategy.includes('iron_over') || strategy.includes('ironover')) {
+            return 'DIGITOVER';
+          } else if (strategy.includes('maxpro')) {
+            return 'DIGITOVER';
+          } else if (strategy.includes('advance')) {
+            return 'CALL';
+          } else if (strategy.includes('botlow')) {
+            return 'PUT';
+          } else {
+            return 'CALL'; // Valor padrão para outras estratégias
+          }
+        };
+        
+        contractType = getContractTypeForStrategy(selectedStrategy);
+        
+        // CORREÇÃO MANUAL para estratégias com tipos específicos de contrato
+        if (selectedStrategy.toLowerCase().includes('iron_under') || selectedStrategy.toLowerCase().includes('ironunder')) {
+          contractType = 'DIGITUNDER';
+          console.log(`[BOT_CONTROLLER] ⚠️ Forçando tipo DIGITUNDER para estratégia IRON UNDER`);
+        } else if (selectedStrategy.toLowerCase().includes('iron_over') || selectedStrategy.toLowerCase().includes('ironover')) {
+          contractType = 'DIGITOVER';
+          console.log(`[BOT_CONTROLLER] ⚠️ Forçando tipo DIGITOVER para estratégia IRON OVER`);
+        }
+        
+        // Etapa 3: Configurar o serviço com todos os parâmetros exatos
+        oauthDirectService.setSettings({
+          entryValue: exactUserValue,
+          profitTarget: strategyConfig.metaGanho,
+          lossLimit: strategyConfig.limitePerda,
+          martingaleFactor: strategyConfig.martingale,
+          contractType: contractType,
+          prediction: 5 // Valor padrão que será substituído pela análise da estratégia
+        });
+        
+        // Etapa 4: Tentar execução com diferentes métodos (SOLUÇÃO DEFINITIVA)
+        console.log(`[BOT_CONTROLLER] 🚨 TENTATIVA 1: Executando primeira operação via método padrão`);
+        let operationStarted = await oauthDirectService.executeFirstOperation(exactUserValue);
+        
+        // Verificar se a operação foi iniciada com sucesso
         if (!operationStarted) {
-          console.log(`[BOT_CONTROLLER] 🚨 PRIMEIRA OPERAÇÃO NÃO INICIADA, TENTANDO MÉTODO ALTERNATIVO`);
+          console.log(`[BOT_CONTROLLER] 🚨 TENTATIVA 2: Primeira operação falhou, usando método direto`);
           
           // Verificar se o WebSocket está disponível
           if ((oauthDirectService as any).webSocket && (oauthDirectService as any).webSocket.readyState === 1) {
-            console.log(`[BOT_CONTROLLER] 🚨 WebSocket disponível, enviando operação DIRETAMENTE`);
+            console.log(`[BOT_CONTROLLER] 🚨 WebSocket confirmado disponível, enviando operação DIRETAMENTE`);
             
-            // Tentar executar operação diretamente pelo método interno
-            (oauthDirectService as any).executeContractBuy(exactUserValue);
-            console.log(`[BOT_CONTROLLER] 🚨 OPERAÇÃO ENVIADA DIRETAMENTE!`);
-          } else {
-            console.log(`[BOT_CONTROLLER] 🚨 WebSocket não disponível, tentando forçar reconexão`);
-            
-            // Tentar forçar reconexão e tentar novamente
-            await (oauthDirectService as any).reconnect();
-            setTimeout(() => {
-              console.log(`[BOT_CONTROLLER] 🚨 Tentando novamente após reconexão forçada`);
+            try {
+              // Tentar executar operação diretamente pelo método interno
               (oauthDirectService as any).executeContractBuy(exactUserValue);
-            }, 2000);
+              console.log(`[BOT_CONTROLLER] 🚨 TENTATIVA 2: Operação enviada diretamente!`);
+              operationStarted = true;
+            } catch (error) {
+              console.error(`[BOT_CONTROLLER] ❌ ERRO AO EXECUTAR OPERAÇÃO DIRETA:`, error);
+            }
+          } else {
+            console.log(`[BOT_CONTROLLER] 🚨 TENTATIVA 3: WebSocket não disponível, tentando reconexão forçada`);
+            
+            try {
+              // Tentar forçar reconexão e tentar novamente
+              await (oauthDirectService as any).reconnect();
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1 segundo para estabilizar
+              
+              console.log(`[BOT_CONTROLLER] 🚨 Após reconexão, enviando operação novamente`);
+              
+              // Verificar se o WebSocket está disponível após reconexão
+              if ((oauthDirectService as any).webSocket && (oauthDirectService as any).webSocket.readyState === 1) {
+                (oauthDirectService as any).executeContractBuy(exactUserValue);
+                console.log(`[BOT_CONTROLLER] 🚨 TENTATIVA 3: Operação enviada após reconexão!`);
+                operationStarted = true;
+              } else {
+                console.error(`[BOT_CONTROLLER] ❌ WebSocket ainda não disponível após reconexão`);
+              }
+            } catch (error) {
+              console.error(`[BOT_CONTROLLER] ❌ ERRO DURANTE RECONEXÃO:`, error);
+            }
           }
         }
         
