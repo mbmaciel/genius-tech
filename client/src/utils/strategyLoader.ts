@@ -13,7 +13,7 @@ const strategyFiles = [
   'attached_assets/WISE PRO TENDENCIA.xml',
   
   // Estratégias Premium
-  'attached_assets/IRON OVER.xml',
+  'client/public/IRON_OVER.xml', // Usando XML corrigido
   'attached_assets/IRON UNDER.xml',
   'attached_assets/BOT LOW.xml',
   'attached_assets/MAXPRO .xml',
