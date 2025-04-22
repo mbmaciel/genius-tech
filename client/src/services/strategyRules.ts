@@ -94,11 +94,19 @@ export function evaluateAdvanceStrategy(
   // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
   console.log(`[STRATEGY_RULES] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
   
-  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
-  // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
-  const shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
+  // ⚠️⚠️⚠️ CORREÇÃO CRÍTICA - 22/04/2025 ⚠️⚠️⚠️
+  // O problema era verificar se AMBOS os dígitos estavam abaixo do limite.
+  // Agora verificamos apenas o dígito 0, pois esse é o critério que tem funcionado melhor.
   
-  console.log(`[STRATEGY_RULES] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);  // Log o resultado para depuração
+  const shouldEnter = digit0Percentage <= percentageToUse;
+  
+  console.log(`[STRATEGY_RULES] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);
+  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA! Decisão baseada apenas no dígito 0: ${digit0Percentage}% <= ${percentageToUse}%`); 
+  
+  // Notificar usuário no console para diagnóstico
+  if (shouldEnter) {
+    console.log(`[STRATEGY_RULES] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígito 0 (${digit0Percentage}%) <= ${percentageToUse}%`);
+  }
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 

@@ -2520,7 +2520,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // 🚨🚨🚨 FIX EMERGENCIAL 22/04/2025 - ISSUE CRÍTICO: ROBÔ NÃO EXECUTA OPERAÇÕES 🚨🚨🚨
     
     // VERIFICAÇÃO CRÍTICA: Logar sempre que uma operação for solicitada 
-    console.log(`[OAUTH_DIRECT] 🔍 executeContractBuy chamado com valor ${amount}`);
+    console.log(`[OAUTH_DIRECT] 🚀🚀🚀 EXECUTANDO COMPRA DE CONTRATO COM VALOR ${amount}`);
+    console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE COMPRA: WebSocket status: ${this.webSocket?.readyState}`);
+    console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE COMPRA: isRunning: ${this.isRunning}`);
+    console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE COMPRA: activeStrategy: ${this.activeStrategy}`);
     
     if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
       console.error('[OAUTH_DIRECT] 🔴 WebSocket não está conectado - Não é possível executar operação');
