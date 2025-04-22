@@ -8,14 +8,8 @@ import { StrategyConfigPanel, StrategyConfiguration } from '@/components/Strateg
 import { getStrategyById, getContractTypeForStrategy, usesDigitPrediction } from '@/lib/strategiesConfig';
 import { loadStrategyXml, evaluateEntryConditions, getStrategyState } from '@/lib/strategy-handlers';
 import { useTranslation } from 'react-i18next';
-// Importação direta de todas as funções de avaliação de estratégias
-import { 
-  evaluateAdvanceStrategy, 
-  evaluateIronOverStrategy, 
-  evaluateIronUnderStrategy,
-  evaluateMaxProStrategy,
-  evaluateDefaultStrategy
-} from '@/services/strategyRules';
+// Importação do módulo completo para evitar problemas
+import * as strategyRules from '@/services/strategyRules';
 
 interface BotControllerProps {
   entryValue: number;
@@ -367,16 +361,108 @@ export function BotController({
             // Avaliar condições baseado na estratégia selecionada
             if (selectedStrategy.toLowerCase().includes('advance')) {
               // Estratégia Advance
-              const result = evaluateAdvanceStrategy(digitStats, entryPercentage);
-              if (result) {
-                ({ shouldEnter, contractType, message } = result);
-                console.log(`[BOT_CONTROLLER] Análise ADVANCE: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia ADVANCE');
+              
+              // Implementação direta da estratégia ADVANCE para evitar problemas de importação
+              try {
+                // Garantir que sempre temos um valor para porcentagem
+                // Se valor não estiver definido, usar 10% como padrão
+                const percentageToUse = entryPercentage !== undefined ? entryPercentage : 10;
+                
+                // Log adicional para debug detalhado
+                console.log(`[BOT_CONTROLLER] ADVANCE: Analisando com porcentagem definida pelo usuário: ${percentageToUse}%`);
+                console.log(`[BOT_CONTROLLER] ADVANCE: Total de estatísticas recebidas: ${digitStats.length} dígitos`);
+                
+                // Verificar se temos um valor de percentagem válido
+                if (typeof percentageToUse !== 'number' || isNaN(percentageToUse)) {
+                  shouldEnter = false;
+                  contractType = 'CALL'; // A estratégia Advance usa CALL para melhor compatibilidade
+                  message = `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.`;
+                  console.log(`[BOT_CONTROLLER] ${message}`);
+                  return;
+                }
+                
+                // CRÍTICO: Verificar se temos dados suficientes (exatamente 25 ticks são necessários)
+                // Contamos o total de ticks representados nas estatísticas
+                const totalTicksRepresented = digitStats.reduce((sum, stat) => sum + stat.count, 0);
+                
+                // Log para depuração
+                console.log(`[BOT_CONTROLLER] ADVANCE: Total de ticks nas estatísticas: ${totalTicksRepresented}`);
+                
+                // Verificamos se temos exatamente 25 ticks para análise
+                // Se não tiver pelo menos 25, não podemos prosseguir com análise precisa
+                if (totalTicksRepresented < 25) {
+                  shouldEnter = false;
+                  contractType = 'CALL'; // Tipo correto para estratégia Advance
+                  message = `ADVANCE: Dados insuficientes para análise. Necessários exatamente 25 ticks, temos ${totalTicksRepresented}.`;
+                  console.log(`[BOT_CONTROLLER] ${message}`);
+                  return;
+                }
+                
+                // Extrair estatísticas para os dígitos 0 e 1 dos últimos 25 ticks
+                const digit0 = digitStats.find(stat => stat.digit === 0);
+                const digit1 = digitStats.find(stat => stat.digit === 1);
+                
+                // Certifique-se de sempre ter valores, mesmo que sejam zeros
+                const digit0Percentage = digit0 ? Math.round(digit0.percentage) : 0;
+                const digit1Percentage = digit1 ? Math.round(digit1.percentage) : 0;
+                
+                // Log para depuração
+                console.log(`[BOT_CONTROLLER] ADVANCE: Baseado nos últimos 25 ticks:`);
+                console.log(`[BOT_CONTROLLER] ADVANCE:   - Dígito 0: ${digit0Percentage}%`);
+                console.log(`[BOT_CONTROLLER] ADVANCE:   - Dígito 1: ${digit1Percentage}%`);
+                console.log(`[BOT_CONTROLLER] ADVANCE:   - Limite definido pelo usuário: ${percentageToUse}%`);
+                
+                // Se não encontrou estatísticas para esses dígitos específicos, usar zeros
+                // mas ainda registramos no histórico para transparência
+                if (!digit0 || !digit1) {
+                  shouldEnter = false;
+                  contractType = 'CALL';
+                  message = 'ADVANCE: Calculando estatísticas para dígitos 0 e 1...';
+                  console.log(`[BOT_CONTROLLER] ${message}`);
+                  return;
+                }
+                
+                // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
+                console.log(`[BOT_CONTROLLER] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
+                
+                // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
+                // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
+                shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
+                contractType = 'DIGITOVER';
+                
+                console.log(`[BOT_CONTROLLER] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);
+                console.log(`[BOT_CONTROLLER] 🔍 Verificando ambos os dígitos: 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+                
+                // Notificar usuário no console para diagnóstico
+                if (shouldEnter) {
+                  console.log(`[BOT_CONTROLLER] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+                }
+                
+                // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
+                message = shouldEnter 
+                  ? `ADVANCE XML: ✅ Condição satisfeita! Executando DIGITOVER conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
+                  : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
+                  
+                console.log(`[BOT_CONTROLLER] ${message}`);
+                
+              } catch (advanceError) {
+                console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA ADVANCE (implementação direta):', advanceError);
+                if (advanceError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Erro Advance - detalhes:', {
+                    message: advanceError.message,
+                    stack: advanceError.stack,
+                    name: advanceError.name
+                  });
+                } else {
+                  console.error('[BOT_CONTROLLER] Erro não é uma instância de Error:', typeof advanceError);
+                }
               }
             } 
             else if (selectedStrategy.toLowerCase().includes('iron_over') || 
                     selectedStrategy.toLowerCase().includes('ironover')) {
               // Estratégia Iron Over
-              const result = evaluateIronOverStrategy(digitStats, event.lastDigit);
+              const result = strategyRules.evaluateIronOverStrategy(digitStats, event.lastDigit);
               if (result) {
                 ({ shouldEnter, contractType, message } = result);
                 // prediction não está disponível nesta função, então usamos um valor padrão
@@ -387,7 +473,7 @@ export function BotController({
             else if (selectedStrategy.toLowerCase().includes('iron_under') || 
                     selectedStrategy.toLowerCase().includes('ironunder')) {
               // Estratégia Iron Under
-              const result = evaluateIronUnderStrategy(digitStats, event.lastDigit);
+              const result = strategyRules.evaluateIronUnderStrategy(digitStats, event.lastDigit);
               if (result) {
                 ({ shouldEnter, contractType, message } = result);
                 // prediction não está disponível nesta função, então usamos um valor padrão
@@ -397,7 +483,7 @@ export function BotController({
             }
             else if (selectedStrategy.toLowerCase().includes('maxpro')) {
               // Estratégia MaxPro
-              const result = evaluateMaxProStrategy(digitStats);
+              const result = strategyRules.evaluateMaxProStrategy(digitStats);
               if (result) {
                 ({ shouldEnter, contractType, prediction, message } = result);
                 console.log(`[BOT_CONTROLLER] Análise MAXPRO: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
@@ -406,7 +492,7 @@ export function BotController({
             else {
               // Estratégia padrão ou desconhecida
               console.log(`[BOT_CONTROLLER] Usando análise padrão para estratégia: ${selectedStrategy}`);
-              const result = evaluateDefaultStrategy(digitStats);
+              const result = strategyRules.evaluateDefaultStrategy(digitStats);
               if (result) {
                 ({ shouldEnter, contractType, message } = result);
               }
