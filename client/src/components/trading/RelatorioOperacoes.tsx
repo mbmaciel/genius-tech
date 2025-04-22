@@ -345,9 +345,16 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                   {/* Detalhes da operação, se for uma operação completa ou intermediária */}
                   {!op.notification && (
                     <>
-                      {/* Comando específico da estratégia */}
+                      {/* Comando específico da estratégia - usando estratégia específica da operação */}
                       <div className="text-xs text-yellow-400 font-medium mb-1">
-                        {strategyCommand}
+                        {(() => {
+                          // Tentar usar a estratégia específica da operação, se disponível
+                          const strategyId = op.strategy || selectedStrategy;
+                          if (!strategyId) return strategyCommand;
+                          
+                          // Personalizar o comando com base na estratégia da operação
+                          return getStrategyCommand(strategyId);
+                        })()}
                       </div>
                       
                       {/* Exibição especial para operações intermediárias da estratégia Advance */}
@@ -467,13 +474,32 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                             {/* Nome da estratégia com destaque */}
                             <div className="ml-2">
                               <span className="text-gray-400 mr-1">{t('operations.strategyUsed', 'Estratégia')}:</span>
-                              <span className="text-yellow-400 font-semibold">{op.strategy || selectedStrategy || '—'}</span>
+                              <span className="text-yellow-400 font-semibold">
+                                {/* Melhorar exibição da estratégia - tentar exibir o nome real da estratégia */}
+                                {(() => {
+                                  const strategyId = op.strategy || selectedStrategy;
+                                  if (!strategyId) return '—';
+                                  
+                                  // Obter informação real da estratégia
+                                  const strategyInfo = getStrategyById(strategyId);
+                                  return strategyInfo?.name || strategyId;
+                                })()}
+                              </span>
                             </div>
                             
                             {/* Comando da estratégia - específico por tipo */}
                             <div className="ml-2 mt-1">
                               <span className="text-gray-400 mr-1">{t('operations.command', 'Comando')}:</span>
-                              <span className="text-green-400 font-semibold">{strategyCommand}</span>
+                              <span className="text-green-400 font-semibold">
+                                {(() => {
+                                  // Tentar usar a estratégia específica da operação, se disponível
+                                  const strategyId = op.strategy || selectedStrategy;
+                                  if (!strategyId) return strategyCommand;
+                                  
+                                  // Personalizar o comando com base na estratégia da operação
+                                  return getStrategyCommand(strategyId);
+                                })()}
+                              </span>
                             </div>
                           </div>
                           
