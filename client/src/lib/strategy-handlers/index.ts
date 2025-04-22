@@ -255,6 +255,13 @@ export async function evaluateEntryConditions(
     parcelasMartingale: strategyConfig?.parcelasMartingale ? parseInt(strategyConfig.parcelasMartingale.toString()) : undefined
   };
   
+  // DEBUG - Verificar se a configuração do usuário está sendo detectada
+  if (strategyConfig?.valorInicial) {
+    console.log(`[STRATEGY_HANDLER] 🔍 CRÍTICO: Encontrou valorInicial=${strategyConfig.valorInicial} configurado pelo usuário`);
+  } else {
+    console.log(`[STRATEGY_HANDLER] 🔍 CRÍTICO: valorInicial não encontrado na configuração do usuário`);
+  }
+  
   console.log(`[STRATEGY_HANDLER] 🧪 Configuração convertida para parser XML:`, userConfig);
   
   // Aplicar configuração do usuário no parser

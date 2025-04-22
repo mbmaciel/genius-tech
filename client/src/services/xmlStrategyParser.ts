@@ -364,6 +364,23 @@ export class XmlStrategyParser {
    * Condição: Usar DIGITOVER e controlar martingale após X perdas
    */
   public analyzeIronOverStrategy(consecutiveLosses: number): StrategyAnalysisResult {
+    // CORREÇÃO CRÍTICA: Buscar primeiro o valor definido pelo usuário no localStorage
+    // Esta é a fonte mais confiável e atual do valor configurado
+    let valorConfiguradoUsuario: number | null = null;
+    
+    try {
+      const configStr = localStorage.getItem('strategy_config_ironover');
+      if (configStr) {
+        const config = JSON.parse(configStr);
+        if (config.valorInicial !== undefined) {
+          valorConfiguradoUsuario = parseFloat(config.valorInicial);
+          console.log(`[XML_PARSER] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário para IRON OVER`);
+        }
+      }
+    } catch (e) {
+      console.error(`[XML_PARSER] Erro ao ler configuração salva para IRON OVER:`, e);
+    }
+    
     // Obter valor para martingale após X perdas
     let usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
     
@@ -384,8 +401,10 @@ export class XmlStrategyParser {
     // IRON OVER sempre entra, mas controla o martingale
     const shouldEnter = true;
     
-    // Obter valor de entrada considerando martingale
-    let amount = this.getFinalAmount();
+    // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
+    let amount = valorConfiguradoUsuario !== null 
+      ? valorConfiguradoUsuario 
+      : this.getFinalAmount();
     
     // Se for usar martingale, ajustar valor
     if (useMartingale && consecutiveLosses > 0) {
@@ -445,6 +464,23 @@ export class XmlStrategyParser {
    * Condição: Usar DIGITUNDER e controlar martingale após X perdas
    */
   public analyzeIronUnderStrategy(consecutiveLosses: number): StrategyAnalysisResult {
+    // CORREÇÃO CRÍTICA: Buscar primeiro o valor definido pelo usuário no localStorage
+    // Esta é a fonte mais confiável e atual do valor configurado
+    let valorConfiguradoUsuario: number | null = null;
+    
+    try {
+      const configStr = localStorage.getItem('strategy_config_ironunder');
+      if (configStr) {
+        const config = JSON.parse(configStr);
+        if (config.valorInicial !== undefined) {
+          valorConfiguradoUsuario = parseFloat(config.valorInicial);
+          console.log(`[XML_PARSER] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário para IRON UNDER`);
+        }
+      }
+    } catch (e) {
+      console.error(`[XML_PARSER] Erro ao ler configuração salva para IRON UNDER:`, e);
+    }
+    
     // Similar ao Iron Over mas com tipo de contrato DIGITUNDER
     // Obter valor para martingale após X perdas
     let usarMartingaleAposXLoss = this.variables.usarMartingaleAposXLoss;
@@ -466,8 +502,10 @@ export class XmlStrategyParser {
     // IRON UNDER sempre entra, mas controla o martingale
     const shouldEnter = true;
     
-    // Obter valor de entrada considerando martingale
-    let amount = this.getFinalAmount();
+    // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
+    let amount = valorConfiguradoUsuario !== null 
+      ? valorConfiguradoUsuario 
+      : this.getFinalAmount();
     
     // Se for usar martingale, ajustar valor
     if (useMartingale && consecutiveLosses > 0) {
@@ -624,13 +662,37 @@ export class XmlStrategyParser {
       console.log(`[XML_PARSER] 🚨 CORREÇÃO CRÍTICA: Previsão inválida para estratégia padrão. Usando valor padrão: ${prediction}`);
     }
     
+    // CORREÇÃO CRÍTICA: Buscar primeiro o valor definido pelo usuário no localStorage
+    // Esta é a fonte mais confiável e atual do valor configurado
+    let valorConfiguradoUsuario: number | null = null;
+    
+    try {
+      const configStr = localStorage.getItem(`strategy_config_${normalizedId}`);
+      if (configStr) {
+        const config = JSON.parse(configStr);
+        if (config.valorInicial !== undefined) {
+          valorConfiguradoUsuario = parseFloat(config.valorInicial);
+          console.log(`[XML_PARSER] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário para ${normalizedId}`);
+        }
+      }
+    } catch (e) {
+      console.error(`[XML_PARSER] Erro ao ler configuração salva para ${normalizedId}:`, e);
+    }
+    
+    // CORREÇÃO CRÍTICA: Usar diretamente o valor encontrado no localStorage, se disponível
+    const amount = valorConfiguradoUsuario !== null 
+      ? valorConfiguradoUsuario 
+      : this.getFinalAmount();
+      
+    console.log(`[XML_PARSER] 🚨 Estratégia padrão: Usando valor final: ${amount} para ${strategyId}`);
+    
     // Estratégia padrão
     return {
       shouldEnter: true,
       contractType: contractType,
       prediction: prediction,
-      amount: this.getFinalAmount(),
-      entryAmount: this.getFinalAmount(), // Garantir que o campo entryAmount seja enviado
+      amount: amount,
+      entryAmount: amount, // Garantir que o campo entryAmount seja enviado com o mesmo valor
       message: `Estratégia ${strategyId}: Usando configuração padrão com previsão ${prediction} e tipo ${contractType}`
     };
   }

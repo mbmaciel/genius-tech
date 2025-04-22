@@ -2209,16 +2209,40 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // 3. Terceira prioridade: Configurações atuais do serviço
       // 4. Última opção: Valor padrão (1.0)
       
-      const strategyId = this.strategyConfig.toLowerCase();
       let finalAmount = amount; // Inicializar com o valor recebido como parâmetro
       
-      // Usar o método dedicado para obter o valor com a ordem de prioridade correta
-      finalAmount = this.getUserDefinedAmount(amount);
+      // CORREÇÃO CRÍTICA: Verificar primeiro se há valor no localStorage
+      // Esta é a fonte mais confiável e consistente da configuração do usuário
+      const strategyId = this.strategyConfig.toLowerCase();
+      let valorConfiguradoUsuario: number | null = null;
+      
+      try {
+        const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial !== undefined) {
+            valorConfiguradoUsuario = parseFloat(config.valorInicial.toString());
+            console.log(`[OAUTH_DIRECT] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário`);
+            // Usar o valor do usuário com prioridade máxima
+            finalAmount = valorConfiguradoUsuario;
+          }
+        }
+      } catch (e) {
+        console.error(`[OAUTH_DIRECT] Erro ao ler configuração salva:`, e);
+      }
+      
+      // Se não encontrou no localStorage, usar o método existente
+      if (valorConfiguradoUsuario === null) {
+        finalAmount = this.getUserDefinedAmount(amount);
+      }
       
       // Log detalhado para debug
       console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO COMPLETA - Fluxo de execução da compra:`);
       console.log(`[OAUTH_DIRECT] 🚨 Valor original passado para função: ${amount}`);
       console.log(`[OAUTH_DIRECT] 🚨 Valor final após aplicar prioridades: ${finalAmount}`);
+      console.log(`[OAUTH_DIRECT] 🚨 Estratégia atual: ${this.strategyConfig}`);
+      console.log(`[OAUTH_DIRECT] 🚨 Valor recuperado do localStorage: ${valorConfiguradoUsuario !== null ? valorConfiguradoUsuario : 'não encontrado'}`);
+      
       
       // Definir o amount para o valor final após aplicar as prioridades
       amount = finalAmount;
