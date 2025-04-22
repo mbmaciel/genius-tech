@@ -322,12 +322,27 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   // Estado para histórico de operações
   // Interface para operações no histórico
   interface Operation {
-    id: number;
-    entryValue: number;
-    finalValue: number;
+    id: number | string;
+    entryValue?: number;
+    finalValue?: number;
     profit: number;
     time: Date;
     contractType?: string;
+    contract_type?: string;
+    symbol?: string;
+    strategy?: string;
+    contract_id?: string | number;
+    entry_value?: number;
+    exit_value?: number;
+    is_win?: boolean;
+    entry_spot?: number | string;
+    exit_spot?: number | string;
+    entry_time?: number;
+    exit_time?: number;
+    duration?: number;
+    barrier?: string | number;
+    payout?: number;
+    timestamp?: number;
     isIntermediate?: boolean; // Flag para identificar operações intermediárias da estratégia Advance
     notification?: {
       type: 'success' | 'info' | 'warning' | 'error';
@@ -773,12 +788,19 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           if (event.type === 'contract_finished') {
             console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
             
-            // Atualizar estatísticas
-            if (event.is_win) {
-              setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-            } else {
-              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-            }
+            // Atualizar lucro total
+            setStats(prev => {
+              // Calcular o lucro total
+              const profit = event.profit || 0;
+              const totalProfit = prev.totalProfit + profit;
+              
+              // Atualizar ganhos ou perdas
+              if (event.is_win) {
+                return { ...prev, wins: prev.wins + 1, totalProfit };
+              } else {
+                return { ...prev, losses: prev.losses + 1, totalProfit };
+              }
+            });
             
             // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações
             const operationRecord = {

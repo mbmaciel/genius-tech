@@ -44,6 +44,7 @@ interface OperationHistoryCardProps {
 }
 
 export function OperationHistoryCard({ operations, stats }: OperationHistoryCardProps) {
+  console.log('[OperationHistoryCard] Renderizando com operações:', operations.length, operations);
   const { t } = useTranslation();
   
   // Função para formatar valores monetários
