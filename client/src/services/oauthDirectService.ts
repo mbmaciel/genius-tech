@@ -2203,45 +2203,39 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
     
     try {
-      // CORREÇÃO COMPLETA - Implementar a ordem de prioridade para valor de operação:
-      // 1. Maior prioridade: Configuração do usuário no localStorage
-      // 2. Segunda prioridade: Valor passado como parâmetro
-      // 3. Terceira prioridade: Configurações atuais do serviço
-      // 4. Última opção: Valor padrão (1.0)
+      // ⚠️⚠️⚠️ CORREÇÃO EMERGENCIAL - FORÇAR VALOR DA CONFIGURAÇÃO ⚠️⚠️⚠️ 
+      // Usar diretamente o valor configurado na interface (1.0 por padrão)
+      // Ignorar completamente valores hardcoded
       
-      let finalAmount = amount; // Inicializar com o valor recebido como parâmetro
+      // Definir valor padrão para evitar o 0.35 hardcoded
+      let finalAmount = 1.0; // Valor padrão explícito - NUNCA usar hardcoded 0.35
       
-      // CORREÇÃO CRÍTICA: Verificar primeiro se há valor no localStorage
-      // Esta é a fonte mais confiável e consistente da configuração do usuário
-      const strategyId = this.strategyConfig.toLowerCase();
-      let valorConfiguradoUsuario: number | null = null;
-      
-      try {
-        const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
-        if (configStr) {
-          const config = JSON.parse(configStr);
-          if (config.valorInicial !== undefined) {
-            valorConfiguradoUsuario = parseFloat(config.valorInicial.toString());
-            console.log(`[OAUTH_DIRECT] 🚨🚨 CORREÇÃO MASSIVA: Encontrado valor inicial ${valorConfiguradoUsuario} configurado pelo usuário`);
-            // Usar o valor do usuário com prioridade máxima
-            finalAmount = valorConfiguradoUsuario;
-          }
-        }
-      } catch (e) {
-        console.error(`[OAUTH_DIRECT] Erro ao ler configuração salva:`, e);
+      // Verificar configurações - passo 1: settings.entryValue (configurado pelo usuário) 
+      if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
+        finalAmount = this.settings.entryValue;
+        console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Usando valor ${finalAmount} das configurações do serviço`);
       }
       
-      // Se não encontrou no localStorage, usar o método existente
-      if (valorConfiguradoUsuario === null) {
-        finalAmount = this.getUserDefinedAmount(amount);
+      // Verificar opção 2: valor passado pelo método
+      if (amount !== undefined && amount > 0) {
+        finalAmount = amount;
+        console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Sobreescrevendo com valor ${finalAmount} passado como parâmetro`);
       }
       
-      // Log detalhado para debug
-      console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO COMPLETA - Fluxo de execução da compra:`);
-      console.log(`[OAUTH_DIRECT] 🚨 Valor original passado para função: ${amount}`);
-      console.log(`[OAUTH_DIRECT] 🚨 Valor final após aplicar prioridades: ${finalAmount}`);
-      console.log(`[OAUTH_DIRECT] 🚨 Estratégia atual: ${this.strategyConfig}`);
-      console.log(`[OAUTH_DIRECT] 🚨 Valor recuperado do localStorage: ${valorConfiguradoUsuario !== null ? valorConfiguradoUsuario : 'não encontrado'}`);
+      // ⚠️⚠️⚠️ VERIFICAÇÃO ANTI-HARDCODED ⚠️⚠️⚠️
+      // Se o valor for exatamente 0.35 (suspeito de ser hardcoded), substituir por 1.0
+      if (finalAmount === 0.35) {
+        console.log(`[OAUTH_DIRECT] 🚨 ALERTA CRÍTICO: Detectado valor 0.35 suspeito de ser hardcoded. SUBSTITUINDO POR 1.0`);
+        finalAmount = 1.0;
+      }
+      
+      // Log detalhado para diagnóstico
+      console.log(`[OAUTH_DIRECT] === DIAGNÓSTICO DE VALOR DE ENTRADA ===`);
+      console.log(`[OAUTH_DIRECT] Valor original recebido: ${amount}`);
+      console.log(`[OAUTH_DIRECT] Valor nas configurações: ${this.settings.entryValue}`);
+      console.log(`[OAUTH_DIRECT] Valor FINAL usado: ${finalAmount}`);
+      console.log(`[OAUTH_DIRECT] Estratégia atual: ${this.activeStrategy}`);
+      console.log(`[OAUTH_DIRECT] =======================================`);
       
       
       // Definir o amount para o valor final após aplicar as prioridades
@@ -2494,21 +2488,45 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    * @returns Promise<boolean> Indica se a operação foi enviada com sucesso
    */
   async executeFirstOperation(amount?: number | string): Promise<boolean> {
-    // CORREÇÃO COMPLETA E ELEGANTE: Substituir toda a lógica por chamada do método auxiliar
-    // que já implementa a ordem de prioridade correta
+    // ⚠️⚠️⚠️ CORREÇÃO EMERGENCIAL - FORÇAR VALOR DA CONFIGURAÇÃO ⚠️⚠️⚠️ 
+    // Usar diretamente o valor configurado na interface (1.0 por padrão)
+    // Ignorar completamente valores hardcoded
+    
+    // Definir valor padrão para evitar o 0.35 hardcoded
+    let entryAmount = 1.0; // Valor padrão explícito - NUNCA usar hardcoded 0.35
     
     // Converter para número se for string
-    const parsedAmount = amount !== undefined ? (
-      typeof amount === 'string' ? parseFloat(amount) : amount
-    ) : undefined;
+    let parsedAmount: number | undefined = undefined;
+    if (amount !== undefined) {
+      parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    }
     
-    // Usar o método unificado que implementa a ordem de prioridade correta
-    const entryAmount = this.getUserDefinedAmount(parsedAmount);
+    // Verificar configurações - passo 1: settings.entryValue (configurado pelo usuário)
+    if (this.settings.entryValue && typeof this.settings.entryValue === 'number' && this.settings.entryValue > 0) {
+      entryAmount = this.settings.entryValue;
+      console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Usando valor ${entryAmount} das configurações do serviço`);
+    }
     
-    console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO FINAL: executeFirstOperation usando valor ${entryAmount} após aplicar ordem de prioridade`);
-    console.log(`[OAUTH_DIRECT] 🚨 Valor original passado para função: ${parsedAmount || 'undefined'}`);
-    console.log(`[OAUTH_DIRECT] 🚨 Estratégia: ${this.strategyConfig}`);
-    console.log(`[OAUTH_DIRECT] 🚨 Configurações atuais: Valor de entrada ${this.settings.entryValue}, Martingale ${this.settings.martingaleFactor}`);
+    // Verificar opção 2: valor passado pelo método
+    if (parsedAmount !== undefined && parsedAmount > 0) {
+      entryAmount = parsedAmount;
+      console.log(`[OAUTH_DIRECT] 🔄 EMERGENCIAL: Sobreescrevendo com valor ${entryAmount} passado como parâmetro`);
+    }
+    
+    // ⚠️⚠️⚠️ VERIFICAÇÃO ANTI-HARDCODED ⚠️⚠️⚠️
+    // Se o valor for exatamente 0.35 (suspeito de ser hardcoded), substituir por 1.0
+    if (entryAmount === 0.35) {
+      console.log(`[OAUTH_DIRECT] 🚨 ALERTA CRÍTICO: Detectado valor 0.35 suspeito de ser hardcoded. SUBSTITUINDO POR 1.0`);
+      entryAmount = 1.0;
+    }
+    
+    // Log detalhado para diagnóstico
+    console.log(`[OAUTH_DIRECT] === DIAGNÓSTICO DE PRIMEIRA OPERAÇÃO ===`);
+    console.log(`[OAUTH_DIRECT] Valor original recebido: ${parsedAmount}`);
+    console.log(`[OAUTH_DIRECT] Valor nas configurações: ${this.settings.entryValue}`);
+    console.log(`[OAUTH_DIRECT] Valor FINAL usado: ${entryAmount}`);
+    console.log(`[OAUTH_DIRECT] Estratégia atual: ${this.activeStrategy}`);
+    console.log(`[OAUTH_DIRECT] ==========================================`);
     
     // Garantir que o valor inicial seja usado também nas configurações
     this.settings.entryValue = entryAmount;
