@@ -1641,15 +1641,26 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             resultFormatted = formatCurrency(profit);
           }
           
-          // Criar objeto de operação completo com mensagem personalizada
+          // Criar objeto de operação completo com todas as propriedades necessárias
           const newOperation = {
             id: contractId,
+            contract_id: contractId, // Adicionando contract_id separadamente para garantir visibilidade
             entryValue: buyPrice,
+            entry_value: buyPrice, // Duplicando para compatibilidade 
             finalValue: sellPrice,
+            exit_value: sellPrice, // Duplicando para compatibilidade
             profit: profit,
             time: new Date(),
+            timestamp: Date.now(), // Adicionando timestamp
             contractType: contract.contract_type || 'desconhecido',
+            contract_type: contract.contract_type || 'desconhecido', // Duplicando para compatibilidade
+            symbol: contract.symbol || event.symbol || 'R_100', // Adicionando símbolo
+            strategy: selectedStrategy || 'desconhecida', // Adicionando estratégia selecionada
             isIntermediate: isIntermediate,
+            entry_spot: contract.entry_spot || event.entry_spot,
+            exit_spot: contract.exit_spot || event.exit_spot,
+            barrier: contract.barrier || event.barrier,
+            is_win: contract.status === 'won' || event.is_win === true,
             notification: {
               type: notificationType,
               message: `${statusText} | Entrada: ${entryFormatted} | Resultado: ${resultFormatted}`
@@ -1702,10 +1713,17 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         const notificationType: 'error' | 'success' = event.message.includes('perda') ? 'error' : 'success';
         const newNotification = {
           id: Date.now(),
+          contract_id: Date.now(), // Usando timestamp como ID único para notificações
           entryValue: 0,
+          entry_value: 0,
           finalValue: 0,
+          exit_value: 0,
           profit: 0,
           time: new Date(),
+          timestamp: Date.now(),
+          contract_type: "NOTIFICATION", // Tipo específico para notificações
+          symbol: "SYSTEM",
+          strategy: selectedStrategy || "SYSTEM",
           notification: {
             type: notificationType,
             message: event.message
@@ -1734,10 +1752,17 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         const newNotification = {
           id: Date.now(),
+          contract_id: Date.now(), // Usando timestamp como ID único para notificações
           entryValue: 0,
+          entry_value: 0,
           finalValue: 0,
+          exit_value: 0,
           profit: 0,
           time: new Date(),
+          timestamp: Date.now(),
+          contract_type: "NOTIFICATION",
+          symbol: "SYSTEM",
+          strategy: selectedStrategy || "SYSTEM",
           notification: {
             type: notificationType,
             message: `Bot parado: ${event.reason}`
