@@ -2602,27 +2602,45 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // https://api.deriv.com/api-explorer/#buy
       console.log(`[OAUTH_DIRECT] 🚀 Usando formato exato conforme API Deriv`);
       
-      // 🚨🚨🚨 CORREÇÃO SUPER CRÍTICA - FORMATO 100% CONFORME API DERIV 🚨🚨🚨
+      // 🚨🚨🚨 CORREÇÃO ULTRA CRÍTICA - FORMATO 100% EXATO CONFORME API DERIV 🚨🚨🚨
       // Verificando documentação oficial: https://api.deriv.com/api-explorer/#buy
       
-      // ⚠️ OBSERVAÇÃO IMPORTANTE: A API não aceita o formato {buy: 1, parameters: {...}}
-      // A API aceita: {buy: 1, parameters: "CALL_1"} OU {buy: "CALL_1"}
-      // Usaremos a forma direta aqui, sem o objeto parameters
+      // ⚠️ FORMATOS POSSÍVEIS DA API DERIV:
+      // 1. { buy: "contract_id" }  <- ID de um contrato existente
+      // 2. { buy: 1, price: 100, parameters: "CALL_1" }  <- Com uma proposta existente
+      // 3. { buy: 1, price: 100, subscribe: 1 }  <- Completo, com subscribe
       
-      // Construir o objeto de solicitação de maneira simplificada e direta
-      let buyRequest: any = {};
+      // Vamos usar a forma MAIS DIRETA e SIMPLES possível
+      const parsedAmount = parseFloat(amount.toString());
       
-      // Definir a forma mais simples e direta conforme a API
-      buyRequest = {
-        buy: 1, // API aceita número 1 para proposta ativa
+      // Formato PADRÃO E OFICIAL conforme documentação exata:
+      // https://api.deriv.com/api-explorer/#buy
+      let buyRequest: {
+        buy: number,
+        subscribe: number,
+        price: number,
         parameters: {
-          amount: parseFloat(amount.toString()).toFixed(2),  // Formato preciso com 2 casas decimais
-          basis: "stake",
+          contract_type: string,
+          currency: string,
+          symbol: string,
+          amount: number,
+          basis: string,
+          duration: number,
+          duration_unit: string,
+          barrier?: string // Propriedade opcional para previsão
+        }
+      } = {
+        buy: 1,
+        subscribe: 1, // Para receber atualizações
+        price: parsedAmount,
+        parameters: {
           contract_type: contractType,
           currency: "USD",
+          symbol: "R_100",
+          amount: parsedAmount,
+          basis: "stake",
           duration: 5,
-          duration_unit: "t",
-          symbol: "R_100"
+          duration_unit: "t"
         }
       };
       
@@ -3273,27 +3291,46 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // 🚨🚨🚨 CORREÇÃO SUPER CRÍTICA - FORMATO 100% CONFORME API DERIV 🚨🚨🚨
+      // 🚨🚨🚨 CORREÇÃO ULTRA CRÍTICA - FORMATO 100% EXATO CONFORME API DERIV 🚨🚨🚨
       // Verificando documentação oficial: https://api.deriv.com/api-explorer/#buy
-      console.log(`[OAUTH_DIRECT] 🔥 Usando FORMATO SIMPLIFICADO conforme API Deriv para compra`);
+      console.log(`[OAUTH_DIRECT] 🔥 Usando FORMATO 100% OFICIAL conforme API Deriv para compra`);
       
-      // ⚠️ OBSERVAÇÃO IMPORTANTE: A API não aceita o formato complexo anterior
-      // Usaremos a mesma abordagem da correção no outro método executeContractBuy
+      // ⚠️ FORMATOS POSSÍVEIS DA API DERIV:
+      // 1. { buy: "contract_id" }  <- ID de um contrato existente
+      // 2. { buy: 1, price: 100, parameters: "CALL_1" }  <- Com uma proposta existente
+      // 3. { buy: 1, price: 100, subscribe: 1 }  <- Completo, com subscribe
       
-      // Construir o objeto de solicitação de maneira simplificada e direta
-      let buyRequest: any = {};
+      // Vamos usar a forma MAIS DIRETA e SIMPLES possível
+      // Formato PADRÃO E OFICIAL conforme documentação exata:
+      // https://api.deriv.com/api-explorer/#buy
+      const parsedAmount = parseFloat(finalAmount.toString());
       
-      // Definir a forma mais simples e direta conforme a API
-      buyRequest = {
-        buy: 1, // API aceita número 1 para proposta ativa
+      let buyRequest: {
+        buy: number,
+        subscribe: number,
+        price: number,
         parameters: {
-          amount: parseFloat(finalAmount.toString()).toFixed(2), // Formato preciso com 2 casas decimais
-          basis: "stake",
+          contract_type: string,
+          currency: string,
+          symbol: string,
+          amount: number,
+          basis: string,
+          duration: number,
+          duration_unit: string,
+          barrier?: string // Propriedade opcional para previsão
+        }
+      } = {
+        buy: 1,
+        subscribe: 1, // Para receber atualizações
+        price: parsedAmount,
+        parameters: {
           contract_type: contractType,
           currency: "USD",
+          symbol: symbolCode,
+          amount: parsedAmount,
+          basis: "stake",
           duration: 5,
-          duration_unit: "t",
-          symbol: symbolCode
+          duration_unit: "t"
         }
       };
       
