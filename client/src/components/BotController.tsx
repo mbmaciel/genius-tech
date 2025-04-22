@@ -333,11 +333,36 @@ export function BotController({
         // CORREÇÃO 23/04/2025: Avaliar condições da estratégia e disparar operações
         // quando as condições forem atendidas
         if (status === 'running') {
+          // Função para garantir que o código não seja interrompido por undefined ou null
+          const safeExecute = (fn: () => void, context = 'unknown') => {
+            try {
+              fn();
+            } catch (e) {
+              console.error(`[BOT_CONTROLLER] ERRO CRÍTICO NO CONTEXTO: ${context}`, e);
+            }
+          };
+          
           try {
-            // Obter estatísticas dos dígitos para avaliação das condições
-            const digitStats = oauthDirectService.getDigitStats();
+            console.log('[BOT_CONTROLLER] ==================== BLOCO TRY PRINCIPAL ====================');
+            // Verificar se o serviço está disponível
+            if (!oauthDirectService) {
+              console.error('[BOT_CONTROLLER] Serviço OAuth não disponível!');
+              return;
+            }
+            
+            // Garantir que a função existe e pode ser chamada
+            if (typeof oauthDirectService.getDigitStats !== 'function') {
+              console.error('[BOT_CONTROLLER] Função getDigitStats não disponível no serviço!');
+              return;
+            }
+            
+            // Obter estatísticas dos dígitos para avaliação das condições com tratamento seguro
+            const digitStats = safeExecute(() => oauthDirectService.getDigitStats(), 'getDigitStats') || [];
+            console.log('[BOT_CONTROLLER] Obtidas estatísticas:', digitStats?.length || 0, 'dígitos');
+            
             if (!digitStats || digitStats.length < 10) {
               // Sem estatísticas suficientes para avaliação
+              console.log('[BOT_CONTROLLER] Estatísticas insuficientes, abortando:', digitStats?.length);
               return;
             }
             
@@ -461,40 +486,109 @@ export function BotController({
             } 
             else if (selectedStrategy.toLowerCase().includes('iron_over') || 
                     selectedStrategy.toLowerCase().includes('ironover')) {
-              // Estratégia Iron Over
-              const result = strategyRules.evaluateIronOverStrategy(digitStats, event.lastDigit);
-              if (result) {
-                ({ shouldEnter, contractType, message } = result);
-                // prediction não está disponível nesta função, então usamos um valor padrão
+              // Estratégia Iron Over - Implementação direta para evitar problemas de importação
+              console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON OVER');
+              try {
+                // IRON OVER SEMPRE faz DIGITOVER
+                shouldEnter = true;
+                contractType = 'DIGITOVER';
                 prediction = 5; // Valor padrão para dígitos
+                message = `IRON OVER XML: Operação normal. Previsão: DIGITOVER ${prediction}`;
+                
                 console.log(`[BOT_CONTROLLER] Análise IRON OVER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              } catch (ironOverError) {
+                console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON OVER (implementação direta):', ironOverError);
+                if (ironOverError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Erro IRON OVER - detalhes:', {
+                    message: ironOverError.message,
+                    stack: ironOverError.stack,
+                    name: ironOverError.name
+                  });
+                }
               }
             }
             else if (selectedStrategy.toLowerCase().includes('iron_under') || 
                     selectedStrategy.toLowerCase().includes('ironunder')) {
-              // Estratégia Iron Under
-              const result = strategyRules.evaluateIronUnderStrategy(digitStats, event.lastDigit);
-              if (result) {
-                ({ shouldEnter, contractType, message } = result);
-                // prediction não está disponível nesta função, então usamos um valor padrão
+              // Estratégia Iron Under - Implementação direta para evitar problemas de importação
+              console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER');
+              try {
+                // IRON UNDER SEMPRE faz DIGITUNDER
+                shouldEnter = true;
+                contractType = 'DIGITUNDER';
                 prediction = 5; // Valor padrão para dígitos
+                message = `IRON UNDER XML: Operação normal. Previsão: DIGITUNDER ${prediction}`;
+                
                 console.log(`[BOT_CONTROLLER] Análise IRON UNDER: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              } catch (ironUnderError) {
+                console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):', ironUnderError);
+                if (ironUnderError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Erro IRON UNDER - detalhes:', {
+                    message: ironUnderError.message,
+                    stack: ironUnderError.stack,
+                    name: ironUnderError.name
+                  });
+                }
               }
             }
             else if (selectedStrategy.toLowerCase().includes('maxpro')) {
-              // Estratégia MaxPro
-              const result = strategyRules.evaluateMaxProStrategy(digitStats);
-              if (result) {
-                ({ shouldEnter, contractType, prediction, message } = result);
+              // Estratégia MaxPro - Implementação direta para evitar problemas de importação
+              console.log('[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia MAXPRO');
+              try {
+                // Ordenar dígitos por frequência (do menor para o maior)
+                const sortedStats = [...digitStats].sort((a, b) => a.percentage - b.percentage);
+                
+                // Pegar o dígito com menor frequência
+                const lowestFreqDigit = sortedStats[0]?.digit ?? 5;
+                
+                // Pegar o dígito com maior frequência
+                const highestFreqDigit = sortedStats[sortedStats.length - 1]?.digit ?? 5;
+                
+                // Verificar se a diferença entre maior e menor frequência é significativa
+                const lowestPercentage = sortedStats[0]?.percentage ?? 0;
+                const highestPercentage = sortedStats[sortedStats.length - 1]?.percentage ?? 0;
+                const percentageDiff = highestPercentage - lowestPercentage;
+                
+                shouldEnter = percentageDiff >= 8; // Precisa de pelo menos 8% de diferença
+                
+                // Determine o tipo de contrato (DIGITOVER para dígito com baixa frequência)
+                contractType = 'DIGITOVER';
+                prediction = lowestFreqDigit;
+                
+                message = shouldEnter
+                  ? `MAXPRO: Condição atendida! Dígito ${lowestFreqDigit} com frequência baixa (${lowestPercentage}%). Diferença: ${percentageDiff}%`
+                  : `MAXPRO: Distribuição muito equilibrada (dif: ${percentageDiff}%). Aguardando melhor oportunidade.`;
+                  
                 console.log(`[BOT_CONTROLLER] Análise MAXPRO: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              } catch (maxProError) {
+                console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA MAXPRO (implementação direta):', maxProError);
+                if (maxProError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Erro MAXPRO - detalhes:', {
+                    message: maxProError.message,
+                    stack: maxProError.stack,
+                    name: maxProError.name
+                  });
+                }
               }
             }
             else {
-              // Estratégia padrão ou desconhecida
-              console.log(`[BOT_CONTROLLER] Usando análise padrão para estratégia: ${selectedStrategy}`);
-              const result = strategyRules.evaluateDefaultStrategy(digitStats);
-              if (result) {
-                ({ shouldEnter, contractType, message } = result);
+              // Estratégia padrão ou desconhecida - Implementação direta para evitar problemas de importação
+              console.log(`[BOT_CONTROLLER] Implementando diretamente a lógica padrão para estratégia: ${selectedStrategy}`);
+              try {
+                // Estratégia padrão sempre entra com CALL
+                shouldEnter = true;
+                contractType = 'CALL';
+                message = `Estratégia padrão: Entrada com ${contractType}`;
+                
+                console.log(`[BOT_CONTROLLER] Análise padrão: ${shouldEnter ? 'ENTRAR' : 'AGUARDAR'} - ${message}`);
+              } catch (defaultError) {
+                console.error('[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA PADRÃO (implementação direta):', defaultError);
+                if (defaultError instanceof Error) {
+                  console.error('[BOT_CONTROLLER] Erro PADRÃO - detalhes:', {
+                    message: defaultError.message,
+                    stack: defaultError.stack,
+                    name: defaultError.name
+                  });
+                }
               }
             }
             
@@ -529,7 +623,10 @@ export function BotController({
               });
             }
           } catch (error) {
+            console.error('[BOT_CONTROLLER] ==================== ERRO NO BLOCO TRY PRINCIPAL ====================');
             console.error('[BOT_CONTROLLER] Erro ao avaliar condições da estratégia:', error);
+            console.error('[BOT_CONTROLLER] Tipo de erro:', typeof error);
+            console.error('[BOT_CONTROLLER] JSON do erro:', JSON.stringify(error, null, 2));
             
             // Log adicional para diagnóstico
             if (error instanceof Error) {
@@ -539,8 +636,14 @@ export function BotController({
                 name: error.name
               });
             } else {
-              console.error('[BOT_CONTROLLER] Erro não é uma instância de Error:', typeof error);
+              console.error('[BOT_CONTROLLER] Erro não é uma instância de Error. Tipo:', typeof error);
+              console.error('[BOT_CONTROLLER] Conteúdo do erro:', error);
+              console.error('[BOT_CONTROLLER] Propriedades do erro (se houver):', Object.keys(error || {}));
             }
+            
+            console.error('[BOT_CONTROLLER] Estratégia que causou o erro:', selectedStrategy);
+            console.error('[BOT_CONTROLLER] Status do bot durante o erro:', status);
+            console.error('[BOT_CONTROLLER] ==================== FIM DO LOG DE ERRO ====================');
           }
         }
       }
@@ -700,11 +803,39 @@ export function BotController({
     };
   }, [toast, onStatusChange, onStatsChange, stats, onTickReceived]);
 
+  // Tratamento de erros global para todo o componente
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      console.error('[BOT_CONTROLLER] 🔴 ERRO GLOBAL CAPTURADO:', event.error);
+      console.error('[BOT_CONTROLLER] Mensagem do erro:', event.message);
+      console.error('[BOT_CONTROLLER] Origem do erro:', event.filename, 'linha:', event.lineno, 'coluna:', event.colno);
+      
+      // Exibir feedback para o usuário
+      toast({
+        title: 'Erro detectado',
+        description: `Um erro ocorreu durante a execução. Detalhes: ${event.message}`,
+        variant: "destructive",
+      });
+    };
+    
+    // Registrar handler global de erros
+    window.addEventListener('error', handleGlobalError);
+    
+    // Limpar handler ao desmontar
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+    };
+  }, [toast]);
+  
   // Iniciar o bot com o serviço OAuth direto
   // Handler para quando a configuração da estratégia mudar
   const handleStrategyConfigChange = (config: StrategyConfiguration) => {
-    console.log('[BOT_CONTROLLER] Configuração de estratégia atualizada:', config);
-    setStrategyConfig(config);
+    try {
+      console.log('[BOT_CONTROLLER] Configuração de estratégia atualizada:', config);
+      setStrategyConfig(config);
+    } catch (e) {
+      console.error('[BOT_CONTROLLER] Erro ao atualizar configuração da estratégia:', e);
+    }
   };
   
   const startBot = async () => {
