@@ -80,6 +80,8 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
         symbol: contractData.symbol || 'R_100',
         strategy: contractData.strategy || '',
         is_win: contractData.is_win || false,
+        // Incluir flag isIntermediate vinda do evento (false por padrão)
+        isIntermediate: contractData.isIntermediate || contractData.is_intermediate || false,
         notification: {
           type: contractData.is_win ? 'success' : 'error',
           message: `${contractData.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(contractData.entry_value || 0).toFixed(2)} | Resultado: $${(contractData.profit || 0).toFixed(2)}`

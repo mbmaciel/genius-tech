@@ -2268,7 +2268,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                           symbol: "R_100",
                           contract_type: "DIGITOVER",
                           strategy: selectedStrategy || "botlow",
-                          is_win: true
+                          is_win: true,
+                          // Garantir que a operação de teste não seja intermediária
+                          isIntermediate: false,
+                          is_intermediate: false
                         }
                       });
                       window.dispatchEvent(domEvent);

@@ -4189,12 +4189,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     if (event.type === 'contract_finished' && typeof window !== 'undefined') {
       try {
         console.log(`[OAUTH_DIRECT] 📢 Emitindo evento DOM: contract_finished`, event);
+        
+        // Garantir que isIntermediate seja considerado corretamente
+        const isIntermediate = event.isIntermediate || event.is_intermediate || false;
+        
         const domEvent = new CustomEvent('contract_finished', { 
           detail: {
             ...event,
             timestamp: Date.now(),
             strategy: this.strategyConfig || '',
-            entry_value: event.entry_value || this.settings.entryValue || 0
+            entry_value: event.entry_value || this.settings.entryValue || 0,
+            // Incluir flag isIntermediate de forma consistente
+            isIntermediate: isIntermediate,
+            is_intermediate: isIntermediate
           }
         });
         window.dispatchEvent(domEvent);
