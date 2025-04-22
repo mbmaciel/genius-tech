@@ -1,7 +1,8 @@
-import React from 'react';
-import { ArrowUpIcon, ArrowDownIcon, InfoIcon, AlertTriangleIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowUpIcon, ArrowDownIcon, InfoIcon, AlertTriangleIcon, CheckCircleIcon, XCircleIcon, BarChartIcon } from 'lucide-react';
 import { getStrategyById } from '@/lib/strategiesConfig';
 import { useTranslation } from 'react-i18next';
+import { oauthDirectService } from '@/services/oauthDirectService';
 
 // Interface para o tipo de operação
 interface Operation {
@@ -46,6 +47,37 @@ interface RelatorioOperacoesProps {
 
 export function RelatorioOperacoes({ operations, selectedStrategy, useDirectService = false }: RelatorioOperacoesProps) {
   const { t, i18n } = useTranslation();
+  
+  // Estado para armazenar estatísticas do bot
+  const [botStats, setBotStats] = useState<{wins: number, losses: number, totalProfit: number}>({
+    wins: 0,
+    losses: 0,
+    totalProfit: 0
+  });
+  
+  // Obter estatísticas atualizadas ao carregar o componente ou quando as operações mudarem
+  useEffect(() => {
+    if (useDirectService) {
+      try {
+        // Obter estatísticas do serviço OAuth
+        const stats = oauthDirectService.getStats();
+        setBotStats(stats);
+      } catch (error) {
+        console.error('[RELATORIO] Erro ao obter estatísticas do serviço OAuth:', error);
+      }
+    } else if (operations.length > 0) {
+      // Calcular estatísticas com base nas operações normais
+      const wins = operations.filter(op => op.profit > 0).length;
+      const losses = operations.filter(op => op.profit < 0).length;
+      const totalProfit = operations.reduce((total, op) => total + op.profit, 0);
+      
+      setBotStats({
+        wins,
+        losses,
+        totalProfit
+      });
+    }
+  }, [operations, useDirectService]);
   
   // Obter o idioma atual
   const currentLang = i18n.language;
@@ -235,7 +267,38 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
         {getStrategyDisplay()}
       </div>
       
-      <div className="overflow-y-auto custom-scrollbar h-[calc(100%-2.5rem)]" style={{ maxHeight: '350px' }}>
+      {/* Painel de estatísticas */}
+      {(filteredOperations.length > 0 || useDirectService) && (
+        <div className="bg-[#1e2d4d] rounded-md p-3 mb-4 flex flex-wrap justify-between items-center">
+          <div className="flex items-center gap-2">
+            <BarChartIcon className="w-5 h-5 text-blue-400" />
+            <span className="text-sm font-medium text-white">
+              {t('operations.stats', 'Estatísticas')}
+            </span>
+          </div>
+          
+          <div className="flex gap-4 mt-2 sm:mt-0">
+            <div className="text-center">
+              <div className="text-xs text-gray-400">{t('operations.wins', 'Vitórias')}</div>
+              <div className="text-base font-bold text-green-400">{botStats.wins}</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-xs text-gray-400">{t('operations.losses', 'Derrotas')}</div>
+              <div className="text-base font-bold text-red-400">{botStats.losses}</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-xs text-gray-400">{t('operations.profit', 'Resultado')}</div>
+              <div className={`text-base font-bold ${botStats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(botStats.totalProfit)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: '300px' }}>
         {filteredOperations.length > 0 ? (
           <div className="space-y-2">
             {filteredOperations.map((op) => (
@@ -306,35 +369,66 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                       ) : (
                         <>
                           <div className="flex items-center gap-1 mb-1">
-                            {op.profit > 0 ? (
+                            {op.profit > 0 || op.is_win ? (
                               <ArrowUpIcon className="w-5 h-5 text-green-500" />
-                            ) : op.profit < 0 ? (
+                            ) : op.profit < 0 || (op.is_win === false) ? (
                               <ArrowDownIcon className="w-5 h-5 text-red-500" />
                             ) : (
                               <InfoIcon className="w-5 h-5 text-gray-500" />
                             )}
                             <span className={`font-medium ${
-                              op.profit > 0 ? 'text-green-400' : 
-                              op.profit < 0 ? 'text-red-400' : 'text-gray-400'
+                              op.profit > 0 || op.is_win ? 'text-green-400' : 
+                              op.profit < 0 || (op.is_win === false) ? 'text-red-400' : 'text-gray-400'
                             }`}>
-                              {op.profit > 0 
+                              {op.profit > 0 || op.is_win
                                 ? t('operations.profit', 'Ganho:') 
-                                : op.profit < 0 
+                                : op.profit < 0 || (op.is_win === false)
                                   ? t('operations.loss', 'Perda:') 
                                   : t('operations.operation', 'Operação:')}
                             </span>
                             <span className={`font-bold ${
-                              op.profit > 0 ? 'text-green-400' : 
-                              op.profit < 0 ? 'text-red-400' : 'text-gray-400'
+                              op.profit > 0 || op.is_win ? 'text-green-400' : 
+                              op.profit < 0 || (op.is_win === false) ? 'text-red-400' : 'text-gray-400'
                             }`}>
                               {formatCurrency(Math.abs(op.profit))}
                             </span>
+                            
+                            {/* Exibir símbolo e tipo de contrato se disponíveis (novo formato) */}
+                            {op.symbol && (
+                              <span className="ml-1 text-xs text-blue-400 bg-blue-950 px-2 py-0.5 rounded">
+                                {op.symbol}
+                              </span>
+                            )}
+                            {op.contract_type && (
+                              <span className="ml-1 text-xs text-purple-400 bg-purple-950 px-2 py-0.5 rounded">
+                                {op.contract_type}
+                              </span>
+                            )}
                           </div>
                           
-                          {op.entryValue !== undefined && op.finalValue !== undefined && (
-                            <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
-                              <span>{t('operations.entry', 'Entrada')}: {formatCurrency(op.entryValue)}</span>
-                              <span>{t('operations.exit', 'Saída')}: {formatCurrency(op.finalValue)}</span>
+                          {/* Exibir dados de entrada/saída - compatível com ambos formatos */}
+                          <div className="text-xs text-gray-400 grid grid-cols-2 gap-x-4">
+                            {/* Suporta tanto o formato antigo quanto o novo */}
+                            {(op.entryValue !== undefined || op.entry_value !== undefined) && (
+                              <span>{t('operations.entry', 'Entrada')}: {formatCurrency(op.entryValue || op.entry_value)}</span>
+                            )}
+                            {(op.finalValue !== undefined || op.exit_value !== undefined) && (
+                              <span>{t('operations.exit', 'Saída')}: {formatCurrency(op.finalValue || op.exit_value)}</span>
+                            )}
+                          </div>
+                          
+                          {/* Informações adicionais para contratos do formato novo */}
+                          {useDirectService && op.entry_spot && op.exit_spot && (
+                            <div className="text-xs text-gray-500 mt-1 grid grid-cols-2 gap-x-4">
+                              <span>{t('operations.entrySpot', 'Spot Entrada')}: <span className="text-cyan-400">{op.entry_spot}</span></span>
+                              <span>{t('operations.exitSpot', 'Spot Saída')}: <span className="text-cyan-400">{op.exit_spot}</span></span>
+                            </div>
+                          )}
+                          
+                          {/* Exibir estratégia usada (novo formato) */}
+                          {op.strategy && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              <span>{t('operations.strategyUsed', 'Estratégia')}: <span className="text-yellow-400">{op.strategy}</span></span>
                             </div>
                           )}
                         </>
@@ -343,9 +437,9 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                   )}
                 </div>
                 
-                {/* Horário da operação */}
+                {/* Horário da operação - suporta tanto formato antigo (time) quanto novo (timestamp) */}
                 <div className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-                  {formatTime(op.time)}
+                  {formatTime(op.timestamp ? new Date(op.timestamp) : op.time)}
                 </div>
               </div>
             ))}
