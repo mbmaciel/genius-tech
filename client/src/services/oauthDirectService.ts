@@ -2598,57 +2598,37 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         prediction: prediction
       });
       
-      // 🚨🚨🚨 FORMATO EXATO DA API DERIV CONFORME DOCUMENTAÇÃO 🚨🚨🚨
-      // https://api.deriv.com/api-explorer/#buy
-      console.log(`[OAUTH_DIRECT] 🚀 Usando formato exato conforme API Deriv`);
+      // 🚨🚨🚨 FORMATO ABSOLUTAMENTE SIMPLIFICADO DA API DERIV 🚨🚨🚨
+      // https://api.deriv.com/api-explorer/#buy - MAIS SIMPLIFICADO POSSÍVEL
+      console.log(`[OAUTH_DIRECT] 🚀🚀🚀 FORMATO MÁXIMA SIMPLICIDADE CONFORME DOCUMENTAÇÃO`);
       
-      // 🚨🚨🚨 CORREÇÃO ULTRA CRÍTICA - FORMATO 100% EXATO CONFORME API DERIV 🚨🚨🚨
-      // Verificando documentação oficial: https://api.deriv.com/api-explorer/#buy
+      // Vamos usar a versão MÁXIMA SIMPLIFICAÇÃO
+      // Ver documentação: https://api.deriv.com/playground/#buy
       
-      // ⚠️ FORMATOS POSSÍVEIS DA API DERIV:
-      // 1. { buy: "contract_id" }  <- ID de um contrato existente
-      // 2. { buy: 1, price: 100, parameters: "CALL_1" }  <- Com uma proposta existente
-      // 3. { buy: 1, price: 100, subscribe: 1 }  <- Completo, com subscribe
-      
-      // Vamos usar a forma MAIS DIRETA e SIMPLES possível
+      // Parse do valor para garantir que é numérico
       const parsedAmount = parseFloat(amount.toString());
       
-      // Formato PADRÃO E OFICIAL conforme documentação exata:
-      // https://api.deriv.com/api-explorer/#buy
-      let buyRequest: {
-        buy: number,
-        subscribe: number,
-        price: number,
-        parameters: {
-          contract_type: string,
-          currency: string,
-          symbol: string,
-          amount: number,
-          basis: string,
-          duration: number,
-          duration_unit: string,
-          barrier?: string // Propriedade opcional para previsão
-        }
-      } = {
+      // Construir string de contrato conforme formato oficial Deriv
+      let contract_string = "";
+      
+      if (contractType.includes('DIGIT')) {
+        contract_string = `${contractType}_${prediction}`;
+        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato de dígito: ${contract_string}`);
+      } else {
+        contract_string = contractType;
+        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato regular: ${contract_string}`);
+      }
+      
+      // NOVO FORMATO ABSOLUTAMENTE SIMPLIFICADO
+      // Formato exato conforme documentação: { buy: 1, price: amount, parameters: "CONTRACT_TYPE_X" }
+      const buyRequest = {
         buy: 1,
-        subscribe: 1, // Para receber atualizações
         price: parsedAmount,
-        parameters: {
-          contract_type: contractType,
-          currency: "USD",
-          symbol: "R_100",
-          amount: parsedAmount,
-          basis: "stake",
-          duration: 5,
-          duration_unit: "t"
-        }
+        parameters: contract_string
       };
       
-      // Adicionar a barreira (previsão) para contratos com dígito
-      if (contractType.includes('DIGIT')) {
-        buyRequest.parameters.barrier = prediction.toString();
-        console.log(`[OAUTH_DIRECT] 🚀 Definindo barreira (previsão) para ${prediction}`);
-      }
+      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 USANDO FORMATO MÁXIMA SIMPLICIDADE: ${JSON.stringify(buyRequest, null, 2)}`);
+      
       
       console.log(`[OAUTH_DIRECT] 🔥 NOVO FORMATO SIMPLIFICADO DA REQUISIÇÃO DE COMPRA: ${JSON.stringify(buyRequest, null, 2)}`);
       
@@ -3301,44 +3281,37 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // 3. { buy: 1, price: 100, subscribe: 1 }  <- Completo, com subscribe
       
       // Vamos usar a forma MAIS DIRETA e SIMPLES possível
-      // Formato PADRÃO E OFICIAL conforme documentação exata:
-      // https://api.deriv.com/api-explorer/#buy
+      // 🚨🚨🚨 FORMATO ABSOLUTAMENTE SIMPLIFICADO DA API DERIV 🚨🚨🚨
+      // https://api.deriv.com/api-explorer/#buy - MAIS SIMPLIFICADO POSSÍVEL
+      console.log(`[OAUTH_DIRECT] 🚀🚀🚀 FORMATO MÁXIMA SIMPLICIDADE CONFORME DOCUMENTAÇÃO`);
+      
+      // Vamos usar a versão MÁXIMA SIMPLIFICAÇÃO
+      // Ver documentação: https://api.deriv.com/playground/#buy
+      
+      // Parse do valor para garantir que é numérico
       const parsedAmount = parseFloat(finalAmount.toString());
       
-      let buyRequest: {
-        buy: number,
-        subscribe: number,
-        price: number,
-        parameters: {
-          contract_type: string,
-          currency: string,
-          symbol: string,
-          amount: number,
-          basis: string,
-          duration: number,
-          duration_unit: string,
-          barrier?: string // Propriedade opcional para previsão
-        }
-      } = {
+      // Construir string de contrato conforme formato oficial Deriv
+      let contract_string = "";
+      
+      if (contractType.includes('DIGIT')) {
+        contract_string = `${contractType}_${prediction}`;
+        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato de dígito: ${contract_string}`);
+      } else {
+        contract_string = contractType;
+        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato regular: ${contract_string}`);
+      }
+      
+      // NOVO FORMATO ABSOLUTAMENTE SIMPLIFICADO
+      // Formato exato conforme documentação: { buy: 1, price: amount, parameters: "CONTRACT_TYPE_X" }
+      const buyRequest = {
         buy: 1,
-        subscribe: 1, // Para receber atualizações
         price: parsedAmount,
-        parameters: {
-          contract_type: contractType,
-          currency: "USD",
-          symbol: symbolCode,
-          amount: parsedAmount,
-          basis: "stake",
-          duration: 5,
-          duration_unit: "t"
-        }
+        parameters: contract_string
       };
       
-      // Adicionar a barreira (previsão) para contratos com dígito
-      if (contractType.includes('DIGIT')) {
-        buyRequest.parameters.barrier = prediction.toString();
-        console.log(`[OAUTH_DIRECT] 🔥 Definindo barreira (previsão) para ${prediction}`);
-      }
+      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 USANDO FORMATO MÁXIMA SIMPLICIDADE: ${JSON.stringify(buyRequest, null, 2)}`);
+      
       
       console.log(`[OAUTH_DIRECT] 🔥🔥🔥 EXECUTANDO COMPRA DIRETA COM FORMATO SIMPLIFICADO E OFICIAL!`);
       console.log(`[OAUTH_DIRECT] 🔥 DADOS DA OPERAÇÃO: ${JSON.stringify({
