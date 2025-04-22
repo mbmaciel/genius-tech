@@ -2014,7 +2014,11 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico:', newNotification);
+        // NOTA: Para notificações de parada, sempre adicionar ao histórico
+        // mesmo quando o bot não está mais rodando (já que esta é uma notificação de parada)
+        console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico (sempre permitido):', newNotification);
+        
+        // Para status de parada, sempre adicionar ao histórico para mostrar que o bot foi parado
         setOperationHistory((prevHistory) => {
           // Tipagem explícita para prevHistory
           const updatedHistory = [newNotification, ...prevHistory];
