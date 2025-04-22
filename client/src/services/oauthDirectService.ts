@@ -2598,43 +2598,88 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         prediction: prediction
       });
       
-      // 🚨🚨🚨 FORMATO ABSOLUTAMENTE SIMPLIFICADO DA API DERIV 🚨🚨🚨
-      // https://api.deriv.com/api-explorer/#buy - MAIS SIMPLIFICADO POSSÍVEL
-      console.log(`[OAUTH_DIRECT] 🚀🚀🚀 FORMATO MÁXIMA SIMPLICIDADE CONFORME DOCUMENTAÇÃO`);
+      // 🚨🚨🚨 MUDANÇA CRÍTICA: IMPLEMENTAÇÃO DE FLUXO PROPOSAL -> BUY 🚨🚨🚨
+      // Documentação: https://api.deriv.com/api-explorer/#proposal
+      // É necessário primeiro obter uma proposta antes de fazer a compra
       
-      // Vamos usar a versão MÁXIMA SIMPLIFICAÇÃO
-      // Ver documentação: https://api.deriv.com/playground/#buy
+      console.log(`[OAUTH_DIRECT] 🔄 NOVO FLUXO: Primeiro solicitando proposta (proposal) antes da compra`);
       
       // Parse do valor para garantir que é numérico
       const parsedAmount = parseFloat(amount.toString());
       
-      // Construir string de contrato conforme formato oficial Deriv
-      let contract_string = "";
+      // Primeiro passo: criar a solicitação de proposta
+      const reqId = Date.now(); // ID único para essa solicitação
       
-      if (contractType.includes('DIGIT')) {
-        contract_string = `${contractType}_${prediction}`;
-        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato de dígito: ${contract_string}`);
-      } else {
-        contract_string = contractType;
-        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato regular: ${contract_string}`);
-      }
-      
-      // NOVO FORMATO ABSOLUTAMENTE SIMPLIFICADO
-      // Formato exato conforme documentação: { buy: 1, price: amount, parameters: "CONTRACT_TYPE_X" }
-      const buyRequest = {
-        buy: 1,
-        price: parsedAmount,
-        parameters: contract_string
+      // Montar objeto de proposta conforme documentação da API
+      const proposalRequest: any = {
+        proposal: 1,
+        req_id: reqId,
+        amount: parsedAmount,
+        basis: "stake",
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t",
+        symbol: "R_100"
       };
       
-      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 USANDO FORMATO MÁXIMA SIMPLICIDADE: ${JSON.stringify(buyRequest, null, 2)}`);
+      // Adicionar barreira para contratos de dígito
+      if (contractType.includes('DIGIT')) {
+        proposalRequest.barrier = prediction.toString();
+        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito`);
+      }
       
+      // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
+      console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA: ${JSON.stringify(proposalRequest, null, 2)}`);
       
-      console.log(`[OAUTH_DIRECT] 🔥 NOVO FORMATO SIMPLIFICADO DA REQUISIÇÃO DE COMPRA: ${JSON.stringify(buyRequest, null, 2)}`);
+      // Enviar solicitação de proposta
+      this.webSocket.send(JSON.stringify(proposalRequest));
       
+      // Adicionar listener para receber a resposta da proposta
+      const handleProposalResponse = (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Verificar se é a resposta à nossa proposta
+          if (data.req_id === reqId && data.proposal) {
+            console.log(`[OAUTH_DIRECT] ✅ PROPOSTA RECEBIDA COM SUCESSO:`, data.proposal);
+            
+            // Remover o listener após receber a resposta
+            this.webSocket.removeEventListener('message', handleProposalResponse);
+            
+            // Agora sim fazer a compra usando o ID da proposta recebida
+            const buyRequest = {
+              buy: data.proposal.id,
+              price: data.proposal.ask_price
+            };
+            
+            console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`);
+            this.webSocket.send(JSON.stringify(buyRequest));
+          } 
+          else if (data.error) {
+            console.error(`[OAUTH_DIRECT] ❌ ERRO NA PROPOSTA:`, data.error);
+            this.webSocket.removeEventListener('message', handleProposalResponse);
+            
+            // Notificar sobre o erro
+            this.notifyListeners({
+              type: 'error',
+              message: `Erro na proposta: ${data.error.message || JSON.stringify(data.error)}`
+            });
+          }
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] ❌ ERRO AO PROCESSAR RESPOSTA DA PROPOSTA:`, error);
+          this.webSocket.removeEventListener('message', handleProposalResponse);
+        }
+      };
       
-      console.log('[OAUTH_DIRECT] 🚀 Enviando solicitação de compra de contrato:', JSON.stringify(buyRequest, null, 2));
-      this.webSocket.send(JSON.stringify(buyRequest));
+      // Adicionar o listener temporário
+      this.webSocket.addEventListener('message', handleProposalResponse);
+      
+      // Adicionar um timeout para caso não receba resposta da proposta
+      setTimeout(() => {
+        this.webSocket.removeEventListener('message', handleProposalResponse);
+        console.error(`[OAUTH_DIRECT] ⏱️ TIMEOUT NA PROPOSTA`);
+      }, 10000); // 10 segundos
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao executar compra de contrato:', error);
       this.notifyListeners({
@@ -3271,106 +3316,111 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
       
-      // 🚨🚨🚨 CORREÇÃO ULTRA CRÍTICA - FORMATO 100% EXATO CONFORME API DERIV 🚨🚨🚨
-      // Verificando documentação oficial: https://api.deriv.com/api-explorer/#buy
-      console.log(`[OAUTH_DIRECT] 🔥 Usando FORMATO 100% OFICIAL conforme API Deriv para compra`);
+      // 🚨🚨🚨 MUDANÇA CRÍTICA: FLUXO PROPOSAL -> BUY EM EXECUTEREALOPERATION 🚨🚨🚨
+      // Documentação: https://api.deriv.com/api-explorer/#proposal
+      // É necessário primeiro obter uma proposta antes de fazer a compra
       
-      // ⚠️ FORMATOS POSSÍVEIS DA API DERIV:
-      // 1. { buy: "contract_id" }  <- ID de um contrato existente
-      // 2. { buy: 1, price: 100, parameters: "CALL_1" }  <- Com uma proposta existente
-      // 3. { buy: 1, price: 100, subscribe: 1 }  <- Completo, com subscribe
-      
-      // Vamos usar a forma MAIS DIRETA e SIMPLES possível
-      // 🚨🚨🚨 FORMATO ABSOLUTAMENTE SIMPLIFICADO DA API DERIV 🚨🚨🚨
-      // https://api.deriv.com/api-explorer/#buy - MAIS SIMPLIFICADO POSSÍVEL
-      console.log(`[OAUTH_DIRECT] 🚀🚀🚀 FORMATO MÁXIMA SIMPLICIDADE CONFORME DOCUMENTAÇÃO`);
-      
-      // Vamos usar a versão MÁXIMA SIMPLIFICAÇÃO
-      // Ver documentação: https://api.deriv.com/playground/#buy
+      console.log(`[OAUTH_DIRECT] 🔄 FLUXO CORRETO: Primeiro solicitando proposta (proposal) antes da compra`);
       
       // Parse do valor para garantir que é numérico
       const parsedAmount = parseFloat(finalAmount.toString());
       
-      // Construir string de contrato conforme formato oficial Deriv
-      let contract_string = "";
+      // Primeiro passo: criar a solicitação de proposta
+      const reqId = Date.now(); // ID único para essa solicitação
       
-      if (contractType.includes('DIGIT')) {
-        contract_string = `${contractType}_${prediction}`;
-        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato de dígito: ${contract_string}`);
-      } else {
-        contract_string = contractType;
-        console.log(`[OAUTH_DIRECT] 🔥 Construindo string de contrato regular: ${contract_string}`);
-      }
-      
-      // NOVO FORMATO ABSOLUTAMENTE SIMPLIFICADO
-      // Formato exato conforme documentação: { buy: 1, price: amount, parameters: "CONTRACT_TYPE_X" }
-      const buyRequest = {
-        buy: 1,
-        price: parsedAmount,
-        parameters: contract_string
+      // Montar objeto de proposta conforme documentação da API
+      const proposalRequest: any = {
+        proposal: 1,
+        req_id: reqId,
+        amount: parsedAmount,
+        basis: "stake",
+        contract_type: contractType,
+        currency: "USD",
+        duration: 5,
+        duration_unit: "t",
+        symbol: symbolCode || "R_100"
       };
       
-      console.log(`[OAUTH_DIRECT] 🚨🚨🚨 USANDO FORMATO MÁXIMA SIMPLICIDADE: ${JSON.stringify(buyRequest, null, 2)}`);
-      
-      
-      console.log(`[OAUTH_DIRECT] 🔥🔥🔥 EXECUTANDO COMPRA DIRETA COM FORMATO SIMPLIFICADO E OFICIAL!`);
-      console.log(`[OAUTH_DIRECT] 🔥 DADOS DA OPERAÇÃO: ${JSON.stringify({
-        contractType,
-        finalAmount,
-        symbolCode,
-        prediction
-      })}`);
-      
-      console.log(`[OAUTH_DIRECT] 🔥 NOVA SOLICITAÇÃO DE COMPRA COM FORMATO SIMPLIFICADO: ${JSON.stringify(buyRequest, null, 2)}`);
-      
-      
-      console.log(`[OAUTH_DIRECT] 🚨 Enviando solicitação DIRETA de compra:`, JSON.stringify(buyRequest, null, 2));
-      
-      // Enviar solicitação diretamente, ignorando o restante do processamento
-      if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-        try {
-          this.webSocket.send(JSON.stringify(buyRequest));
-          console.log(`[OAUTH_DIRECT] ✅✅✅ COMPRA ENVIADA DIRETAMENTE COM SUCESSO! ✅✅✅`);
-          
-          // Notificar que a operação foi iniciada
-          this.notifyListeners({
-            type: 'operation_started',
-            amount: finalAmount,
-            contract_type: contractType,
-            prediction: prediction
-          });
-          
-          return true; // Operação enviada com sucesso
-        } catch (error) {
-          console.error(`[OAUTH_DIRECT] ❌ ERRO AO ENVIAR COMPRA DIRETA:`, error);
-        }
-      } else {
-        console.error(`[OAUTH_DIRECT] ❌ WEBSOCKET NÃO DISPONÍVEL PARA COMPRA DIRETA!`);
+      // Adicionar barreira para contratos de dígito
+      if (contractType.includes('DIGIT')) {
+        proposalRequest.barrier = prediction.toString();
+        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito`);
       }
       
-      // Adicionar log detalhado da requisição
-      console.log(`[OAUTH_DIRECT] ★★★ Parâmetros da primeira operação: Valor=${finalAmount}, Tipo=${contractType}, Duração=5t ★★★`);
+      // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
+      console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA: ${JSON.stringify(proposalRequest, null, 2)}`);
       
-      // Configurações já foram aplicadas no objeto buyRequest.parameters acima
+      // Enviar solicitação de proposta
+      this.webSocket.send(JSON.stringify(proposalRequest));
       
-      // ⚠️⚠️⚠️ CÓDIGO COMPLETAMENTE REMOVIDO PARA EVITAR DUPLICAÇÃO DE SOLICITAÇÕES DE COMPRA
-      // A requisição BUY já foi enviada acima usando o formato correto da API Deriv
+      // Adicionar listener para receber a resposta da proposta e fazer a compra
+      const handleProposalResponse = (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Verificar se é a resposta à nossa proposta
+          if (data.req_id === reqId && data.proposal) {
+            console.log(`[OAUTH_DIRECT] ✅ PROPOSTA RECEBIDA COM SUCESSO:`, data.proposal);
+            
+            // Remover o listener após receber a resposta
+            this.webSocket.removeEventListener('message', handleProposalResponse);
+            
+            // Agora sim fazer a compra usando o ID da proposta recebida
+            const buyRequest = {
+              buy: data.proposal.id,
+              price: data.proposal.ask_price
+            };
+            
+            console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`);
+            this.webSocket.send(JSON.stringify(buyRequest));
+            
+            // Marcar que estamos processando uma compra
+            this.notifyListeners({
+              type: 'processing',
+              message: 'Comprando contrato...'
+            });
+          } 
+          else if (data.error) {
+            console.error(`[OAUTH_DIRECT] ❌ ERRO NA PROPOSTA:`, data.error);
+            this.webSocket.removeEventListener('message', handleProposalResponse);
+            
+            // Notificar sobre o erro
+            this.notifyListeners({
+              type: 'error',
+              message: `Erro na proposta: ${data.error.message || JSON.stringify(data.error)}`
+            });
+          }
+        } catch (error) {
+          console.error(`[OAUTH_DIRECT] ❌ ERRO AO PROCESSAR RESPOSTA DA PROPOSTA:`, error);
+          this.webSocket.removeEventListener('message', handleProposalResponse);
+        }
+      };
       
-      // Solicitação já enviada acima, este log é apenas informativo
-      console.log('[OAUTH_DIRECT] Informação de solicitação de compra enviada:', buyRequest);
+      // Adicionar o listener temporário
+      this.webSocket.addEventListener('message', handleProposalResponse);
       
-      // Notificar sobre a tentativa de compra e enviar evento de bot ativo para atualizar a interface
+      // Adicionar um timeout para caso não receba resposta da proposta
+      setTimeout(() => {
+        this.webSocket.removeEventListener('message', handleProposalResponse);
+        console.error(`[OAUTH_DIRECT] ⏱️ TIMEOUT NA PROPOSTA`);
+      }, 10000); // 10 segundos
+      
+      // Notificar sobre a operação em andamento
       this.notifyListeners({
         type: 'operation_started',
-        message: `Iniciando operação: ${contractType} em ${symbolCode}, valor: ${finalAmount}`
+        amount: finalAmount,
+        contract_type: contractType,
+        prediction: prediction,
+        message: `Iniciando operação: ${contractType} em ${symbolCode || 'R_100'}, valor: ${finalAmount}`
       });
       
-      // Enviar explicitamente um evento bot_started para garantir que a interface seja atualizada
+      // Enviar evento de bot ativo para atualizar a interface
       this.notifyListeners({
         type: 'bot_started',
-        message: 'Bot ativado após início de operação'
+        message: 'Bot está realizando uma operação'
       });
       
+      // A compra será feita no callback do proposal
       return true;
     } catch (error) {
       console.error('[OAUTH_DIRECT] Erro ao executar primeira operação:', error);
