@@ -1532,9 +1532,39 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       
       // Processar eventos de operação finalizada
       if (event.type === 'contract_finished') {
-        console.log('[BOT_PAGE] Evento de contrato finalizado recebido:', event);
+        console.log('[BOT_PAGE] ★★★★★ EVENTO CONTRACT_FINISHED RECEBIDO ★★★★★');
+        console.log('[BOT_PAGE] ★★★★★ DETALHES DO CONTRATO:', event.contract_details);
+        console.log('[BOT_PAGE] ★★★★★ ID DO CONTRATO:', event.contract_id);
+        console.log('[BOT_PAGE] ★★★★★ STRATEGY:', event.strategy);
+        console.log('[BOT_PAGE] ★★★★★ SYMBOL:', event.symbol);
+        console.log('[BOT_PAGE] ★★★★★ PROFIT:', event.profit);
         
-        // Adicionar operação ao histórico
+        // FORÇAR adição de uma operação ao histórico independente de qualquer condição
+        // para diagnóstico e garantir que o componente RelatorioOperacoes está funcionando
+        const forceOperation = {
+          id: Date.now(),
+          contract_id: event.contract_id || Date.now(),
+          entryValue: event.entry_value || 1,
+          entry_value: event.entry_value || 1,
+          finalValue: event.exit_value || 0,
+          exit_value: event.exit_value || 0,
+          profit: event.profit || 0,
+          time: new Date(),
+          timestamp: Date.now(),
+          contract_type: event.contract_type || "CALL",
+          symbol: event.symbol || "R_100",
+          strategy: event.strategy || selectedStrategy || "auto",
+          is_win: event.is_win,
+          notification: {
+            type: 'success',
+            message: `OPERAÇÃO FORÇADA (DEBUG): ID=${event.contract_id}, Profit=${event.profit}`
+          }
+        };
+        
+        console.log('[BOT_PAGE] FORÇANDO adição de operação ao histórico:', forceOperation);
+        setOperationHistory(prev => [forceOperation, ...prev].slice(0, 50));
+        
+        // Adicionar operação normal ao histórico (caso o problema seja na extração de detalhes)
         const contract = event.contract_details;
         if (contract) {
           const contractId = typeof contract.contract_id === 'number' ? contract.contract_id : 
