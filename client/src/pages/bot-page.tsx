@@ -371,6 +371,27 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         message: `GANHO | Entrada: $10.00 | Resultado: $8.70`
       }
     },
+    // Operação de teste EXTRA - adicionada para debug
+    {
+      id: 'TESTE-EXTRA-' + Date.now(),
+      contract_id: 'TESTE-EXTRA-' + Date.now(),
+      entryValue: 1.35,
+      entry_value: 1.35,
+      finalValue: 2.5,
+      exit_value: 2.5,
+      profit: 1.15,
+      time: new Date(),
+      timestamp: Date.now(),
+      contract_type: 'DIGITOVER',
+      symbol: 'R_100',
+      strategy: 'TESTE DE HISTÓRICO',
+      is_win: true,
+      isIntermediate: false,
+      notification: {
+        type: 'success',
+        message: 'TESTE EXTRA | Entrada: $1.35 | Resultado: $1.15'
+      }
+    },
     // Operação de exemplo com perda
     {
       id: Date.now() - 1000, // ID diferente
@@ -2388,10 +2409,20 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 )}
               </div>
               
+              {/* Adicionar log para depuração do estado atual das operações */}
+              <div className="hidden">
+                {console.log('[BOT_PAGE] RENDERING OPERATION HISTORY CARD WITH OPERATIONS:', operationHistory.length, operationHistory)}
+              </div>
+              
               <OperationHistoryCard 
                 operations={operationHistory}
                 stats={stats}
               />
+              
+              {/* Adicionar linha de texto para visualizar quantidade de operações (para debug) */}
+              <div className="mt-2 text-xs text-gray-400 text-center">
+                {operationHistory.length} operações na memória
+              </div>
             </div>
             
             {/* Gráfico de barras de dígitos do R_100 */}

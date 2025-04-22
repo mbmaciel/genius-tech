@@ -120,10 +120,15 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     return format(time, 'HH:mm:ss');
   };
 
+  // Verificação adicional de segurança - converter operações para array se não for
+  const safeOperations = Array.isArray(internalOperations) ? internalOperations : [];
+  console.log('[OperationHistoryCard] 🔍 DIAGNÓSTICO: safeOperations.length =', safeOperations.length);
+  
+  // ★★★ CORREÇÃO CRÍTICA: Garantir que temos arrays válidos ★★★ 
   // Mostrar TODAS as operações na aba principal "Operações"
   // A aba "Análises" agora exibe apenas operações marcadas explicitamente como intermediárias
-  const regularOperations = internalOperations; // Todas as operações
-  const intermediateOperations = internalOperations.filter(op => op.isIntermediate);
+  const regularOperations = safeOperations; // Todas as operações
+  const intermediateOperations = safeOperations.filter(op => op.isIntermediate);
 
   return (
     <Card className="h-full shadow-md border border-[#2a3756] bg-[#13203A]">
