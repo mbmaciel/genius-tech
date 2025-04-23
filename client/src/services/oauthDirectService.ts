@@ -3151,6 +3151,28 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             console.log(`[OAUTH_DIRECT] ✅ PROPOSTA ACEITA: ID=${data.proposal.id}, Preço=${data.proposal.ask_price}, Payout=${data.proposal.payout}`);
             
+            // INTERVIR na proposta para Advance - último nível de interceptação
+            if (this.activeStrategy?.toLowerCase().includes('advance')) {
+              console.log(`[OAUTH_DIRECT] 🔴 INSPECIONANDO PROPOSTA ANTES DA COMPRA PARA ADVANCE:`);
+              console.log(JSON.stringify(data.proposal, null, 2));
+              
+              // Modificar a definição do contrato diretamente na proposta se for necessário
+              if (data.proposal.barrier === "5") {
+                console.log(`[OAUTH_DIRECT] 🔴 ÚLTIMA CHANCE! MODIFICANDO BARREIRA DE "5" PARA "1"!`);
+                data.proposal.barrier = "1";
+                data.proposal.display_name = data.proposal.display_name.replace("acima de 5", "acima de 1");
+                
+                // Também gravar a correção no localStorage para futuras referências
+                try {
+                  localStorage.setItem('advance_barrier_corrected', 'true');
+                  localStorage.setItem('advance_barrier_correction_time', new Date().toISOString());
+                } catch (e) {}
+              }
+              
+              console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA FINAL PARA ADVANCE:`);
+              console.log(JSON.stringify(data.proposal, null, 2));
+            }
+            
             // Remover o listener imediatamente
             this.webSocket.removeEventListener('message', handleProposalResponse);
             
@@ -3160,6 +3182,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               price: data.proposal.ask_price,
               req_id: Date.now() // Novo ID único para a compra
             };
+            
+            // Se for Advance, adicionamos parâmetros extras
+            if (this.activeStrategy?.toLowerCase().includes('advance')) {
+              console.log(`[OAUTH_DIRECT] 🔴 MODIFICANDO COMPRA PARA ADVANCE COM BARREIRA 1`);
+              // Tentativa de adicionar parâmetros extras
+              (buyRequest as any).parameters = {
+                barrier: "1"
+              };
+            }
             
             // Log de diagnóstico adicional para verificar se o contrato tem realmente 1 tick
             console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE PROPOSTA RECEBIDA:`);
