@@ -1551,8 +1551,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             'DIGITODD': 'DIGITODD'
           };
           
-          // Usar tipo de contrato da avaliação da estratégia
-          this.settings.contractType = contractTypeMapping[entryResult.contractType] || 'DIGITOVER';
+          // Usar EXATAMENTE o tipo de contrato definido no XML e retornado pela avaliação da estratégia
+          // Mapear apenas para garantir formato compatível com a API, mas sem alterar o valor real definido no XML
+          const xmlContractType = entryResult.contractType;
+          this.settings.contractType = contractTypeMapping[xmlContractType] || xmlContractType;
+          
+          // Log adicional para rastreabilidade do tipo de contrato
+          console.log(`[OAUTH_DIRECT] 🚨 Tipo de contrato EXATO do XML: ${xmlContractType} -> mapeado para API: ${this.settings.contractType}`);
           
           // Usar previsão da avaliação, se disponível
           if (entryResult.prediction !== undefined) {
@@ -2897,25 +2902,46 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Definir o amount para o valor final após aplicar as prioridades
       amount = finalAmount;
       
-      // Verificar se é IRON UNDER e forçar o tipo correto
+      // Usar o tipo de contrato definido exatamente pelo XML da estratégia através do settings
+      // Esta configuração vem do resultado da análise da estratégia via xmlStrategyParser
       let contractType = this.settings.contractType || 'DIGITOVER';
       
-      // CORREÇÃO CRÍTICA: Forçar DIGITUNDER para estratégia Iron Under
-      if (this.activeStrategy && (
-          this.activeStrategy.toLowerCase().includes('iron under') || 
-          this.activeStrategy.toLowerCase().includes('ironunder')
-        )) {
-        contractType = 'DIGITUNDER';
-        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando DIGITUNDER para estratégia Iron Under`);
-      }
+      console.log(`[OAUTH_DIRECT] ✅ Usando tipo de contrato ${contractType} exatamente como definido no XML da estratégia`);
       
-      // CORREÇÃO CRÍTICA: Forçar DIGITOVER para estratégia Iron Over
-      if (this.activeStrategy && (
-          this.activeStrategy.toLowerCase().includes('iron over') || 
-          this.activeStrategy.toLowerCase().includes('ironover')
-        )) {
-        contractType = 'DIGITOVER';
-        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO: Forçando DIGITOVER para estratégia Iron Over`);
+      // LOG adicional para verificar a estratégia ativa e tipo de contrato
+      console.log(`[OAUTH_DIRECT] 📊 Estratégia ativa: ${this.activeStrategy}, Tipo de contrato: ${contractType}`);
+      
+      // NOVA VERIFICAÇÃO DE CONSISTÊNCIA:
+      // Verificar se temos uma operação XML onde o tipo de contrato deve ser respeitado
+      // e comparar com o que está definido na estratégia, garantindo consistência total
+      
+      // Se for uma estratégia XML conhecida, validar tipo de contrato
+      if (this.activeStrategy) {
+        // Caminhos conhecidos das estratégias IRON OVER e IRON UNDER
+        const ironOverStrategies = ['iron over', 'ironover', 'iron_over'];
+        const ironUnderStrategies = ['iron under', 'ironunder', 'iron_under'];
+        
+        // Verificar e logar o tipo de contrato para máxima visibilidade
+        if (ironOverStrategies.some(s => this.activeStrategy.toLowerCase().includes(s))) {
+          console.log(`[OAUTH_DIRECT] ⚙️ Estratégia ${this.activeStrategy} é do tipo IRON OVER`);
+          console.log(`[OAUTH_DIRECT] ⚙️ Tipo de contrato definido: ${contractType}`);
+          console.log(`[OAUTH_DIRECT] ⚙️ Tipo esperado para IRON OVER: DIGITOVER`);
+          
+          if (contractType !== 'DIGITOVER') {
+            console.log(`[OAUTH_DIRECT] 🔴 ATENÇÃO: Estratégia IRON OVER com tipo inconsistente: ${contractType}`);
+            console.log(`[OAUTH_DIRECT] 🔴 Isto pode indicar um problema na leitura do XML ou configuração`);
+          }
+        } 
+        else if (ironUnderStrategies.some(s => this.activeStrategy.toLowerCase().includes(s))) {
+          console.log(`[OAUTH_DIRECT] ⚙️ Estratégia ${this.activeStrategy} é do tipo IRON UNDER`);
+          console.log(`[OAUTH_DIRECT] ⚙️ Tipo de contrato definido: ${contractType}`);
+          console.log(`[OAUTH_DIRECT] ⚙️ Tipo esperado para IRON UNDER: DIGITUNDER`);
+          
+          if (contractType !== 'DIGITUNDER') {
+            console.log(`[OAUTH_DIRECT] 🔴 ATENÇÃO: Estratégia IRON UNDER com tipo inconsistente: ${contractType}`);
+            console.log(`[OAUTH_DIRECT] 🔴 Isto pode indicar um problema na leitura do XML ou configuração`);
+          }
+        }
       }
       
       // Garantir que prediction seja válido (1-9) para contratos DIGIT

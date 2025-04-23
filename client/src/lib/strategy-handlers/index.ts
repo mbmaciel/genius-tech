@@ -306,6 +306,10 @@ export async function evaluateEntryConditions(
     entryAmount = result.amount;
     message = `[XML] ${result.message}`;
     
+    // Log detalhado para rastreabilidade completa do tipo de contrato definido no XML
+    console.log(`[STRATEGY_HANDLER] 🔍 XML EXATO: Tipo de contrato ${contractType} EXATAMENTE como definido no XML da estratégia ${strategyId}`);
+    console.log(`[STRATEGY_HANDLER] 🔍 XML EXATO: shouldEnter=${shouldEnter}, prediction=${prediction}, amount=${entryAmount}`);
+    
     // Se for usar martingale com base no resultado anterior
     if (state.lastResult === 'loss') {
       // O parser já considera o martingale, o valor já está ajustado em result.amount
