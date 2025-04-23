@@ -210,48 +210,7 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
         <CardTitle className="flex justify-between items-center text-white text-lg">
           <div className="flex items-center">
             <Clock className="w-5 h-5 mr-2 text-indigo-400" />
-            {t('Histórico de Operações')}
-            
-            {/* Adicionar botões de ação para o histórico */}
-            <div className="flex ml-2 space-x-1">
-              <button 
-                className="text-xs bg-indigo-700 text-white px-1.5 py-0.5 rounded hover:bg-indigo-600 transition-colors"
-                onClick={() => {
-                  // Exportar operações como JSON
-                  try {
-                    const dataStr = JSON.stringify(internalOperations, null, 2);
-                    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-                    
-                    const exportFileDefaultName = `deriv_operations_history_${new Date().toISOString().split('T')[0]}.json`;
-                    
-                    const linkElement = document.createElement('a');
-                    linkElement.setAttribute('href', dataUri);
-                    linkElement.setAttribute('download', exportFileDefaultName);
-                    linkElement.click();
-                    
-                    console.log('[OperationHistoryCard] ✅ Histórico exportado com sucesso!');
-                  } catch (error) {
-                    console.error('[OperationHistoryCard] Erro ao exportar histórico:', error);
-                    alert('Erro ao exportar histórico. Verifique o console para mais detalhes.');
-                  }
-                }}
-              >
-                Exportar
-              </button>
-              <button 
-                className="text-xs bg-red-800 text-white px-1.5 py-0.5 rounded hover:bg-red-700 transition-colors"
-                onClick={() => {
-                  if (confirm('Tem certeza que deseja limpar todo o histórico de operações?')) {
-                    // Limpar histórico local mas manter apenas operações de exemplo
-                    setInternalOperations([]);
-                    localStorage.removeItem('operation_history');
-                    console.log('[OperationHistoryCard] 🧹 Histórico de operações limpo!');
-                  }
-                }}
-              >
-                Limpar
-              </button>
-            </div>
+            {t('Histórico de Operações Completo')}
           </div>
           
           {stats && (

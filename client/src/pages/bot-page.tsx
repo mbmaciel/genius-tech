@@ -1752,9 +1752,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★ OPERAÇÃO A SER ADICIONADA AO HISTÓRICO: ★★★', forceOperation);
         console.log('[BOT_PAGE] ★★★ VERIFICANDO SE BOT ESTÁ RODANDO ANTES DE ADICIONAR OPERAÇÃO ★★★', botStatus);
         
-        // ★★★ MODIFICAÇÃO CRÍTICA: SIMPLIFICAR A CONDIÇÃO E SEMPRE ADICIONAR OPERAÇÕES ★★★
-        // O estado do botStatus pode estar inconsistente, vamos garantir que operações apareçam
-        console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★ (ignorando verificação de botStatus)');
+        // ★★★ MODIFICAÇÃO CRÍTICA: REGISTRAR QUALQUER TIPO DE OPERAÇÃO ★★★
+        // Garantir que todas as operações de compra, venda e análise sejam registradas no histórico
+        console.log('[BOT_PAGE] ★★★ REGISTRANDO OPERAÇÃO NO HISTÓRICO COMPLETO ★★★ (compras, vendas e análises)');
         
         // ★★★ PROBLEMA CRÍTICO: GARANTIR QUE A ATUALIZAÇÃO SEJA PROCESSADA COM PRIORIDADE MÁXIMA ★★★
         // Forçar atualização do histórico em três passos para garantir que a UI reflita as mudanças:
@@ -1974,9 +1974,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           console.log('[BOT_PAGE] Verificando se pode adicionar operação ao histórico (bot status):', botStatus);
           
-          // ★★★ SOLUÇÃO DEFINITIVA: SEMPRE ADICIONAR OPERAÇÕES AO HISTÓRICO ★★★
-          // Independente do status do bot, vamos garantir que todas as operações sejam registradas
-          console.log('[BOT_PAGE] FORÇANDO adição de operação ao histórico independente do status do bot');
+          // ★★★ SOLUÇÃO DEFINITIVA: REGISTRAR TODO TIPO DE OPERAÇÃO NO HISTÓRICO ★★★
+          // Garantir que compras, vendas, e análises sejam registradas no histórico completo
+          console.log('[BOT_PAGE] ★★★ REGISTRANDO OPERAÇÃO COMPLETA NO HISTÓRICO ★★★ (compra/venda/análise)');
           
           // PASSO 1: Garantir ID único para esta operação
           const uniqueOperationId = `operation-${contractId}-${Date.now()}`;
@@ -2056,19 +2056,15 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Verificando se pode adicionar notificação de limite (bot status):', botStatus);
+        console.log('[BOT_PAGE] ★★★ REGISTRANDO LIMITE NO HISTÓRICO COMPLETO ★★★');
         
-        // Adicionar notificação ao histórico se o bot estiver rodando ou pronto
-        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-          console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico (bot rodando):', newNotification);
-          setOperationHistory((prevHistory) => {
-            // Tipagem explícita para prevHistory
-            const updatedHistory = [newNotification, ...prevHistory];
-            return updatedHistory.slice(0, 50);
-          });
-        } else {
-          console.log('[BOT_PAGE] Ignorando notificação de limite porque o bot está parado');
-        }
+        // SEMPRE adicionar notificação ao histórico, independente do status do bot
+        console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico completo:', newNotification);
+        setOperationHistory((prevHistory) => {
+          // Tipagem explícita para prevHistory
+          const updatedHistory = [newNotification, ...prevHistory];
+          return updatedHistory.slice(0, 50);
+        });
       }
       
       // Processar eventos de parada do bot
