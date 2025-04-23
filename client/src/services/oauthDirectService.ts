@@ -3909,15 +3909,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         basis: "stake",
         contract_type: contractType,
         currency: "USD",
-        duration: 5,
+        // CORREÇÃO CRÍTICA: Usar 1 tick em vez de 5 para Advance
+        duration: this.activeStrategy?.toLowerCase().includes('advance') ? 1 : 5,
         duration_unit: "t",
         symbol: symbolCode || "R_100"
       };
       
+      // CORREÇÃO CRÍTICA: Adicionar log explícito para duração
+      console.log(`[OAUTH_DIRECT] 🚨 Duração da operação definida para: ${proposalRequest.duration} ${proposalRequest.duration_unit}`);
+      
       // Adicionar barreira para contratos de dígito
       if (contractType.includes('DIGIT')) {
-        proposalRequest.barrier = prediction.toString();
-        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito`);
+        // CORREÇÃO CRÍTICA: Forçar barreira 1 para Advance
+        if (this.activeStrategy?.toLowerCase().includes('advance')) {
+          proposalRequest.barrier = "1";
+          console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO DE EMERGÊNCIA: Forçando barreira=1 para estratégia ADVANCE`);
+        } else {
+          proposalRequest.barrier = prediction?.toString() || "5";
+        }
+        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${proposalRequest.barrier} para contrato de dígito`);
       }
       
       // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
