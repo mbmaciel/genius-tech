@@ -78,7 +78,7 @@
                     <field name="VAR" id="Q#(@ZW6iS!f/}f]o%wu~" variabletype="">PREVISÃO</field>
                     <value name="VALUE">
                       <block type="math_number" id="F)j6U+I76|=T`|hR7U0R">
-                        <field name="NUM">1</field>
+                        <field name="NUM">5</field>
                       </block>
                     </value>
                     <next>
@@ -149,7 +149,7 @@
         </value>
         <value name="PREDICTION">
           <shadow type="math_number" id="j`7zfzeHgncS}#C~f*7:">
-            <field name="NUM">0</field>
+            <field name="NUM">5</field>
           </shadow>
           <block type="variables_get" id="cV#0BJqqY7DY*fRo_EbU">
             <field name="VAR" id="Q#(@ZW6iS!f/}f]o%wu~" variabletype="">PREVISÃO</field>
@@ -228,7 +228,7 @@
             <field name="VAR" id="Q#(@ZW6iS!f/}f]o%wu~" variabletype="">PREVISÃO</field>
             <value name="VALUE">
               <block type="math_number" id="SG;~j-5uB9a5du5IwpR/">
-                <field name="NUM">1</field>
+                <field name="NUM">5</field>
               </block>
             </value>
           </block>
@@ -253,7 +253,7 @@
             <field name="VAR" id="Q#(@ZW6iS!f/}f]o%wu~" variabletype="">PREVISÃO</field>
             <value name="VALUE">
               <block type="math_number" id="p.{g3:yh#N^M4vrUr7@~">
-                <field name="NUM">1</field>
+                <field name="NUM">5</field>
               </block>
             </value>
           </block>
