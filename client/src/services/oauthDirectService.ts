@@ -2989,6 +2989,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const reqId = Date.now(); // ID único para essa solicitação
       
       // Montar objeto de proposta conforme documentação da API
+      // CORREÇÃO CRÍTICA: Usar duração conforme especificado na estratégia
+      // Esta correção específica para a estratégia Advance que deve usar exatamente 1 tick
+      // Verificar se estamos trabalhando com a estratégia Advance
+      let duration = 5; // valor padrão
+      
+      // Verificar se estamos com a estratégia Advance para usar duração exata de 1 tick
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        duration = 1; // CORREÇÃO CRÍTICA: Advance usa exatamente 1 tick de duração
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Estratégia Advance detectada! Usando duração de 1 tick conforme requisito.`);
+      } else {
+        console.log(`[OAUTH_DIRECT] Usando duração padrão de ${duration} ticks para estratégia ${this.activeStrategy || 'desconhecida'}`);
+      }
+      
+      // DIAGNÓSTICO ADICIONAL: Log específico para configurações de Advance
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO ADVANCE: Contract Type = ${contractType}`);
+        console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO ADVANCE: Prediction = ${prediction}`);
+        console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO ADVANCE: Duration = ${duration} tick`);
+      }
+      
+      // IMPLEMENTAÇÃO CRÍTICA - CORREÇÃO ESPECÍFICA PARA ADVANCE
+      // Verificar se o resultado da análise da estratégia inclui também informação de duração
+      if (this.settings.duration !== undefined) {
+        // Se o parser XML definiu uma duração específica, usar essa duração
+        duration = this.settings.duration;
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando duração de ${duration} tick(s) definida diretamente pelo parser XML`);
+      }
+      
+      // Montagem final do objeto de proposta
       const proposalRequest: any = {
         proposal: 1,
         req_id: reqId,
@@ -2996,7 +3025,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         basis: "stake",
         contract_type: contractType,
         currency: "USD",
-        duration: 5,
+        duration: duration, // CORREÇÃO: Usar o valor correto de duração
         duration_unit: "t",
         symbol: "R_100"
       };
