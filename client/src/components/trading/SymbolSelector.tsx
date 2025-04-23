@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useOAuthDirectService } from '@/services/oauthDirectService';
+import { oauthDirectService } from '@/services/oauthDirectService';
 
 interface Symbol {
   symbol: string;
@@ -23,7 +23,6 @@ const SymbolSelector: React.FC<SymbolSelectorProps> = ({
   disabled = false 
 }) => {
   const { t } = useTranslation();
-  const { getActiveSymbols, symbols: apiSymbols } = useOAuthDirectService();
   const [symbols, setSymbols] = useState<Symbol[]>([]);
   const [markets, setMarkets] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -43,34 +42,39 @@ const SymbolSelector: React.FC<SymbolSelectorProps> = ({
 
   useEffect(() => {
     const loadSymbols = async () => {
-      if (!getActiveSymbols) return;
-      
       setIsLoading(true);
       try {
         // Tenta carregar símbolos da API
-        const result = await getActiveSymbols();
-        if (result && Array.isArray(result) && result.length > 0) {
-          setSymbols(result);
-          
-          // Extrai mercados únicos
-          const uniqueMarkets: { [key: string]: string } = {};
-          result.forEach(symbol => {
-            uniqueMarkets[symbol.market] = symbol.market_display_name;
-          });
-          setMarkets(uniqueMarkets);
-        } else {
-          // Usa símbolos padrão se a API falhar
-          setSymbols(defaultSymbols);
-          
-          // Extrai mercados únicos dos símbolos padrão
-          const uniqueMarkets: { [key: string]: string } = {};
-          defaultSymbols.forEach(symbol => {
-            uniqueMarkets[symbol.market] = symbol.market_display_name;
-          });
-          setMarkets(uniqueMarkets);
+        if (oauthDirectService.isAuthorized()) {
+          try {
+            const result = await oauthDirectService.getActiveSymbols();
+            if (result && Array.isArray(result) && result.length > 0) {
+              setSymbols(result);
+              
+              // Extrai mercados únicos
+              const uniqueMarkets: { [key: string]: string } = {};
+              result.forEach(symbol => {
+                uniqueMarkets[symbol.market] = symbol.market_display_name;
+              });
+              setMarkets(uniqueMarkets);
+              return;
+            }
+          } catch (error) {
+            console.error("Erro ao carregar símbolos da API:", error);
+          }
         }
+        
+        // Usa símbolos padrão se a API falhar ou não estiver autorizada
+        setSymbols(defaultSymbols);
+        
+        // Extrai mercados únicos dos símbolos padrão
+        const uniqueMarkets: { [key: string]: string } = {};
+        defaultSymbols.forEach(symbol => {
+          uniqueMarkets[symbol.market] = symbol.market_display_name;
+        });
+        setMarkets(uniqueMarkets);
       } catch (error) {
-        console.error("Erro ao carregar símbolos:", error);
+        console.error("Erro ao processar símbolos:", error);
         // Usa símbolos padrão em caso de erro
         setSymbols(defaultSymbols);
         
@@ -86,21 +90,19 @@ const SymbolSelector: React.FC<SymbolSelectorProps> = ({
     };
 
     loadSymbols();
-  }, [getActiveSymbols]);
-
-  // Atualiza quando apiSymbols muda
-  useEffect(() => {
-    if (apiSymbols && Array.isArray(apiSymbols) && apiSymbols.length > 0) {
-      setSymbols(apiSymbols);
-      
-      // Extrai mercados únicos
-      const uniqueMarkets: { [key: string]: string } = {};
-      apiSymbols.forEach(symbol => {
-        uniqueMarkets[symbol.market] = symbol.market_display_name;
-      });
-      setMarkets(uniqueMarkets);
-    }
-  }, [apiSymbols]);
+    
+    // Inscrever-se em eventos de autorização para atualizar símbolos 
+    // quando o usuário se conectar/desconectar
+    const handleAuthChange = () => {
+      loadSymbols();
+    };
+    
+    document.addEventListener('derivAuthChange', handleAuthChange);
+    
+    return () => {
+      document.removeEventListener('derivAuthChange', handleAuthChange);
+    };
+  }, []);
 
   // Organiza símbolos por mercado para exibição
   const symbolsByMarket = symbols.reduce((acc, symbol) => {

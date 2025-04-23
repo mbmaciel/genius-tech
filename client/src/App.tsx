@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toast";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import { BotPage } from "@/pages/bot-page";
+import OldBotPage from "@/pages/old-bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
 import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
 import ChartPage from "@/pages/chart-page";
@@ -15,6 +16,7 @@ import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
 import DigitStatsPage from "@/pages/digit-stats-page";
 import { useTranslation } from 'react-i18next';
+import { AuthProvider } from "@/hooks/use-auth";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
