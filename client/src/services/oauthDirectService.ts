@@ -3033,6 +3033,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando duração de ${duration} tick(s) definida diretamente pelo parser XML`);
       }
       
+      // INTERVENÇÃO CRÍTICA PARA ADVANCE - VERIFICA E FORÇA NOVAMENTE AQUI
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        // GARANTIR QUE OS VALORES ESTÃO CORRETOS
+        duration = 1;
+        prediction = 1;
+        contractType = 'DIGITOVER';
+        console.log(`[OAUTH_DIRECT] 🔴 INTERVENÇÃO CRÍTICA FINAL: FORÇANDO valores para Advance antes de enviar`);
+      }
+      
       // Montagem final do objeto de proposta
       const proposalRequest: any = {
         proposal: 1,
@@ -3046,10 +3055,22 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         symbol: "R_100"
       };
       
+      // DIAGNÓSTICO CRÍTICO: Mostrar detalhes exatos do que estamos enviando
+      console.log(`[OAUTH_DIRECT] 🔍 ANTES DE ENVIAR - DETALHES DO CONTRATO:`);
+      console.log(`[OAUTH_DIRECT] 🔍 - Contract Type: ${proposalRequest.contract_type}`);
+      console.log(`[OAUTH_DIRECT] 🔍 - Duration: ${proposalRequest.duration} ${proposalRequest.duration_unit}`);
+      
       // Adicionar barreira para contratos de dígito
       if (contractType.includes('DIGIT')) {
         proposalRequest.barrier = prediction.toString();
-        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${prediction} para contrato de dígito ${contractType}`);
+        
+        // INTERVENÇÃO DE EMERGÊNCIA - FORÇA O VALOR DA BARREIRA PARA 1 SE ESTAMOS NA ADVANCE
+        if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+          proposalRequest.barrier = "1";
+          console.log(`[OAUTH_DIRECT] 🚨 INTERVENÇÃO DE EMERGÊNCIA: Forçando barreira para 1`);
+        }
+        
+        console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${proposalRequest.barrier} para contrato de dígito ${contractType}`);
       }
       
       // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
