@@ -1722,12 +1722,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★★★ PROFIT:', event.profit);
         
         // ★★★ CORREÇÃO CRÍTICA: usar novos IDs para evitar conflitos ★★★
-        const uniqueId = `contract-${event.contract_id || Date.now()}-${Date.now()}`;
+        const contractUniqueId = `contract-${event.contract_id || Date.now()}-${Date.now()}`;
         
         // FORÇAR adição de uma operação ao histórico independente de qualquer condição
         // para diagnóstico e garantir que o componente OperationHistoryCard está funcionando
         const forceOperation = {
-          id: uniqueId, // Usar ID único para evitar duplicação
+          id: contractUniqueId, // Usar ID único para evitar duplicação
           contract_id: event.contract_id || Date.now(),
           entryValue: event.entry_value || 1,
           entry_value: event.entry_value || 1,
@@ -1756,15 +1756,34 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         // O estado do botStatus pode estar inconsistente, vamos garantir que operações apareçam
         console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES ★★★ (ignorando verificação de botStatus)');
         
-        // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
+        // ★★★ PROBLEMA CRÍTICO: GARANTIR QUE A ATUALIZAÇÃO SEJA PROCESSADA COM PRIORIDADE MÁXIMA ★★★
+        // Forçar atualização do histórico em três passos para garantir que a UI reflita as mudanças:
+        
+        // PASSO 1: Preparar a operação com ID altamente específico para evitar conflitos
+        const forceUniqueId = `force-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const enhancedOperation = {
+          ...forceOperation,
+          id: forceUniqueId, // Usar ID absolutamente único
+          time: new Date(), // Garantir um horário atual
+          // Adicionar campos extras para diagnóstico
+          _debugInfo: {
+            addedAt: new Date().toISOString(),
+            botStatus: botStatus,
+            fromEvent: 'contract_finished'
+          }
+        };
+        
+        console.log('✅ [BOT_PAGE] OPERAÇÃO SENDO ADICIONADA AO HISTÓRICO:', enhancedOperation);
+        
+        // PASSO 2: Atualizar o estado imediatamente
         setOperationHistory(prev => {
           console.log('[BOT_PAGE] Histórico anterior:', prev.length);
           
-          // ★★★ MODIFICAÇÃO CRÍTICA: ADICIONAR NO INÍCIO DO ARRAY ★★★
-          const newHistory = [forceOperation, ...prev].slice(0, 50);
+          // Criar novo histórico com a operação no início
+          const newHistory = [enhancedOperation, ...prev].slice(0, 50);
           console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
           
-          // Forçar console.log de cada operação para diagnóstico
+          // Diagnóstico detalhado
           console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
           newHistory.forEach((op, index) => {
             console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
@@ -1781,6 +1800,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           return newHistory;
         });
+        
+        // PASSO 3: Forçar atualização adicional após um pequeno delay (técnica de double-rendering)
+        setTimeout(() => {
+          console.log('⚡ [BOT_PAGE] Forçando segundo refresh do histórico para garantir renderização');
+          setOperationHistory(prev => [...prev]); // Isto força o React a re-renderizar
+        }, 100);
         
         // ★★★ ATUALIZAÇÃO DE ESTATÍSTICAS ★★★
         // Atualizar ganhos/perdas e lucro total
@@ -1949,33 +1974,45 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           
           console.log('[BOT_PAGE] Verificando se pode adicionar operação ao histórico (bot status):', botStatus);
           
-          // Verificar duplicação e adicionar ao histórico quando bot estiver rodando ou pronto
-          if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-            console.log('[BOT_PAGE] Bot está rodando, adicionando operação ao histórico:', newOperation);
+          // ★★★ SOLUÇÃO DEFINITIVA: SEMPRE ADICIONAR OPERAÇÕES AO HISTÓRICO ★★★
+          // Independente do status do bot, vamos garantir que todas as operações sejam registradas
+          console.log('[BOT_PAGE] FORÇANDO adição de operação ao histórico independente do status do bot');
+          
+          // PASSO 1: Garantir ID único para esta operação
+          const uniqueOperationId = `operation-${contractId}-${Date.now()}`;
+          
+          // PASSO 2: Criar operação aprimorada com dados extra para diagnóstico
+          const enhancedOperation = {
+            ...newOperation,
+            id: uniqueOperationId, // Usar ID altamente específico para evitar conflitos
+            _debugInfo: {
+              addedAt: new Date().toISOString(),
+              originalId: contractId,
+              botStatus: botStatus,
+              fromEvent: 'contract_details'
+            }
+          };
+          
+          console.log('✅✅ [BOT_PAGE] OPERAÇÃO REAL SENDO ADICIONADA:', enhancedOperation);
+          
+          // PASSO 2: Atualizar o estado com forçando atualização mesmo que o bot esteja parado
+          setOperationHistory(prev => {
+            console.log(`[BOT_PAGE] Adicionando operação ${uniqueOperationId} como NOVA entrada no histórico`);
+            // Sempre adicionar como nova operação no início do histórico para garantir visibilidade
+            const newHistory = [enhancedOperation, ...prev].slice(0, 50);
             
-            // Verificar duplicação antes de adicionar ao histórico
-            setOperationHistory(prev => {
-              // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
-              if (newOperation.isIntermediate) {
-                console.log(`[BOT_PAGE] Operação ${contractId} classificada como intermediária, adicionando como nova`);
-                return [newOperation, ...prev].slice(0, 50);
-              }
-              
-              // Para operações regulares, verificar se esta operação já existe
-              const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
-              if (exists) {
-                console.log(`[BOT_PAGE] Operação regular ${contractId} já existe no histórico, atualizando...`);
-                // Atualizar apenas operações regulares, manter intermediárias intactas
-                return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
-              } else {
-                // Adicionar nova operação no topo do histórico
-                console.log(`[BOT_PAGE] Operação regular ${contractId} é nova, adicionando ao topo do histórico`);
-                return [newOperation, ...prev].slice(0, 50);
-              }
-            });
-          } else {
-            console.log('[BOT_PAGE] Bot está parado, ignorando adição de operação ao histórico:', newOperation);
-          }
+            // Diagnóstico completo após a adição
+            console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO APÓS ADIÇÃO DA OPERAÇÃO ★★★');
+            console.log('[BOT_PAGE] Total de operações no histórico agora:', newHistory.length);
+            
+            // PASSO 3: Garantir que o histórico seja exibido com forçar atualização posterior
+            setTimeout(() => {
+              console.log('[BOT_PAGE] Forçando refresh adicional do histórico após adição');
+              setOperationHistory(current => [...current]);
+            }, 200);
+            
+            return newHistory;
+          });
           
           // Atualizar as estatísticas gerais quando uma operação é finalizada
           if (profit > 0) {
