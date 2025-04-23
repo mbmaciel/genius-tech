@@ -1454,14 +1454,28 @@ export function BotController({
                 }
                 
                 // Definir configurações específicas para a estratégia atual com o valor do usuário
-                oauthDirectService.setSettings({
+                let forceSettings = {
                   contractType: contractType,
                   prediction: prediction,
                   entryValue: userEntryValue || Number(entryValue) || undefined, // CORREÇÃO CRÍTICA: Usar valor do usuário
                   profitTarget: profitTarget || strategyConfig?.metaGanho || 20,
                   lossLimit: lossLimit || strategyConfig?.limitePerda || 20,
                   martingaleFactor: strategyConfig?.martingale || 1.5
-                });
+                };
+                
+                // CORREÇÃO CRÍTICA: Forçar valores específicos para Advance
+                if (selectedStrategy && selectedStrategy.toLowerCase().includes('advance')) {
+                  // Interceptação final para estratégia Advance
+                  console.log('[BOT_CONTROLLER] 🔴 FORÇANDO CONFIGURAÇÕES PARA ADVANCE:');
+                  forceSettings.duration = 1;
+                  forceSettings.prediction = 1;
+                  forceSettings.contractType = 'DIGITOVER';
+                  console.log('[BOT_CONTROLLER] 🔴 - Duration: 1 tick (FORÇADO)');
+                  console.log('[BOT_CONTROLLER] 🔴 - Prediction: 1 (FORÇADO)');
+                  console.log('[BOT_CONTROLLER] 🔴 - Contract Type: DIGITOVER (FORÇADO)');
+                }
+                
+                oauthDirectService.setSettings(forceSettings);
                 
                 // Definir estratégia ativa
                 oauthDirectService.setActiveStrategy(selectedStrategy || 'ADVANCE');

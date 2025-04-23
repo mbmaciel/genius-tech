@@ -3079,9 +3079,29 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Criar uma variável para controlar se já processamos a resposta
       let proposalProcessed = false;
       
+      // INTERCEPTAÇÃO CRÍTICA FINAL
+      // Esta é nossa última chance de corrigir os valores para Advance
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        console.log('[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO FINAL - Advance detectado!');
+        
+        // FORÇAR os valores corretos diretamente no objeto
+        proposalRequest.duration = 1;
+        proposalRequest.contract_type = 'DIGITOVER';
+        proposalRequest.barrier = '1';
+        
+        console.log('[OAUTH_DIRECT] 🚨 OBJETO FINAL APÓS INTERCEPTAÇÃO:');
+        console.log(`[OAUTH_DIRECT] 🚨 - duration: ${proposalRequest.duration}`);
+        console.log(`[OAUTH_DIRECT] 🚨 - contract_type: ${proposalRequest.contract_type}`);
+        console.log(`[OAUTH_DIRECT] 🚨 - barrier: ${proposalRequest.barrier}`);
+      }
+      
       // Enviar solicitação de proposta
       try {
-        this.webSocket.send(JSON.stringify(proposalRequest));
+        // Converter objeto para string JSON para envio
+        const jsonRequest = JSON.stringify(proposalRequest);
+        console.log(`[OAUTH_DIRECT] 📤 JSON EXATO ENVIADO: ${jsonRequest}`);
+        
+        this.webSocket.send(jsonRequest);
         console.log(`[OAUTH_DIRECT] ✅ Proposta enviada com sucesso. Aguardando resposta...`);
       } catch (wsError) {
         console.error(`[OAUTH_DIRECT] ❌ ERRO AO ENVIAR PROPOSTA:`, wsError);
