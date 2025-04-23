@@ -3095,10 +3095,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(`[OAUTH_DIRECT] 🚨 - barrier: ${proposalRequest.barrier}`);
       }
       
-      // Enviar solicitação de proposta
+      // EMERGÊNCIA - CORREÇÃO FINAL - INTERCEPTAR COMPLETAMENTE O JSON
       try {
+        // Nova abordagem: Mudar a string JSON diretamente
+        let advanceRequest: any = proposalRequest;
+        if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+          // FORÇAR MANUALMENTE OS VALORES DA ESTRATÉGIA ADVANCE AQUI
+          // EM VEZ DE MODIFICAR O OBJETO, VAMOS CRIAR UM OBJETO COMPLETAMENTE NOVO
+          console.log(`[OAUTH_DIRECT] 🔴 EMERGÊNCIA - INTERCEPTAÇÃO ABSOLUTA PARA ADVANCE`);
+          advanceRequest = {
+            proposal: 1,
+            req_id: reqId,
+            amount: proposalRequest.amount,
+            basis: "stake",
+            contract_type: "DIGITOVER",
+            currency: "USD",
+            duration: 1,
+            duration_unit: "t",
+            symbol: "R_100",
+            barrier: "1"
+          };
+          console.log(`[OAUTH_DIRECT] 🔴 OBJETO COMPLETAMENTE SUBSTITUÍDO PARA ADVANCE`);
+        }
+        
         // Converter objeto para string JSON para envio
-        const jsonRequest = JSON.stringify(proposalRequest);
+        const jsonRequest = JSON.stringify(advanceRequest);
         console.log(`[OAUTH_DIRECT] 📤 JSON EXATO ENVIADO: ${jsonRequest}`);
         
         this.webSocket.send(jsonRequest);
@@ -3136,10 +3157,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               req_id: Date.now() // Novo ID único para a compra
             };
             
+            // Log de diagnóstico adicional para verificar se o contrato tem realmente 1 tick
+            console.log(`[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE PROPOSTA RECEBIDA:`);
+            console.log(`[OAUTH_DIRECT] 🔍 - ID da proposta: ${data.proposal.id}`);
+            console.log(`[OAUTH_DIRECT] 🔍 - Preço: ${data.proposal.ask_price}`);
+            console.log(`[OAUTH_DIRECT] 🔍 - duration: ${data.proposal.duration} ${data.proposal.duration_unit}`);
+            console.log(`[OAUTH_DIRECT] 🔍 - contract_type: ${data.proposal.contract_type}`);
+            console.log(`[OAUTH_DIRECT] 🔍 - barrier: ${data.proposal.barrier}`);
+            
             console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA:`, buyRequest);
             
             // Enviar a solicitação de compra
             try {
+              // Registrar o ID do contrato para inscrição de updates futuros
               this.webSocket.send(JSON.stringify(buyRequest));
               console.log(`[OAUTH_DIRECT] ✅ Compra enviada com sucesso!`);
             } catch (buyError) {
