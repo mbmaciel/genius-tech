@@ -3010,11 +3010,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // IMPLEMENTAÇÃO CRÍTICA - CORREÇÃO ESPECÍFICA PARA ADVANCE
-      // Para a estratégia Advance, SEMPRE usar 1 tick, independente do que esteja configurado
+      // Para a estratégia Advance, SEMPRE usar 1 tick e previsão 1, independente do que esteja configurado
       if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
         // FORÇAR duração de 1 tick para Advance
         duration = 1;
-        console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO EMERGENCIAL: FORÇANDO duração de 1 tick para Advance mesmo se settings.duration tiver outro valor!`);
+        
+        // FORÇAR previsão de 1 para Advance (valor acima de 1)
+        prediction = 1;
+        
+        // Garantir que o contractType seja DIGITOVER
+        contractType = 'DIGITOVER';
+        
+        console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO EMERGENCIAL: FORÇANDO valores para Advance:`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Duration: ${duration} tick (FORÇADO)`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Prediction: ${prediction} (FORÇADO)`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Contract Type: ${contractType} (FORÇADO)`);
       } 
       // Para outras estratégias, usar duration do XML se disponível
       else if (this.settings.duration !== undefined) {
