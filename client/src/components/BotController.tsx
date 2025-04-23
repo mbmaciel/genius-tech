@@ -49,7 +49,7 @@ const controlFormSchema = z.object({
 
 type ControlFormValues = z.infer<typeof controlFormSchema>;
 
-export const BotController: React.FC<BotControllerProps> = ({
+const BotController: React.FC<BotControllerProps> = ({
   selectedSymbol,
   selectedStrategy,
   onStart,
@@ -402,3 +402,5 @@ export const BotController: React.FC<BotControllerProps> = ({
     </div>
   );
 };
+
+export default BotController;

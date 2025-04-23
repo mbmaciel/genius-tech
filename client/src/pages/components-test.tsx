@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import SymbolSelector from '@/components/trading/SymbolSelector';
 import StrategySelector from '@/components/trading/StrategySelector';
-import { ConfigSidebar } from '@/components/trading/ConfigSidebar';
+import ConfigSidebar from '@/components/trading/ConfigSidebar';
 import OperationHistoryCard from '@/components/trading/OperationHistoryCard';
 import DigitAnalysis from '@/components/trading/DigitAnalysis';
 

@@ -17,10 +17,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { useOAuthDirectService } from '@/services/oauthDirectService';
-import { BotController } from '@/components/BotController';
-import { OperationHistoryCard } from '@/components/trading/OperationHistoryCard';
-import { ConfigSidebar } from '@/components/trading/ConfigSidebar';
+import { oauthDirectService } from '@/services/oauthDirectService';
+import BotController from '@/components/BotController';
+import OperationHistoryCard from '@/components/trading/OperationHistoryCard';
+import ConfigSidebar from '@/components/trading/ConfigSidebar';
 import SymbolSelector from '@/components/trading/SymbolSelector';
 import StrategySelector from '@/components/trading/StrategySelector';
 
