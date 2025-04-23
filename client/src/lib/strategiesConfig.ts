@@ -120,7 +120,12 @@ export const availableStrategies: BinaryBotStrategy[] = [
       maxMartingaleLevel: 3,
       // Valor específico da porcentagem para entrar da estratégia Advance
       // Aumentando valor padrão para 70% (mais conservador/seguro)
-      entryPercentage: 70
+      entryPercentage: 70,
+      
+      // FORÇAR barreira 1 explicitamente
+      forceBarrier: "1",
+      forcePrediction: 1,
+      forceDigitOver: true
     }
   },
   {

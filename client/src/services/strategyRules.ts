@@ -111,11 +111,32 @@ export function evaluateAdvanceStrategy(
     ? `ADVANCE XML: ✅ Condição satisfeita! Executando DIGITOVER conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
     : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
     
+  // CORREÇÃO CRÍTICA: Forçar valores para a estratégia Advance
+  // Especialmente a barreira/previsão = 1 para DIGITOVER
+  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA ADVANCE: Forçando DIGITOVER com barreira 1!`);
+  
+  // Atualizar para previsão de 1 em vez de 5
+  message = message.replace('DIGITOVER', 'DIGITOVER 1');
+  
+  // SALVAR NO LOCALSTORAGE para rastreabilidade e diagnóstico
+  try {
+    localStorage.setItem('ADVANCE_BARRIER_FORCED', '1');
+    localStorage.setItem('ADVANCE_EXECUTION_TIME', new Date().toISOString());
+  } catch (e) {}
+  
   return { 
     shouldEnter, 
     contractType: 'DIGITOVER', // CORRIGIDO CONFORME XML: <purchase>DIGITOVER</purchase>
     message,
-    analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
+    barrier: "1", // CRITICO - FORÇANDO BARREIRA 1
+    prediction: 1, // CRÍTICO - FORÇANDO PREVISÃO 1 
+    analysis: { 
+      digit0: digit0Percentage, 
+      digit1: digit1Percentage, 
+      threshold: percentageToUse,
+      barrier: 1, // EXPLICITAMENTE DOCUMENTADO
+      predictionValue: 1 // EXPLICITAMENTE DOCUMENTADO
+    },
     shouldLog: true // Sempre registramos estas análises no histórico para transparência completa
   };
 }
