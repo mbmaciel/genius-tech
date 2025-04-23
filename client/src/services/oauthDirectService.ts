@@ -3010,8 +3010,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       // IMPLEMENTAÇÃO CRÍTICA - CORREÇÃO ESPECÍFICA PARA ADVANCE
-      // Verificar se o resultado da análise da estratégia inclui também informação de duração
-      if (this.settings.duration !== undefined) {
+      // Para a estratégia Advance, SEMPRE usar 1 tick, independente do que esteja configurado
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        // FORÇAR duração de 1 tick para Advance
+        duration = 1;
+        console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO EMERGENCIAL: FORÇANDO duração de 1 tick para Advance mesmo se settings.duration tiver outro valor!`);
+      } 
+      // Para outras estratégias, usar duration do XML se disponível
+      else if (this.settings.duration !== undefined) {
         // Se o parser XML definiu uma duração específica, usar essa duração
         duration = this.settings.duration;
         console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Usando duração de ${duration} tick(s) definida diretamente pelo parser XML`);
