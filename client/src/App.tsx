@@ -3,7 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toast";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
-import { BotPage } from "@/pages/bot-page";
+import BotPage from "@/pages/bot-page";
 import OldBotPage from "@/pages/old-bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
 import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
@@ -79,9 +79,10 @@ function App() {
     <div className="App">
       <Toaster />
       {/* <ConfirmAccountSwitch /> */}
-      <Switch>
-        <Route path="/login" component={Login} />
-        <Route path="/" component={() => {
+      <AuthProvider>
+        <Switch>
+          <Route path="/login" component={Login} />
+          <Route path="/" component={() => {
           // Verificar se há parâmetros de autenticação da Deriv na URL
           const url = window.location.href;
           console.log('[AUTH] Verificando URL da raiz:', url);
@@ -171,11 +172,13 @@ function App() {
         <Route path="/token-test" component={(props: any) => <ProtectedRoute component={TokenTestPage} {...props} />} />
         <Route path="/gestao-operacional" component={(props: any) => <ProtectedRoute component={GestaoOperacionalPage} {...props} />} />
         <Route path="/chart" component={(props: any) => <ProtectedRoute component={ChartPage} {...props} />} />
+        <Route path="/old-bot" component={(props: any) => <ProtectedRoute component={OldBotPage} {...props} />} />
         <Route path="/simplechart" component={SimpleChart} />
         <Route path="/realtime" component={RealtimeDigits} />
         <Route path="/digits" component={DigitsFixed} />
         <Route path="/digit-stats" component={DigitStatsPage} />
-      </Switch>
+        </Switch>
+      </AuthProvider>
     </div>
   );
 }

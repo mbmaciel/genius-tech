@@ -1,56 +1,59 @@
-import React, { createContext, ReactNode, useContext, useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '@/hooks/use-toast';
+import { oauthDirectService } from '@/services/oauthDirectService';
+
+export interface UserAccount {
+  loginid?: string;
+  token?: string;
+  account_type?: string;
+  currency?: string;
+  balance?: number;
+  email?: string;
+  name?: string;
+  is_virtual?: boolean;
+  landing_company_name?: string;
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: UserAccount | null;
   isLoading: boolean;
-  error: Error | null;
-  login: (username: string, password: string) => Promise<void>;
+  isAuthenticated: boolean;
+  error: string | null;
+  login: (token?: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
+  accounts: UserAccount[];
+  setActiveAccount: (loginid: string) => Promise<boolean>;
+  updateAccountInfo: () => Promise<void>;
 }
 
-interface User {
-  id: number;
-  username: string;
-  email?: string;
-  name?: string;
-}
+const AuthContext = createContext<AuthContextType | null>(null);
 
-interface RegisterData {
-  username: string;
-  password: string;
-  email?: string;
-  name?: string;
-}
-
-// Contexto de autenticação
-export const AuthContext = createContext<AuthContextType | null>(null);
-
-// Provedor de autenticação
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { toast } = useToast();
   const { t } = useTranslation();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
+  const { toast } = useToast();
+  const [user, setUser] = useState<UserAccount | null>(null);
+  const [accounts, setAccounts] = useState<UserAccount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Verificar se o usuário está autenticado ao carregar
+  // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuth = async () => {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        // Verificar se há um usuário no localStorage
-        const savedUser = localStorage.getItem('auth_user');
-        if (savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
+        // Tentar obter token do localStorage
+        const token = localStorage.getItem('deriv_oauth_token');
+        
+        if (token) {
+          // Tentar autorizar com token existente
+          await login(token);
+        } else {
+          setIsLoading(false);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao verificar autenticação:', err);
-        setError(err instanceof Error ? err : new Error('Erro desconhecido'));
-      } finally {
+        setError(err.message || 'Falha na autenticação');
         setIsLoading(false);
       }
     };
@@ -58,137 +61,208 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  // Função de login
-  const login = async (username: string, password: string) => {
+  // Função para autenticar usuário
+  const login = async (token?: string) => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Simula autenticação - em um caso real, chamaria uma API
-      if (username === 'demo' && password === 'password') {
-        const user = {
-          id: 1,
-          username: 'demo',
-          name: 'Usuário Demo',
-          email: 'demo@example.com'
+      let authToken = token;
+      
+      // Se não tiver token, pode-se implementar redirecionamento para página de login Deriv
+      if (!authToken) {
+        throw new Error('Token não fornecido');
+      }
+      
+      // Conectar ao serviço da Deriv
+      await oauthDirectService.connect();
+      
+      // Autorizar com o token
+      const authResponse = await oauthDirectService.authorize(authToken);
+      
+      if (authResponse && authResponse.authorize) {
+        // Guardar token no localStorage
+        localStorage.setItem('deriv_oauth_token', authToken);
+        
+        // Criar objeto de usuário a partir da resposta
+        const userData: UserAccount = {
+          loginid: authResponse.authorize.loginid,
+          account_type: authResponse.authorize.account_type,
+          currency: authResponse.authorize.currency,
+          balance: authResponse.authorize.balance,
+          email: authResponse.authorize.email,
+          name: authResponse.authorize.fullname,
+          is_virtual: authResponse.authorize.is_virtual,
+          landing_company_name: authResponse.authorize.landing_company_name,
+          token: authToken
         };
         
-        setUser(user);
-        localStorage.setItem('auth_user', JSON.stringify(user));
+        setUser(userData);
+        
+        // Se tiver múltiplas contas disponíveis
+        if (authResponse.authorize.account_list && authResponse.authorize.account_list.length > 0) {
+          const accountList = authResponse.authorize.account_list.map((acc: any) => ({
+            loginid: acc.loginid,
+            account_type: acc.account_type,
+            currency: acc.currency,
+            is_virtual: acc.is_virtual,
+            token: acc.token || null,
+          }));
+          
+          setAccounts(accountList);
+        } else {
+          setAccounts([userData]);
+        }
         
         toast({
-          title: t('Login realizado com sucesso'),
-          description: t('Bem-vindo de volta, {{name}}', { name: user.name }),
+          title: t('Login bem-sucedido'),
+          description: t('Você está conectado como {{name}}', { name: userData.name || userData.loginid }),
           variant: 'default',
         });
       } else {
-        throw new Error(t('Credenciais inválidas'));
+        throw new Error('Falha na autorização');
       }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(t('Erro ao fazer login'));
-      setError(error);
+    } catch (err: any) {
+      console.error('Erro no login:', err);
+      setError(err.message || 'Falha na autenticação');
       
       toast({
-        title: t('Erro ao fazer login'),
-        description: error.message,
+        title: t('Erro no login'),
+        description: err.message || t('Não foi possível fazer login. Tente novamente.'),
         variant: 'destructive',
       });
-      
-      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Função de logout
+  // Função para logout
   const logout = async () => {
     try {
-      setIsLoading(true);
+      // Desconectar do serviço
+      await oauthDirectService.disconnect();
+      
+      // Limpar dados de autenticação
+      localStorage.removeItem('deriv_oauth_token');
       setUser(null);
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('deriv_token');
+      setAccounts([]);
       
       toast({
-        title: t('Logout realizado com sucesso'),
-        description: t('Você foi desconectado do sistema'),
+        title: t('Logout realizado'),
+        description: t('Você foi desconectado com sucesso.'),
         variant: 'default',
       });
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(t('Erro ao fazer logout'));
-      setError(error);
+    } catch (err: any) {
+      console.error('Erro ao fazer logout:', err);
       
       toast({
         title: t('Erro ao fazer logout'),
-        description: error.message,
+        description: err.message || t('Não foi possível fazer logout.'),
         variant: 'destructive',
       });
-      
-      throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Função de registro
-  const register = async (userData: RegisterData) => {
+  // Mudar conta ativa
+  const setActiveAccount = async (loginid: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Simula registro - em um caso real, chamaria uma API
-      const newUser = {
-        id: 1,
-        username: userData.username,
-        name: userData.name || userData.username,
-        email: userData.email
-      };
+      const selectedAccount = accounts.find(acc => acc.loginid === loginid);
       
-      setUser(newUser);
-      localStorage.setItem('auth_user', JSON.stringify(newUser));
+      if (!selectedAccount || !selectedAccount.token) {
+        throw new Error('Conta inválida ou sem token');
+      }
+      
+      // Autorizar com o token da conta selecionada
+      const authResponse = await oauthDirectService.authorize(selectedAccount.token);
+      
+      if (authResponse && authResponse.authorize) {
+        // Atualizar token principal
+        localStorage.setItem('deriv_oauth_token', selectedAccount.token);
+        
+        // Atualizar dados do usuário
+        const updatedUser: UserAccount = {
+          ...selectedAccount,
+          email: authResponse.authorize.email,
+          name: authResponse.authorize.fullname,
+          balance: authResponse.authorize.balance,
+          landing_company_name: authResponse.authorize.landing_company_name
+        };
+        
+        setUser(updatedUser);
+        
+        toast({
+          title: t('Conta alterada'),
+          description: t('Agora você está usando a conta {{id}}', { id: loginid }),
+          variant: 'default',
+        });
+        
+        return true;
+      } else {
+        throw new Error('Falha ao mudar conta');
+      }
+    } catch (err: any) {
+      console.error('Erro ao mudar conta:', err);
       
       toast({
-        title: t('Registro realizado com sucesso'),
-        description: t('Bem-vindo, {{name}}', { name: newUser.name }),
-        variant: 'default',
-      });
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(t('Erro ao registrar'));
-      setError(error);
-      
-      toast({
-        title: t('Erro ao registrar'),
-        description: error.message,
+        title: t('Erro ao mudar conta'),
+        description: err.message || t('Não foi possível mudar para a conta selecionada.'),
         variant: 'destructive',
       });
       
-      throw error;
-    } finally {
-      setIsLoading(false);
+      return false;
     }
   };
 
-  // Valor do contexto
-  const contextValue: AuthContextType = {
-    user,
-    isLoading,
-    error,
-    login,
-    logout,
-    register
+  // Atualizar informações da conta
+  const updateAccountInfo = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      // Buscar saldo
+      const balanceResponse = await oauthDirectService.getBalance();
+      
+      if (balanceResponse && balanceResponse.balance) {
+        // Atualizar saldo do usuário
+        setUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            balance: balanceResponse.balance.balance
+          };
+        });
+      }
+    } catch (err: any) {
+      console.error('Erro ao atualizar informações da conta:', err);
+    }
   };
+
+  const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={contextValue}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        isLoading, 
+        isAuthenticated,
+        error, 
+        login, 
+        logout,
+        accounts,
+        setActiveAccount,
+        updateAccountInfo
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Hook de autenticação
 export function useAuth() {
   const context = useContext(AuthContext);
+  
   if (!context) {
     throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
+  
   return context;
 }

@@ -1,408 +1,388 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { HelpCircle, Info, Save, RefreshCw } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { getStrategyById } from '@/lib/strategiesConfig';
+import { ArrowRight, Settings, Gauge, TrendingUp } from 'lucide-react';
 
-// Schema para o formulário de configuração
-const configSchema = z.object({
-  initialStake: z.coerce.number().min(0.35, { message: 'Valor mínimo é 0.35' }).max(100, { message: 'Valor máximo é 100' }),
-  martingaleFactor: z.coerce.number().min(1, { message: 'Fator mínimo é 1' }).max(3, { message: 'Fator máximo é 3' }),
-  maxConsecutiveLosses: z.coerce.number().min(1, { message: 'Mínimo é 1' }).max(10, { message: 'Máximo é 10' }),
-  targetProfit: z.coerce.number().min(0, { message: 'Valor mínimo é 0' }),
-  stopLoss: z.coerce.number().min(0, { message: 'Valor mínimo é 0' }),
-  maxOperations: z.coerce.number().min(0, { message: 'Valor mínimo é 0' }),
-  enableAutomation: z.boolean().default(true),
-  enableMartingale: z.boolean().default(false),
-  enableStopConditions: z.boolean().default(true),
-  minimumAnalysisVolume: z.coerce.number().min(10, { message: 'Valor mínimo é 10' }).max(1000, { message: 'Valor máximo é 1000' }),
-  entryPercentageThreshold: z.coerce.number().min(1, { message: 'Valor mínimo é 1' }).max(99, { message: 'Valor máximo é 99' }),
+// Esquema para validação das configurações gerais
+const generalConfigSchema = z.object({
+  initialStake: z.coerce.number().min(0.35, 'O valor mínimo é 0.35').max(100, 'O valor máximo é 100'),
+  targetProfit: z.coerce.number().min(0, 'O valor mínimo é 0').max(1000, 'O valor máximo é 1000'),
+  stopLoss: z.coerce.number().min(0, 'O valor mínimo é 0').max(1000, 'O valor máximo é 1000'),
+  martingaleFactor: z.coerce.number().min(1, 'O valor mínimo é 1').max(5, 'O valor máximo é 5')
 });
 
-// Tipo do formulário baseado no schema
-type ConfigFormValues = z.infer<typeof configSchema>;
+// Esquema para validação das configurações da estratégia Advance
+const advanceConfigSchema = z.object({
+  entryThreshold: z.coerce.number().min(10, 'O valor mínimo é 10').max(40, 'O valor máximo é 40'),
+  analysisVolume: z.coerce.number().min(10, 'O valor mínimo é 10').max(100, 'O valor máximo é 100'),
+  prediction: z.coerce.number().min(0, 'O valor mínimo é 0').max(9, 'O valor máximo é 9')
+});
+
+type GeneralConfigFormValues = z.infer<typeof generalConfigSchema>;
+type AdvanceConfigFormValues = z.infer<typeof advanceConfigSchema>;
 
 interface ConfigSidebarProps {
-  isConnected: boolean;
-  isRunning: boolean;
-  onConfigChange?: (config: ConfigFormValues) => void;
+  onApplyConfig: (config: any) => void;
+  selectedStrategy: string;
+  isRunning?: boolean;
 }
 
-export const ConfigSidebar: React.FC<ConfigSidebarProps> = ({
-  isConnected,
-  isRunning,
-  onConfigChange
+const ConfigSidebar: React.FC<ConfigSidebarProps> = ({
+  onApplyConfig,
+  selectedStrategy,
+  isRunning = false
 }) => {
   const { t } = useTranslation();
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  // Valores padrão do formulário
-  const defaultValues: ConfigFormValues = {
-    initialStake: 1,
-    martingaleFactor: 1.5,
-    maxConsecutiveLosses: 3,
-    targetProfit: 10,
-    stopLoss: 10,
-    maxOperations: 0,
-    enableAutomation: true,
-    enableMartingale: false,
-    enableStopConditions: true,
-    minimumAnalysisVolume: 25,
-    entryPercentageThreshold: 40,
-  };
-
-  // Inicializar o formulário
-  const form = useForm<ConfigFormValues>({
-    resolver: zodResolver(configSchema),
-    defaultValues,
-  });
-
-  // Submeter o formulário
-  const onSubmit = (data: ConfigFormValues) => {
-    console.log('Configuração atualizada:', data);
-    if (onConfigChange) {
-      onConfigChange(data);
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('general');
+  
+  // Form para configurações gerais
+  const generalForm = useForm<GeneralConfigFormValues>({
+    resolver: zodResolver(generalConfigSchema),
+    defaultValues: {
+      initialStake: 1,
+      targetProfit: 10,
+      stopLoss: 10,
+      martingaleFactor: 1.5
     }
+  });
+  
+  // Form para configurações da estratégia Advance
+  const advanceForm = useForm<AdvanceConfigFormValues>({
+    resolver: zodResolver(advanceConfigSchema),
+    defaultValues: {
+      entryThreshold: 30,
+      analysisVolume: 25,
+      prediction: 1
+    }
+  });
+  
+  // Efeito para mudar tab quando a estratégia é alterada
+  useEffect(() => {
+    const strategy = getStrategyById(selectedStrategy);
+    if (strategy && strategy.type === 'advance') {
+      setActiveTab('advance');
+    } else {
+      setActiveTab('general');
+    }
+  }, [selectedStrategy]);
+  
+  // Handler para submissão do formulário de configurações gerais
+  const onGeneralSubmit = (data: GeneralConfigFormValues) => {
+    onApplyConfig({ 
+      type: 'general',
+      ...data
+    });
+    
+    toast({
+      title: t('Configurações atualizadas'),
+      description: t('Configurações gerais do bot foram atualizadas'),
+      variant: 'default'
+    });
   };
-
-  // Resetar formulário
-  const handleReset = () => {
-    form.reset(defaultValues);
+  
+  // Handler para submissão do formulário de configurações da estratégia Advance
+  const onAdvanceSubmit = (data: AdvanceConfigFormValues) => {
+    onApplyConfig({
+      type: 'advance',
+      ...data
+    });
+    
+    toast({
+      title: t('Configurações avançadas atualizadas'),
+      description: t('Configurações da estratégia Advance foram atualizadas'),
+      variant: 'default'
+    });
   };
+  
+  // Determinar se deve mostrar configurações específicas da estratégia
+  const showAdvanceConfig = selectedStrategy === 'advance';
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Configurações Básicas')}</CardTitle>
-              <CardDescription>
-                {t('Configure os parâmetros básicos do robô')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="initialStake"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {t('Valor Inicial da Entrada')}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 p-0" type="button">
-                              <HelpCircle className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{t('Valor inicial para cada operação')}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        disabled={isRunning}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="enableMartingale"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between space-x-2 rounded-md border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">
-                        {t('Martingale')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t('Aumenta valor da entrada após perda')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={isRunning}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {form.watch('enableMartingale') && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="martingaleFactor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Fator Martingale')}</FormLabel>
-                        <FormControl>
-                          <div className="space-y-2">
-                            <Slider
-                              defaultValue={[field.value]}
-                              min={1}
-                              max={3}
-                              step={0.1}
-                              onValueChange={(values) => field.onChange(values[0])}
-                              disabled={isRunning}
-                            />
-                            <div className="flex justify-between">
-                              <span>1.0x</span>
-                              <span className="font-medium">{field.value}x</span>
-                              <span>3.0x</span>
-                            </div>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="maxConsecutiveLosses"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Máximo de Perdas Consecutivas')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            disabled={isRunning}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Parar após este número de perdas consecutivas')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-
-              <FormField
-                control={form.control}
-                name="enableStopConditions"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between space-x-2 rounded-md border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">
-                        {t('Condições de Parada')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t('Define limites para interromper as operações')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={isRunning}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {form.watch('enableStopConditions') && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="general">
+            <Settings className="h-4 w-4 mr-2" />
+            {t('Geral')}
+          </TabsTrigger>
+          <TabsTrigger value="advance" disabled={!showAdvanceConfig}>
+            <Gauge className="h-4 w-4 mr-2" />
+            {t('Avançado')}
+          </TabsTrigger>
+        </TabsList>
+        
+        {/* Configurações gerais */}
+        <TabsContent value="general">
+          <Form {...generalForm}>
+            <form onSubmit={generalForm.handleSubmit(onGeneralSubmit)} className="space-y-4">
+              <Accordion type="single" collapsible defaultValue="trading">
+                <AccordionItem value="trading">
+                  <AccordionTrigger className="text-sm font-medium">
+                    {t('Parâmetros de Trading')}
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
                     <FormField
-                      control={form.control}
+                      control={generalForm.control}
+                      name="initialStake"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex justify-between">
+                            <FormLabel>{t('Valor da Entrada')}</FormLabel>
+                            <span className="text-sm">{field.value}</span>
+                          </div>
+                          <FormControl>
+                            <div className="pt-2">
+                              <Slider
+                                value={[field.value]}
+                                min={0.35}
+                                max={10}
+                                step={0.1}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                disabled={isRunning}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            {t('Valor da entrada inicial')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={generalForm.control}
+                      name="martingaleFactor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex justify-between">
+                            <FormLabel>{t('Fator Martingale')}</FormLabel>
+                            <span className="text-sm">{field.value}x</span>
+                          </div>
+                          <FormControl>
+                            <div className="pt-2">
+                              <Slider
+                                value={[field.value]}
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                disabled={isRunning}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            {t('Multiplicador para recuperação após perda')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="risk">
+                  <AccordionTrigger className="text-sm font-medium">
+                    {t('Gestão de Risco')}
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    <FormField
+                      control={generalForm.control}
                       name="targetProfit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('Meta de Lucro')}</FormLabel>
+                          <div className="flex justify-between">
+                            <FormLabel>{t('Meta de Lucro')}</FormLabel>
+                            <span className="text-sm">{field.value}</span>
+                          </div>
                           <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              disabled={isRunning}
-                              {...field}
-                            />
+                            <div className="pt-2">
+                              <Slider
+                                value={[field.value]}
+                                min={0}
+                                max={50}
+                                step={1}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                disabled={isRunning}
+                              />
+                            </div>
                           </FormControl>
                           <FormDescription>
-                            {t('Parar ao atingir este lucro')}
+                            {t('Parar ao atingir lucro (0 = sem limite)')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
+                    
                     <FormField
-                      control={form.control}
+                      control={generalForm.control}
                       name="stopLoss"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('Stop Loss')}</FormLabel>
+                          <div className="flex justify-between">
+                            <FormLabel>{t('Stop Loss')}</FormLabel>
+                            <span className="text-sm">{field.value}</span>
+                          </div>
                           <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              disabled={isRunning}
-                              {...field}
-                            />
+                            <div className="pt-2">
+                              <Slider
+                                value={[field.value]}
+                                min={0}
+                                max={50}
+                                step={1}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                disabled={isRunning}
+                              />
+                            </div>
                           </FormControl>
                           <FormDescription>
-                            {t('Parar ao atingir esta perda')}
+                            {t('Parar ao atingir perda (0 = sem limite)')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="maxOperations"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Máximo de Operações')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            disabled={isRunning}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('0 = sem limite')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-center mb-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              {showAdvanced ? t('Ocultar Avançado') : t('Mostrar Avançado')}
-            </Button>
-          </div>
-
-          {showAdvanced && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('Configurações Avançadas')}</CardTitle>
-                <CardDescription>
-                  {t('Parâmetros avançados para estratégias específicas')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-3 rounded-md bg-blue-500/10 mb-2">
-                  <div className="flex items-center">
-                    <Info className="h-4 w-4 mr-2 text-blue-500" />
-                    <p className="text-sm text-blue-500">
-                      {t('Estas configurações afetam principalmente a estratégia Advance')}
-                    </p>
-                  </div>
-                </div>
-
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+              
+              <Button type="submit" className="w-full" disabled={isRunning}>
+                {t('Aplicar Configurações')}
+              </Button>
+            </form>
+          </Form>
+        </TabsContent>
+        
+        {/* Configurações avançadas (para estratégia Advance) */}
+        <TabsContent value="advance">
+          <Form {...advanceForm}>
+            <form onSubmit={advanceForm.handleSubmit(onAdvanceSubmit)} className="space-y-4">
+              <div className="space-y-4">
                 <FormField
-                  control={form.control}
-                  name="minimumAnalysisVolume"
+                  control={advanceForm.control}
+                  name="entryThreshold"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Volume Mínimo de Análise')}</FormLabel>
+                      <div className="flex justify-between">
+                        <FormLabel>{t('Limiar para dígitos 0-1')}</FormLabel>
+                        <span className="text-sm">{field.value}%</span>
+                      </div>
                       <FormControl>
-                        <Input
-                          type="number"
-                          disabled={isRunning}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t('Quantidade de ticks analisados para identificar padrões')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="entryPercentageThreshold"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Limiar de Porcentagem para Entrada')}</FormLabel>
-                      <FormControl>
-                        <div className="space-y-2">
+                        <div className="pt-2">
                           <Slider
-                            defaultValue={[field.value]}
-                            min={1}
-                            max={99}
+                            value={[field.value]}
+                            min={10}
+                            max={40}
                             step={1}
-                            onValueChange={(values) => field.onChange(values[0])}
+                            onValueChange={(value) => field.onChange(value[0])}
                             disabled={isRunning}
                           />
-                          <div className="flex justify-between">
-                            <span>1%</span>
-                            <span className="font-medium">{field.value}%</span>
-                            <span>99%</span>
-                          </div>
                         </div>
                       </FormControl>
                       <FormDescription>
-                        {t('Percentual mínimo para considerar um padrão válido')}
+                        {t('Entrada quando % dígitos 0-1 for <= este valor')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              type="submit" 
-              className="flex-1"
-              disabled={!isConnected || isRunning}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {t('Salvar Configurações')}
-            </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="flex-1"
-              onClick={handleReset}
-              disabled={isRunning}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {t('Restaurar Padrões')}
-            </Button>
-          </div>
-        </div>
-      </form>
-    </Form>
+                
+                <FormField
+                  control={advanceForm.control}
+                  name="analysisVolume"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex justify-between">
+                        <FormLabel>{t('Volume de análise')}</FormLabel>
+                        <span className="text-sm">{field.value} ticks</span>
+                      </div>
+                      <FormControl>
+                        <div className="pt-2">
+                          <Slider
+                            value={[field.value]}
+                            min={10}
+                            max={50}
+                            step={5}
+                            onValueChange={(value) => field.onChange(value[0])}
+                            disabled={isRunning}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormDescription>
+                        {t('Quantidade de ticks para análise')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={advanceForm.control}
+                  name="prediction"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Valor de Predição')}</FormLabel>
+                      <div className="flex items-center space-x-2">
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        <div className="text-sm text-muted-foreground">
+                          {t('Entrada se último dígito maior que')} {field.value}
+                        </div>
+                      </div>
+                      <FormControl>
+                        <div className="pt-2">
+                          <Slider
+                            value={[field.value]}
+                            min={0}
+                            max={9}
+                            step={1}
+                            onValueChange={(value) => field.onChange(value[0])}
+                            disabled={isRunning}
+                          />
+                        </div>
+                      </FormControl>
+                      <div className="flex mt-2 text-xs justify-between">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div 
+                            key={i} 
+                            className={`w-6 h-6 flex items-center justify-center rounded-full
+                              ${field.value === i ? 'bg-primary text-primary-foreground' : 'bg-muted'}
+                            `}
+                          >
+                            {i}
+                          </div>
+                        ))}
+                      </div>
+                      <FormDescription className="mt-2">
+                        {t('Valor para contrato DIGITOVER')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isRunning}>
+                {t('Aplicar Configurações Avançadas')}
+              </Button>
+            </form>
+          </Form>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
+
+export default ConfigSidebar;

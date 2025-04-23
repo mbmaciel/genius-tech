@@ -1,142 +1,153 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Select, 
+  SelectContent, 
+  SelectGroup,
+  SelectItem, 
+  SelectLabel,
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { LoaderCircle } from 'lucide-react';
 import { oauthDirectService } from '@/services/oauthDirectService';
 
 interface Symbol {
   symbol: string;
   display_name: string;
-  market: string;
-  market_display_name: string;
+  market?: string;
+  market_display_name?: string;
 }
 
 interface SymbolSelectorProps {
-  selectedSymbol: string;
+  value: string;
   onChange: (symbol: string) => void;
   disabled?: boolean;
 }
 
-const SymbolSelector: React.FC<SymbolSelectorProps> = ({ 
-  selectedSymbol, 
+const defaultSymbols: Symbol[] = [
+  { symbol: 'R_10', display_name: 'Volatility 10 (1s) Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'R_25', display_name: 'Volatility 25 (1s) Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'R_50', display_name: 'Volatility 50 (1s) Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'R_75', display_name: 'Volatility 75 (1s) Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'R_100', display_name: 'Volatility 100 (1s) Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'BOOM500', display_name: 'Boom 500 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'BOOM1000', display_name: 'Boom 1000 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'CRASH500', display_name: 'Crash 500 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+  { symbol: 'CRASH1000', display_name: 'Crash 1000 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
+];
+
+const SymbolSelector: React.FC<SymbolSelectorProps> = ({
+  value,
   onChange,
-  disabled = false 
+  disabled = false
 }) => {
   const { t } = useTranslation();
-  const [symbols, setSymbols] = useState<Symbol[]>([]);
-  const [markets, setMarkets] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [symbols, setSymbols] = useState<Symbol[]>([]);
+  const [markets, setMarkets] = useState<Map<string, string>>(new Map());
 
-  // Símbolos padrão se a API não retornar nenhum
-  const defaultSymbols: Symbol[] = [
-    { symbol: 'R_10', display_name: 'Volatility 10 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'R_25', display_name: 'Volatility 25 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'R_50', display_name: 'Volatility 50 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'R_75', display_name: 'Volatility 75 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'R_100', display_name: 'Volatility 100 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'BOOM500', display_name: 'Boom 500 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'BOOM1000', display_name: 'Boom 1000 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'CRASH500', display_name: 'Crash 500 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-    { symbol: 'CRASH1000', display_name: 'Crash 1000 Index', market: 'synthetic_index', market_display_name: 'Synthetic Indices' },
-  ];
-
+  // Carregar os símbolos disponíveis
   useEffect(() => {
-    const loadSymbols = async () => {
+    const fetchSymbols = async () => {
       setIsLoading(true);
       try {
-        // Tenta carregar símbolos da API
-        if (oauthDirectService.isAuthorized()) {
-          try {
-            const result = await oauthDirectService.getActiveSymbols();
-            if (result && Array.isArray(result) && result.length > 0) {
-              setSymbols(result);
-              
-              // Extrai mercados únicos
-              const uniqueMarkets: { [key: string]: string } = {};
-              result.forEach(symbol => {
-                uniqueMarkets[symbol.market] = symbol.market_display_name;
-              });
-              setMarkets(uniqueMarkets);
-              return;
+        const symbolsList = await oauthDirectService.getActiveSymbols();
+        
+        if (symbolsList && symbolsList.length > 0) {
+          setSymbols(symbolsList);
+          
+          // Extrair mercados únicos
+          const marketsMap = new Map<string, string>();
+          symbolsList.forEach((symbol: Symbol) => {
+            if (symbol.market && symbol.market_display_name) {
+              marketsMap.set(symbol.market, symbol.market_display_name);
             }
-          } catch (error) {
-            console.error("Erro ao carregar símbolos da API:", error);
-          }
+          });
+          setMarkets(marketsMap);
+        } else {
+          // Usar símbolos padrão se a API não retornar nada
+          setSymbols(defaultSymbols);
+          const defaultMarketsMap = new Map<string, string>();
+          defaultSymbols.forEach(symbol => {
+            if (symbol.market && symbol.market_display_name) {
+              defaultMarketsMap.set(symbol.market, symbol.market_display_name);
+            }
+          });
+          setMarkets(defaultMarketsMap);
         }
-        
-        // Usa símbolos padrão se a API falhar ou não estiver autorizada
-        setSymbols(defaultSymbols);
-        
-        // Extrai mercados únicos dos símbolos padrão
-        const uniqueMarkets: { [key: string]: string } = {};
-        defaultSymbols.forEach(symbol => {
-          uniqueMarkets[symbol.market] = symbol.market_display_name;
-        });
-        setMarkets(uniqueMarkets);
       } catch (error) {
-        console.error("Erro ao processar símbolos:", error);
-        // Usa símbolos padrão em caso de erro
+        console.error('Erro ao carregar símbolos:', error);
+        // Usar símbolos padrão em caso de erro
         setSymbols(defaultSymbols);
-        
-        // Extrai mercados únicos dos símbolos padrão
-        const uniqueMarkets: { [key: string]: string } = {};
+        const defaultMarketsMap = new Map<string, string>();
         defaultSymbols.forEach(symbol => {
-          uniqueMarkets[symbol.market] = symbol.market_display_name;
+          if (symbol.market && symbol.market_display_name) {
+            defaultMarketsMap.set(symbol.market, symbol.market_display_name);
+          }
         });
-        setMarkets(uniqueMarkets);
+        setMarkets(defaultMarketsMap);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSymbols();
-    
-    // Inscrever-se em eventos de autorização para atualizar símbolos 
-    // quando o usuário se conectar/desconectar
-    const handleAuthChange = () => {
-      loadSymbols();
-    };
-    
-    document.addEventListener('derivAuthChange', handleAuthChange);
-    
-    return () => {
-      document.removeEventListener('derivAuthChange', handleAuthChange);
-    };
+    fetchSymbols();
   }, []);
 
-  // Organiza símbolos por mercado para exibição
-  const symbolsByMarket = symbols.reduce((acc, symbol) => {
-    if (!acc[symbol.market]) {
-      acc[symbol.market] = [];
-    }
-    acc[symbol.market].push(symbol);
-    return acc;
-  }, {} as { [key: string]: Symbol[] });
+  // Agrupar símbolos por mercado
+  const groupedSymbols = React.useMemo(() => {
+    const grouped = new Map<string, Symbol[]>();
+    
+    symbols.forEach(symbol => {
+      const market = symbol.market || 'other';
+      if (!grouped.has(market)) {
+        grouped.set(market, []);
+      }
+      grouped.get(market)!.push(symbol);
+    });
+    
+    return grouped;
+  }, [symbols]);
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor="symbol-select">{t('Ativo')}</Label>
+    <div>
+      <Label htmlFor="symbol-select">{t('Símbolo')}</Label>
       <Select 
-        value={selectedSymbol} 
+        value={value} 
         onValueChange={onChange}
         disabled={disabled || isLoading}
       >
         <SelectTrigger id="symbol-select">
-          <SelectValue placeholder={t('Selecione um ativo')} />
+          <SelectValue placeholder={t('Selecione um símbolo')}>
+            {isLoading ? (
+              <div className="flex items-center">
+                <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />
+                {t('Carregando...')}
+              </div>
+            ) : (
+              value
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {Object.keys(symbolsByMarket).map(market => (
-            <div key={market}>
-              <div className="px-2 py-1.5 text-sm font-semibold bg-muted/50">
-                {markets[market] || market}
-              </div>
-              {symbolsByMarket[market].map(symbol => (
+          {Array.from(groupedSymbols.entries()).map(([market, marketSymbols]) => (
+            <SelectGroup key={market}>
+              <SelectLabel>{markets.get(market) || market}</SelectLabel>
+              {marketSymbols.map(symbol => (
                 <SelectItem key={symbol.symbol} value={symbol.symbol}>
                   {symbol.display_name}
                 </SelectItem>
               ))}
-            </div>
+            </SelectGroup>
           ))}
+          
+          {symbols.length === 0 && !isLoading && (
+            <SelectItem value="R_100" disabled>
+              {t('Não foi possível carregar símbolos')}
+            </SelectItem>
+          )}
         </SelectContent>
       </Select>
     </div>

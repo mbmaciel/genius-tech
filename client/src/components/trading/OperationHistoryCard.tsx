@@ -1,53 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { format } from 'date-fns';
-import { ptBR, enUS } from 'date-fns/locale';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  ArrowUpDown, 
-  Download, 
-  X, 
-  Check, 
-  Clock, 
-  Search,
-  TrendingUp,
-  TrendingDown
-} from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TrendingDown, TrendingUp, List, Table as TableIcon, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { pt, enUS } from 'date-fns/locale';
 
-// Interface para operações
 export interface Operation {
   id: string | number;
   contract_id: string | number;
@@ -60,504 +21,297 @@ export interface Operation {
   symbol: string;
   strategy: string;
   is_win?: boolean;
-  is_completed?: boolean;
-  notification?: {
-    type: 'error' | 'success' | 'info' | 'warning';
+  notification: {
+    type: 'success' | 'error' | 'info' | 'warning';
     message: string;
   };
 }
 
 interface OperationHistoryCardProps {
   operations: Operation[];
-  onUpdate?: (operations: Operation[]) => void;
+  stats: {
+    totalOperations: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalProfit: number;
+  };
 }
 
-export const OperationHistoryCard: React.FC<OperationHistoryCardProps> = ({ 
-  operations = [],
-  onUpdate 
-}) => {
+const OperationHistoryCard: React.FC<OperationHistoryCardProps> = ({ operations, stats }) => {
   const { t, i18n } = useTranslation();
-  const [sortColumn, setSortColumn] = useState<string>('time');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterSymbol, setFilterSymbol] = useState<string>('all');
-  const [filterStrategy, setFilterStrategy] = useState<string>('all');
-  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const locale = i18n.language === 'pt' ? ptBR : enUS;
-
-  // Calcular estatísticas
-  const stats = React.useMemo(() => {
-    const completed = operations.filter(op => op.is_completed);
-    const wins = completed.filter(op => op.is_win);
-    const losses = completed.filter(op => op.is_win === false);
+  const [view, setView] = useState<'list' | 'table'>('list');
+  const dateLocale = i18n.language === 'pt' ? pt : enUS;
+  
+  // Ordenar operações por timestamp (mais recentes primeiro)
+  const sortedOperations = [...operations].sort((a, b) => b.timestamp - a.timestamp);
+  
+  // Renderizar item de operação no formato de lista
+  const renderOperationListItem = (operation: Operation) => {
+    // Determinar variante do badge
+    let badgeVariant: 'outline' | 'destructive' | 'default' = 'outline';
+    if (operation.is_win === true) badgeVariant = 'default';
+    if (operation.is_win === false) badgeVariant = 'destructive';
     
-    const totalProfit = completed.reduce((sum, op) => sum + (op.profit || 0), 0);
-    const winsProfit = wins.reduce((sum, op) => sum + (op.profit || 0), 0);
-    const lossesLoss = losses.reduce((sum, op) => sum + (op.profit || 0), 0);
+    // Formatar valores
+    const formattedEntryValue = operation.entry_value.toFixed(2);
+    const formattedExitValue = operation.exit_value 
+      ? operation.exit_value.toFixed(2) 
+      : t('Aguardando');
     
-    return {
-      total: operations.length,
-      completed: completed.length,
-      wins: wins.length,
-      losses: losses.length,
-      winRate: completed.length ? (wins.length / completed.length) * 100 : 0,
-      totalProfit,
-      winsProfit,
-      lossesLoss,
-    };
-  }, [operations]);
-
-  // Lista de símbolos únicos
-  const uniqueSymbols = React.useMemo(() => {
-    return Array.from(new Set(operations.map(op => op.symbol)));
-  }, [operations]);
-
-  // Lista de estratégias únicas
-  const uniqueStrategies = React.useMemo(() => {
-    return Array.from(new Set(operations.map(op => op.strategy)));
-  }, [operations]);
-
-  // Ordenar operações
-  const sortedOperations = React.useMemo(() => {
-    return [...operations].sort((a, b) => {
-      if (sortColumn === 'time') {
-        return sortDirection === 'asc' 
-          ? a.timestamp - b.timestamp 
-          : b.timestamp - a.timestamp;
-      }
-      if (sortColumn === 'profit') {
-        const profitA = a.profit || 0;
-        const profitB = b.profit || 0;
-        return sortDirection === 'asc' ? profitA - profitB : profitB - profitA;
-      }
-      return 0;
-    });
-  }, [operations, sortColumn, sortDirection]);
-
-  // Filtrar operações
-  const filteredOperations = React.useMemo(() => {
-    return sortedOperations.filter(op => {
-      // Filtro de busca
-      const searchMatch = searchTerm === '' || 
-        op.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        op.strategy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        op.contract_id.toString().includes(searchTerm);
-      
-      // Filtro de status
-      let statusMatch = true;
-      if (filterStatus === 'completed') {
-        statusMatch = !!op.is_completed;
-      } else if (filterStatus === 'pending') {
-        statusMatch = !op.is_completed;
-      } else if (filterStatus === 'win') {
-        statusMatch = !!op.is_win;
-      } else if (filterStatus === 'loss') {
-        statusMatch = op.is_win === false;
-      }
-      
-      // Filtro de símbolo
-      const symbolMatch = filterSymbol === 'all' || op.symbol === filterSymbol;
-      
-      // Filtro de estratégia
-      const strategyMatch = filterStrategy === 'all' || op.strategy === filterStrategy;
-      
-      return searchMatch && statusMatch && symbolMatch && strategyMatch;
-    });
-  }, [sortedOperations, searchTerm, filterStatus, filterSymbol, filterStrategy]);
-
-  // Paginação
-  const paginatedOperations = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredOperations.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredOperations, currentPage]);
-
-  const totalPages = Math.ceil(filteredOperations.length / itemsPerPage);
-
-  // Mudar ordenação
-  const toggleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortDirection('desc');
-    }
+    const formattedProfit = operation.profit !== undefined 
+      ? (operation.profit > 0 ? '+' : '') + operation.profit.toFixed(2)
+      : '-';
+    
+    const formattedTime = format(
+      new Date(operation.time), 
+      'HH:mm:ss', 
+      { locale: dateLocale }
+    );
+    
+    return (
+      <div 
+        key={operation.id} 
+        className={`border p-3 rounded-md mb-3 ${
+          operation.is_win === true 
+            ? 'border-l-4 border-l-green-500' 
+            : operation.is_win === false 
+              ? 'border-l-4 border-l-red-500' 
+              : ''
+        }`}
+      >
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <div className="font-medium">{operation.contract_type} - {operation.symbol}</div>
+            <div className="text-xs text-muted-foreground">{t('ID')}: {operation.contract_id}</div>
+          </div>
+          
+          <Badge variant={badgeVariant} className="ml-2">
+            {operation.is_win === true 
+              ? t('Ganho') 
+              : operation.is_win === false 
+                ? t('Perda') 
+                : t('Em andamento')}
+          </Badge>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-2 mb-2 text-sm">
+          <div>
+            <div className="text-xs text-muted-foreground">{t('Entrada')}</div>
+            <div>{formattedEntryValue}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">{t('Saída')}</div>
+            <div>{formattedExitValue}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">{t('Lucro')}</div>
+            <div className={
+              operation.profit 
+                ? (operation.profit > 0 ? 'text-green-500' : 'text-red-500') 
+                : ''
+            }>
+              {formattedProfit}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-between items-center text-xs text-muted-foreground">
+          <div className="flex items-center">
+            <Clock className="h-3 w-3 mr-1" />
+            {formattedTime}
+          </div>
+          
+          <div>
+            {operation.strategy}
+          </div>
+        </div>
+      </div>
+    );
   };
-
-  // Exportar para CSV
-  const exportToCSV = () => {
-    if (filteredOperations.length === 0) return;
-    
-    const headers = [
-      'ID', 
-      'Contract ID', 
-      'Symbol', 
-      'Strategy', 
-      'Type', 
-      'Entry', 
-      'Exit', 
-      'Profit', 
-      'Result', 
-      'Time'
-    ].join(',');
-    
-    const rows = filteredOperations.map(op => [
-      op.id,
-      op.contract_id,
-      op.symbol,
-      op.strategy,
-      op.contract_type,
-      op.entry_value,
-      op.exit_value || '',
-      op.profit || '',
-      op.is_win === undefined ? 'Pending' : op.is_win ? 'Win' : 'Loss',
-      format(op.time, 'yyyy-MM-dd HH:mm:ss')
-    ].join(','));
-    
-    const csv = [headers, ...rows].join('\\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `operations-${format(new Date(), 'yyyy-MM-dd-HH-mm')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  
+  // Renderizar operações em formato de tabela
+  const renderOperationsTable = () => {
+    return (
+      <div className="w-full overflow-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+              <th className="p-2">{t('ID')}</th>
+              <th className="p-2">{t('Tipo')}</th>
+              <th className="p-2">{t('Entrada')}</th>
+              <th className="p-2">{t('Saída')}</th>
+              <th className="p-2">{t('Resultado')}</th>
+              <th className="p-2">{t('Hora')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedOperations.map(operation => (
+              <tr 
+                key={operation.id} 
+                className={`border-b hover:bg-muted/50 text-sm ${
+                  operation.is_win === true 
+                    ? 'bg-green-50 dark:bg-green-950/20' 
+                    : operation.is_win === false 
+                      ? 'bg-red-50 dark:bg-red-950/20' 
+                      : ''
+                }`}
+              >
+                <td className="p-2">
+                  <div className="font-mono text-xs">{operation.contract_id}</div>
+                </td>
+                <td className="p-2">
+                  <Badge variant="outline" className="text-xs">
+                    {operation.contract_type}
+                  </Badge>
+                </td>
+                <td className="p-2">{operation.entry_value.toFixed(2)}</td>
+                <td className="p-2">
+                  {operation.exit_value 
+                    ? operation.exit_value.toFixed(2) 
+                    : <span className="text-muted-foreground italic text-xs">{t('Aguardando')}</span>}
+                </td>
+                <td className="p-2">
+                  {operation.is_win === undefined ? (
+                    <Badge variant="outline" className="text-xs">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {t('Em andamento')}
+                    </Badge>
+                  ) : operation.is_win ? (
+                    <div className="flex items-center">
+                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
+                      <span className="text-green-500">{operation.profit && operation.profit.toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <AlertCircle className="h-3 w-3 mr-1 text-red-500" />
+                      <span className="text-red-500">{operation.profit && operation.profit.toFixed(2)}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="p-2 text-xs text-muted-foreground">
+                  {format(new Date(operation.time), 'HH:mm:ss', { locale: dateLocale })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
-
-  // Formatar valor com 2 casas decimais
-  const formatValue = (value: number | undefined) => {
-    if (value === undefined) return '-';
-    return value.toFixed(2);
+  
+  // Renderizar estatísticas resumidas
+  const renderStats = () => {
+    return (
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="p-2 border rounded flex flex-col items-center justify-center">
+          <span className="text-xs text-muted-foreground">{t('Operações')}</span>
+          <span className="text-xl font-medium">{stats.totalOperations}</span>
+        </div>
+        
+        <div className="p-2 border rounded flex flex-col items-center justify-center bg-green-50 dark:bg-green-950/20">
+          <span className="text-xs text-muted-foreground">{t('Ganhos')}</span>
+          <span className="text-xl font-medium text-green-500">{stats.wins}</span>
+        </div>
+        
+        <div className="p-2 border rounded flex flex-col items-center justify-center bg-red-50 dark:bg-red-950/20">
+          <span className="text-xs text-muted-foreground">{t('Perdas')}</span>
+          <span className="text-xl font-medium text-red-500">{stats.losses}</span>
+        </div>
+        
+        <div className="p-2 border rounded flex flex-col items-center justify-center">
+          <span className="text-xs text-muted-foreground">{t('Taxa')}</span>
+          <span className="text-xl font-medium">
+            {(stats.winRate * 100).toFixed(0)}%
+          </span>
+        </div>
+      </div>
+    );
   };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{t('Histórico de Operações')}</CardTitle>
-        <CardDescription>
-          {t('Total')}: {stats.total} | 
-          {t('Completas')}: {stats.completed} | 
-          {t('Ganhos')}: {stats.wins} | 
-          {t('Perdas')}: {stats.losses} | 
-          {t('Taxa de Vitória')}: {stats.winRate.toFixed(1)}% | 
-          {t('Lucro Total')}: {stats.totalProfit.toFixed(2)}
-        </CardDescription>
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{t('Histórico de Operações')}</CardTitle>
+            <CardDescription>
+              {t('Últimas operações realizadas pelo bot')}
+            </CardDescription>
+          </div>
+          
+          <div className="flex items-center border rounded-md">
+            <Button 
+              variant={view === 'list' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="h-8 px-2"
+              onClick={() => setView('list')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant={view === 'table' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="h-8 px-2"
+              onClick={() => setView('table')}
+            >
+              <TableIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
-          <Input 
-            placeholder={t('Buscar por símbolo, estratégia ou ID...')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-1/3"
-          />
-          
-          <Select 
-            value={filterStatus} 
-            onValueChange={setFilterStatus}
-          >
-            <SelectTrigger className="w-full md:w-1/6">
-              <SelectValue placeholder={t('Status')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('Todos')}</SelectItem>
-              <SelectItem value="completed">{t('Completos')}</SelectItem>
-              <SelectItem value="pending">{t('Pendentes')}</SelectItem>
-              <SelectItem value="win">{t('Ganhos')}</SelectItem>
-              <SelectItem value="loss">{t('Perdas')}</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select 
-            value={filterSymbol} 
-            onValueChange={setFilterSymbol}
-          >
-            <SelectTrigger className="w-full md:w-1/6">
-              <SelectValue placeholder={t('Símbolo')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('Todos')}</SelectItem>
-              {uniqueSymbols.map(symbol => (
-                <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select 
-            value={filterStrategy} 
-            onValueChange={setFilterStrategy}
-          >
-            <SelectTrigger className="w-full md:w-1/6">
-              <SelectValue placeholder={t('Estratégia')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('Todas')}</SelectItem>
-              {uniqueStrategies.map(strategy => (
-                <SelectItem key={strategy} value={strategy}>{strategy}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Button 
-            variant="outline" 
-            onClick={exportToCSV}
-            disabled={filteredOperations.length === 0}
-            className="w-full md:w-auto"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {t('Exportar')}
-          </Button>
-        </div>
+        {renderStats()}
         
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[120px]">
-                  <Button variant="ghost" onClick={() => toggleSort('time')} className="p-0 h-auto">
-                    {t('Data/Hora')}
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>{t('ID')}</TableHead>
-                <TableHead>{t('Símbolo')}</TableHead>
-                <TableHead>{t('Estratégia')}</TableHead>
-                <TableHead>{t('Tipo')}</TableHead>
-                <TableHead>{t('Entrada')}</TableHead>
-                <TableHead>{t('Saída')}</TableHead>
-                <TableHead>
-                  <Button variant="ghost" onClick={() => toggleSort('profit')} className="p-0 h-auto">
-                    {t('Lucro')}
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>{t('Status')}</TableHead>
-                <TableHead>{t('Ações')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedOperations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center h-24">
-                    {t('Nenhuma operação encontrada')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedOperations.map((operation) => (
-                  <TableRow key={operation.id}>
-                    <TableCell className="font-medium">
-                      {format(operation.time, 'dd/MM/yy HH:mm:ss', { locale })}
-                    </TableCell>
-                    <TableCell>{operation.contract_id}</TableCell>
-                    <TableCell>{operation.symbol}</TableCell>
-                    <TableCell>{operation.strategy}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {operation.contract_type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatValue(operation.entry_value)}</TableCell>
-                    <TableCell>{formatValue(operation.exit_value)}</TableCell>
-                    <TableCell>
-                      {operation.profit !== undefined && (
-                        <span className={operation.profit >= 0 ? 'text-green-500' : 'text-red-500'}>
-                          {operation.profit >= 0 ? '+' : ''}{formatValue(operation.profit)}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {operation.is_completed ? (
-                        operation.is_win ? (
-                          <Badge className="bg-green-500/10 text-green-500">
-                            <Check className="h-3 w-3 mr-1" /> {t('Ganho')}
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-500/10 text-red-500">
-                            <X className="h-3 w-3 mr-1" /> {t('Perda')}
-                          </Badge>
-                        )
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          <Clock className="h-3 w-3 mr-1" /> {t('Pendente')}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => setSelectedOperation(operation)}
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {/* Paginação */}
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center mt-4">
-            <div className="text-sm text-muted-foreground">
-              {t('Mostrando')} {(currentPage - 1) * itemsPerPage + 1}-
-              {Math.min(currentPage * itemsPerPage, filteredOperations.length)} {t('de')} {filteredOperations.length}
+        {operations.length === 0 ? (
+          <div className="text-center py-10">
+            <div className="text-muted-foreground mb-2">
+              {t('Nenhuma operação realizada')}
             </div>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                {t('Anterior')}
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => 
-                  page === 1 || 
-                  page === totalPages || 
-                  (page >= currentPage - 1 && page <= currentPage + 1)
-                )
-                .map((page, i, array) => (
-                  <React.Fragment key={page}>
-                    {i > 0 && array[i - 1] !== page - 1 && (
-                      <Button variant="outline" size="sm" disabled>...</Button>
-                    )}
-                    <Button
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  </React.Fragment>
-                ))
-              }
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                {t('Próximo')}
-              </Button>
+            <div className="text-xs text-muted-foreground">
+              {t('Inicie o bot para começar a operar')}
             </div>
           </div>
+        ) : (
+          <ScrollArea className="h-[300px]">
+            {view === 'list' ? (
+              <div className="pr-4">
+                {sortedOperations.map(renderOperationListItem)}
+              </div>
+            ) : (
+              renderOperationsTable()
+            )}
+          </ScrollArea>
         )}
       </CardContent>
-
-      {/* Modal de detalhes da operação */}
-      <Dialog open={!!selectedOperation} onOpenChange={(open) => !open && setSelectedOperation(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t('Detalhes da Operação')}</DialogTitle>
-            <DialogDescription>
-              {t('ID do Contrato')}: {selectedOperation?.contract_id}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedOperation && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium">{t('Data/Hora')}:</p>
-                  <p className="text-sm">
-                    {format(selectedOperation.time, 'dd/MM/yyyy HH:mm:ss', { locale })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Símbolo')}:</p>
-                  <p className="text-sm">{selectedOperation.symbol}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Estratégia')}:</p>
-                  <p className="text-sm">{selectedOperation.strategy}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Tipo de Contrato')}:</p>
-                  <p className="text-sm">{selectedOperation.contract_type}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Valor de Entrada')}:</p>
-                  <p className="text-sm">{formatValue(selectedOperation.entry_value)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Valor de Saída')}:</p>
-                  <p className="text-sm">
-                    {selectedOperation.exit_value !== undefined 
-                      ? formatValue(selectedOperation.exit_value) 
-                      : t('Pendente')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Lucro/Perda')}:</p>
-                  {selectedOperation.profit !== undefined ? (
-                    <p className={`text-sm ${selectedOperation.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {selectedOperation.profit >= 0 ? '+' : ''}{formatValue(selectedOperation.profit)}
-                    </p>
-                  ) : (
-                    <p className="text-sm">{t('Pendente')}</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('Status')}:</p>
-                  <p className="text-sm">
-                    {selectedOperation.is_completed
-                      ? (selectedOperation.is_win 
-                          ? <span className="text-green-500">{t('Ganho')}</span> 
-                          : <span className="text-red-500">{t('Perda')}</span>)
-                      : <span className="text-muted-foreground">{t('Pendente')}</span>}
-                  </p>
-                </div>
-              </div>
-              
-              {selectedOperation.notification && (
-                <div className={`p-3 rounded-md ${
-                  selectedOperation.notification.type === 'success' ? 'bg-green-500/10' :
-                  selectedOperation.notification.type === 'error' ? 'bg-red-500/10' :
-                  selectedOperation.notification.type === 'warning' ? 'bg-yellow-500/10' :
-                  'bg-blue-500/10'
-                }`}>
-                  <p className="text-sm">{selectedOperation.notification.message}</p>
-                </div>
-              )}
-              
-              <div className="flex justify-center">
-                {selectedOperation.is_win !== undefined && (
-                  <div className={`rounded-full p-6 ${
-                    selectedOperation.is_win 
-                      ? 'bg-green-500/20 text-green-500' 
-                      : 'bg-red-500/20 text-red-500'
-                  }`}>
-                    {selectedOperation.is_win ? (
-                      <TrendingUp className="h-10 w-10" />
-                    ) : (
-                      <TrendingDown className="h-10 w-10" />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+      <CardFooter className="flex justify-between text-xs text-muted-foreground">
+        <div>
+          {stats.totalOperations > 0 && (
+            <span>
+              {t('Total de {{total}} operações', { total: stats.totalOperations })}
+            </span>
           )}
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setSelectedOperation(null)}
-            >
-              {t('Fechar')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+        <div className="flex items-center">
+          {stats.totalProfit > 0 ? (
+            <>
+              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+              <span className="text-green-500">
+                +{stats.totalProfit.toFixed(2)}
+              </span>
+            </>
+          ) : stats.totalProfit < 0 ? (
+            <>
+              <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
+              <span className="text-red-500">
+                {stats.totalProfit.toFixed(2)}
+              </span>
+            </>
+          ) : null}
+        </div>
+      </CardFooter>
     </Card>
   );
 };
+
+export default OperationHistoryCard;
