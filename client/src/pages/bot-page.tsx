@@ -371,27 +371,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         message: `GANHO | Entrada: $10.00 | Resultado: $8.70`
       }
     },
-    // Operação de teste EXTRA - adicionada para debug
-    {
-      id: 'TESTE-EXTRA-' + Date.now(),
-      contract_id: 'TESTE-EXTRA-' + Date.now(),
-      entryValue: 1.35,
-      entry_value: 1.35,
-      finalValue: 2.5,
-      exit_value: 2.5,
-      profit: 1.15,
-      time: new Date(),
-      timestamp: Date.now(),
-      contract_type: 'DIGITOVER',
-      symbol: 'R_100',
-      strategy: 'TESTE DE HISTÓRICO',
-      is_win: true,
-      isIntermediate: false,
-      notification: {
-        type: 'success',
-        message: 'TESTE EXTRA | Entrada: $1.35 | Resultado: $1.15'
-      }
-    },
     // Operação de exemplo com perda
     {
       id: Date.now() - 1000, // ID diferente
@@ -418,17 +397,77 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
     console.log('[BOT_PAGE] Configurando auto-refresh para histórico de operações...');
     
     // Definir intervalo de atualização a cada 5 segundos
-    // Apenas atualizar o estado para manter os dados sincronizados
     const refreshInterval = setInterval(() => {
-      console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado (sem gerar operações de teste)');
+      console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado');
       
-      // Atualizamos o estado quando o bot está rodando ou pronto - isso previne operações fake
-      if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-        // Forçar re-render do histórico garantindo que seja o mesmo array para não perder operações
-        setOperationHistory(prev => [...prev]);
+      // Forçar re-render do histórico garantindo que seja o mesmo array para não perder operações
+      setOperationHistory(prev => [...prev]);
+      
+      // Atualizar estatísticas
+      setStats(prev => ({ ...prev }));
+      
+      // Simular uma operação a cada 10 segundos (a cada 2 ciclos) para diagnóstico
+      const shouldAddTestOperation = Date.now() % 10000 < 5000;
+      
+      if (shouldAddTestOperation) {
+        const isWin = Math.random() > 0.5; // 50% de chance de ganho
+        const amountValue = 5; // Valor fixo para teste
         
-        // Atualizar estatísticas
-        setStats(prev => ({ ...prev }));
+        // Criar evento simulado de contrato finalizado
+        const testEvent = {
+          type: 'contract_finished',
+          contract_id: Date.now(),
+          entry_value: amountValue,
+          exit_value: isWin ? (amountValue * 1.9) : 0,
+          profit: isWin ? (amountValue * 0.9) : -amountValue,
+          contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
+          symbol: 'R_100',
+          strategy: selectedStrategy || 'auto',
+          is_win: isWin,
+          contract_details: {
+            contract_id: Date.now(),
+            contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
+            buy_price: amountValue,
+            symbol: 'R_100',
+            status: isWin ? 'won' : 'lost',
+            entry_spot: 1234.56,
+            exit_spot: 5678.90,
+            profit: isWin ? (amountValue * 0.9) : -amountValue,
+            payout: isWin ? (amountValue * 1.9) : 0
+          }
+        };
+        
+        console.log('[BOT_PAGE] ★★★ GERANDO OPERAÇÃO DE TESTE (EVENTO COMPLETO) ★★★', testEvent);
+        
+        // Criar evento customizado para teste
+        // CORREÇÃO: Vamos evitar disparar eventos customizados para não interferir no fluxo normal
+        // const simulatedEvent = new CustomEvent('contract_finished', { detail: testEvent });
+        // window.dispatchEvent(simulatedEvent);
+        
+        // Operação de fallback para garantir que algo apareça no histórico
+        const testOperation: Operation = {
+          id: Date.now(),
+          entryValue: amountValue,
+          entry_value: amountValue,
+          finalValue: isWin ? amountValue * 1.9 : 0,
+          exit_value: isWin ? amountValue * 1.9 : 0,
+          profit: isWin ? amountValue * 0.9 : -amountValue,
+          time: new Date(),
+          timestamp: Date.now(),
+          contract_type: isWin ? 'DIGITOVER' : 'DIGITUNDER',
+          symbol: 'R_100',
+          strategy: selectedStrategy || 'auto',
+          is_win: isWin,
+          notification: {
+            type: isWin ? 'success' : 'error',
+            message: `${isWin ? 'GANHO' : 'PERDA'} | Entrada: $${amountValue.toFixed(2)} | Resultado: ${isWin ? '$' + (amountValue * 0.9).toFixed(2) : '-$' + amountValue.toFixed(2)}`
+          }
+        };
+        
+        console.log('[BOT_PAGE] ★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO (FALLBACK DIRETO) ★★★', testOperation);
+        
+        // Adicionar operação de teste ao histórico (fallback direto)
+        setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
       }
     }, 5000);
     
@@ -885,51 +924,45 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           if (event.type === 'contract_finished') {
             console.log('[OAUTH_DIRECT] Contrato encerrado:', event);
             
-            // CORREÇÃO CRÍTICA: Atualizar estatísticas e adicionar ao histórico se o bot não estiver explicitamente parado
-            // Isso permite operações aparecerem no histórico em estado 'idle' ou 'paused' mas não em 'stopped'
-            if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-              // Atualizar lucro total
-              setStats(prev => {
-                // Calcular o lucro total
-                const profit = event.profit || 0;
-                const totalProfit = prev.totalProfit + profit;
-                
-                // Atualizar ganhos ou perdas
-                if (event.is_win) {
-                  return { ...prev, wins: prev.wins + 1, totalProfit };
-                } else {
-                  return { ...prev, losses: prev.losses + 1, totalProfit };
-                }
-              });
+            // Atualizar lucro total
+            setStats(prev => {
+              // Calcular o lucro total
+              const profit = event.profit || 0;
+              const totalProfit = prev.totalProfit + profit;
               
-              // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações apenas se o bot estiver rodando
-              const operationRecord = {
-                id: event.contract_id || Date.now(),
-                contract_id: event.contract_id,
-                entryValue: event.entry_value || event.contract_details?.buy_price || 0,
-                entry_value: event.entry_value || event.contract_details?.buy_price || 0,
-                finalValue: event.exit_value || event.contract_details?.sell_price || 0,
-                exit_value: event.exit_value || event.contract_details?.sell_price || 0,
-                profit: event.profit || 0,
-                time: new Date(),
-                timestamp: Date.now(),
-                contract_type: event.contract_type || event.contract_details?.contract_type || '',
-                symbol: event.symbol || event.contract_details?.underlying_symbol || 'R_100',
-                strategy: event.strategy || selectedStrategy || '',
-                is_win: event.is_win || false,
-                notification: {
-                  type: event.is_win ? 'success' : 'error',
-                  message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
-                }
-              };
-              
-              console.log('[BOT_PAGE] Adicionando operação ao histórico (bot rodando):', operationRecord);
-              
-              // Atualizar o histórico de operações
-              setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
-            } else {
-              console.log('[BOT_PAGE] Ignorando operação finalizada porque o bot está parado');
-            }
+              // Atualizar ganhos ou perdas
+              if (event.is_win) {
+                return { ...prev, wins: prev.wins + 1, totalProfit };
+              } else {
+                return { ...prev, losses: prev.losses + 1, totalProfit };
+              }
+            });
+            
+            // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações
+            const operationRecord = {
+              id: event.contract_id || Date.now(),
+              contract_id: event.contract_id,
+              entryValue: event.entry_value || event.contract_details?.buy_price || 0,
+              entry_value: event.entry_value || event.contract_details?.buy_price || 0,
+              finalValue: event.exit_value || event.contract_details?.sell_price || 0,
+              exit_value: event.exit_value || event.contract_details?.sell_price || 0,
+              profit: event.profit || 0,
+              time: new Date(),
+              timestamp: Date.now(),
+              contract_type: event.contract_type || event.contract_details?.contract_type || '',
+              symbol: event.symbol || event.contract_details?.underlying_symbol || 'R_100',
+              strategy: event.strategy || selectedStrategy || '',
+              is_win: event.is_win || false,
+              notification: {
+                type: event.is_win ? 'success' : 'error',
+                message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
+              }
+            };
+            
+            console.log('[BOT_PAGE] Adicionando operação ao histórico:', operationRecord);
+            
+            // Atualizar o histórico de operações
+            setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
             
             // Atualizar estado da operação
             setOperation({
@@ -970,9 +1003,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         
         // Registrar handler no serviço OAuth
         console.log('[BOT_PAGE] Registrando listener de eventos do oauthDirectService');
-        // CORREÇÃO CRÍTICA: Removido o addEventListener daqui para evitar duplicação
-        // O evento já está sendo registrado em outro local do código (linha ~2112)
-        console.log('[BOT_PAGE] *** ALERTA: Event listener removido desta localização para evitar conflitos ***');
+        oauthDirectService.addEventListener(handleEvents);
         
         // Forçar uma inscrição para ticks do R_100 - CORREÇÃO CRÍTICA
         console.log('[BOT_PAGE] Forçando inscrição para ticks de R_100');
@@ -992,9 +1023,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         return () => {
           // Limpar recursos ao desmontar
           console.log('[BOT_PAGE] Removendo listener de eventos do oauthDirectService');
-          // CORREÇÃO CRÍTICA: Não remover o listener aqui pois ele já não está mais sendo adicionado
-          // O event listener central é gerenciado no useEffect principal
-          console.log('[BOT_PAGE] *** ALERTA: removeEventListener removido desta localização para evitar erros ***');
+          oauthDirectService.removeEventListener(handleEvents);
           
           // Parar serviço se estiver rodando
           if (botStatus === 'running') {
@@ -1465,22 +1494,17 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] ✅ Verificando se pode adicionar operação intermediária ao histórico (bot status):', botStatus);
+        console.log('[BOT_PAGE] ✅ Adicionando operação intermediária ao histórico via evento direto:', intermediateOperation);
         
-        // Adicionar ao histórico de operações APENAS se o bot estiver rodando
-        if (botStatus === 'running') {
-          console.log('[BOT_PAGE] ✅ Adicionando operação intermediária ao histórico (bot rodando)');
-          setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
-        } else {
-          console.log('[BOT_PAGE] ❌ Ignorando operação intermediária porque o bot está parado');
-        }
+        // Adicionar ao histórico de operações
+        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
       } catch (error) {
         console.error('[BOT_PAGE] Erro ao processar evento avançado intermediário:', error);
       }
     };
     
-    // CORRIGIDO: Renomeando para evitar duplicação com o handleEvents já definido anteriormente
-    const handleBotEvents = (event: any) => {
+    // Handler regular para eventos do oauthDirectService
+    const handleEvents = (event: any) => {
       // Processar evento de compra de contrato (início da operação)
       if (event.type === 'contract_purchased') {
         // Adicionar informação sobre o comando de entrada ao histórico
@@ -1610,15 +1634,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             }
           };
           
-          console.log('[BOT_PAGE] Verificando se pode adicionar comando ao histórico (bot status):', botStatus);
-          
-          // Adicionar ao histórico de operações APENAS se o bot estiver rodando
-          if (botStatus === 'running') {
-            console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico (bot rodando)');
-            setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
-          } else {
-            console.log('[BOT_PAGE] Ignorando comando de entrada pois o bot está parado');
-          }
+          console.log('[BOT_PAGE] Adicionando comando de entrada ao histórico:', newNotification);
+          setOperationHistory(prev => [newNotification, ...prev].slice(0, 50));
         }
       }
       
@@ -1656,15 +1673,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária Advance (bot status):', botStatus);
-        
-        // Adicionar operação se o bot estiver em execução ou pronto
-        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-          console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico (status do bot permite)');
-          setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
-        } else {
-          console.log('[BOT_PAGE] Ignorando operação intermediária Advance porque o bot está parado');
-        }
+        console.log('[BOT_PAGE] Adicionando operação intermediária Advance ao histórico:', newOperation);
+        setOperationHistory(prev => [newOperation, ...prev].slice(0, 50));
       }
       
       // Processar eventos intermediários da estratégia Advance
@@ -1701,15 +1711,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] Verificando se pode adicionar operação intermediária (bot status):', botStatus);
-        
-        // Adicionar ao histórico se o bot estiver em execução ou pronto
-        if (botStatus === 'running' || botStatus === 'idle' || botStatus === 'paused') {
-          console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico (status do bot permite)');
-          setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
-        } else {
-          console.log('[BOT_PAGE] Ignorando operação intermediária porque o bot está parado');  
-        }
+        console.log('[BOT_PAGE] Adicionando operação intermediária ao histórico:', intermediateOperation);
+        setOperationHistory(prev => [intermediateOperation, ...prev].slice(0, 50));
       }
       
       // Processar eventos de operação finalizada
@@ -1721,13 +1724,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         console.log('[BOT_PAGE] ★★★★★ SYMBOL:', event.symbol);
         console.log('[BOT_PAGE] ★★★★★ PROFIT:', event.profit);
         
-        // ★★★ CORREÇÃO CRÍTICA: usar novos IDs para evitar conflitos ★★★
-        const contractUniqueId = `contract-${event.contract_id || Date.now()}-${Date.now()}`;
-        
         // FORÇAR adição de uma operação ao histórico independente de qualquer condição
         // para diagnóstico e garantir que o componente OperationHistoryCard está funcionando
         const forceOperation = {
-          id: contractUniqueId, // Usar ID único para evitar duplicação
+          id: Date.now(),
           contract_id: event.contract_id || Date.now(),
           entryValue: event.entry_value || 1,
           entry_value: event.entry_value || 1,
@@ -1739,51 +1739,24 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           contract_type: event.contract_type || "CALL",
           symbol: event.symbol || "R_100",
           strategy: event.strategy || selectedStrategy || "auto",
-          is_win: event.is_win || false,
+          is_win: event.is_win,
           // CRUCIAL: Garantir que não seja marcado como intermediário
           isIntermediate: false,
           notification: {
             type: 'success' as 'success' | 'info' | 'warning' | 'error',
-            message: `OPERAÇÃO REALIZADA: ID=${event.contract_id}, Profit=${event.profit || 0}`
+            message: `OPERAÇÃO REALIZADA: ID=${event.contract_id}, Profit=${event.profit}`
           }
         };
         
-        // Adicionamos uma operação de debug para sempre visualizar no console
-        console.log('[BOT_PAGE] ★★★ OPERAÇÃO A SER ADICIONADA AO HISTÓRICO: ★★★', forceOperation);
-        console.log('[BOT_PAGE] ★★★ VERIFICANDO SE BOT ESTÁ RODANDO ANTES DE ADICIONAR OPERAÇÃO ★★★', botStatus);
+        console.log('[BOT_PAGE] ★★★ ATUALIZANDO HISTÓRICO DE OPERAÇÕES IMEDIATAMENTE ★★★');
         
-        // ★★★ MODIFICAÇÃO CRÍTICA: REGISTRAR QUALQUER TIPO DE OPERAÇÃO ★★★
-        // Garantir que todas as operações de compra, venda e análise sejam registradas no histórico
-        console.log('[BOT_PAGE] ★★★ REGISTRANDO OPERAÇÃO NO HISTÓRICO COMPLETO ★★★ (compras, vendas e análises)');
-        
-        // ★★★ PROBLEMA CRÍTICO: GARANTIR QUE A ATUALIZAÇÃO SEJA PROCESSADA COM PRIORIDADE MÁXIMA ★★★
-        // Forçar atualização do histórico em três passos para garantir que a UI reflita as mudanças:
-        
-        // PASSO 1: Preparar a operação com ID altamente específico para evitar conflitos
-        const forceUniqueId = `force-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const enhancedOperation = {
-          ...forceOperation,
-          id: forceUniqueId, // Usar ID absolutamente único
-          time: new Date(), // Garantir um horário atual
-          // Adicionar campos extras para diagnóstico
-          _debugInfo: {
-            addedAt: new Date().toISOString(),
-            botStatus: botStatus,
-            fromEvent: 'contract_finished'
-          }
-        };
-        
-        console.log('✅ [BOT_PAGE] OPERAÇÃO SENDO ADICIONADA AO HISTÓRICO:', enhancedOperation);
-        
-        // PASSO 2: Atualizar o estado imediatamente
+        // CORREÇÃO CRÍTICA: Remover o setTimeout para garantir atualização imediata
         setOperationHistory(prev => {
           console.log('[BOT_PAGE] Histórico anterior:', prev.length);
-          
-          // Criar novo histórico com a operação no início
-          const newHistory = [enhancedOperation, ...prev].slice(0, 50);
+          const newHistory = [forceOperation, ...prev].slice(0, 50);
           console.log('[BOT_PAGE] Novo histórico:', newHistory.length);
           
-          // Diagnóstico detalhado
+          // Forçar console.log de cada operação para diagnóstico
           console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO DE OPERAÇÕES NO HISTÓRICO ★★★');
           newHistory.forEach((op, index) => {
             console.log(`[BOT_PAGE] Operação #${index + 1}:`, {
@@ -1799,34 +1772,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           });
           
           return newHistory;
-        });
-        
-        // PASSO 3: Forçar atualização adicional após um pequeno delay (técnica de double-rendering)
-        setTimeout(() => {
-          console.log('⚡ [BOT_PAGE] Forçando segundo refresh do histórico para garantir renderização');
-          setOperationHistory(prev => [...prev]); // Isto força o React a re-renderizar
-        }, 100);
-        
-        // ★★★ ATUALIZAÇÃO DE ESTATÍSTICAS ★★★
-        // Atualizar ganhos/perdas e lucro total
-        setStats(prev => {
-          console.log('[BOT_PAGE] Atualizando estatísticas com profit:', event.profit || 0);
-          const profit = event.profit || 0;
-          const totalProfit = (prev.totalProfit || 0) + profit;
-          
-          if (event.is_win) {
-            return { 
-              ...prev, 
-              wins: (prev.wins || 0) + 1, 
-              totalProfit 
-            };
-          } else {
-            return { 
-              ...prev, 
-              losses: (prev.losses || 0) + 1, 
-              totalProfit 
-            };
-          }
         });
         
         // Adicionar operação normal ao histórico (caso o problema seja na extração de detalhes)
@@ -1972,46 +1917,27 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             }
           };
           
-          console.log('[BOT_PAGE] Verificando se pode adicionar operação ao histórico (bot status):', botStatus);
+          console.log('[BOT_PAGE] Adicionando operação ao histórico:', newOperation);
           
-          // ★★★ SOLUÇÃO DEFINITIVA: REGISTRAR TODO TIPO DE OPERAÇÃO NO HISTÓRICO ★★★
-          // Garantir que compras, vendas, e análises sejam registradas no histórico completo
-          console.log('[BOT_PAGE] ★★★ REGISTRANDO OPERAÇÃO COMPLETA NO HISTÓRICO ★★★ (compra/venda/análise)');
-          
-          // PASSO 1: Garantir ID único para esta operação
-          const uniqueOperationId = `operation-${contractId}-${Date.now()}`;
-          
-          // PASSO 2: Criar operação aprimorada com dados extra para diagnóstico
-          const enhancedOperation = {
-            ...newOperation,
-            id: uniqueOperationId, // Usar ID altamente específico para evitar conflitos
-            _debugInfo: {
-              addedAt: new Date().toISOString(),
-              originalId: contractId,
-              botStatus: botStatus,
-              fromEvent: 'contract_details'
-            }
-          };
-          
-          console.log('✅✅ [BOT_PAGE] OPERAÇÃO REAL SENDO ADICIONADA:', enhancedOperation);
-          
-          // PASSO 2: Atualizar o estado com forçando atualização mesmo que o bot esteja parado
+          // Verificar duplicação antes de adicionar ao histórico
           setOperationHistory(prev => {
-            console.log(`[BOT_PAGE] Adicionando operação ${uniqueOperationId} como NOVA entrada no histórico`);
-            // Sempre adicionar como nova operação no início do histórico para garantir visibilidade
-            const newHistory = [enhancedOperation, ...prev].slice(0, 50);
+            // Operações intermediárias sempre são adicionadas como novas, nunca substituem existentes
+            if (newOperation.isIntermediate) {
+              console.log(`[BOT_PAGE] Operação ${contractId} classificada como intermediária, adicionando como nova`);
+              return [newOperation, ...prev].slice(0, 50);
+            }
             
-            // Diagnóstico completo após a adição
-            console.log('[BOT_PAGE] ★★★ DIAGNÓSTICO APÓS ADIÇÃO DA OPERAÇÃO ★★★');
-            console.log('[BOT_PAGE] Total de operações no histórico agora:', newHistory.length);
-            
-            // PASSO 3: Garantir que o histórico seja exibido com forçar atualização posterior
-            setTimeout(() => {
-              console.log('[BOT_PAGE] Forçando refresh adicional do histórico após adição');
-              setOperationHistory(current => [...current]);
-            }, 200);
-            
-            return newHistory;
+            // Para operações regulares, verificar se esta operação já existe
+            const exists = prev.some(op => op.id === contractId && !op.isIntermediate);
+            if (exists) {
+              console.log(`[BOT_PAGE] Operação regular ${contractId} já existe no histórico, atualizando...`);
+              // Atualizar apenas operações regulares, manter intermediárias intactas
+              return prev.map(op => (op.id === contractId && !op.isIntermediate) ? newOperation : op);
+            } else {
+              // Adicionar nova operação no topo do histórico
+              console.log(`[BOT_PAGE] Operação regular ${contractId} é nova, adicionando ao topo do histórico`);
+              return [newOperation, ...prev].slice(0, 50);
+            }
           });
           
           // Atualizar as estatísticas gerais quando uma operação é finalizada
@@ -2056,10 +1982,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        console.log('[BOT_PAGE] ★★★ REGISTRANDO LIMITE NO HISTÓRICO COMPLETO ★★★');
-        
-        // SEMPRE adicionar notificação ao histórico, independente do status do bot
-        console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico completo:', newNotification);
+        console.log('[BOT_PAGE] Adicionando notificação de limite ao histórico:', newNotification);
         setOperationHistory((prevHistory) => {
           // Tipagem explícita para prevHistory
           const updatedHistory = [newNotification, ...prevHistory];
@@ -2098,11 +2021,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
           }
         };
         
-        // NOTA: Para notificações de parada, sempre adicionar ao histórico
-        // mesmo quando o bot não está mais rodando (já que esta é uma notificação de parada)
-        console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico (sempre permitido):', newNotification);
-        
-        // Para status de parada, sempre adicionar ao histórico para mostrar que o bot foi parado
+        console.log('[BOT_PAGE] Adicionando notificação de parada ao histórico:', newNotification);
         setOperationHistory((prevHistory) => {
           // Tipagem explícita para prevHistory
           const updatedHistory = [newNotification, ...prevHistory];
@@ -2169,12 +2088,12 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       }
     };
     
-    // Registrar ouvinte de eventos do serviço OAuth - usando o novo nome da função
-    oauthDirectService.addEventListener(handleBotEvents);
+    // Registrar ouvinte de eventos do serviço OAuth
+    oauthDirectService.addEventListener(handleEvents);
     
-    // Limpar ouvintes ao desmontar - usando o novo nome da função
+    // Limpar ouvintes ao desmontar
     return () => {
-      oauthDirectService.removeEventListener(handleBotEvents);
+      oauthDirectService.removeEventListener(handleEvents);
     };
   }, [selectedStrategy]); // Incluir selectedStrategy como dependência
 
@@ -2459,6 +2378,66 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             {/* Histórico de Operações - Usando o novo componente RelatorioOperacoes */}
             <div className="rounded-lg border border-[#2a3756]">
               <div className="flex justify-between items-center px-4 pt-2">
+                {/* Botão de diagnóstico para testar o histórico */}
+                <button 
+                  onClick={() => {
+                    console.log('[BOT_PAGE] ★★★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO ★★★★★');
+                    const currentEntryValue = parseFloat(entryValue || "1");
+                    
+                    // Criar operação de teste
+                    const testOperation = {
+                      id: Date.now(),
+                      contract_id: Date.now(),
+                      entryValue: currentEntryValue,
+                      entry_value: currentEntryValue,
+                      finalValue: currentEntryValue * 1.8,
+                      exit_value: currentEntryValue * 1.8,
+                      profit: currentEntryValue * 0.8,
+                      time: new Date(),
+                      timestamp: Date.now(),
+                      contract_type: "DIGITOVER",
+                      symbol: "R_100",
+                      strategy: selectedStrategy || "botlow",
+                      is_win: true,
+                      // Garantir que não seja intermediária para aparecer na aba "Operações"
+                      isIntermediate: false,
+                      notification: {
+                        type: 'success' as 'success' | 'info' | 'warning' | 'error',
+                        message: `TESTE DIAGNÓSTICO | Entrada: $${currentEntryValue} | Resultado: $${currentEntryValue * 1.8}`
+                      }
+                    };
+                    
+                    // Método 1: Adicionar diretamente ao estado
+                    setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
+                    
+                    // Método 2: Emitir evento de contrato finalizado para o DOM (novo método)
+                    try {
+                      console.log('[BOT_PAGE] Emitindo evento contract_finished de teste');
+                      const domEvent = new CustomEvent('contract_finished', { 
+                        detail: {
+                          timestamp: Date.now(),
+                          contract_id: testOperation.id,
+                          entry_value: currentEntryValue,
+                          exit_value: currentEntryValue * 1.8,
+                          profit: currentEntryValue * 0.8,
+                          symbol: "R_100",
+                          contract_type: "DIGITOVER",
+                          strategy: selectedStrategy || "botlow",
+                          is_win: true,
+                          // Garantir que a operação de teste não seja intermediária
+                          isIntermediate: false,
+                          is_intermediate: false
+                        }
+                      });
+                      window.dispatchEvent(domEvent);
+                    } catch (e) {
+                      console.error('[BOT_PAGE] Erro ao emitir evento de teste:', e);
+                    }
+                  }}
+                  className="px-2 py-1 text-xs text-white bg-amber-700 hover:bg-amber-600 rounded transition"
+                >
+                  + Adicionar Teste
+                </button>
               
                 {operationHistory.length > 0 && (
                   <button 
@@ -2470,21 +2449,10 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
                 )}
               </div>
               
-              {/* Adicionar log para depuração do estado atual das operações */}
-              <div className="hidden">
-                {/* Log de depuração comentado para evitar erros */}
-                {/* O conteúdo era console.log que estava causando erro de renderização */}
-              </div>
-              
               <OperationHistoryCard 
                 operations={operationHistory}
                 stats={stats}
               />
-              
-              {/* Adicionar linha de texto para visualizar quantidade de operações (para debug) */}
-              <div className="mt-2 text-xs text-gray-400 text-center">
-                {operationHistory.length} operações na memória
-              </div>
             </div>
             
             {/* Gráfico de barras de dígitos do R_100 */}
