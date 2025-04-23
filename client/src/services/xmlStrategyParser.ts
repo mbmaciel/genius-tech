@@ -234,6 +234,197 @@ export class XmlStrategyParser {
   }
   
   /**
+   * Extrai o tipo de contrato da tag purchase no XML
+   * Esta função busca especificamente o contrato definido na seção "before_purchase"
+   * que será usado na compra efetiva
+   */
+  private extractPurchaseBlockType(): string | null {
+    if (!this.xmlDoc) return null;
+    
+    try {
+      // Procurar por blocos do tipo "purchase"
+      const blocks = this.xmlDoc.getElementsByTagName('block');
+      
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        
+        if (block.getAttribute('type') === 'purchase') {
+          // Encontrou bloco de compra, obter o tipo definido no campo PURCHASE_LIST
+          const fields = block.getElementsByTagName('field');
+          
+          for (let j = 0; j < fields.length; j++) {
+            const field = fields[j];
+            
+            if (field.getAttribute('name') === 'PURCHASE_LIST') {
+              const contractType = field.textContent || '';
+              console.log(`[XML_PARSER] ✅ Tipo de contrato extraído da tag purchase: ${contractType}`);
+              return contractType;
+            }
+          }
+        }
+      }
+      
+      console.log('[XML_PARSER] ⚠️ Nenhum bloco purchase encontrado no XML');
+      return null;
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair tipo de contrato do bloco purchase:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Extrai o valor de previsão definido no XML
+   * Este valor é usado em contratos DIGITOVER/DIGITUNDER para definir o dígito alvo
+   */
+  private extractPredictionValue(): number | null {
+    if (!this.xmlDoc) return null;
+    
+    try {
+      // Obter blocos de opções de trade
+      const blocks = this.xmlDoc.getElementsByTagName('block');
+      
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        
+        if (block.getAttribute('type') === 'tradeOptions') {
+          // Encontrou bloco de opções, procurar pelo valor de PREDICTION
+          const predictionValues = block.getElementsByTagName('value');
+          
+          for (let j = 0; j < predictionValues.length; j++) {
+            const valueBlock = predictionValues[j];
+            
+            if (valueBlock.getAttribute('name') === 'PREDICTION') {
+              // Verificar se tem um bloco de valor direto ou uma referência a variável
+              const innerBlocks = valueBlock.getElementsByTagName('block');
+              
+              if (innerBlocks.length > 0) {
+                const innerBlock = innerBlocks[0];
+                
+                // Caso seja um número direto
+                if (innerBlock.getAttribute('type') === 'math_number') {
+                  const numField = innerBlock.getElementsByTagName('field')[0];
+                  if (numField && numField.getAttribute('name') === 'NUM') {
+                    const predictionValue = parseFloat(numField.textContent || '0');
+                    console.log(`[XML_PARSER] ✅ Valor de previsão extraído do XML: ${predictionValue}`);
+                    return predictionValue;
+                  }
+                }
+                // Caso seja uma referência a variável
+                else if (innerBlock.getAttribute('type') === 'variables_get') {
+                  const varField = innerBlock.getElementsByTagName('field')[0];
+                  if (varField && varField.getAttribute('name') === 'VAR') {
+                    const varName = varField.textContent || '';
+                    // Mapear para o nome de variável no sistema
+                    const systemVarName = this.variableMapping[varName];
+                    if (systemVarName && this.variables[systemVarName] !== undefined) {
+                      const predictionValue = this.variables[systemVarName] as number;
+                      console.log(`[XML_PARSER] ✅ Valor de previsão extraído da variável ${varName}: ${predictionValue}`);
+                      return predictionValue;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      console.log('[XML_PARSER] ⚠️ Nenhum valor de previsão encontrado no XML');
+      return null;
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair valor de previsão:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Extrai a duração de entrada definida no XML
+   * Este valor é usado para definir quanto tempo o contrato ficará ativo
+   */
+  private extractEntryDuration(): number | null {
+    if (!this.xmlDoc) return null;
+    
+    try {
+      // Obter blocos de opções de trade
+      const blocks = this.xmlDoc.getElementsByTagName('block');
+      
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        
+        if (block.getAttribute('type') === 'tradeOptions') {
+          // Encontrou bloco de opções, procurar pelo valor de DURATION
+          const durationValues = block.getElementsByTagName('value');
+          
+          for (let j = 0; j < durationValues.length; j++) {
+            const valueBlock = durationValues[j];
+            
+            if (valueBlock.getAttribute('name') === 'DURATION') {
+              // Verificar se tem um bloco de valor direto ou uma shadow
+              const shadows = valueBlock.getElementsByTagName('shadow');
+              const innerBlocks = valueBlock.getElementsByTagName('block');
+              
+              // Primeiro tentar ler de um bloco direto, se existir
+              if (innerBlocks.length > 0) {
+                const innerBlock = innerBlocks[0];
+                
+                if (innerBlock.getAttribute('type') === 'math_number') {
+                  const numField = innerBlock.getElementsByTagName('field')[0];
+                  if (numField && numField.getAttribute('name') === 'NUM') {
+                    const durationValue = parseFloat(numField.textContent || '0');
+                    console.log(`[XML_PARSER] ✅ Duração de entrada extraída do XML: ${durationValue}`);
+                    return durationValue;
+                  }
+                }
+              }
+              // Se não encontrou em bloco direto, tentar ler do shadow
+              else if (shadows.length > 0) {
+                const shadow = shadows[0];
+                
+                if (shadow.getAttribute('type') === 'math_number') {
+                  const numField = shadow.getElementsByTagName('field')[0];
+                  if (numField && numField.getAttribute('name') === 'NUM') {
+                    const durationValue = parseFloat(numField.textContent || '0');
+                    console.log(`[XML_PARSER] ✅ Duração de entrada extraída do shadow no XML: ${durationValue}`);
+                    return durationValue;
+                  }
+                }
+              }
+            }
+          }
+          
+          // Verificar também o tipo de duração (t = ticks, s = segundos, etc.)
+          const fields = block.getElementsByTagName('field');
+          for (let j = 0; j < fields.length; j++) {
+            const field = fields[j];
+            
+            if (field.getAttribute('name') === 'DURATIONTYPE_LIST') {
+              const durationType = field.textContent || '';
+              console.log(`[XML_PARSER] ✅ Tipo de duração extraído do XML: ${durationType}`);
+              // Este valor não é retornado, apenas para logging
+            }
+          }
+        }
+      }
+      
+      console.log('[XML_PARSER] ⚠️ Nenhuma duração de entrada encontrada no XML');
+      return null;
+    } catch (error) {
+      console.error('[XML_PARSER] Erro ao extrair duração de entrada:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Extrai a duração de saída definida no XML (opcional)
+   * Usado em algumas estratégias para determinar quando vender o contrato
+   */
+  private extractExitDuration(): number | null {
+    // Esta é uma função placeholder para futura implementação
+    // A maioria das estratégias atuais não define isso explicitamente no XML
+    return null;
+  }
+  
+  /**
    * Extrai as condições de entrada do XML
    */
   private extractEntryConditions(): void {
@@ -709,29 +900,91 @@ export class XmlStrategyParser {
     
     console.log(`[XML_PARSER] Analisando estratégia: "${strategyId}" (normalizado: "${normalizedId}")`);
     
+    // Extrair valores diretamente do XML primeiro
+    // Esta abordagem garante que usamos exatamente o que está definido no XML
+    const xmlContractType = this.extractPurchaseBlockType();
+    const xmlPrediction = this.extractPredictionValue();
+    const xmlExitDuration = this.extractExitDuration();
+    const xmlEntryDuration = this.extractEntryDuration();
+    
+    console.log(`[XML_PARSER] 📋 Valores extraídos diretamente do XML:`);
+    console.log(`[XML_PARSER] 📋 - Tipo de contrato: ${xmlContractType}`);
+    console.log(`[XML_PARSER] 📋 - Previsão: ${xmlPrediction}`);
+    console.log(`[XML_PARSER] 📋 - Duração de saída: ${xmlExitDuration}`);
+    console.log(`[XML_PARSER] 📋 - Duração de entrada: ${xmlEntryDuration}`);
+    
+    // USANDO EXATAMENTE o tipo de contrato do XML
+    let contractType = xmlContractType || this.contractType || 'DIGITOVER';
+    console.log(`[XML_PARSER] 📋 Usando tipo de contrato do XML: ${contractType}`);
+    
     // VERIFICAÇÃO ESTRATÉGIA ADVANCE - VERIFICAÇÕES ADICIONAIS PARA GARANTIR RECONHECIMENTO
     if (normalizedId.includes('advance') || normalizedId === 'advance' || strategyId === 'Advance' || strategyId === 'ADVANCE') {
       console.log(`[XML_PARSER] Estratégia ADVANCE reconhecida! Usando análise específica para Advance`);
-      return this.analyzeAdvanceStrategy(digitStats);
+      
+      // Adicionar informações específicas do XML como parâmetros para análise Advance
+      const advanceResult = this.analyzeAdvanceStrategy(digitStats);
+      
+      // GARANTIR que usamos o contractType do XML
+      if (xmlContractType) {
+        advanceResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 ADVANCE: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      // GARANTIR que usamos o prediction do XML
+      if (xmlPrediction !== undefined && xmlPrediction !== null) {
+        advanceResult.prediction = xmlPrediction;
+        console.log(`[XML_PARSER] 🚨 ADVANCE: Usando previsão do XML: ${xmlPrediction}`);
+      }
+      
+      return advanceResult;
     }
     // Estratégia IRON OVER
     else if (normalizedId.includes('iron_over') || normalizedId.includes('ironover')) {
       console.log(`[XML_PARSER] Estratégia IRON OVER reconhecida!`);
-      return this.analyzeIronOverStrategy(consecutiveLosses);
+      
+      const ironOverResult = this.analyzeIronOverStrategy(consecutiveLosses);
+      
+      // GARANTIR que usamos o contractType do XML
+      if (xmlContractType) {
+        ironOverResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 IRON OVER: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      // GARANTIR que usamos o prediction do XML
+      if (xmlPrediction !== undefined && xmlPrediction !== null) {
+        ironOverResult.prediction = xmlPrediction;
+        console.log(`[XML_PARSER] 🚨 IRON OVER: Usando previsão do XML: ${xmlPrediction}`);
+      }
+      
+      return ironOverResult;
     }
     // Estratégia IRON UNDER
     else if (normalizedId.includes('iron_under') || normalizedId.includes('ironunder')) {
       console.log(`[XML_PARSER] Estratégia IRON UNDER reconhecida!`);
-      return this.analyzeIronUnderStrategy(consecutiveLosses);
+      
+      const ironUnderResult = this.analyzeIronUnderStrategy(consecutiveLosses);
+      
+      // GARANTIR que usamos o contractType do XML
+      if (xmlContractType) {
+        ironUnderResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 IRON UNDER: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      // GARANTIR que usamos o prediction do XML
+      if (xmlPrediction !== undefined && xmlPrediction !== null) {
+        ironUnderResult.prediction = xmlPrediction;
+        console.log(`[XML_PARSER] 🚨 IRON UNDER: Usando previsão do XML: ${xmlPrediction}`);
+      }
+      
+      return ironUnderResult;
     } 
     // Implementar outras estratégias conforme necessário
     
     // Se chegou aqui, não reconheceu nenhuma estratégia específica
-    console.log(`[XML_PARSER] AVISO: Estratégia não reconhecida: "${strategyId}". Usando configuração padrão.`);
+    console.log(`[XML_PARSER] AVISO: Estratégia não reconhecida: "${strategyId}". Usando configuração baseada apenas no XML.`);
     
     // Obter previsão do XML ou configuração do usuário
-    let prediction = this.variables.previsao;
-    let contractType = this.contractType || 'DIGITOVER';
+    let prediction = xmlPrediction || this.variables.previsao;
     
     // CORREÇÃO CRÍTICA: Validar e garantir que prediction tenha um valor válido entre 1-9 para contracts DIGIT
     if (prediction === undefined || prediction === null || prediction < 1 || prediction > 9) {
