@@ -1,737 +1,778 @@
 /**
- * Serviço independente para conexão com a API Deriv
- * Gerencia websocket, autenticação e operações de trading
+ * Serviço WebSocket independente para conexão com a Deriv API
+ * Este serviço é completamente separado da conexão principal do bot e não interfere com ela
  */
-export default class IndependentDerivService {
-  private ws: WebSocket | null = null;
-  private appId: number;
-  private endpoint: string = 'wss://ws.binaryws.com/websockets/v3';
-  private requestMap: Map<string, any> = new Map();
-  private messageListeners: Map<string, ((data: any) => void)[]> = new Map();
-  private connectionListeners: ((connected: boolean) => void)[] = [];
-  private errorListeners: ((error: any) => void)[] = [];
-  private requestId: number = 0;
-  private keepAliveInterval: NodeJS.Timeout | null = null;
+
+// Interfaces para os dados
+export interface DigitStat {
+  digit: number;
+  count: number;
+  percentage: number;
+}
+
+export interface DigitHistory {
+  stats: DigitStat[];
+  lastDigits: number[];
+  totalSamples: number;
+  symbol: string;
+  lastUpdated: Date;
+}
+
+// Tipo de callback para ouvintes de eventos
+type EventCallback = (data: any) => void;
+
+class IndependentDerivService {
+  private static instance: IndependentDerivService;
+  private socket: WebSocket | null = null;
+  private isConnected: boolean = false;
+  private requestId: number = 1;
+  private callbacks: Map<number, (response: any) => void> = new Map();
+  private readonly appId: string = '1089'; // App ID público para dados de mercado
+  private readonly dashboardToken: string = 'jybcQm0FbKr7evp'; // Token específico para a dashboard
+  
+  // Gerenciamento de eventos
+  private eventListeners: Map<string, Set<EventCallback>> = new Map();
+  
+  // Gerenciamento de reconexão
+  private reconnectTimer: any = null;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
-  private isAuthorized: boolean = false;
-  private authorizedAccount: any = null;
-  private autoReconnect: boolean = true;
-  private subscribedStreams: Map<string, boolean> = new Map();
-  private pingTimeout: NodeJS.Timeout | null = null;
-  private sessionPauseTimeout: NodeJS.Timeout | null = null;
-  private lastActiveTimestamp: number = Date.now();
-  private forgetRequests: string[] = [];
-
-  constructor(appId: number = 1089) {
-    this.appId = appId;
+  private maxReconnectAttempts: number = 10; // Aumentado para mais tentativas
+  private reconnectDelayMs: number = 1000; // Delay inicial de 1 segundo
+  
+  // Cache de dados
+  private digitHistories: Map<string, DigitHistory> = new Map();
+  
+  // Controle de subscrição
+  private activeSubscriptions: Set<string> = new Set();
+  
+  // Singleton
+  private constructor() {
+    console.log('[INDEPENDENT_DERIV] Inicializando serviço WebSocket independente para estatísticas de dígitos');
+    
+    // Inicializar mapas de eventos
+    this.eventListeners.set('tick', new Set());
+    this.eventListeners.set('history', new Set());
+    this.eventListeners.set('connection', new Set());
+    this.eventListeners.set('error', new Set());
+    
+    // Carregar históricos salvos do localStorage
+    this.loadSavedHistoriesFromLocalStorage();
+    
+    // Conectar automaticamente
+    this.connect();
   }
-
+  
   /**
-   * Conectar ao websocket da Deriv
+   * Carrega os históricos de dígitos salvos no localStorage
+   * para que estejam disponíveis logo após carregar a página
    */
-  public async connect(): Promise<boolean> {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      return true;
+  private loadSavedHistoriesFromLocalStorage(): void {
+    try {
+      // Carregar histórico para o símbolo padrão R_100
+      // Tentar várias chaves possíveis para compatibilidade
+      let lastDigits: number[] = [];
+      
+      // Tentar nossa própria chave primeiro
+      const savedHistoryKey = 'deriv_digits_history_R_100';
+      const savedHistoryJson = localStorage.getItem(savedHistoryKey);
+      
+      if (savedHistoryJson) {
+        const savedData = JSON.parse(savedHistoryJson);
+        if (savedData.lastDigits && savedData.lastDigits.length > 0) {
+          lastDigits = savedData.lastDigits;
+          console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave principal`);
+        }
+      }
+      
+      // Se não encontrou na primeira chave, tenta a chave usada pelo componente do Bot
+      if (lastDigits.length === 0) {
+        const botHistoryKey = 'fixed_digitHistory_R_100';
+        const botHistoryJson = localStorage.getItem(botHistoryKey);
+        
+        if (botHistoryJson) {
+          try {
+            const botData = JSON.parse(botHistoryJson);
+            if (Array.isArray(botData) && botData.length > 0) {
+              lastDigits = botData;
+              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave do Bot`);
+            }
+          } catch (e) {
+            console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados do Bot:', e);
+          }
+        }
+      }
+      
+      // Inicializar com os dígitos encontrados (se houver)
+      if (lastDigits.length > 0) {
+        console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} ticks carregados do localStorage`);
+        this.initializeDigitHistory('R_100', lastDigits);
+      } else {
+        console.log('[INDEPENDENT_DERIV] Nenhum histórico salvo encontrado, começando do zero');
+      }
+    } catch (e) {
+      console.warn('[INDEPENDENT_DERIV] Erro ao carregar histórico do localStorage:', e);
     }
-
+  }
+  
+  public static getInstance(): IndependentDerivService {
+    if (!IndependentDerivService.instance) {
+      IndependentDerivService.instance = new IndependentDerivService();
+    }
+    return IndependentDerivService.instance;
+  }
+  
+  /**
+   * Estabelece conexão com o WebSocket da Deriv
+   */
+  public connect(): Promise<boolean> {
     return new Promise((resolve, reject) => {
+      if (this.socket && this.isConnected) {
+        console.log('[INDEPENDENT_DERIV] Já conectado ao WebSocket');
+        resolve(true);
+        return;
+      }
+      
+      // Limpar timer de reconexão existente
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      
+      console.log('[INDEPENDENT_DERIV] Conectando ao WebSocket da Deriv...');
+      const url = `wss://ws.derivws.com/websockets/v3?app_id=${this.appId}`;
+      
       try {
-        this.ws = new WebSocket(this.endpoint);
-
-        this.ws.onopen = () => {
-          console.log('[DerivAPI] Conectado ao WebSocket da Deriv');
+        this.socket = new WebSocket(url);
+        
+        this.socket.onopen = () => {
+          console.log('[INDEPENDENT_DERIV] Conexão WebSocket estabelecida');
+          this.isConnected = true;
           this.reconnectAttempts = 0;
-          this.setupKeepAlive();
-          this.notifyConnectionListeners(true);
+          this.notifyListeners('connection', { connected: true });
+          
+          // Reativar subscrições
+          this.resubscribeAll();
+          
           resolve(true);
         };
-
-        this.ws.onclose = (event) => {
-          console.log(`[DerivAPI] Conexão fechada: ${event.code} - ${event.reason}`);
-          this.clearKeepAlive();
-          this.notifyConnectionListeners(false);
-          
-          // Tentar reconectar automaticamente se habilitado
-          if (this.autoReconnect) {
-            this.attemptReconnect();
+        
+        this.socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+          } catch (error) {
+            console.error('[INDEPENDENT_DERIV] Erro ao processar mensagem:', error);
+            this.notifyListeners('error', { message: 'Erro ao processar mensagem' });
           }
         };
-
-        this.ws.onerror = (error) => {
-          console.error('[DerivAPI] Erro na conexão WebSocket:', error);
-          this.notifyErrorListeners(error);
+        
+        this.socket.onerror = (error) => {
+          console.error('[INDEPENDENT_DERIV] Erro WebSocket:', error);
+          this.notifyListeners('error', { message: 'Erro na conexão WebSocket' });
           reject(error);
         };
-
-        this.ws.onmessage = this.handleMessage.bind(this);
+        
+        this.socket.onclose = (event) => {
+          console.log('[INDEPENDENT_DERIV] Conexão WebSocket fechada:', event.code, event.reason);
+          this.isConnected = false;
+          this.notifyListeners('connection', { connected: false });
+          
+          // Tentar reconexão
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            // Usar o delay configurado, com incremento exponencial suave
+            const delay = Math.min(this.reconnectDelayMs * Math.pow(1.5, this.reconnectAttempts), 15000);
+            console.log(`[INDEPENDENT_DERIV] Tentando reconectar em ${delay}ms (tentativa ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+            
+            this.reconnectTimer = setTimeout(() => {
+              this.reconnectAttempts++;
+              this.connect()
+                .then(() => {
+                  console.log('[INDEPENDENT_DERIV] Reconexão bem-sucedida');
+                  // Após reconectar, verificar se há subscrições ativas
+                  if (this.activeSubscriptions.size > 0) {
+                    this.resubscribeAll();
+                  }
+                })
+                .catch(() => console.error('[INDEPENDENT_DERIV] Falha na tentativa de reconexão'));
+            }, delay);
+          } else {
+            console.error('[INDEPENDENT_DERIV] Máximo de tentativas de reconexão atingido');
+            // Mesmo após atingir o máximo, tentar novamente em 30 segundos como última chance
+            this.reconnectTimer = setTimeout(() => {
+              console.log('[INDEPENDENT_DERIV] Tentativa de recuperação final após pausa...');
+              this.reconnectAttempts = 0; // Resetar contador
+              this.connect();
+            }, 30000);
+          }
+        };
       } catch (error) {
-        console.error('[DerivAPI] Erro ao criar conexão WebSocket:', error);
-        this.notifyErrorListeners(error);
+        console.error('[INDEPENDENT_DERIV] Erro ao iniciar conexão WebSocket:', error);
+        this.notifyListeners('error', { message: 'Erro ao iniciar conexão' });
         reject(error);
       }
     });
   }
-
+  
   /**
-   * Desconectar do websocket
+   * Processa as mensagens recebidas do WebSocket
    */
-  public disconnect(): void {
-    this.clearKeepAlive();
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+  private handleMessage(data: any): void {
+    // Verificar se é uma resposta a uma solicitação específica
+    if (data.req_id && this.callbacks.has(data.req_id)) {
+      const callback = this.callbacks.get(data.req_id);
+      if (callback) {
+        callback(data);
+        this.callbacks.delete(data.req_id);
+      }
     }
     
-    if (this.ws) {
-      // Cancelar qualquer tentativa pendente de reconexão
-      this.autoReconnect = false;
+    // Processar ticks recebidos
+    if (data.tick) {
+      const symbol = data.tick.symbol;
+      const quote = data.tick.quote;
       
-      // Limpar todos os streams inscritos
-      this.subscribedStreams.clear();
+      // Usar o método CORRETO para R_100
+      // O último dígito é a SEGUNDA casa decimal (o último caractere do número formatado)
+      const priceStr = parseFloat(quote.toString()).toFixed(2); // Formatar com 2 casas decimais
+      const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
+      const lastDigit = parseInt(lastChar, 10);
       
-      // Fechar o websocket
-      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
-        this.ws.close();
-      }
-      this.ws = null;
-      this.isAuthorized = false;
-      this.authorizedAccount = null;
-    }
-  }
-
-  /**
-   * Verificar se está conectado
-   */
-  public isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
-  }
-
-  /**
-   * Verificar se está autorizado
-   */
-  public isAuthenticated(): boolean {
-    return this.isAuthorized;
-  }
-
-  /**
-   * Autorizar com token
-   */
-  public async authorize(token: string): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      const response = await this.send({
-        authorize: token
+      // Log detalhado para diagnóstico
+      console.log(`[INDEPENDENT_DERIV] Processando ${quote} -> último dígito ${lastDigit}`);
+      
+      // Log para diagnóstico
+      console.log(`[INDEPENDENT_DERIV] Novo tick para ${symbol}: ${quote} (último dígito: ${lastDigit})`);
+      
+      // Notificar sobre o tick
+      this.notifyListeners('tick', {
+        symbol, 
+        quote, 
+        lastDigit,
+        epoch: data.tick.epoch
       });
-
-      if (response.authorize) {
-        this.isAuthorized = true;
-        this.authorizedAccount = response.authorize;
-        console.log('[DerivAPI] Autorizado com sucesso como:', response.authorize.loginid);
-      }
-
-      return response;
-    } catch (error) {
-      console.error('[DerivAPI] Erro na autorização:', error);
-      this.isAuthorized = false;
-      this.authorizedAccount = null;
-      throw error;
+      
+      // Atualizar histórico de dígitos
+      this.updateDigitHistory(symbol, lastDigit);
     }
-  }
-
-  /**
-   * Obter informações da conta autorizada
-   */
-  public getAuthorizedAccount(): any {
-    return this.authorizedAccount;
-  }
-
-  /**
-   * Definir comportamento de reconexão automática
-   */
-  public setAutoReconnect(enabled: boolean): void {
-    this.autoReconnect = enabled;
-  }
-
-  /**
-   * Enviar requisição WebSocket
-   */
-  public async send(request: any): Promise<any> {
-    if (!this.isConnected()) {
-      try {
-        await this.connect();
-      } catch (error) {
-        throw new Error('Falha ao conectar ao WebSocket: ' + error);
+    
+    // Processar histórico de ticks
+    if (data.history && data.echo_req && data.echo_req.ticks_history) {
+      const symbol = data.echo_req.ticks_history;
+      const prices = data.history.prices;
+      
+      if (prices && prices.length > 0) {
+        // Extrair últimos dígitos do histórico - usando método correto (segunda casa decimal)
+        const lastDigits = prices.map((price: number) => {
+          // Usar o mesmo método que usamos para ticks em tempo real
+          const priceStr = parseFloat(price.toString()).toFixed(2); // Formatar com 2 casas decimais
+          const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
+          return parseInt(lastChar, 10);
+        });
+        
+        // Atualizar histórico
+        this.initializeDigitHistory(symbol, lastDigits);
+        
+        // Notificar sobre atualização de histórico
+        this.notifyListeners('history', this.getDigitHistory(symbol));
       }
     }
-
-    const reqId = this.getUniqueRequestId();
-    const fullRequest = {
-      ...request,
-      req_id: reqId,
-      passthrough: {
-        ...(request.passthrough || {}),
-        request_time: Date.now()
+    
+    // Processar erros
+    if (data.error) {
+      console.error('[INDEPENDENT_DERIV] Erro na resposta da API:', data.error);
+      this.notifyListeners('error', data.error);
+    }
+  }
+  
+  /**
+   * Inicializa o histórico de dígitos para um símbolo com dados existentes
+   */
+  private initializeDigitHistory(symbol: string, lastDigits: number[]): void {
+    // Inicializar array de contagem para dígitos 0-9
+    const digitCounts = new Array(10).fill(0);
+    
+    console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} dígitos. Primeiros 10:`, 
+      lastDigits.slice(0, 10).join(', '));
+    
+    // Contar ocorrências de cada dígito, incluindo zero
+    for (const digit of lastDigits) {
+      // Verificação extra para garantir que dígitos 0 sejam contados corretamente
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
       }
-    };
-
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        this.requestMap.delete(reqId);
-        reject(new Error(`Timeout na requisição ${reqId}`));
-      }, 30000);
-
-      this.requestMap.set(reqId, { resolve, reject, timeoutId, request: fullRequest });
-
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.updateLastActiveTimestamp();
-        this.ws.send(JSON.stringify(fullRequest));
-      } else {
-        clearTimeout(timeoutId);
-        this.requestMap.delete(reqId);
-        reject(new Error('WebSocket não está conectado'));
-      }
+    }
+    
+    // Verificação adicional para garantir que estamos contando corretamente
+    console.log('[INDEPENDENT_DERIV] Contagem por dígito:', 
+      digitCounts.map((count, digit) => `${digit}: ${count}`).join(', '));
+    
+    // Calcular percentuais
+    const totalSamples = lastDigits.length;
+    
+    // Criar estatísticas para todos os dígitos, mesmo que não tenham ocorrências
+    const stats = [];
+    for (let digit = 0; digit <= 9; digit++) {
+      stats.push({
+        digit,
+        count: digitCounts[digit],
+        percentage: totalSamples > 0 ? Math.round((digitCounts[digit] / totalSamples) * 100) : 0
+      });
+    }
+    
+    // Criar ou atualizar o histórico com exatamente 500 ticks
+    this.digitHistories.set(symbol, {
+      stats,
+      lastDigits: lastDigits.slice(-500), // Garantir que temos exatamente os 500 mais recentes
+      totalSamples: Math.min(totalSamples, 500), // Limitar a 500 o total de amostras
+      symbol,
+      lastUpdated: new Date()
     });
+    
+    console.log(`[INDEPENDENT_DERIV] Histórico de dígitos inicializado para ${symbol} com ${totalSamples} amostras`);
   }
-
+  
   /**
-   * Adicionar listener para mensagens específicas
+   * Atualiza o histórico de dígitos com um novo tick
    */
-  public addMessageListener(msgType: string, callback: (data: any) => void): void {
-    if (!this.messageListeners.has(msgType)) {
-      this.messageListeners.set(msgType, []);
-    }
-    this.messageListeners.get(msgType)?.push(callback);
-  }
-
-  /**
-   * Remover listener de mensagens
-   */
-  public removeMessageListener(msgType: string, callback: (data: any) => void): void {
-    if (this.messageListeners.has(msgType)) {
-      const listeners = this.messageListeners.get(msgType);
-      if (listeners) {
-        this.messageListeners.set(
-          msgType,
-          listeners.filter((cb) => cb !== callback)
-        );
-      }
-    }
-  }
-
-  /**
-   * Adicionar listener para mudanças na conexão
-   */
-  public addConnectionListener(callback: (connected: boolean) => void): void {
-    this.connectionListeners.push(callback);
-    // Notificar imediatamente com o status atual
-    callback(this.isConnected());
-  }
-
-  /**
-   * Remover listener de conexão
-   */
-  public removeConnectionListener(callback: (connected: boolean) => void): void {
-    this.connectionListeners = this.connectionListeners.filter((cb) => cb !== callback);
-  }
-
-  /**
-   * Adicionar listener para erros
-   */
-  public addErrorListener(callback: (error: any) => void): void {
-    this.errorListeners.push(callback);
-  }
-
-  /**
-   * Remover listener de erros
-   */
-  public removeErrorListener(callback: (error: any) => void): void {
-    this.errorListeners = this.errorListeners.filter((cb) => cb !== callback);
-  }
-
-  /**
-   * Inscrever para stream de ticks
-   */
-  public async subscribeTicks(symbol: string): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      if (this.subscribedStreams.has(`ticks-${symbol}`)) {
-        console.log(`[DerivAPI] Já inscrito para ticks de ${symbol}`);
-        return;
-      }
-
-      const response = await this.send({
-        ticks: symbol,
-        subscribe: 1
-      });
-
-      if (response.tick) {
-        this.subscribedStreams.set(`ticks-${symbol}`, true);
-        console.log(`[DerivAPI] Inscrito para ticks de ${symbol}`);
-      }
-
-      return response;
-    } catch (error) {
-      console.error(`[DerivAPI] Erro ao inscrever para ticks de ${symbol}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cancelar inscrição de ticks
-   */
-  public async unsubscribeTicks(symbol: string): Promise<void> {
-    try {
-      const key = `ticks-${symbol}`;
-      if (!this.subscribedStreams.has(key)) {
-        return;
-      }
-
-      if (this.isConnected()) {
-        await this.send({
-          forget_all: ['ticks']
+  private updateDigitHistory(symbol: string, lastDigit: number): void {
+    console.log(`[INDEPENDENT_DERIV] Atualizando histórico para ${symbol} com dígito ${lastDigit}`);
+    
+    const history = this.digitHistories.get(symbol);
+    
+    if (!history) {
+      // Criar histórico vazio para o símbolo se não existir
+      // Garantir que temos estatísticas para todos os dígitos (0-9)
+      const stats = [];
+      for (let i = 0; i <= 9; i++) {
+        stats.push({
+          digit: i,
+          count: i === lastDigit ? 1 : 0,
+          percentage: i === lastDigit ? 100 : 0
         });
       }
-
-      this.subscribedStreams.delete(key);
-      console.log(`[DerivAPI] Inscrição de ticks para ${symbol} cancelada`);
-    } catch (error) {
-      console.error(`[DerivAPI] Erro ao cancelar inscrição de ticks para ${symbol}:`, error);
-    }
-  }
-
-  /**
-   * Obter histórico de ticks
-   */
-  public async getTicksHistory(symbol: string, options: any = {}): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      const request = {
-        ticks_history: symbol,
-        adjust_start_time: 1,
-        count: options.count || 100,
-        end: 'latest',
-        start: options.start || 1,
-        style: options.style || 'ticks'
-      };
-
-      const response = await this.send(request);
-      return response;
-    } catch (error) {
-      console.error(`[DerivAPI] Erro ao obter histórico de ticks para ${symbol}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obter saldo atual
-   */
-  public async getBalance(): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      if (!this.isAuthorized) {
-        throw new Error('Não autorizado. Faça login primeiro.');
-      }
-
-      const response = await this.send({
-        balance: 1,
-        subscribe: 0
-      });
-
-      return response;
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao obter saldo:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Comprar contrato
-   */
-  public async buyContract(parameters: any): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      if (!this.isAuthorized) {
-        throw new Error('Não autorizado. Faça login primeiro.');
-      }
-
-      const proposal = await this.send({
-        proposal: 1,
-        subscribe: 0,
-        ...parameters
-      });
-
-      if (proposal.error) {
-        throw proposal.error;
-      }
-
-      const buy = await this.send({
-        buy: proposal.proposal.id,
-        price: parameters.amount
-      });
-
-      return buy;
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao comprar contrato:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obter contratos abertos
-   */
-  public async getOpenContracts(): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      if (!this.isAuthorized) {
-        throw new Error('Não autorizado. Faça login primeiro.');
-      }
-
-      const response = await this.send({
-        proposal_open_contract: 1,
-        subscribe: 0
-      });
-
-      return response;
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao obter contratos abertos:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Vender contrato
-   */
-  public async sellContract(contractId: number, price: number): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      if (!this.isAuthorized) {
-        throw new Error('Não autorizado. Faça login primeiro.');
-      }
-
-      const response = await this.send({
-        sell: contractId,
-        price: price
-      });
-
-      return response;
-    } catch (error) {
-      console.error(`[DerivAPI] Erro ao vender contrato ${contractId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obter símbolos ativos disponíveis
-   */
-  public async getActiveSymbols(): Promise<any> {
-    try {
-      if (!this.isConnected()) {
-        await this.connect();
-      }
-
-      const response = await this.send({
-        active_symbols: 'brief',
-        product_type: 'basic'
-      });
-
-      return response;
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao obter símbolos ativos:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Manipular mensagem recebida
-   */
-  private handleMessage(event: MessageEvent): void {
-    try {
-      const data = JSON.parse(event.data);
-      this.updateLastActiveTimestamp();
-
-      // Se for uma resposta a uma requisição específica
-      if (data.req_id && this.requestMap.has(data.req_id)) {
-        const { resolve, reject, timeoutId } = this.requestMap.get(data.req_id);
-        clearTimeout(timeoutId);
-        this.requestMap.delete(data.req_id);
-
-        if (data.error) {
-          console.error(`[DerivAPI] Erro na resposta ${data.req_id}:`, data.error);
-          reject(data.error);
-        } else {
-          resolve(data);
-        }
-      }
-
-      // Verificar se é um evento de ping/pong
-      if (data.ping) {
-        this.handlePingResponse();
-        return;
-      }
-
-      // Verificar se é resposta de forget
-      if (data.forget) {
-        const idx = this.forgetRequests.indexOf(data.req_id);
-        if (idx !== -1) {
-          this.forgetRequests.splice(idx, 1);
-        }
-        return;
-      }
-
-      // Notificar listeners com base no tipo de mensagem
-      for (const [msgType, handlers] of this.messageListeners.entries()) {
-        if (data[msgType]) {
-          handlers.forEach((handler) => {
-            try {
-              handler({ ...data });
-            } catch (err) {
-              console.error(`[DerivAPI] Erro ao processar listener ${msgType}:`, err);
-            }
-          });
-        }
-      }
-
-      // Verificar se é um evento específico de tick
-      if (data.tick) {
-        const event = new CustomEvent('tick', { detail: data.tick });
-        window.dispatchEvent(event);
-      }
-
-      // Verificar se é uma atualização de contrato
-      if (data.proposal_open_contract) {
-        const event = new CustomEvent('contract_update', { 
-          detail: data.proposal_open_contract 
-        });
-        window.dispatchEvent(event);
-      }
-
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao processar mensagem:', error);
-    }
-  }
-
-  /**
-   * Gerar ID único para requisição
-   */
-  private getUniqueRequestId(): string {
-    return `req_${++this.requestId}_${Date.now()}`;
-  }
-
-  /**
-   * Configurar keep-alive para manter conexão
-   */
-  private setupKeepAlive(): void {
-    this.clearKeepAlive();
-    
-    // Enviar ping a cada 30 segundos para manter a conexão ativa
-    this.keepAliveInterval = setInterval(() => {
-      if (this.isConnected()) {
-        this.sendPing();
-      }
-    }, 30000);
-
-    // Verificar inatividade a cada 5 minutos
-    this.sessionPauseTimeout = setInterval(() => {
-      const now = Date.now();
-      const inactiveTime = now - this.lastActiveTimestamp;
       
-      // Se estiver inativo por mais de 15 minutos
-      if (inactiveTime > 15 * 60 * 1000) {
-        console.log('[DerivAPI] Sessão inativa por 15 minutos, pausando atividade');
-        // Manter apenas pings, mas reduzir outras atividades
-      }
-    }, 5 * 60 * 1000);
-  }
-
-  /**
-   * Limpar intervalos de keep-alive
-   */
-  private clearKeepAlive(): void {
-    if (this.keepAliveInterval) {
-      clearInterval(this.keepAliveInterval);
-      this.keepAliveInterval = null;
-    }
-    
-    if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout);
-      this.pingTimeout = null;
-    }
-    
-    if (this.sessionPauseTimeout) {
-      clearInterval(this.sessionPauseTimeout);
-      this.sessionPauseTimeout = null;
-    }
-  }
-
-  /**
-   * Enviar ping para servidor
-   */
-  private sendPing(): void {
-    if (!this.isConnected()) return;
-    
-    try {
-      this.ws?.send(JSON.stringify({ ping: 1 }));
+      this.digitHistories.set(symbol, {
+        stats,
+        lastDigits: [lastDigit],
+        totalSamples: 1,
+        symbol,
+        lastUpdated: new Date()
+      });
       
-      // Definir timeout para detectar falha na resposta de ping
-      this.pingTimeout = setTimeout(() => {
-        console.warn('[DerivAPI] Não recebeu resposta ao ping, reconectando...');
-        this.handleReconnection();
-      }, 10000);
-    } catch (error) {
-      console.error('[DerivAPI] Erro ao enviar ping:', error);
-      this.handleReconnection();
-    }
-  }
-
-  /**
-   * Manipular resposta de ping
-   */
-  private handlePingResponse(): void {
-    // Limpar timeout de ping já que recebeu resposta
-    if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout);
-      this.pingTimeout = null;
-    }
-  }
-
-  /**
-   * Atualizar timestamp da última atividade
-   */
-  private updateLastActiveTimestamp(): void {
-    this.lastActiveTimestamp = Date.now();
-  }
-
-  /**
-   * Tentar reconectar ao WebSocket
-   */
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[DerivAPI] Número máximo de tentativas de reconexão atingido');
+      // Notificar sobre a primeira atualização
+      this.notifyListeners('history', this.getDigitHistory(symbol));
       return;
     }
-
-    const delay = Math.min(30000, Math.pow(2, this.reconnectAttempts) * 1000);
-    console.log(`[DerivAPI] Tentando reconectar em ${delay / 1000} segundos...`);
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectAttempts++;
-      this.handleReconnection();
-    }, delay);
+    
+    // Atualizar lista de últimos dígitos (assegurar que manteremos exatamente 500)
+    history.lastDigits.push(lastDigit);
+    while (history.lastDigits.length > 500) {
+      history.lastDigits.shift();
+    }
+    
+    // Recontar dígitos (abordagem simples e confiável)
+    const digitCounts = new Array(10).fill(0);
+    for (const digit of history.lastDigits) {
+      // Verificar se o dígito é um número válido antes de contar
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
+      }
+    }
+    
+    // Recalcular percentuais
+    const totalSamples = history.lastDigits.length;
+    history.stats = digitCounts.map((count, digit) => ({
+      digit,
+      count,
+      percentage: totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0
+    }));
+    
+    // Certificar que temos todos os dígitos representados (0-9), mesmo que com contagem zero
+    for (let digit = 0; digit <= 9; digit++) {
+      if (!history.stats.some(s => s.digit === digit)) {
+        history.stats.push({
+          digit,
+          count: 0,
+          percentage: 0
+        });
+      }
+    }
+    
+    // Ordenar por dígito para garantir a ordem correta (0-9)
+    history.stats.sort((a, b) => a.digit - b.digit);
+    
+    // Adicionar log para diagnóstico
+    if (totalSamples % 10 === 0) { // Logar a cada 10 ticks para não sobrecarregar
+      console.log(`[INDEPENDENT_DERIV] Estatísticas atualizadas para ${symbol}: 
+        Total: ${totalSamples} ticks
+        Dígitos recentes: ${history.lastDigits.slice(-10).reverse().join(', ')}
+        Distribuição: ${history.stats.map(s => `${s.digit}:${s.percentage}%`).join(', ')}
+      `);
+    }
+    
+    history.totalSamples = totalSamples;
+    history.lastUpdated = new Date();
+    
+    // Notificar ouvintes sobre atualização
+    this.notifyListeners('history', this.getDigitHistory(symbol));
   }
-
+  
   /**
-   * Manipular reconexão e restauração de estado
+   * Salva os dados do histórico de dígitos no localStorage para persistência
    */
-  private async handleReconnection(): Promise<void> {
+  private saveHistoryToLocalStorage(symbol: string): void {
     try {
-      // Limpar estado atual
-      if (this.ws) {
-        this.ws.onclose = null;
-        this.ws.onerror = null;
-        this.ws.onmessage = null;
-        this.ws.onopen = null;
-        
-        if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
-          this.ws.close();
-        }
-        this.ws = null;
-      }
-
-      // Armazenar estado atual
-      const wasAuthorized = this.isAuthorized;
-      const savedAccount = this.authorizedAccount;
-      const savedToken = savedAccount?.token;
-      const savedStreams = new Map(this.subscribedStreams);
-
-      // Redefinir estado
-      this.isAuthorized = false;
-      this.authorizedAccount = null;
-      this.subscribedStreams.clear();
-
-      // Tentar reconectar
-      await this.connect();
-
-      // Restaurar autorização se necessário
-      if (wasAuthorized && savedToken) {
-        try {
-          await this.authorize(savedToken);
-        } catch (error) {
-          console.error('[DerivAPI] Falha ao restaurar autorização após reconexão:', error);
-        }
-      }
-
-      // Restaurar streams inscritos
-      for (const [streamKey, active] of savedStreams.entries()) {
-        if (active && streamKey.startsWith('ticks-')) {
-          const symbol = streamKey.replace('ticks-', '');
-          try {
-            await this.subscribeTicks(symbol);
-          } catch (error) {
-            console.error(`[DerivAPI] Falha ao restaurar stream ${streamKey}:`, error);
-          }
-        }
-      }
-
-      console.log('[DerivAPI] Reconexão realizada com sucesso');
-    } catch (error) {
-      console.error('[DerivAPI] Erro durante reconexão:', error);
+      const history = this.digitHistories.get(symbol);
+      if (!history) return;
       
-      // Se falhar, tentar novamente
-      if (this.autoReconnect) {
-        this.attemptReconnect();
-      }
+      const data = {
+        lastDigits: history.lastDigits,
+        stats: history.stats,
+        totalSamples: history.totalSamples,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      localStorage.setItem(`deriv_digits_history_${symbol}`, JSON.stringify(data));
+      console.log(`[INDEPENDENT_DERIV] Histórico de ${history.lastDigits.length} ticks salvo no localStorage para ${symbol}`);
+    } catch (e) {
+      console.warn('[INDEPENDENT_DERIV] Não foi possível salvar o histórico no localStorage:', e);
     }
   }
 
   /**
-   * Notificar listeners de conexão
+   * Obtém histórico de ticks para um símbolo
+   * Este método busca os últimos 500 ticks e os armazena, para que eles estejam
+   * disponíveis mesmo após atualizar a página
    */
-  private notifyConnectionListeners(connected: boolean): void {
-    this.connectionListeners.forEach((listener) => {
-      try {
-        listener(connected);
-      } catch (error) {
-        console.error('[DerivAPI] Erro ao notificar listener de conexão:', error);
-      }
+  public fetchTicksHistory(symbol: string, count: number = 500): Promise<DigitHistory> {
+    if (!this.isConnected) {
+      return this.connect().then(() => this.fetchTicksHistory(symbol, count));
+    }
+    
+    console.log(`[INDEPENDENT_DERIV] Solicitando histórico de ${count} ticks para ${symbol}`);
+    
+    return new Promise((resolve, reject) => {
+      const reqId = this.requestId++;
+      
+      this.callbacks.set(reqId, (response) => {
+        if (response.error) {
+          console.error(`[INDEPENDENT_DERIV] Erro ao obter histórico para ${symbol}:`, response.error);
+          reject(new Error(response.error.message));
+          return;
+        }
+        
+        if (response.history && response.history.prices) {
+          // Extrair todos os dígitos (até 500) e inicializar o histórico
+          const prices = response.history.prices;
+          const lastDigits = prices.map((price: number) => {
+            // Usar o método CORRETO para R_100 (mesma estratégia de processamento do tick em tempo real)
+            const priceStr = parseFloat(price.toString()).toFixed(2); // Formatar com 2 casas decimais
+            const lastChar = priceStr.charAt(priceStr.length - 1); // Pegar o último caractere (segunda casa decimal)
+            return parseInt(lastChar, 10);
+          });
+          
+          console.log(`[INDEPENDENT_DERIV] Histórico recebido com ${lastDigits.length} ticks`);
+          
+          // Atualizar histórico com os dados recebidos
+          this.initializeDigitHistory(symbol, lastDigits);
+          
+          // Salvar no localStorage para persistir entre recarregamentos
+          this.saveHistoryToLocalStorage(symbol);
+          
+          // Obter histórico depois de atualizado
+          const history = this.getDigitHistory(symbol);
+          resolve(history);
+        } else {
+          reject(new Error('Resposta de histórico incompleta'));
+        }
+      });
+      
+      // Enviar solicitação
+      this.sendMessage({
+        ticks_history: symbol,
+        count: count,
+        end: 'latest',
+        style: 'ticks',
+        req_id: reqId
+      });
     });
   }
-
+  
   /**
-   * Notificar listeners de erro
+   * Assina para receber ticks de um símbolo específico
    */
-  private notifyErrorListeners(error: any): void {
-    this.errorListeners.forEach((listener) => {
-      try {
-        listener(error);
-      } catch (err) {
-        console.error('[DerivAPI] Erro ao notificar listener de erro:', err);
-      }
+  public subscribeTicks(symbol: string): Promise<boolean> {
+    if (!this.isConnected) {
+      return this.connect().then(() => this.subscribeTicks(symbol));
+    }
+    
+    // Verificar se já está inscrito
+    if (this.activeSubscriptions.has(symbol)) {
+      console.log(`[INDEPENDENT_DERIV] Já inscrito para ticks de ${symbol}`);
+      return Promise.resolve(true);
+    }
+    
+    console.log(`[INDEPENDENT_DERIV] Assinando ticks para ${symbol}`);
+    
+    return new Promise((resolve, reject) => {
+      const reqId = this.requestId++;
+      
+      this.callbacks.set(reqId, (response) => {
+        if (response.error) {
+          console.error(`[INDEPENDENT_DERIV] Erro ao assinar ticks para ${symbol}:`, response.error);
+          reject(new Error(response.error.message));
+          return;
+        }
+        
+        console.log(`[INDEPENDENT_DERIV] Assinatura de ticks para ${symbol} bem-sucedida`);
+        this.activeSubscriptions.add(symbol);
+        resolve(true);
+      });
+      
+      // Enviar solicitação
+      this.sendMessage({
+        ticks: symbol,
+        subscribe: 1,
+        req_id: reqId
+      });
     });
+  }
+  
+  /**
+   * Cancela assinatura de ticks para um símbolo
+   */
+  public unsubscribeTicks(symbol: string): Promise<boolean> {
+    if (!this.isConnected || !this.activeSubscriptions.has(symbol)) {
+      console.log(`[INDEPENDENT_DERIV] Não inscrito para ticks de ${symbol}`);
+      return Promise.resolve(true);
+    }
+    
+    console.log(`[INDEPENDENT_DERIV] Cancelando assinatura de ticks para ${symbol}`);
+    
+    return new Promise((resolve) => {
+      const reqId = this.requestId++;
+      
+      this.callbacks.set(reqId, () => {
+        console.log(`[INDEPENDENT_DERIV] Assinatura de ticks para ${symbol} cancelada`);
+        this.activeSubscriptions.delete(symbol);
+        resolve(true);
+      });
+      
+      // Enviar solicitação de cancelamento
+      this.sendMessage({
+        forget_all: 'ticks',
+        req_id: reqId
+      });
+    });
+  }
+  
+  /**
+   * Reativa todas as subscrições ativas
+   */
+  private resubscribeAll(): void {
+    if (this.activeSubscriptions.size === 0) {
+      return;
+    }
+    
+    console.log(`[INDEPENDENT_DERIV] Reativando ${this.activeSubscriptions.size} subscrições`);
+    
+    // Tentar reativar R_100 diretamente se presente na lista
+    if (this.activeSubscriptions.has('R_100')) {
+      this.subscribeTicks('R_100')
+        .catch(error => console.error('[INDEPENDENT_DERIV] Erro ao reativar R_100:', error));
+    }
+    
+    // Se houver outras subscrições, poderíamos adicionar aqui
+  }
+  
+  /**
+   * Obtém o histórico de dígitos para um símbolo, com opção de filtrar por número de ticks
+   * @param symbol O símbolo para obter o histórico
+   * @param tickCount Opcional: O número de ticks para filtrar (25, 50, 100, 200, 300 ou 500)
+   */
+  public getDigitHistory(symbol: string, tickCount?: number): DigitHistory {
+    const history = this.digitHistories.get(symbol);
+    
+    if (!history) {
+      // Retornar um histórico vazio se não houver dados
+      return {
+        stats: Array.from({ length: 10 }, (_, digit) => ({
+          digit,
+          count: 0,
+          percentage: 0
+        })),
+        lastDigits: [],
+        totalSamples: 0,
+        symbol,
+        lastUpdated: new Date()
+      };
+    }
+    
+    // Se não especificar tickCount, retornar o histórico completo
+    if (!tickCount || tickCount >= history.lastDigits.length) {
+      console.log(`[INDEPENDENT_DERIV] Retornando histórico completo para ${symbol}: ${history.lastDigits.length} ticks`);
+      return { ...history };
+    }
+    
+    console.log(`[INDEPENDENT_DERIV] Filtrando histórico para ${symbol} com ${tickCount} ticks dos ${history.lastDigits.length} disponíveis`);
+    
+    // Caso contrário, filtrar pelos últimos N ticks (com verificação extra para garantir que estamos pegando o número certo)
+    const filteredDigits = history.lastDigits.slice(-Math.min(tickCount, history.lastDigits.length));
+    
+    // Verificação extra
+    if (filteredDigits.length !== tickCount) {
+      console.warn(`[INDEPENDENT_DERIV] Aviso: Solicitados ${tickCount} ticks, mas obtidos ${filteredDigits.length}`);
+    }
+    
+    // Recalcular as estatísticas baseadas nos dígitos filtrados
+    const digitCounts = new Array(10).fill(0);
+    
+    // Contar ocorrências de cada dígito com verificação extra
+    for (const digit of filteredDigits) {
+      if (digit >= 0 && digit <= 9) {
+        digitCounts[digit]++;
+      } else {
+        console.warn(`[INDEPENDENT_DERIV] Dígito inválido ignorado: ${digit}`);
+      }
+    }
+    
+    // Verificação extra para garantir que temos contagem para todos os dígitos
+    if (digitCounts.some(count => count === undefined)) {
+      console.warn(`[INDEPENDENT_DERIV] Algumas contagens são undefined:`, digitCounts);
+      // Corrigir qualquer contagem undefined
+      for (let i = 0; i < digitCounts.length; i++) {
+        if (digitCounts[i] === undefined) digitCounts[i] = 0;
+      }
+    }
+    
+    // Recalcular percentuais com alta precisão e depois arredondar para evitar erros de precisão
+    const totalSamples = filteredDigits.length;
+    
+    // Garantir que temos estatísticas para TODOS os dígitos, não apenas os que aparecem
+    const stats = [];
+    for (let digit = 0; digit <= 9; digit++) {
+      const count = digitCounts[digit] || 0;
+      // Usar cálculo de percentual mais preciso: calcular com precisão e depois arredondar
+      const percentage = totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0;
+      stats.push({ digit, count, percentage });
+    }
+    
+    // Garantir que os dígitos estão em ordem correta
+    stats.sort((a, b) => a.digit - b.digit);
+    
+    // Log para debug
+    console.log(`[INDEPENDENT_DERIV] Histórico filtrado: ${totalSamples} ticks, distribuição:`,
+      stats.map(s => `${s.digit}: ${s.percentage}%`).join(', '));
+    
+    // Retornar história filtrada
+    return {
+      stats,
+      lastDigits: filteredDigits,
+      totalSamples,
+      symbol,
+      lastUpdated: new Date()
+    };
+  }
+  
+  /**
+   * Enviar mensagem para o WebSocket
+   */
+  private sendMessage(message: any): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('[INDEPENDENT_DERIV] Tentativa de enviar mensagem sem conexão WebSocket');
+      return;
+    }
+    
+    this.socket.send(JSON.stringify(message));
+  }
+  
+  /**
+   * Adiciona um ouvinte para um tipo de evento
+   */
+  public addListener(event: string, callback: EventCallback): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    
+    this.eventListeners.get(event)?.add(callback);
+    console.log(`[INDEPENDENT_DERIV] Ouvinte adicionado para evento ${event}`);
+  }
+  
+  /**
+   * Remove um ouvinte para um tipo de evento
+   */
+  public removeListener(event: string, callback: EventCallback): void {
+    if (this.eventListeners.has(event)) {
+      this.eventListeners.get(event)?.delete(callback);
+      console.log(`[INDEPENDENT_DERIV] Ouvinte removido para evento ${event}`);
+    }
+  }
+  
+  /**
+   * Remove todos os ouvintes de um evento específico ou de todos os eventos
+   */
+  public removeAllListeners(event?: string): void {
+    if (event) {
+      // Remover todos os ouvintes de um evento específico
+      if (this.eventListeners.has(event)) {
+        this.eventListeners.set(event, new Set());
+        console.log(`[INDEPENDENT_DERIV] Todos os ouvintes removidos para evento ${event}`);
+      }
+    } else {
+      // Remover todos os ouvintes de todos os eventos
+      this.eventListeners.forEach((_, eventName) => {
+        this.eventListeners.set(eventName, new Set());
+      });
+      console.log(`[INDEPENDENT_DERIV] Todos os ouvintes removidos de todos os eventos`);
+    }
+  }
+  
+  /**
+   * Notifica todos os ouvintes registrados para um evento
+   */
+  private notifyListeners(event: string, data: any): void {
+    if (!this.eventListeners.has(event)) {
+      return;
+    }
+    
+    const listeners = this.eventListeners.get(event);
+    if (listeners && listeners.size > 0) {
+      // Adicionar log para rastrear eventos e dados repassados
+      if (event === 'history') {
+        console.log(`[INDEPENDENT_DERIV] Notificando ${listeners.size} ouvintes sobre atualização de histórico:`, 
+          `Symbol: ${data.symbol}, ` +
+          `Stats: ${data.stats?.length || 0}, ` +
+          `Digits: ${data.lastDigits?.length || 0}`);
+      }
+      
+      listeners.forEach((callback) => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[INDEPENDENT_DERIV] Erro ao executar ouvinte para ${event}:`, error);
+        }
+      });
+    }
+  }
+  
+  /**
+   * Fecha a conexão WebSocket
+   */
+  public disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    
+    this.isConnected = false;
+    console.log('[INDEPENDENT_DERIV] Conexão WebSocket fechada');
   }
 }
 
-// Criar e exportar instância única por padrão
-export const independentDerivService = new IndependentDerivService();
+// Exportar instância única do serviço
+export const independentDerivService = IndependentDerivService.getInstance();

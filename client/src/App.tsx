@@ -3,8 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toast";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
-import BotPage from "@/pages/bot-page";
-import OldBotPage from "@/pages/old-bot-page";
+import { BotPage } from "@/pages/bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
 import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
 import ChartPage from "@/pages/chart-page";
@@ -15,10 +14,7 @@ import DigitDisplayFixed from "@/pages/digit-display-fixed";
 import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
 import DigitStatsPage from "@/pages/digit-stats-page";
-import ComponentsTestPage from '@/pages/components-test';
-import OAuthCallback from '@/pages/oauth-callback';
 import { useTranslation } from 'react-i18next';
-import { AuthProvider } from "@/hooks/use-auth";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
@@ -81,10 +77,9 @@ function App() {
     <div className="App">
       <Toaster />
       {/* <ConfirmAccountSwitch /> */}
-      <AuthProvider>
-        <Switch>
-          <Route path="/login" component={Login} />
-          <Route path="/" component={() => {
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/" component={() => {
           // Verificar se há parâmetros de autenticação da Deriv na URL
           const url = window.location.href;
           console.log('[AUTH] Verificando URL da raiz:', url);
@@ -174,15 +169,11 @@ function App() {
         <Route path="/token-test" component={(props: any) => <ProtectedRoute component={TokenTestPage} {...props} />} />
         <Route path="/gestao-operacional" component={(props: any) => <ProtectedRoute component={GestaoOperacionalPage} {...props} />} />
         <Route path="/chart" component={(props: any) => <ProtectedRoute component={ChartPage} {...props} />} />
-        <Route path="/old-bot" component={(props: any) => <ProtectedRoute component={OldBotPage} {...props} />} />
         <Route path="/simplechart" component={SimpleChart} />
         <Route path="/realtime" component={RealtimeDigits} />
         <Route path="/digits" component={DigitsFixed} />
         <Route path="/digit-stats" component={DigitStatsPage} />
-        <Route path="/components-test" component={ComponentsTestPage} />
-        <Route path="/oauth-callback" component={OAuthCallback} />
-        </Switch>
-      </AuthProvider>
+      </Switch>
     </div>
   );
 }
