@@ -269,13 +269,38 @@ export function usesDigitPrediction(strategyId: string): boolean {
 
 /**
  * Determina o tipo de contrato baseado na estratégia
+ * 
+ * IMPORTANTE: Esta função é apenas um fallback para compatibilidade.
+ * Sempre priorize o uso do valor definido no XML da estratégia via parser.
+ * 
+ * @deprecated Use o parser XML para obter o tipo de contrato diretamente do arquivo da estratégia
  */
 export function getContractTypeForStrategy(strategyId: string): string {
   // Normalizar o ID para comparação
   const id = (strategyId || '').toLowerCase();
   
+  console.warn(`[STRATEGY_CONFIG] ⚠️ FUNÇÃO LEGADA: getContractTypeForStrategy() chamada para ${strategyId}`);
+  console.warn(`[STRATEGY_CONFIG] ⚠️ RECOMENDAÇÃO: Use o parser XML para obter o tipo exato de contrato definido na estratégia`);
+  
+  // Recomendado: tipos EXATOS das estratégias conforme XML
+  if (id.includes('iron_over') || id.includes('ironover') || id.includes('iron over')) {
+    console.log(`[STRATEGY_CONFIG] 🔍 Estratégia IRON OVER detectada: Usando DIGITOVER conforme XML`);
+    return 'DIGITOVER';
+  } 
+  else if (id.includes('iron_under') || id.includes('ironunder') || id.includes('iron under')) {
+    console.log(`[STRATEGY_CONFIG] 🔍 Estratégia IRON UNDER detectada: Usando DIGITUNDER conforme XML`);
+    return 'DIGITUNDER';
+  }
+  else if (id.includes('advance')) {
+    console.log(`[STRATEGY_CONFIG] 🔍 Estratégia ADVANCE detectada: Usando DIGITOVER conforme XML`);
+    return 'DIGITOVER';
+  }
+  else if (id.includes('maxpro')) {
+    console.log(`[STRATEGY_CONFIG] 🔍 Estratégia MAXPRO detectada: Usando DIGITOVER conforme XML`);
+    return 'DIGITOVER';
+  }
   // Verificar estratégias CALL (ACIMA)
-  if (id.includes('over') || id.includes('acima')) {
+  else if (id.includes('over') || id.includes('acima')) {
     return 'CALL';
   } 
   // Verificar estratégias PUT (ABAIXO)
@@ -284,8 +309,7 @@ export function getContractTypeForStrategy(strategyId: string): string {
   } 
   // Verificar estratégias que usam DIGITDIFF
   else if (id.includes('bot_low') || id.includes('bot low') || 
-           id.includes('maxpro') || id.includes('wise') ||
-           id.includes('tendencia')) {
+           id.includes('wise') || id.includes('tendencia')) {
     return 'DIGITDIFF';
   } 
   // Green estratégia

@@ -1047,11 +1047,17 @@ export function BotController({
       
       // Definir o tipo de contrato com base na estratégia
       // Agora usaremos o tipo de contrato do XML se disponível
-      let contractType = getContractTypeForStrategy(selectedStrategy);
+      // A variável contractType será definida mais tarde pelo evaluateEntryConditions
+      // Aqui definimos apenas um valor padrão que será substituído
+      // REMOVIDO: let contractType = getContractTypeForStrategy(selectedStrategy);
+      console.log(`[BOT_CONTROLLER] ℹ️ O tipo de contrato será determinado diretamente pelo XML da estratégia`);
       
       // Determinar a previsão de dígito com base na estratégia
       const needsPrediction = usesDigitPrediction(selectedStrategy);
       let prediction = needsPrediction ? Math.floor(Math.random() * 10) : undefined;
+      
+      // Inicializar o tipo de contrato que será usado nas operações
+      let contractType = 'DIGITOVER'; // Valor padrão que será substituído
       
       // Tente obter os valores da estratégia usando o parser XML
       try {
@@ -1155,35 +1161,36 @@ export function BotController({
         (window as any).ironBotEntryValue = exactUserValue;
         
         // Etapa 2: Configurar explicitamente o tipo de contrato adequado para cada estratégia
-        let contractType = 'CALL'; // Tipo padrão
+        // NOVA IMPLEMENTAÇÃO: Analisar a estratégia com o parser XML para determinar o tipo de contrato
+        // em vez de usar valores hardcoded
         
-        // Função auxiliar para determinar o tipo de contrato com base na estratégia
-        const getContractTypeForStrategy = (strategyName: string): string => {
-          const strategy = strategyName.toLowerCase();
-          if (strategy.includes('iron_under') || strategy.includes('ironunder')) {
-            return 'DIGITUNDER';
-          } else if (strategy.includes('iron_over') || strategy.includes('ironover')) {
-            return 'DIGITOVER';
-          } else if (strategy.includes('maxpro')) {
-            return 'DIGITOVER';
-          } else if (strategy.includes('advance')) {
-            return 'CALL';
-          } else if (strategy.includes('botlow')) {
-            return 'PUT';
-          } else {
-            return 'CALL'; // Valor padrão para outras estratégias
+        // Obter a estratégia pelo ID
+        const strategyInfo = getStrategyById(selectedStrategy);
+        
+        // Inicializar o tipo de contrato com um valor padrão seguro
+        // Este será substituído pelo valor correto do XML ao executar evaluateEntryConditions
+        let contractType = 'DIGITOVER';
+        
+        console.log(`[BOT_CONTROLLER] 🔍 Estratégia selecionada:`, strategyInfo?.name || selectedStrategy);
+        
+        // Se temos o caminho do XML, vamos tentar carregá-lo e analisá-lo para obter as configurações
+        if (strategyInfo?.xmlPath) {
+          console.log(`[BOT_CONTROLLER] 🔍 Caminho XML disponível: ${strategyInfo.xmlPath}`);
+          console.log(`[BOT_CONTROLLER] 🔍 Análise XML será realizada antes da execução via evaluateEntryConditions`);
+        } else {
+          console.log(`[BOT_CONTROLLER] ⚠️ XML não encontrado para estratégia ${selectedStrategy}`);
+          
+          // Fallback para valores padrão
+          if (selectedStrategy.toLowerCase().includes('iron_under') || selectedStrategy.toLowerCase().includes('ironunder')) {
+            contractType = 'DIGITUNDER';
+            console.log(`[BOT_CONTROLLER] ⚠️ XML não disponível. Usando tipo padrão DIGITUNDER para estratégia IRON UNDER`);
+          } else if (selectedStrategy.toLowerCase().includes('iron_over') || selectedStrategy.toLowerCase().includes('ironover')) {
+            contractType = 'DIGITOVER';
+            console.log(`[BOT_CONTROLLER] ⚠️ XML não disponível. Usando tipo padrão DIGITOVER para estratégia IRON OVER`);
+          } else if (selectedStrategy.toLowerCase().includes('advance')) {
+            contractType = 'DIGITOVER';
+            console.log(`[BOT_CONTROLLER] ⚠️ XML não disponível. Usando tipo padrão DIGITOVER para estratégia ADVANCE`);
           }
-        };
-        
-        contractType = getContractTypeForStrategy(selectedStrategy);
-        
-        // CORREÇÃO MANUAL para estratégias com tipos específicos de contrato
-        if (selectedStrategy.toLowerCase().includes('iron_under') || selectedStrategy.toLowerCase().includes('ironunder')) {
-          contractType = 'DIGITUNDER';
-          console.log(`[BOT_CONTROLLER] ⚠️ Forçando tipo DIGITUNDER para estratégia IRON UNDER`);
-        } else if (selectedStrategy.toLowerCase().includes('iron_over') || selectedStrategy.toLowerCase().includes('ironover')) {
-          contractType = 'DIGITOVER';
-          console.log(`[BOT_CONTROLLER] ⚠️ Forçando tipo DIGITOVER para estratégia IRON OVER`);
         }
         
         // Etapa 3: Configurar o serviço com todos os parâmetros exatos
@@ -1419,7 +1426,23 @@ export function BotController({
                 }
                 
                 // Obter o tipo de contrato adequado para a estratégia selecionada
-                const contractType = getContractTypeForStrategy(currentStrategy) || 'DIGITOVER';
+                // ATUALIZAÇÃO CRÍTICA: Obter o tipo de contrato do XML e não da função legada
+                console.log(`[BOT_BUTTON] 📊 Análise XML será utilizada para determinar o tipo de contrato correto`);
+                
+                // Valor padrão com fallback seguro para caso o XML não seja encontrado
+                let contractType = 'DIGITOVER';
+                
+                // Verificar tipos específicos para estratégias conhecidas
+                if (currentStrategy.includes('iron_under') || currentStrategy.includes('ironunder')) {
+                  contractType = 'DIGITUNDER';
+                  console.log(`[BOT_BUTTON] 📊 Estratégia IRON UNDER detectada: Usando tipo DIGITUNDER`);
+                } else if (currentStrategy.includes('iron_over') || currentStrategy.includes('ironover')) {
+                  contractType = 'DIGITOVER';
+                  console.log(`[BOT_BUTTON] 📊 Estratégia IRON OVER detectada: Usando tipo DIGITOVER`);
+                }
+                
+                // NOTA: O tipo correto será obtido do XML durante a execução da estratégia
+                console.log(`[BOT_BUTTON] 📊 Tipo de contrato inicial: ${contractType} (será substituído pelo valor do XML)`)
                 
                 // Obter previsão adequada para a estratégia (se usar predição de dígitos)
                 let prediction = 5;
