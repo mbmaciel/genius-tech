@@ -150,7 +150,7 @@ export function OperationHistoryCard({
       operations?.length || 0,
       operations,
     );
-    
+
     if (operations && operations.length > 0) {
       // MODIFICAÇÃO CRÍTICA: MESCLAR operações externas com internas para nunca perder histórico
       setInternalOperations((prevOps) => {
@@ -165,41 +165,43 @@ export function OperationHistoryCard({
 
         // Criar um conjunto com IDs das operações atuais para verificação rápida
         const currentIds = new Set(prevOps.map((op) => String(op.id)));
-        
+
         // Identificar quais são as novas operações que não existem no estado atual
-        const newOperations = operations.filter(op => !currentIds.has(String(op.id)));
-        
+        const newOperations = operations.filter(
+          (op) => !currentIds.has(String(op.id)),
+        );
+
         if (newOperations.length > 0) {
           console.log(
-            "[OperationHistoryCard] ⭐⭐⭐ DETECTADAS", 
-            newOperations.length, 
-            "NOVAS OPERAÇÕES!"
+            "[OperationHistoryCard] ⭐⭐⭐ DETECTADAS",
+            newOperations.length,
+            "NOVAS OPERAÇÕES!",
           );
-          
+
           // SOLUÇÃO CRÍTICA: Mesclar novas operações com as antigas em vez de substituir
           // Colocar as novas operações no início e manter as antigas no histórico
           const mergedOperations = [...newOperations, ...prevOps].slice(0, 100);
-          
+
           console.log(
             "[OperationHistoryCard] 🔄 HISTÓRICO ATUALIZADO EM TEMPO REAL:",
             mergedOperations.length,
-            "operações no total"
+            "operações no total",
           );
-          
+
           return mergedOperations;
         } else {
           // Mesmo sem novas operações, garantir atualização da interface
           console.log(
             "[OperationHistoryCard] Sem novas operações, mantendo histórico atual com",
             prevOps.length,
-            "operações"
+            "operações",
           );
-          
+
           // Aplicar force refresh para garantir que a UI esteja sincronizada
           setTimeout(() => {
-            setInternalOperations(current => [...current]);
+            setInternalOperations((current) => [...current]);
           }, 500);
-          
+
           return prevOps;
         }
       });
@@ -208,12 +210,12 @@ export function OperationHistoryCard({
         "[OperationHistoryCard] ⚠️ Recebidas operações vazias! Mantendo estado anterior intacto",
       );
       // NUNCA limpar o histórico se recebermos um array vazio - manter operações anteriores
-      
+
       // Mesmo sem operações, forçar atualização da UI a cada 3 segundos
       const forceRefreshTimer = setTimeout(() => {
-        setInternalOperations(current => [...current]);
+        setInternalOperations((current) => [...current]);
       }, 3000);
-      
+
       return () => clearTimeout(forceRefreshTimer);
     }
   }, [operations]);
@@ -317,7 +319,7 @@ export function OperationHistoryCard({
         <CardTitle className="flex justify-between items-center text-white text-lg">
           <div className="flex items-center">
             <Clock className="w-5 h-5 mr-2 text-indigo-400" />
-            {t("Histórico de Operações Completo")}
+            {t("Histórico de Operações")}
           </div>
 
           {stats && (
