@@ -156,7 +156,7 @@ const DigitAnalysis: React.FC<DigitAnalysisProps> = ({
     setError(null);
     
     // Registrar para mudanças de estado de conexão
-    const unsubscribeConnection = independentDerivService.onStateChange((connected) => {
+    independentDerivService.addConnectionListener((connected) => {
       setIsConnected(connected);
       
       if (!connected) {
@@ -167,14 +167,14 @@ const DigitAnalysis: React.FC<DigitAnalysisProps> = ({
     });
     
     // Registrar para receber erros
-    const unsubscribeError = independentDerivService.onError((err) => {
+    independentDerivService.addErrorListener((err) => {
       setError(err.message || t('Erro na conexão com o servidor Deriv'));
     });
     
     // Buscar histórico inicial de ticks
     const loadInitialData = async () => {
       try {
-        const history = await independentDerivService.getTickHistory(symbol, {
+        const history = await independentDerivService.getTicksHistory(symbol, {
           count: tickCount
         });
         
@@ -204,7 +204,7 @@ const DigitAnalysis: React.FC<DigitAnalysisProps> = ({
         }
         
         // Assinar para novos ticks
-        ticksUnsubscribe = await independentDerivService.subscribeToTicks(symbol, (data) => {
+        ticksUnsubscribe = await independentDerivService.subscribeTicks(symbol, (data) => {
           if (data?.tick?.quote) {
             const digit = getLastDigit(data.tick.quote);
             
@@ -232,8 +232,7 @@ const DigitAnalysis: React.FC<DigitAnalysisProps> = ({
     
     // Limpeza ao desmontar ou mudar de símbolo
     return () => {
-      unsubscribeConnection();
-      unsubscribeError();
+      // Não há mais unsubscribeConnection e unsubscribeError, eles são gerenciados internamente
       
       if (ticksUnsubscribe) {
         ticksUnsubscribe().catch(err => {
