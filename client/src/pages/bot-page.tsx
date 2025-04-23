@@ -942,15 +942,28 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               }
             });
             
-            // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações
+            // CORREÇÃO CRÍTICA: Adicionar ao histórico de operações com valores corretos
+            // Garantir o uso do valor correto da entrada do usuário
+            const operationEntryValue = parseFloat(entryValue || "0") || event.entry_value || event.contract_details?.buy_price || 0;
+            const exitValue = event.exit_value || event.contract_details?.sell_price || 0;
+            const profitValue = event.profit || 0;
+            
+            // Garantir que o valor de entrada seja explicitamente o valor configurado pelo usuário quando possível
+            console.log('[BOT_PAGE] Criando registro de operação:', {
+              entrada: operationEntryValue,
+              saida: exitValue,
+              lucro: profitValue
+            });
+            
+            // Criar o objeto de operação com dados corretos
             const operationRecord = {
               id: event.contract_id || Date.now(),
               contract_id: event.contract_id,
-              entryValue: event.entry_value || event.contract_details?.buy_price || 0,
-              entry_value: event.entry_value || event.contract_details?.buy_price || 0,
-              finalValue: event.exit_value || event.contract_details?.sell_price || 0,
-              exit_value: event.exit_value || event.contract_details?.sell_price || 0,
-              profit: event.profit || 0,
+              entryValue: operationEntryValue,
+              entry_value: operationEntryValue,
+              finalValue: exitValue,
+              exit_value: exitValue,
+              profit: profitValue,
               time: new Date(),
               timestamp: Date.now(),
               contract_type: event.contract_type || event.contract_details?.contract_type || '',
@@ -958,8 +971,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               strategy: event.strategy || selectedStrategy || '',
               is_win: event.is_win || false,
               notification: {
-                type: event.is_win ? 'success' : 'error',
-                message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${(event.entry_value || 0).toFixed(2)} | Resultado: $${(event.profit || 0).toFixed(2)}`
+                type: event.is_win ? 'success' : 'error' as const,
+                message: `${event.is_win ? 'GANHO' : 'PERDA'} | Entrada: $${operationEntryValue.toFixed(2)} | Resultado: $${profitValue.toFixed(2)}`
               }
             };
             
@@ -2406,66 +2419,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
             {/* Histórico de Operações - Usando o novo componente RelatorioOperacoes */}
             <div className="rounded-lg border border-[#2a3756]">
               <div className="flex justify-between items-center px-4 pt-2">
-                {/* Botão de diagnóstico para testar o histórico */}
-                <button 
-                  onClick={() => {
-                    console.log('[BOT_PAGE] ★★★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO ★★★★★');
-                    const currentEntryValue = parseFloat(entryValue || "1");
-                    
-                    // Criar operação de teste
-                    const testOperation = {
-                      id: Date.now(),
-                      contract_id: Date.now(),
-                      entryValue: currentEntryValue,
-                      entry_value: currentEntryValue,
-                      finalValue: currentEntryValue * 1.8,
-                      exit_value: currentEntryValue * 1.8,
-                      profit: currentEntryValue * 0.8,
-                      time: new Date(),
-                      timestamp: Date.now(),
-                      contract_type: "DIGITOVER",
-                      symbol: "R_100",
-                      strategy: selectedStrategy || "botlow",
-                      is_win: true,
-                      // Garantir que não seja intermediária para aparecer na aba "Operações"
-                      isIntermediate: false,
-                      notification: {
-                        type: 'success' as 'success' | 'info' | 'warning' | 'error',
-                        message: `TESTE DIAGNÓSTICO | Entrada: $${currentEntryValue} | Resultado: $${currentEntryValue * 1.8}`
-                      }
-                    };
-                    
-                    // Método 1: Adicionar diretamente ao estado
-                    setOperationHistory(prev => [testOperation, ...prev].slice(0, 50));
-                    
-                    // Método 2: Emitir evento de contrato finalizado para o DOM (novo método)
-                    try {
-                      console.log('[BOT_PAGE] Emitindo evento contract_finished de teste');
-                      const domEvent = new CustomEvent('contract_finished', { 
-                        detail: {
-                          timestamp: Date.now(),
-                          contract_id: testOperation.id,
-                          entry_value: currentEntryValue,
-                          exit_value: currentEntryValue * 1.8,
-                          profit: currentEntryValue * 0.8,
-                          symbol: "R_100",
-                          contract_type: "DIGITOVER",
-                          strategy: selectedStrategy || "botlow",
-                          is_win: true,
-                          // Garantir que a operação de teste não seja intermediária
-                          isIntermediate: false,
-                          is_intermediate: false
-                        }
-                      });
-                      window.dispatchEvent(domEvent);
-                    } catch (e) {
-                      console.error('[BOT_PAGE] Erro ao emitir evento de teste:', e);
-                    }
-                  }}
-                  className="px-2 py-1 text-xs text-white bg-amber-700 hover:bg-amber-600 rounded transition"
-                >
-                  + Adicionar Teste
-                </button>
+                {/* Título do cartão */}
+                <div className="text-sm font-medium text-white">Histórico</div>
               
                 {operationHistory.length > 0 && (
                   <button 
