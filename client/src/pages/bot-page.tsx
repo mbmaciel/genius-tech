@@ -396,6 +396,14 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
   useEffect(() => {
     console.log('[BOT_PAGE] Configurando auto-refresh para histórico de operações...');
     
+    // Só iniciar o intervalo de atualização se o robô estiver em execução
+    if (botStatus !== 'running') {
+      console.log('[BOT_PAGE] Robô não está em execução, auto-refresh desativado');
+      return;
+    }
+    
+    console.log('[BOT_PAGE] Robô em execução, ativando auto-refresh');
+    
     // Definir intervalo de atualização a cada 5 segundos
     const refreshInterval = setInterval(() => {
       console.log('[BOT_PAGE] Auto-refresh do histórico de operações disparado');
@@ -407,7 +415,8 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       setStats(prev => ({ ...prev }));
       
       // Simular uma operação a cada 10 segundos (a cada 2 ciclos) para diagnóstico
-      const shouldAddTestOperation = Date.now() % 10000 < 5000;
+      // ⚠️ IMPORTANTE: Somente gerar novas operações se o robô estiver em execução
+      const shouldAddTestOperation = botStatus === 'running' && (Date.now() % 10000 < 5000);
       
       if (shouldAddTestOperation) {
         const isWin = Math.random() > 0.5; // 50% de chance de ganho
@@ -438,11 +447,6 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         };
         
         console.log('[BOT_PAGE] ★★★ GERANDO OPERAÇÃO DE TESTE (EVENTO COMPLETO) ★★★', testEvent);
-        
-        // Criar evento customizado para teste
-        // CORREÇÃO: Vamos evitar disparar eventos customizados para não interferir no fluxo normal
-        // const simulatedEvent = new CustomEvent('contract_finished', { detail: testEvent });
-        // window.dispatchEvent(simulatedEvent);
         
         // Operação de fallback para garantir que algo apareça no histórico
         const testOperation: Operation = {
@@ -475,7 +479,7 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       console.log('[BOT_PAGE] Limpando intervalo de auto-refresh do histórico');
       clearInterval(refreshInterval);
     };
-  }, [selectedStrategy]);
+  }, [selectedStrategy, botStatus]);
   
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
@@ -1419,9 +1423,33 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       // Depois chama o serviço
       oauthDirectService.stop();
       
+      // IMPORTANTE: Registrar a parada no histórico para que fique explícito na interface
+      const pauseNotification = {
+        id: Date.now(),
+        entryValue: 0,
+        entry_value: 0,
+        finalValue: 0,
+        exit_value: 0,
+        profit: 0,
+        time: new Date(),
+        timestamp: Date.now(),
+        contract_type: 'system',
+        symbol: '',
+        strategy: '',
+        is_win: false,
+        notification: {
+          type: 'info' as const,
+          message: 'Robô pausado pelo usuário'
+        }
+      };
+      
+      // Adicionar a notificação de pausa ao histórico
+      console.log('[BOT_PAGE] Adicionando notificação de pausa ao histórico');
+      setOperationHistory(prev => [pauseNotification, ...prev].slice(0, 50));
+      
       toast({
         title: "Bot pausado",
-        description: "As operações foram pausadas.",
+        description: "As operações foram pausadas. O histórico não será mais atualizado.",
       });
     } catch (error) {
       console.error("[BOT] Erro ao pausar o serviço OAuth:", error);
