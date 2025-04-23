@@ -1466,13 +1466,27 @@ export function BotController({
                 // CORREÇÃO CRÍTICA: Forçar valores específicos para Advance
                 if (selectedStrategy && selectedStrategy.toLowerCase().includes('advance')) {
                   // Interceptação final para estratégia Advance
-                  console.log('[BOT_CONTROLLER] 🔴 FORÇANDO CONFIGURAÇÕES PARA ADVANCE:');
-                  forceSettings.duration = 1;
-                  forceSettings.prediction = 1;
-                  forceSettings.contractType = 'DIGITOVER';
-                  console.log('[BOT_CONTROLLER] 🔴 - Duration: 1 tick (FORÇADO)');
-                  console.log('[BOT_CONTROLLER] 🔴 - Prediction: 1 (FORÇADO)');
-                  console.log('[BOT_CONTROLLER] 🔴 - Contract Type: DIGITOVER (FORÇADO)');
+                  console.log('[BOT_CONTROLLER] 🚨 FORÇANDO CONFIGURAÇÕES PARA ADVANCE:');
+                  // Criar um novo objeto completamente novo para evitar qualquer referência antiga
+                  forceSettings = {
+                    // Manter configurações anteriores
+                    entryValue: forceSettings.entryValue,
+                    profitTarget: forceSettings.profitTarget,
+                    lossLimit: forceSettings.lossLimit,
+                    martingaleFactor: forceSettings.martingaleFactor,
+                    
+                    // VALORES ABSOLUTAMENTE FORÇADOS para estratégia Advance
+                    duration: 1,
+                    prediction: 1,
+                    contractType: 'DIGITOVER',
+                    barrier: '1'
+                  };
+                  
+                  console.log('[BOT_CONTROLLER] 🚨 CONFIGURAÇÃO FINAL ADVANCE:');
+                  console.log('[BOT_CONTROLLER] 🚨 - Duration: 1 tick');
+                  console.log('[BOT_CONTROLLER] 🚨 - Prediction/Barrier: 1 (significa acima de 1)');
+                  console.log('[BOT_CONTROLLER] 🚨 - Contract Type: DIGITOVER');
+                  console.log('[BOT_CONTROLLER] 🚨 - Entry Value: ' + forceSettings.entryValue);
                 }
                 
                 oauthDirectService.setSettings(forceSettings);

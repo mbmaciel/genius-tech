@@ -3115,6 +3115,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             symbol: "R_100",
             barrier: "1"
           };
+          console.log(`[OAUTH_DIRECT] 🚨🚨🚨 CONFIGURAÇÃO FORÇADA PARA ADVANCE:`);
+          console.log(`[OAUTH_DIRECT] 🚨 DURATION: ${advanceRequest.duration} ${advanceRequest.duration_unit}`);
+          console.log(`[OAUTH_DIRECT] 🚨 BARRIER: ${advanceRequest.barrier} (DIGITOVER significa acima de ${advanceRequest.barrier})`);
+          console.log(`[OAUTH_DIRECT] 🚨 CONTRACT_TYPE: ${advanceRequest.contract_type}`);
           console.log(`[OAUTH_DIRECT] 🔴 OBJETO COMPLETAMENTE SUBSTITUÍDO PARA ADVANCE`);
         }
         
