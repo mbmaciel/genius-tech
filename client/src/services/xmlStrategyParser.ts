@@ -34,6 +34,7 @@ export interface StrategyAnalysisResult {
   prediction?: number;
   amount: number;
   entryAmount?: number; // Valor efetivo para entrada
+  duration?: number;    // Duração do contrato em ticks (normalmente 1 para 1 tick)
   message: string;
   rawCommands?: any;
 }
@@ -473,6 +474,10 @@ export class XmlStrategyParser {
     console.log(`[XML_PARSER] ADVANCE: Variáveis atuais:`, JSON.stringify(this.variables));
     console.log(`[XML_PARSER] ADVANCE: Configurações do usuário:`, JSON.stringify(this.userConfig));
     
+    // CORREÇÃO CRÍTICA: Sempre usar DIGITOVER com valor 1 para a estratégia Advance
+    // Isso garante que o contrato ganha quando o dígito final é > 1
+    console.log(`[XML_PARSER] 🚨 ADVANCE CORREÇÃO: Configurando DIGITOVER com valor 1 como especificado`);
+    
     // Obter porcentagem limite - CRÍTICO PARA ESTRATÉGIA ADVANCE
     let porcentagemParaEntrar = this.variables.porcentagemParaEntrar;
     
@@ -494,6 +499,8 @@ export class XmlStrategyParser {
         contractType: 'DIGITOVER',
         amount: this.getFinalAmount(),
         entryAmount: this.getFinalAmount(), // Garantir que o campo entryAmount seja enviado
+        prediction: 1, // CORREÇÃO: Usando valor 1 como especificado
+        duration: 1, // CORREÇÃO: Duração de exatamente 1 tick
         message: 'CONFIGURAÇÃO PENDENTE: Porcentagem para entrar não definida. Defina nas configurações.'
       };
     }
@@ -526,26 +533,28 @@ export class XmlStrategyParser {
     
     const shouldEnter = digit0Percentage <= porcentagemParaEntrar && digit1Percentage <= porcentagemParaEntrar;
     
-    // Estratégia Advance: alterar para CALL em vez de DIGITOVER para evitar erros com dígito 0
-    // CALL é mais confiável para a estratégia Advance e evita erros de validação de dígitos
-    const contractType = 'CALL';
+    // CORREÇÃO CRÍTICA: Usar DIGITOVER como especificado para a estratégia Advance
+    // A estratégia vence quando o dígito final é > 1
+    const contractType = 'DIGITOVER';
     
     // Obter valor de entrada com sobreposição de configuração do usuário
     const amount = this.getFinalAmount();
     
     // Determinar mensagem de feedback
     const message = shouldEnter
-      ? `ADVANCE: Condição atendida! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${porcentagemParaEntrar}%`
+      ? `ADVANCE: Condição atendida! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${porcentagemParaEntrar}%. Usando DIGITOVER com valor 1 e duração de 1 tick.`
       : `ADVANCE: Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${porcentagemParaEntrar}%`;
     
     console.log(`[XML_PARSER] ADVANCE: Resultado da análise: ${shouldEnter ? 'ENTRAR' : 'NÃO ENTRAR'}`);
+    console.log(`[XML_PARSER] ADVANCE: Detalhes: DIGITOVER com target value = 1, duração = 1 tick`);
     
     return {
       shouldEnter,
       contractType,
       amount,
       entryAmount: amount, // Garantir que o valor seja enviado para o callback
-      prediction: this.variables.previsao,
+      prediction: 1, // CORREÇÃO: Valor fixo 1 para DIGITOVER conforme especificado
+      duration: 1, // CORREÇÃO: Duração de exatamente 1 tick
       message
     };
   }
