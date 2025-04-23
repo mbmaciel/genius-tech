@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Operation } from '@/components/trading/OperationHistoryCard';
 import { strategies, getStrategyById } from '@/lib/strategiesConfig';
-import { oauthDirectService } from '@/services/oauthDirectService';
+import { oauthDirectService, AccountInfo } from '@/services/oauthDirectService';
 import { parseStrategyXml } from '@/services/xmlStrategyParser';
 import {
   Play,
@@ -35,6 +35,7 @@ interface BotControllerProps {
   onOperationUpdate: (operations: Operation[]) => void;
   onStatsUpdate: (stats: any) => void;
   disabled?: boolean;
+  selectedAccount?: AccountInfo | null;
 }
 
 // Interface para estatísticas de operações
@@ -82,7 +83,8 @@ const BotController: React.FC<BotControllerProps> = ({
   onStop,
   onOperationUpdate,
   onStatsUpdate,
-  disabled = false
+  disabled = false,
+  selectedAccount = null
 }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -168,11 +170,16 @@ const BotController: React.FC<BotControllerProps> = ({
   // Função para iniciar o bot
   const startBot = async () => {
     try {
+      // Verificar se uma conta foi selecionada
+      if (!selectedAccount) {
+        throw new Error(t('Selecione uma conta Deriv para iniciar o bot'));
+      }
+      
       // Conectar ao servidor WebSocket
       await oauthDirectService.connect();
       
       // Verificar se a conexão foi bem-sucedida
-      if (!oauthDirectService.isSocketConnected()) {
+      if (!oauthDirectService.isConnected()) {
         throw new Error(t('Falha ao conectar ao servidor da Deriv'));
       }
       
@@ -232,7 +239,8 @@ const BotController: React.FC<BotControllerProps> = ({
       }));
       
       // Registrar para receber atualizações de ticks
-      oauthDirectService.subscribeTicks(symbol, handleTickUpdate);
+      await oauthDirectService.subscribeTicks(symbol);
+      oauthDirectService.addMessageListener('tick', handleTickUpdate);
       
       // Registrar para receber atualizações de contratos
       oauthDirectService.addMessageListener('proposal_open_contract', handleContractUpdate);
@@ -265,7 +273,8 @@ const BotController: React.FC<BotControllerProps> = ({
   const stopBot = async () => {
     try {
       // Desinscrever dos ticks
-      oauthDirectService.unsubscribeTicks(symbol, handleTickUpdate);
+      await oauthDirectService.unsubscribeTicks(symbol);
+      oauthDirectService.removeMessageListener('tick', handleTickUpdate);
       
       // Remover listener de contratos
       oauthDirectService.removeMessageListener('proposal_open_contract', handleContractUpdate);
@@ -722,6 +731,29 @@ const BotController: React.FC<BotControllerProps> = ({
         <CardDescription>
           {botState.message}
         </CardDescription>
+        {selectedAccount && (
+          <div className="mt-3 p-2 bg-muted rounded-md text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">{t('Conta')}:</span>
+              <span className="font-medium">
+                {selectedAccount.loginid} {selectedAccount.is_virtual ? '(Demo)' : '(Real)'}
+              </span>
+            </div>
+            {(selectedAccount.balance !== undefined) && (
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-muted-foreground">{t('Saldo')}:</span>
+                <span className="font-medium">
+                  {typeof selectedAccount.balance === 'number'
+                    ? selectedAccount.balance.toFixed(2)
+                    : typeof selectedAccount.balance === 'object' && selectedAccount.balance.balance
+                      ? selectedAccount.balance.balance.toFixed(2)
+                      : '0.00'
+                  } {selectedAccount.currency}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="pt-6">
         <div className="grid grid-cols-2 gap-4 mb-6">

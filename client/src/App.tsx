@@ -15,6 +15,8 @@ import DigitDisplayFixed from "@/pages/digit-display-fixed";
 import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
 import DigitStatsPage from "@/pages/digit-stats-page";
+import ComponentsTestPage from '@/pages/components-test';
+import OAuthCallback from '@/pages/oauth-callback';
 import { useTranslation } from 'react-i18next';
 import { AuthProvider } from "@/hooks/use-auth";
 
@@ -177,6 +179,8 @@ function App() {
         <Route path="/realtime" component={RealtimeDigits} />
         <Route path="/digits" component={DigitsFixed} />
         <Route path="/digit-stats" component={DigitStatsPage} />
+        <Route path="/components-test" component={ComponentsTestPage} />
+        <Route path="/oauth-callback" component={OAuthCallback} />
         </Switch>
       </AuthProvider>
     </div>

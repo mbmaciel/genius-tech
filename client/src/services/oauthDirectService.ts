@@ -1,484 +1,429 @@
 /**
- * Serviço para comunicação direta com a API Deriv via WebSocket
- * Usa OAuth para autenticação
+ * Serviço OAuth para autenticação Deriv
+ * Gerencia fluxo de autenticação, captura tokens do URL e permite seleção de contas
  */
 
+import IndependentDerivService, { independentDerivService } from './independent-deriv-service';
+
+// Tipos de callbacks para eventos
+export type MessageCallback = (data: any) => void;
+export type StateCallback = (connected: boolean) => void;
+export type ErrorCallback = (error: any) => void;
+export type AccountCallback = (accounts: AccountInfo[]) => void;
+
+// Tipos para informações de conta
+export interface AccountInfo {
+  loginid: string;
+  token: string;
+  currency?: string;
+  balance?: number;
+  name?: string;
+  email?: string;
+  is_virtual?: boolean;
+  landing_company_name?: string;
+}
+
 class OAuthDirectService {
-  private baseUrl: string = 'wss://ws.binaryws.com/websockets/v3';
-  private socket: WebSocket | null = null;
-  private isConnected: boolean = false;
-  private requestCallbacks: Map<string, (response: any) => void> = new Map();
-  private messageListeners: Map<string, ((data: any) => void)[]> = new Map();
-  private lastRequestId: number = 0;
-  private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-  private reconnectDelay: number = 1000;
-  private pingInterval: number | null = null;
-  private autoReconnect: boolean = true;
-  private activeSubscriptions: Map<string, boolean> = new Map();
+  private authorizationWindow: Window | null = null;
+  private redirectUri: string = window.location.origin + '/oauth-callback';
+  private derivService: IndependentDerivService;
+  private appId: number;
+  private accounts: AccountInfo[] = [];
+  private selectedAccount: AccountInfo | null = null;
+  private accountListeners: AccountCallback[] = [];
+  private authorizeTimeouts: {[key: string]: NodeJS.Timeout} = {};
+  private static instance: OAuthDirectService;
 
-  constructor() {
-    // Inicializar serviço
-    this.setupEventListeners();
-  }
-
-  /**
-   * Configura os listeners de eventos globais
-   */
-  private setupEventListeners() {
-    // Listener para quando a janela é fechada
-    window.addEventListener('beforeunload', () => {
-      this.disconnect();
-    });
-
-    // Detectar quando a conexão com a internet cai/volta
-    window.addEventListener('online', () => {
-      if (this.autoReconnect && !this.isConnected) {
-        this.connect();
-      }
-    });
-  }
-
-  /**
-   * Conecta ao WebSocket da Deriv
-   */
-  public async connect(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      if (this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN) {
-        resolve(true);
-        return;
-      }
-
-      try {
-        this.socket = new WebSocket(this.baseUrl);
-
-        this.socket.onopen = () => {
-          console.log('WebSocket conectado');
-          this.isConnected = true;
-          this.reconnectAttempts = 0;
-          this.startPingInterval();
-          this.resubscribeAll();
-          resolve(true);
-        };
-
-        this.socket.onmessage = (event) => {
-          this.handleMessage(event);
-        };
-
-        this.socket.onclose = () => {
-          console.log('WebSocket fechado');
-          this.isConnected = false;
-          this.stopPingInterval();
-          
-          if (this.autoReconnect) {
-            this.attemptReconnect();
-          }
-        };
-
-        this.socket.onerror = (error) => {
-          console.error('Erro no WebSocket:', error);
-          reject(error);
-        };
-      } catch (err) {
-        console.error('Falha ao conectar WebSocket:', err);
-        this.isConnected = false;
-        reject(err);
-      }
-    });
-  }
-
-  /**
-   * Desconecta do WebSocket
-   */
-  public disconnect(): void {
-    this.autoReconnect = false;
-    this.stopPingInterval();
+  constructor(appId?: number) {
+    // Sobrescrever o appId se fornecido
+    this.appId = appId || 1089;
+    this.derivService = new IndependentDerivService(this.appId);
     
-    if (this.socket) {
-      // Cancelar todas as assinaturas ativas
-      this.activeSubscriptions.forEach((_, key) => {
-        this.forget(key).catch(console.error);
-      });
-
-      this.socket.close();
-      this.socket = null;
-      this.isConnected = false;
+    // Procurar por tokens no localStorage
+    this.tryLoadStoredAccounts();
+    
+    // Adicionar manipulador para eventos de mensagem para capturar respostas OAuth
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', this.handlePostMessage);
     }
-    
-    // Limpar callbacks pendentes
-    this.requestCallbacks.clear();
   }
 
-  /**
-   * Tenta reconectar ao WebSocket após desconexão
-   */
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error(`Falha após ${this.maxReconnectAttempts} tentativas de reconexão`);
+  // Implementação do Singleton para garantir uma única instância
+  public static getInstance(appId?: number): OAuthDirectService {
+    if (!OAuthDirectService.instance) {
+      OAuthDirectService.instance = new OAuthDirectService(appId);
+    }
+    return OAuthDirectService.instance;
+  }
+
+  // Tentativa de carregar contas salvas
+  private tryLoadStoredAccounts(): void {
+    try {
+      const storedAccounts = localStorage.getItem('deriv_accounts');
+      if (storedAccounts) {
+        this.accounts = JSON.parse(storedAccounts);
+        
+        // Se tiver contas, notificar listeners
+        if (this.accounts.length > 0) {
+          this.notifyAccountListeners();
+          
+          // Se tiver uma conta selecionada, tentar autorizar
+          const selectedLoginId = localStorage.getItem('deriv_selected_account');
+          if (selectedLoginId) {
+            const selectedAccount = this.accounts.find(acc => acc.loginid === selectedLoginId);
+            if (selectedAccount) {
+              this.selectAccount(selectedAccount.loginid);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[DerivOAuth] Erro ao carregar contas salvas:', error);
+    }
+  }
+
+  // Manipulador para mensagens de janela
+  private handlePostMessage = (event: MessageEvent): void => {
+    // Verificar origem para segurança
+    if (event.origin !== window.location.origin && !event.origin.includes('deriv.com')) {
       return;
     }
 
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
-    
-    console.log(`Tentando reconectar em ${delay}ms (tentativa ${this.reconnectAttempts})`);
-    
-    setTimeout(() => {
-      this.connect().catch(err => {
-        console.error('Falha na tentativa de reconexão:', err);
-      });
-    }, delay);
-  }
-
-  /**
-   * Inicia um intervalo para enviar pings e manter a conexão
-   */
-  private startPingInterval(): void {
-    this.stopPingInterval();
-    
-    this.pingInterval = window.setInterval(() => {
-      if (this.isConnected) {
-        this.ping().catch(console.error);
-      }
-    }, 30000); // Ping a cada 30 segundos
-  }
-
-  /**
-   * Para o intervalo de ping
-   */
-  private stopPingInterval(): void {
-    if (this.pingInterval !== null) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
-    }
-  }
-
-  /**
-   * Reinscreve em todas as assinaturas ativas após reconexão
-   */
-  private async resubscribeAll(): Promise<void> {
-    for (const [key, active] of this.activeSubscriptions.entries()) {
-      if (active) {
-        const [type, params] = key.split('|');
-        const paramsObj = params ? JSON.parse(params) : {};
-        
-        try {
-          await this.subscribe(type, paramsObj);
-        } catch (err) {
-          console.error(`Falha ao reinscrever em ${type}:`, err);
-        }
-      }
-    }
-  }
-
-  /**
-   * Processa mensagens recebidas do WebSocket
-   */
-  private handleMessage(event: MessageEvent): void {
-    try {
-      const data = JSON.parse(event.data);
+    // Verificar se é uma mensagem do Deriv OAuth
+    if (event.data && typeof event.data === 'object' && event.data.tokenResponse) {
+      const tokenData = event.data.tokenResponse;
       
-      // Para debugging
-      console.debug('Mensagem recebida:', data);
-      
-      // Se houver uma requisição associada a este ID
-      if (data.req_id && this.requestCallbacks.has(data.req_id.toString())) {
-        const callback = this.requestCallbacks.get(data.req_id.toString());
-        if (callback) {
-          callback(data);
-          // Remover callback após processamento, a menos que seja uma assinatura
-          if (!data.subscription) {
-            this.requestCallbacks.delete(data.req_id.toString());
-          }
-        }
-      }
-      
-      // Notificar todos os listeners para este tipo de mensagem
-      // Exemplo: 'tick', 'ohlc', etc.
-      for (const [eventType, listeners] of this.messageListeners.entries()) {
-        if (data[eventType]) {
-          for (const listener of listeners) {
-            listener(data);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao processar mensagem:', error, event.data);
-    }
-  }
-
-  /**
-   * Envia uma requisição para a API
-   */
-  private async sendRequest(request: any): Promise<any> {
-    if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      await this.connect();
-    }
-
-    return new Promise((resolve, reject) => {
-      try {
-        // Gerar ID de requisição único
-        const reqId = (++this.lastRequestId).toString();
-        request.req_id = reqId;
+      if (tokenData.url) {
+        // Extrair token da URL
+        const url = new URL(tokenData.url);
+        const params = new URLSearchParams(url.search);
+        const token = params.get('token1');
         
-        // Registrar callback para esta requisição
-        this.requestCallbacks.set(reqId, (response: any) => {
-          if (response.error) {
-            reject(response.error);
-          } else {
-            resolve(response);
-          }
-        });
-        
-        // Enviar requisição
-        this.socket!.send(JSON.stringify(request));
-      } catch (err) {
-        reject(err);
+        if (token) {
+          console.log('[DerivOAuth] Token recebido do redirecionamento OAuth');
+          this.processAuthToken(token);
+        }
+      } else if (tokenData.oauth_token) {
+        console.log('[DerivOAuth] Token recebido diretamente');
+        this.processAuthToken(tokenData.oauth_token);
       }
-    });
+    }
+  };
+
+  // Iniciar fluxo OAuth para autenticar com Deriv
+  public initiateOAuth(): Window | null {
+    // Criar URL para autenticação OAuth da Deriv
+    const oauthUrl = new URL('https://oauth.deriv.com/oauth2/authorize');
+    
+    // Adicionar parâmetros necessários
+    oauthUrl.searchParams.append('app_id', this.appId.toString());
+    oauthUrl.searchParams.append('l', 'PT'); // Português como idioma padrão
+    oauthUrl.searchParams.append('redirect_uri', this.redirectUri);
+    oauthUrl.searchParams.append('response_type', 'token'); // Resposta como token diretamente no URL
+    
+    // Calcular dimensões e posição da janela
+    const width = 400;
+    const height = 700;
+    const left = window.innerWidth / 2 - width / 2 + window.screenX;
+    const top = window.innerHeight / 2 - height / 2 + window.screenY;
+    
+    // Abrir janela para autenticação
+    this.authorizationWindow = window.open(
+      oauthUrl.toString(),
+      'DerivOAuth',
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`
+    );
+    
+    // Verificar se a janela foi realmente aberta
+    if (!this.authorizationWindow) {
+      console.error('[DerivOAuth] Falha ao abrir janela de autenticação. Verifique se os popups estão permitidos.');
+      return null;
+    }
+    
+    // Monitorar se a janela foi fechada
+    const checkWindow = setInterval(() => {
+      if (this.authorizationWindow && this.authorizationWindow.closed) {
+        clearInterval(checkWindow);
+        console.log('[DerivOAuth] Janela de autenticação fechada pelo usuário');
+      }
+    }, 500);
+    
+    return this.authorizationWindow;
   }
 
-  /**
-   * Ping para manter conexão ativa
-   */
-  public async ping(): Promise<any> {
-    return this.sendRequest({ ping: 1 });
+  // Métodos delegados para o serviço principal
+  public async connect(): Promise<boolean> {
+    return this.derivService.connect();
   }
-
-  /**
-   * Autoriza o cliente com um token de acesso
-   */
+  
+  public disconnect(): void {
+    this.derivService.disconnect();
+  }
+  
+  public isConnected(): boolean {
+    return this.derivService.isConnected();
+  }
+  
+  public isAuthenticated(): boolean {
+    return this.derivService.isAuthenticated();
+  }
+  
   public async authorize(token: string): Promise<any> {
-    return this.sendRequest({ authorize: token });
+    return this.derivService.authorize(token);
   }
-
-  /**
-   * Obtém informações do balance da conta
-   */
+  
   public async getBalance(): Promise<any> {
-    return this.sendRequest({ balance: 1 });
+    return this.derivService.getBalance();
   }
-
-  /**
-   * Obtém lista de símbolos ativos
-   */
-  public async getActiveSymbols(): Promise<any> {
+  
+  public async subscribeTicks(symbol: string): Promise<any> {
+    return this.derivService.subscribeTicks(symbol);
+  }
+  
+  public async unsubscribeTicks(symbol: string): Promise<void> {
+    return this.derivService.unsubscribeTicks(symbol);
+  }
+  
+  public addMessageListener(msgType: string, callback: (data: any) => void): void {
+    this.derivService.addMessageListener(msgType, callback);
+  }
+  
+  public removeMessageListener(msgType: string, callback: (data: any) => void): void {
+    this.derivService.removeMessageListener(msgType, callback);
+  }
+  
+  public addConnectionListener(callback: (connected: boolean) => void): void {
+    this.derivService.addConnectionListener(callback);
+  }
+  
+  public removeConnectionListener(callback: (connected: boolean) => void): void {
+    this.derivService.removeConnectionListener(callback);
+  }
+  
+  // Processar token de autorização recebido
+  private async processAuthToken(token: string): Promise<void> {
     try {
-      const response = await this.sendRequest({ active_symbols: 'brief', product_type: 'basic' });
-      return response.active_symbols;
+      console.log('[DerivOAuth] Processando token de autorização');
+      
+      // Autorizar na API da Deriv com o token recebido
+      const response = await this.authorize(token);
+      
+      if (response && response.authorize) {
+        const authorizeData = response.authorize;
+        
+        // Mapear para AccountInfo
+        const accountInfo: AccountInfo = {
+          loginid: authorizeData.loginid,
+          token: token,
+          currency: authorizeData.currency,
+          balance: authorizeData.balance,
+          name: authorizeData.fullname,
+          email: authorizeData.email,
+          is_virtual: authorizeData.is_virtual,
+          landing_company_name: authorizeData.landing_company_name
+        };
+        
+        // Verificar se a conta já existe, atualizar se necessário
+        const existingIndex = this.accounts.findIndex(acc => acc.loginid === accountInfo.loginid);
+        
+        if (existingIndex >= 0) {
+          this.accounts[existingIndex] = {
+            ...this.accounts[existingIndex],
+            ...accountInfo
+          };
+        } else {
+          this.accounts.push(accountInfo);
+        }
+        
+        // Salvar contas no localStorage
+        localStorage.setItem('deriv_accounts', JSON.stringify(this.accounts));
+        
+        // Definir como conta selecionada
+        this.selectedAccount = accountInfo;
+        localStorage.setItem('deriv_selected_account', accountInfo.loginid);
+        
+        // Notificar listeners sobre mudança nas contas
+        this.notifyAccountListeners();
+        
+        console.log('[DerivOAuth] Autorização bem-sucedida para conta:', accountInfo.loginid);
+        
+        // Fechar a janela de autorização se ainda estiver aberta
+        if (this.authorizationWindow && !this.authorizationWindow.closed) {
+          this.authorizationWindow.close();
+          this.authorizationWindow = null;
+        }
+      }
     } catch (error) {
-      console.error('Erro ao buscar símbolos ativos:', error);
-      throw error;
+      console.error('[DerivOAuth] Erro ao processar token de autorização:', error);
     }
   }
 
-  /**
-   * Obtém contratos disponíveis para um símbolo
-   */
-  public async getContractsForSymbol(symbol: string): Promise<any> {
-    return this.sendRequest({
-      contracts_for: symbol,
-      currency: 'USD',
-      landing_company: 'svg'
-    });
-  }
-
-  /**
-   * Registra um ouvinte para um tipo específico de mensagem
-   */
-  public addMessageListener(eventType: string, callback: (data: any) => void): void {
-    if (!this.messageListeners.has(eventType)) {
-      this.messageListeners.set(eventType, []);
+  // Selecionar uma conta específica e autenticar com ela
+  public async selectAccount(loginid: string): Promise<boolean> {
+    const account = this.accounts.find(acc => acc.loginid === loginid);
+    
+    if (!account || !account.token) {
+      console.error('[DerivOAuth] Conta não encontrada ou sem token:', loginid);
+      return false;
     }
     
-    this.messageListeners.get(eventType)!.push(callback);
-  }
-
-  /**
-   * Remove um ouvinte para um tipo específico de mensagem
-   */
-  public removeMessageListener(eventType: string, callback: (data: any) => void): void {
-    if (this.messageListeners.has(eventType)) {
-      const listeners = this.messageListeners.get(eventType)!;
-      const index = listeners.indexOf(callback);
+    try {
+      // Autorizar com o token da conta selecionada
+      await this.authorize(account.token);
       
-      if (index !== -1) {
-        listeners.splice(index, 1);
-      }
+      // Atualizar conta selecionada
+      this.selectedAccount = account;
+      localStorage.setItem('deriv_selected_account', account.loginid);
       
-      if (listeners.length === 0) {
-        this.messageListeners.delete(eventType);
-      }
-    }
-  }
-
-  /**
-   * Faz uma assinatura para receber atualizações contínuas
-   */
-  private async subscribe(type: string, params: any = {}): Promise<string> {
-    const request = { [type]: 1, ...params };
-    const response = await this.sendRequest(request);
-    
-    // Registrar esta assinatura como ativa
-    const subscriptionId = response.subscription?.id;
-    if (subscriptionId) {
-      const key = `${type}|${JSON.stringify(params)}`;
-      this.activeSubscriptions.set(key, true);
-    }
-    
-    return subscriptionId;
-  }
-
-  /**
-   * Cancela uma assinatura
-   */
-  private async forget(subscriptionIdOrKey: string): Promise<boolean> {
-    // Se for uma chave de tipo|params, tentar encontrar o ID da assinatura
-    if (subscriptionIdOrKey.includes('|')) {
-      this.activeSubscriptions.delete(subscriptionIdOrKey);
+      // Notificar listeners sobre mudança nas contas
+      this.notifyAccountListeners();
       
-      // TODO: Implementar lookup para encontrar ID real da assinatura
+      console.log('[DerivOAuth] Conta selecionada com sucesso:', loginid);
       return true;
-    }
-    
-    // Se for um ID de assinatura, cancelar diretamente
-    try {
-      const response = await this.sendRequest({ forget: subscriptionIdOrKey });
+    } catch (error) {
+      console.error('[DerivOAuth] Erro ao selecionar conta:', error);
       
-      // Remover subscrição da lista ativa
-      for (const [key, _] of this.activeSubscriptions.entries()) {
-        // Verificação simplificada, idealmente teríamos mapeamento de key -> subscription_id
-        this.activeSubscriptions.delete(key);
+      // Se o token estiver expirado, remover a conta
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'InvalidToken') {
+        this.removeAccount(loginid);
       }
       
-      return response.forget === 1;
-    } catch (error) {
-      console.error('Erro ao cancelar assinatura:', error);
       return false;
     }
   }
 
-  /**
-   * Assina para receber ticks de um símbolo
-   */
-  public subscribeTicks(symbol: string, callback: (data: any) => void): void {
-    this.addMessageListener('tick', callback);
+  // Remover uma conta da lista
+  public removeAccount(loginid: string): void {
+    this.accounts = this.accounts.filter(acc => acc.loginid !== loginid);
     
-    this.subscribe('ticks', { ticks: symbol })
-      .catch(err => console.error(`Erro ao assinar ticks para ${symbol}:`, err));
-  }
-
-  /**
-   * Cancela assinatura de ticks
-   */
-  public unsubscribeTicks(symbol: string, callback: (data: any) => void): void {
-    this.removeMessageListener('tick', callback);
-    
-    // Identificar e cancelar a assinatura
-    const key = `ticks|${JSON.stringify({ ticks: symbol })}`;
-    
-    if (this.activeSubscriptions.has(key)) {
-      this.forget(key).catch(err => 
-        console.error(`Erro ao cancelar assinatura de ticks para ${symbol}:`, err)
-      );
+    // Se era a conta selecionada, desselecionar
+    if (this.selectedAccount && this.selectedAccount.loginid === loginid) {
+      this.selectedAccount = null;
+      localStorage.removeItem('deriv_selected_account');
     }
-  }
-
-  /**
-   * Obtém histórico de ticks
-   */
-  public async getTicksHistory(symbol: string, count: number = 100, style: string = 'ticks'): Promise<any> {
-    const end = 'latest';
-    const request = {
-      ticks_history: symbol,
-      count: count,
-      end: end,
-      style: style
-    };
     
-    const response = await this.sendRequest(request);
-    return response.history;
+    // Atualizar no localStorage
+    localStorage.setItem('deriv_accounts', JSON.stringify(this.accounts));
+    
+    // Notificar listeners sobre mudança nas contas
+    this.notifyAccountListeners();
+    
+    console.log('[DerivOAuth] Conta removida:', loginid);
   }
 
-  /**
-   * Compra um contrato
-   */
-  public async buyContract(parameters: {
-    contract_type: string;
-    symbol: string;
-    amount: number;
-    basis: string;
-    duration: number;
-    duration_unit: string;
-    barrier?: string | number;
-    prediction?: number;
-  }): Promise<any> {
-    const request = {
-      buy: 1,
-      price: parameters.amount,
-      parameters: {
-        amount: parameters.amount,
-        basis: parameters.basis,
-        contract_type: parameters.contract_type,
-        currency: 'USD',
-        duration: parameters.duration,
-        duration_unit: parameters.duration_unit,
-        symbol: parameters.symbol
+  // Limpar todas as contas
+  public clearAllAccounts(): void {
+    this.accounts = [];
+    this.selectedAccount = null;
+    
+    // Limpar do localStorage
+    localStorage.removeItem('deriv_accounts');
+    localStorage.removeItem('deriv_selected_account');
+    
+    // Notificar listeners sobre mudança nas contas
+    this.notifyAccountListeners();
+    
+    console.log('[DerivOAuth] Todas as contas removidas');
+  }
+
+  // Registrar para notificações de mudanças na lista de contas
+  public onAccountsChange(callback: AccountCallback): () => void {
+    this.accountListeners.push(callback);
+    
+    // Notificar imediatamente com o estado atual
+    callback([...this.accounts]);
+    
+    // Retornar função para cancelar a inscrição
+    return () => {
+      this.accountListeners = this.accountListeners.filter(cb => cb !== callback);
+    };
+  }
+
+  // Notificar todos os listeners sobre mudanças nas contas
+  private notifyAccountListeners(): void {
+    this.accountListeners.forEach(listener => {
+      try {
+        listener([...this.accounts]);
+      } catch (error) {
+        console.error('[DerivOAuth] Erro ao notificar listener de contas:', error);
       }
-    };
-    
-    // Adicionar barreira se fornecida
-    if (parameters.barrier !== undefined) {
-      request.parameters.barrier = parameters.barrier;
-    }
-    
-    // Adicionar previsão para contratos de dígito
-    if (parameters.prediction !== undefined) {
-      request.parameters.prediction = parameters.prediction;
-    }
-    
-    return this.sendRequest(request);
-  }
-
-  /**
-   * Vende um contrato
-   */
-  public async sellContract(contractId: number, price: number): Promise<any> {
-    return this.sendRequest({
-      sell: contractId,
-      price: price
     });
   }
 
-  /**
-   * Obtém detalhes de um contrato
-   */
-  public async getContractDetails(contractId: number): Promise<any> {
-    return this.sendRequest({
-      proposal_open_contract: 1,
-      contract_id: contractId
-    });
+  // Getters para estado atual
+  public getAccounts(): AccountInfo[] {
+    return [...this.accounts];
   }
 
-  /**
-   * Obtém contratos abertos
-   */
-  public async getOpenContracts(): Promise<any> {
-    try {
-      const response = await this.sendRequest({ proposal_open_contract: 1 });
-      return response.proposal_open_contract;
-    } catch (error) {
-      console.error('Erro ao obter contratos abertos:', error);
-      throw error;
+  public getSelectedAccount(): AccountInfo | null {
+    return this.selectedAccount;
+  }
+
+  public hasAccounts(): boolean {
+    return this.accounts.length > 0;
+  }
+
+  public isLoggedIn(): boolean {
+    return !!this.selectedAccount;
+  }
+
+  // Método para comprar contratos com verificações adicionais
+  public async buyContract(parameters: any): Promise<any> {
+    // Verificar se há uma conta selecionada
+    if (!this.selectedAccount) {
+      throw new Error('Nenhuma conta Deriv selecionada. Faça login primeiro.');
     }
+    
+    // Verificar estado da conexão
+    if (!this.isConnected()) {
+      await this.connect();
+    }
+    
+    // Verificar autenticação
+    if (!this.isAuthenticated()) {
+      await this.authorize(this.selectedAccount.token);
+    }
+    
+    // Adicionar campos específicos para contratos digitais se necessário
+    if (parameters.contract_type && parameters.contract_type.startsWith('DIGIT')) {
+      if (parameters.contract_type === 'DIGITOVER' || parameters.contract_type === 'DIGITUNDER') {
+        parameters.barrier = parameters.prediction;
+      } else if (parameters.contract_type === 'DIGITODD' || parameters.contract_type === 'DIGITEVEN') {
+        // Não é necessário barrier para estes tipos
+      } else if (parameters.contract_type === 'DIGITDIFF' || parameters.contract_type === 'DIGITMATCH') {
+        parameters.barrier = parameters.prediction;
+      }
+    }
+    
+    // Chamar método do serviço principal
+    return this.derivService.buyContract(parameters);
   }
 
-  /**
-   * Verifica se está conectado
-   */
-  public isSocketConnected(): boolean {
-    return this.isConnected && !!this.socket && this.socket.readyState === WebSocket.OPEN;
+  // Limpar recursos ao destruir
+  public destroy(): void {
+    // Remover listener de mensagens
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('message', this.handlePostMessage);
+    }
+    
+    // Limpar timeouts
+    Object.values(this.authorizeTimeouts).forEach(timeout => {
+      clearTimeout(timeout);
+    });
+    
+    // Fechar janela de autorização se estiver aberta
+    if (this.authorizationWindow && !this.authorizationWindow.closed) {
+      this.authorizationWindow.close();
+      this.authorizationWindow = null;
+    }
+    
+    // Desconectar WebSocket
+    this.disconnect();
   }
 }
 
-export const oauthDirectService = new OAuthDirectService();
+// Criar e exportar instância única do serviço
+export const oauthDirectService = OAuthDirectService.getInstance();
+
+// Exportar a classe para permitir criação de instâncias adicionais se necessário
+export default OAuthDirectService;

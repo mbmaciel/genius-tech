@@ -1,148 +1,102 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Select, 
-  SelectContent, 
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { 
-  Bot, 
-  Info,
-  ChevronRight
-} from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { strategies, Strategy } from '@/lib/strategiesConfig';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
-interface StrategyInfoCardProps {
-  strategy: Strategy;
-}
+// Lista de estratégias disponíveis
+const strategies = [
+  {
+    id: 'advance',
+    name: 'Advance',
+    description: 'Monitora frequência de dígitos 0-1 e faz entradas quando abaixo do limiar',
+    type: 'DIGITOVER',
+    category: 'Análise de Dígitos',
+    color: 'bg-blue-500'
+  },
+  {
+    id: 'botlow',
+    name: 'BOT LOW',
+    description: 'Estratégia otimizada para mercados com tendência de queda',
+    type: 'DIGITUNDER',
+    category: 'Tendência',
+    color: 'bg-red-500'
+  },
+  {
+    id: 'maxpro',
+    name: 'MAXPRO',
+    description: 'Estratégia de alta frequência com entradas precisas',
+    type: 'DIGITOVER',
+    category: 'Alta Precisão',
+    color: 'bg-green-500'
+  },
+  {
+    id: 'ironover',
+    name: 'IRON OVER',
+    description: 'Estratégia robusta para mercados voláteis com viés de alta',
+    type: 'DIGITOVER',
+    category: 'Volatilidade',
+    color: 'bg-purple-500'
+  },
+  {
+    id: 'ironunder',
+    name: 'IRON UNDER',
+    description: 'Estratégia robusta para mercados voláteis com viés de baixa',
+    type: 'DIGITUNDER',
+    category: 'Volatilidade',
+    color: 'bg-indigo-500'
+  },
+  {
+    id: 'wisepro',
+    name: 'WISE PRO TENDENCIA',
+    description: 'Detecta e segue automaticamente a tendência do mercado',
+    type: 'CALL/PUT',
+    category: 'Tendência',
+    color: 'bg-amber-500'
+  },
+  {
+    id: 'manualover',
+    name: 'Manual Over',
+    description: 'Entradas manuais otimizadas para DIGITOVER',
+    type: 'DIGITOVER',
+    category: 'Manual',
+    color: 'bg-lime-500'
+  },
+  {
+    id: 'manualunder',
+    name: 'Manual Under',
+    description: 'Entradas manuais otimizadas para DIGITUNDER',
+    type: 'DIGITUNDER',
+    category: 'Manual',
+    color: 'bg-orange-500'
+  },
+  {
+    id: 'profitpro',
+    name: 'Profitpro Atualizado',
+    description: 'Versão atualizada com gerenciamento avançado de lucro',
+    type: 'DIGITDIFF',
+    category: 'Avançada',
+    color: 'bg-teal-500'
+  }
+];
 
-const StrategyInfoCard: React.FC<StrategyInfoCardProps> = ({ strategy }) => {
-  const { t } = useTranslation();
+// Agrupar estratégias por categoria
+const groupedStrategies = strategies.reduce((acc, strategy) => {
+  if (!acc[strategy.category]) {
+    acc[strategy.category] = [];
+  }
+  acc[strategy.category].push(strategy);
+  return acc;
+}, {} as Record<string, typeof strategies>);
 
-  return (
-    <div className="border rounded-lg p-4 mb-4">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold">{strategy.name}</h3>
-        <Badge variant="outline">
-          {strategy.type === 'advance' ? t('Avançada') : 
-           strategy.type === 'custom' ? t('Personalizada') : 
-           t('Padrão')}
-        </Badge>
-      </div>
-      
-      <p className="text-sm text-muted-foreground mb-4">
-        {strategy.description}
-      </p>
-      
-      {strategy.contractType && (
-        <div className="flex items-center text-sm mb-2">
-          <span className="font-medium mr-2">{t('Tipo de Contrato')}:</span>
-          <Badge variant="secondary">{strategy.contractType}</Badge>
-        </div>
-      )}
-      
-      {strategy.entryCondition && (
-        <div className="text-sm mb-2">
-          <span className="font-medium mr-2">{t('Condição de Entrada')}:</span>
-          <span>{strategy.entryCondition}</span>
-        </div>
-      )}
-      
-      <div className="text-sm text-muted-foreground">
-        <span className="font-medium mr-2">{t('Arquivo')}:</span>
-        <code className="text-xs bg-muted px-1 py-0.5 rounded">
-          {strategy.xmlPath.split('/').pop()}
-        </code>
-      </div>
-    </div>
-  );
-};
-
-interface StrategyExplainerProps {
-  strategies: Strategy[];
-}
-
-const StrategyExplainer: React.FC<StrategyExplainerProps> = ({ strategies }) => {
-  const { t } = useTranslation();
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-
-  // Filtra estratégias por tipo
-  const filteredStrategies = selectedType 
-    ? strategies.filter(s => s.type === selectedType)
-    : strategies;
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-4">
-        <Button 
-          variant={selectedType === null ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelectedType(null)}
-        >
-          {t('Todas')}
-        </Button>
-        <Button 
-          variant={selectedType === 'standard' ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelectedType('standard')}
-        >
-          {t('Padrão')}
-        </Button>
-        <Button 
-          variant={selectedType === 'advance' ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelectedType('advance')}
-        >
-          {t('Avançada')}
-        </Button>
-        <Button 
-          variant={selectedType === 'custom' ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelectedType('custom')}
-        >
-          {t('Personalizada')}
-        </Button>
-      </div>
-      
-      <div className="max-h-[60vh] overflow-y-auto pr-1">
-        {filteredStrategies.map(strategy => (
-          <StrategyInfoCard key={strategy.id} strategy={strategy} />
-        ))}
-        
-        {filteredStrategies.length === 0 && (
-          <div className="text-center text-muted-foreground p-8">
-            {t('Nenhuma estratégia encontrada')}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
+// Props do componente
 interface StrategySelectorProps {
   value: string;
-  onChange: (strategyId: string) => void;
+  onChange: (value: string) => void;
   disabled?: boolean;
 }
 
@@ -152,133 +106,85 @@ const StrategySelector: React.FC<StrategySelectorProps> = ({
   disabled = false
 }) => {
   const { t } = useTranslation();
-  const [showInfo, setShowInfo] = useState(false);
-
-  // Encontrar estratégia atual
-  const currentStrategy = strategies.find(s => s.id === value) || null;
-
+  const [open, setOpen] = useState(false);
+  
+  // Encontrar a estratégia selecionada
+  const selectedStrategy = strategies.find(strategy => strategy.id === value);
+  
   return (
-    <div>
-      <div className="flex justify-between items-center">
-        <Label htmlFor="strategy-select">{t('Estratégia')}</Label>
-        
-        <Dialog open={showInfo} onOpenChange={setShowInfo}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6" title={t('Informações sobre estratégias')}>
-              <Info className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>{t('Estratégias Disponíveis')}</DialogTitle>
-              <DialogDescription>
-                {t('Informações sobre as estratégias disponíveis para o bot')}
-              </DialogDescription>
-            </DialogHeader>
-            <StrategyExplainer strategies={strategies} />
-          </DialogContent>
-        </Dialog>
-      </div>
-      
-      <div className="flex w-full gap-2 mt-1">
-        <div className="flex-1">
-          <Select 
-            value={value} 
-            onValueChange={onChange}
-            disabled={disabled}
-          >
-            <SelectTrigger id="strategy-select">
-              <SelectValue placeholder={t('Selecione uma estratégia')}>
-                {currentStrategy?.name}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>{t('Estratégias Avançadas')}</SelectLabel>
-                {strategies
-                  .filter(s => s.type === 'advance')
-                  .map(strategy => (
-                    <SelectItem key={strategy.id} value={strategy.id}>
-                      {strategy.name}
-                      {strategy.contractType && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          ({strategy.contractType})
-                        </span>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={disabled}
+        >
+          {selectedStrategy ? (
+            <div className="flex items-center">
+              <span>{selectedStrategy.name}</span>
+              <Badge 
+                variant="outline" 
+                className={`ml-2 text-xs ${selectedStrategy.type === 'DIGITOVER' ? 'text-green-500' : 
+                  selectedStrategy.type === 'DIGITUNDER' ? 'text-red-500' : 'text-blue-500'}`}
+              >
+                {selectedStrategy.type}
+              </Badge>
+            </div>
+          ) : (
+            t('Selecione uma estratégia')
+          )}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0">
+        <Command>
+          <CommandInput placeholder={t('Pesquisar estratégia...')} className="border-0 focus:ring-0" />
+          <CommandEmpty>
+            {t('Nenhuma estratégia encontrada')}
+          </CommandEmpty>
+          <ScrollArea className="h-[300px]">
+            {Object.entries(groupedStrategies).map(([category, categoryStrategies]) => (
+              <CommandGroup key={category} heading={t(category)}>
+                {categoryStrategies.map(strategy => (
+                  <CommandItem
+                    key={strategy.id}
+                    value={strategy.id}
+                    onSelect={() => {
+                      onChange(strategy.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === strategy.id ? "opacity-100" : "opacity-0"
                       )}
-                    </SelectItem>
-                  ))}
-              </SelectGroup>
-              
-              <SelectGroup>
-                <SelectLabel>{t('Estratégias Padrão')}</SelectLabel>
-                {strategies
-                  .filter(s => s.type === 'standard')
-                  .map(strategy => (
-                    <SelectItem key={strategy.id} value={strategy.id}>
-                      {strategy.name}
-                      {strategy.contractType && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          ({strategy.contractType})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-              </SelectGroup>
-              
-              {strategies.some(s => s.type === 'custom') && (
-                <SelectGroup>
-                  <SelectLabel>{t('Personalizadas')}</SelectLabel>
-                  {strategies
-                    .filter(s => s.type === 'custom')
-                    .map(strategy => (
-                      <SelectItem key={strategy.id} value={strategy.id}>
+                    />
+                    <div>
+                      <div className="font-medium">
                         {strategy.name}
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {currentStrategy && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="border rounded p-2 flex items-center justify-center">
-                  <Bot className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[300px]">
-                <div>
-                  <div className="font-semibold mb-1">{currentStrategy.name}</div>
-                  <div className="text-xs mb-2">{currentStrategy.description}</div>
-                  {currentStrategy.contractType && (
-                    <Badge variant="secondary" className="mr-2">
-                      {currentStrategy.contractType}
-                    </Badge>
-                  )}
-                  <Badge variant="outline">
-                    {currentStrategy.type === 'advance' 
-                      ? t('Avançada') 
-                      : currentStrategy.type === 'custom' 
-                        ? t('Personalizada') 
-                        : t('Padrão')}
-                  </Badge>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-      
-      {currentStrategy?.entryCondition && (
-        <div className="mt-1.5 text-xs text-muted-foreground flex items-center">
-          <ChevronRight className="h-3 w-3 mr-1" />
-          {currentStrategy.entryCondition}
-        </div>
-      )}
-    </div>
+                        <Badge 
+                          variant="outline" 
+                          className={`ml-2 text-xs ${strategy.type === 'DIGITOVER' ? 'text-green-500' : 
+                            strategy.type === 'DIGITUNDER' ? 'text-red-500' : 'text-blue-500'}`}
+                        >
+                          {strategy.type}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {strategy.description}
+                      </p>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </ScrollArea>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 };
 

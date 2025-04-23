@@ -1,316 +1,453 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { format } from 'date-fns';
+import { ptBR, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { TrendingDown, TrendingUp, List, Table as TableIcon, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { pt, enUS } from 'date-fns/locale';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import {
+  ClipboardList,
+  TrendingUp,
+  TrendingDown,
+  Ban,
+  BarChart3,
+  Check,
+  X,
+  ArrowDown,
+  ArrowUp,
+  MoreHorizontal,
+  Trash2,
+  Medal,
+  AlertTriangle,
+  Clock
+} from 'lucide-react';
 
-export interface Operation {
+// Tipo para uma operação
+interface Operation {
   id: string | number;
   contract_id: string | number;
   entry_value: number;
   exit_value?: number;
   profit?: number;
+  is_win?: boolean;
   time: Date;
   timestamp: number;
   contract_type: string;
   symbol: string;
   strategy: string;
-  is_win?: boolean;
   notification: {
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
   };
 }
 
-interface OperationHistoryCardProps {
-  operations: Operation[];
-  stats: {
-    totalOperations: number;
-    wins: number;
-    losses: number;
-    winRate: number;
-    totalProfit: number;
+// Tipo para estatísticas de operações
+interface OperationStats {
+  totalOperations: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalProfit: number;
+  bestStreak: number;
+  worstStreak: number;
+  consecutiveWins: number;
+  consecutiveLosses: number;
+}
+
+// Função para calcular estatísticas
+function calculateStats(operations: Operation[]): OperationStats {
+  const completedOperations = operations.filter(op => op.exit_value !== undefined);
+  const wins = completedOperations.filter(op => op.is_win).length;
+  const losses = completedOperations.filter(op => op.is_win === false).length;
+  const winRate = completedOperations.length > 0 
+    ? (wins / completedOperations.length) * 100 
+    : 0;
+  
+  // Cálculo de streak (sequência de vitórias/derrotas)
+  let currentWinStreak = 0;
+  let currentLossStreak = 0;
+  let bestStreak = 0;
+  let worstStreak = 0;
+  let consecutiveWins = 0;
+  let consecutiveLosses = 0;
+  
+  // Ordenar operações por timestamp
+  const sortedOps = [...completedOperations].sort((a, b) => a.timestamp - b.timestamp);
+  
+  for (const op of sortedOps) {
+    if (op.is_win) {
+      currentWinStreak++;
+      currentLossStreak = 0;
+      bestStreak = Math.max(bestStreak, currentWinStreak);
+    } else if (op.is_win === false) {
+      currentLossStreak++;
+      currentWinStreak = 0;
+      worstStreak = Math.max(worstStreak, currentLossStreak);
+    }
+  }
+  
+  // Verifica a streak atual
+  consecutiveWins = currentWinStreak;
+  consecutiveLosses = currentLossStreak;
+  
+  // Cálculo do lucro total
+  const totalProfit = completedOperations.reduce((sum, op) => sum + (op.profit || 0), 0);
+  
+  return {
+    totalOperations: completedOperations.length,
+    wins,
+    losses,
+    winRate,
+    totalProfit,
+    bestStreak,
+    worstStreak,
+    consecutiveWins,
+    consecutiveLosses
   };
 }
 
-const OperationHistoryCard: React.FC<OperationHistoryCardProps> = ({ operations, stats }) => {
+// Props do componente
+interface OperationHistoryCardProps {
+  operations: Operation[];
+  onClearHistory?: () => void;
+  isRunning?: boolean;
+}
+
+// Componente OperationHistoryCard
+const OperationHistoryCard: React.FC<OperationHistoryCardProps> = ({
+  operations,
+  onClearHistory,
+  isRunning = false
+}) => {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<'list' | 'table'>('list');
-  const dateLocale = i18n.language === 'pt' ? pt : enUS;
+  const [stats, setStats] = useState<OperationStats>({
+    totalOperations: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+    totalProfit: 0,
+    bestStreak: 0,
+    worstStreak: 0,
+    consecutiveWins: 0,
+    consecutiveLosses: 0
+  });
   
-  // Ordenar operações por timestamp (mais recentes primeiro)
-  const sortedOperations = [...operations].sort((a, b) => b.timestamp - a.timestamp);
+  // Atualizar estatísticas quando as operações mudarem
+  useEffect(() => {
+    setStats(calculateStats(operations));
+  }, [operations]);
   
-  // Renderizar item de operação no formato de lista
-  const renderOperationListItem = (operation: Operation) => {
-    // Determinar variante do badge
-    let badgeVariant: 'outline' | 'destructive' | 'default' = 'outline';
-    if (operation.is_win === true) badgeVariant = 'default';
-    if (operation.is_win === false) badgeVariant = 'destructive';
-    
-    // Formatar valores
-    const formattedEntryValue = operation.entry_value.toFixed(2);
-    const formattedExitValue = operation.exit_value 
-      ? operation.exit_value.toFixed(2) 
-      : t('Aguardando');
-    
-    const formattedProfit = operation.profit !== undefined 
-      ? (operation.profit > 0 ? '+' : '') + operation.profit.toFixed(2)
-      : '-';
-    
-    const formattedTime = format(
-      new Date(operation.time), 
-      'HH:mm:ss', 
-      { locale: dateLocale }
-    );
+  // Formatar valor monetário
+  const formatMoney = (value: number) => {
+    return new Intl.NumberFormat(i18n.language, {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+  
+  // Formatar data
+  const formatDate = (date: Date) => {
+    return format(date, 'dd/MM/yyyy HH:mm:ss', {
+      locale: i18n.language === 'pt-BR' ? ptBR : enUS
+    });
+  };
+  
+  // Renderizar item de operação
+  const renderOperationItem = (operation: Operation) => {
+    const isOpen = operation.exit_value === undefined;
+    const isProfitable = operation.profit !== undefined && operation.profit > 0;
+    const isLoss = operation.profit !== undefined && operation.profit < 0;
     
     return (
       <div 
         key={operation.id} 
-        className={`border p-3 rounded-md mb-3 ${
-          operation.is_win === true 
-            ? 'border-l-4 border-l-green-500' 
-            : operation.is_win === false 
-              ? 'border-l-4 border-l-red-500' 
-              : ''
+        className={`p-3 border rounded-md mb-2 ${
+          isOpen 
+            ? 'bg-muted border-muted-foreground/20'
+            : isProfitable 
+              ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900'
+              : isLoss
+                ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' 
+                : 'bg-background border-border'
         }`}
       >
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <div className="font-medium">{operation.contract_type} - {operation.symbol}</div>
-            <div className="text-xs text-muted-foreground">{t('ID')}: {operation.contract_id}</div>
+        <div className="flex justify-between items-start mb-1">
+          <div className="flex items-center">
+            {isOpen ? (
+              <Clock className="h-4 w-4 mr-2 text-muted-foreground animate-pulse" />
+            ) : operation.is_win ? (
+              <Check className="h-4 w-4 mr-2 text-green-500" />
+            ) : (
+              <X className="h-4 w-4 mr-2 text-red-500" />
+            )}
+            <div>
+              <div className="font-medium">
+                {operation.contract_type}
+                <Badge 
+                  variant="outline" 
+                  className="ml-2 text-xs"
+                >
+                  {operation.symbol}
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t('ID')}: {operation.contract_id.toString().slice(0, 8)}...
+              </div>
+            </div>
           </div>
-          
-          <Badge variant={badgeVariant} className="ml-2">
-            {operation.is_win === true 
-              ? t('Ganho') 
-              : operation.is_win === false 
-                ? t('Perda') 
-                : t('Em andamento')}
-          </Badge>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-2 mb-2 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground">{t('Entrada')}</div>
-            <div>{formattedEntryValue}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t('Saída')}</div>
-            <div>{formattedExitValue}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">{t('Lucro')}</div>
-            <div className={
-              operation.profit 
-                ? (operation.profit > 0 ? 'text-green-500' : 'text-red-500') 
-                : ''
-            }>
-              {formattedProfit}
+          <div className="text-right">
+            <div className={`font-medium ${
+              isOpen ? '' : isProfitable ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {isOpen 
+                ? t('Em andamento')
+                : formatMoney(operation.profit || 0)
+              }
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {formatDate(operation.time)}
             </div>
           </div>
         </div>
         
-        <div className="flex justify-between items-center text-xs text-muted-foreground">
-          <div className="flex items-center">
-            <Clock className="h-3 w-3 mr-1" />
-            {formattedTime}
-          </div>
-          
+        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border/50 text-sm">
           <div>
-            {operation.strategy}
+            <span className="text-muted-foreground">{t('Estratégia')}:</span>{' '}
+            <span className="font-medium">{operation.strategy}</span>
           </div>
+          <div>
+            <span className="text-muted-foreground">{t('Entrada')}:</span>{' '}
+            <span className="font-medium">{formatMoney(operation.entry_value)}</span>
+          </div>
+          {!isOpen && (
+            <>
+              <div>
+                <span className="text-muted-foreground">{t('Saída')}:</span>{' '}
+                <span className="font-medium">{formatMoney(operation.exit_value || 0)}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">{t('Resultado')}:</span>{' '}
+                <span className={`font-medium ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
+                  {isProfitable ? (
+                    <span className="flex items-center">
+                      <ArrowUp className="h-3 w-3 mr-1" />
+                      {operation.is_win ? t('Ganho') : t('Empate')}
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <ArrowDown className="h-3 w-3 mr-1" />
+                      {t('Perda')}
+                    </span>
+                  )}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
   };
   
-  // Renderizar operações em formato de tabela
-  const renderOperationsTable = () => {
-    return (
-      <div className="w-full overflow-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b text-left text-xs font-medium text-muted-foreground">
-              <th className="p-2">{t('ID')}</th>
-              <th className="p-2">{t('Tipo')}</th>
-              <th className="p-2">{t('Entrada')}</th>
-              <th className="p-2">{t('Saída')}</th>
-              <th className="p-2">{t('Resultado')}</th>
-              <th className="p-2">{t('Hora')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedOperations.map(operation => (
-              <tr 
-                key={operation.id} 
-                className={`border-b hover:bg-muted/50 text-sm ${
-                  operation.is_win === true 
-                    ? 'bg-green-50 dark:bg-green-950/20' 
-                    : operation.is_win === false 
-                      ? 'bg-red-50 dark:bg-red-950/20' 
-                      : ''
-                }`}
-              >
-                <td className="p-2">
-                  <div className="font-mono text-xs">{operation.contract_id}</div>
-                </td>
-                <td className="p-2">
-                  <Badge variant="outline" className="text-xs">
-                    {operation.contract_type}
-                  </Badge>
-                </td>
-                <td className="p-2">{operation.entry_value.toFixed(2)}</td>
-                <td className="p-2">
-                  {operation.exit_value 
-                    ? operation.exit_value.toFixed(2) 
-                    : <span className="text-muted-foreground italic text-xs">{t('Aguardando')}</span>}
-                </td>
-                <td className="p-2">
-                  {operation.is_win === undefined ? (
-                    <Badge variant="outline" className="text-xs">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {t('Em andamento')}
-                    </Badge>
-                  ) : operation.is_win ? (
+  return (
+    <Tabs defaultValue="operations" className="h-full flex flex-col">
+      <TabsList className="grid grid-cols-2">
+        <TabsTrigger value="operations" className="flex items-center gap-1">
+          <ClipboardList className="h-4 w-4" />
+          {t('Operações')}
+        </TabsTrigger>
+        <TabsTrigger value="statistics" className="flex items-center gap-1">
+          <BarChart3 className="h-4 w-4" />
+          {t('Estatísticas')}
+        </TabsTrigger>
+      </TabsList>
+      
+      {/* Conteúdo da aba Operações */}
+      <TabsContent value="operations" className="flex-1 flex flex-col">
+        <div className="flex justify-between mb-4">
+          <div className="font-medium text-sm">
+            {t('Total')}: {operations.length}
+          </div>
+          {onClearHistory && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClearHistory} 
+              disabled={operations.length === 0 || isRunning}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {t('Limpar')}
+            </Button>
+          )}
+        </div>
+        
+        {operations.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+            <ClipboardList className="h-12 w-12 mb-2 opacity-20" />
+            <p>{t('Nenhuma operação realizada')}</p>
+            <p className="text-xs">{t('As operações aparecerão aqui quando forem realizadas')}</p>
+          </div>
+        ) : (
+          <ScrollArea className="flex-1">
+            <div className="pr-4">
+              {operations.map(renderOperationItem)}
+            </div>
+          </ScrollArea>
+        )}
+      </TabsContent>
+      
+      {/* Conteúdo da aba Estatísticas */}
+      <TabsContent value="statistics" className="flex-1 flex flex-col">
+        {stats.totalOperations === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+            <BarChart3 className="h-12 w-12 mb-2 opacity-20" />
+            <p>{t('Sem dados para mostrar')}</p>
+            <p className="text-xs">{t('Complete operações para ver estatísticas')}</p>
+          </div>
+        ) : (
+          <ScrollArea className="flex-1">
+            <div className="pr-4 space-y-6">
+              {/* Resumo geral */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('Resumo Geral')}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <TrendingUp className="h-4 w-4 mr-1" />
+                      {t('Lucro Total')}
+                    </div>
+                    <div className={`text-2xl font-bold ${stats.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {formatMoney(stats.totalProfit)}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <Medal className="h-4 w-4 mr-1" />
+                      {t('Taxa de Acerto')}
+                    </div>
+                    <div className="text-2xl font-bold">
+                      {stats.winRate.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Operações */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('Operações')}</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="text-sm text-muted-foreground mb-1">
+                      {t('Total')}
+                    </div>
+                    <div className="text-xl font-bold">
+                      {stats.totalOperations}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <Check className="h-3 w-3 mr-1 text-green-500" />
+                      {t('Ganhos')}
+                    </div>
+                    <div className="text-xl font-bold text-green-500">
+                      {stats.wins}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <X className="h-3 w-3 mr-1 text-red-500" />
+                      {t('Perdas')}
+                    </div>
+                    <div className="text-xl font-bold text-red-500">
+                      {stats.losses}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sequências */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('Sequências')}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <TrendingUp className="h-4 w-4 mr-1 text-green-500" />
+                      {t('Melhor Sequência')}
+                    </div>
+                    <div className="text-xl font-bold text-green-500">
+                      {stats.bestStreak} {t('ganhos')}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-muted p-3 rounded-md">
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      <TrendingDown className="h-4 w-4 mr-1 text-red-500" />
+                      {t('Pior Sequência')}
+                    </div>
+                    <div className="text-xl font-bold text-red-500">
+                      {stats.worstStreak} {t('perdas')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sequência atual */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('Sequência Atual')}</h3>
+                <div className="bg-muted p-3 rounded-md">
+                  {stats.consecutiveWins > 0 ? (
                     <div className="flex items-center">
-                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
-                      <span className="text-green-500">{operation.profit && operation.profit.toFixed(2)}</span>
+                      <TrendingUp className="h-5 w-5 mr-2 text-green-500" />
+                      <div>
+                        <div className="font-medium">{t('Sequência de Ganhos')}</div>
+                        <div className="text-xl font-bold text-green-500">
+                          {stats.consecutiveWins} {t('operações')}
+                        </div>
+                      </div>
+                    </div>
+                  ) : stats.consecutiveLosses > 0 ? (
+                    <div className="flex items-center">
+                      <TrendingDown className="h-5 w-5 mr-2 text-red-500" />
+                      <div>
+                        <div className="font-medium">{t('Sequência de Perdas')}</div>
+                        <div className="text-xl font-bold text-red-500">
+                          {stats.consecutiveLosses} {t('operações')}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center">
-                      <AlertCircle className="h-3 w-3 mr-1 text-red-500" />
-                      <span className="text-red-500">{operation.profit && operation.profit.toFixed(2)}</span>
+                      <Ban className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <div className="font-medium">{t('Sem sequência atual')}</div>
                     </div>
                   )}
-                </td>
-                <td className="p-2 text-xs text-muted-foreground">
-                  {format(new Date(operation.time), 'HH:mm:ss', { locale: dateLocale })}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-  
-  // Renderizar estatísticas resumidas
-  const renderStats = () => {
-    return (
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="p-2 border rounded flex flex-col items-center justify-center">
-          <span className="text-xs text-muted-foreground">{t('Operações')}</span>
-          <span className="text-xl font-medium">{stats.totalOperations}</span>
-        </div>
-        
-        <div className="p-2 border rounded flex flex-col items-center justify-center bg-green-50 dark:bg-green-950/20">
-          <span className="text-xs text-muted-foreground">{t('Ganhos')}</span>
-          <span className="text-xl font-medium text-green-500">{stats.wins}</span>
-        </div>
-        
-        <div className="p-2 border rounded flex flex-col items-center justify-center bg-red-50 dark:bg-red-950/20">
-          <span className="text-xs text-muted-foreground">{t('Perdas')}</span>
-          <span className="text-xl font-medium text-red-500">{stats.losses}</span>
-        </div>
-        
-        <div className="p-2 border rounded flex flex-col items-center justify-center">
-          <span className="text-xs text-muted-foreground">{t('Taxa')}</span>
-          <span className="text-xl font-medium">
-            {(stats.winRate * 100).toFixed(0)}%
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle>{t('Histórico de Operações')}</CardTitle>
-            <CardDescription>
-              {t('Últimas operações realizadas pelo bot')}
-            </CardDescription>
-          </div>
-          
-          <div className="flex items-center border rounded-md">
-            <Button 
-              variant={view === 'list' ? 'default' : 'ghost'} 
-              size="sm" 
-              className="h-8 px-2"
-              onClick={() => setView('list')}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant={view === 'table' ? 'default' : 'ghost'} 
-              size="sm" 
-              className="h-8 px-2"
-              onClick={() => setView('table')}
-            >
-              <TableIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {renderStats()}
-        
-        {operations.length === 0 ? (
-          <div className="text-center py-10">
-            <div className="text-muted-foreground mb-2">
-              {t('Nenhuma operação realizada')}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t('Inicie o bot para começar a operar')}
-            </div>
-          </div>
-        ) : (
-          <ScrollArea className="h-[300px]">
-            {view === 'list' ? (
-              <div className="pr-4">
-                {sortedOperations.map(renderOperationListItem)}
+                </div>
               </div>
-            ) : (
-              renderOperationsTable()
-            )}
+              
+              {/* Alerta para poucas operações */}
+              {stats.totalOperations < 10 && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md p-3">
+                  <div className="flex items-center text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    <div className="font-medium">{t('Aviso')}</div>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t('Estatísticas podem não ser representativas com menos de 10 operações completas.')}
+                  </p>
+                </div>
+              )}
+            </div>
           </ScrollArea>
         )}
-      </CardContent>
-      <CardFooter className="flex justify-between text-xs text-muted-foreground">
-        <div>
-          {stats.totalOperations > 0 && (
-            <span>
-              {t('Total de {{total}} operações', { total: stats.totalOperations })}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center">
-          {stats.totalProfit > 0 ? (
-            <>
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              <span className="text-green-500">
-                +{stats.totalProfit.toFixed(2)}
-              </span>
-            </>
-          ) : stats.totalProfit < 0 ? (
-            <>
-              <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
-              <span className="text-red-500">
-                {stats.totalProfit.toFixed(2)}
-              </span>
-            </>
-          ) : null}
-        </div>
-      </CardFooter>
-    </Card>
+      </TabsContent>
+    </Tabs>
   );
 };
 

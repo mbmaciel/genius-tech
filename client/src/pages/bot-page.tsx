@@ -13,6 +13,8 @@ import SymbolSelector from '@/components/trading/SymbolSelector';
 import StrategySelector from '@/components/trading/StrategySelector';
 import OperationHistoryCard from '@/components/trading/OperationHistoryCard';
 import DigitAnalysis from '@/components/trading/DigitAnalysis';
+import AccountSelector from '@/components/deriv/AccountSelector';
+import { AccountInfo } from '@/services/oauthDirectService';
 import { RocketIcon, AlertCircle, RefreshCw, Bot, History, ChartBar } from 'lucide-react';
 
 const BotPage: React.FC = () => {
@@ -24,13 +26,16 @@ const BotPage: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState('R_100');
   const [selectedStrategy, setSelectedStrategy] = useState('advance');
+  const [selectedAccount, setSelectedAccount] = useState<AccountInfo | null>(null);
   
   // Estados de configuração
   const [generalConfig, setGeneralConfig] = useState({
     initialStake: 1,
     targetProfit: 10,
     stopLoss: 10,
-    martingaleFactor: 1.5
+    martingaleFactor: 1.5,
+    stopOnLoss: true,
+    stopOnProfit: true
   });
   
   // Configurações específicas da estratégia Advance
@@ -95,15 +100,22 @@ const BotPage: React.FC = () => {
     setAdvanceConfig(config);
   };
   
-  // Handler para mudanças de configuração
+  // Handler para mudanças de configuração básica
   const handleConfigChange = (config: any) => {
-    if (config.type === 'general') {
-      const { type, ...rest } = config;
-      handleGeneralConfigChange(rest);
-    } else if (config.type === 'advance') {
-      const { type, ...rest } = config;
-      handleAdvanceConfigChange(rest);
-    }
+    setGeneralConfig({
+      initialStake: config.stake,
+      martingaleFactor: config.martingale,
+      stopLoss: config.maxLoss,
+      targetProfit: config.maxProfit,
+      stopOnLoss: config.stopOnLoss,
+      stopOnProfit: config.stopOnProfit
+    });
+    
+    toast({
+      title: t('Configurações salvas'),
+      description: t('Configurações básicas atualizadas com sucesso'),
+      variant: 'default'
+    });
   };
   
   // Handler para atualizações de operações
@@ -114,6 +126,19 @@ const BotPage: React.FC = () => {
   // Handler para atualizações de estatísticas
   const handleStatsUpdate = (updatedStats: any) => {
     setStats(updatedStats);
+  };
+  
+  // Handler para mudanças de conta
+  const handleAccountChange = (account: AccountInfo | null) => {
+    setSelectedAccount(account);
+    
+    if (account) {
+      toast({
+        title: t('Conta selecionada'),
+        description: t('Usando conta {{account}}', { account: account.loginid }),
+        variant: 'default'
+      });
+    }
   };
   
   // Renderizar alerta de login, se não estiver autenticado
@@ -141,11 +166,11 @@ const BotPage: React.FC = () => {
         <h1 className="text-3xl font-bold">{t('Bot de Trading')}</h1>
         
         <div className="flex items-center space-x-2">
-          {isAuthenticated && (
-            <div className="text-sm text-muted-foreground mr-4">
-              {t('Conectado como')} <span className="font-medium">{user?.loginid}</span>
-            </div>
-          )}
+          <AccountSelector
+            onAccountChange={handleAccountChange}
+            showBalance={true}
+            className="mr-2"
+          />
           
           <Button variant="outline" size="sm" asChild>
             <a href="/dashboard">
@@ -186,9 +211,22 @@ const BotPage: React.FC = () => {
               <Separator />
               
               <ConfigSidebar
-                onApplyConfig={handleConfigChange}
                 selectedStrategy={selectedStrategy}
                 isRunning={isRunning}
+                onSaveBasicConfig={handleConfigChange}
+                onSaveAdvanceConfig={(config) => {
+                  setAdvanceConfig({
+                    entryThreshold: config.digitFrequencyThreshold,
+                    analysisVolume: config.analysisWindow,
+                    prediction: config.prediction
+                  });
+                  
+                  toast({
+                    title: t('Configurações salvas'),
+                    description: t('Configurações avançadas atualizadas com sucesso'),
+                    variant: 'default'
+                  });
+                }}
               />
             </CardContent>
           </Card>
@@ -210,7 +248,8 @@ const BotPage: React.FC = () => {
                 onStop={handleStopBot}
                 onOperationUpdate={handleOperationsUpdate}
                 onStatsUpdate={handleStatsUpdate}
-                disabled={!isAuthenticated}
+                disabled={!isAuthenticated || !selectedAccount}
+                selectedAccount={selectedAccount}
               />
             </div>
             
