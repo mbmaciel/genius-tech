@@ -372,7 +372,17 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                         op.notification.type === 'info' ? 'text-blue-400' : 
                         op.notification.type === 'warning' ? 'text-amber-400' : 'text-red-400'
                       }`}>
-                        {op.notification.message}
+                        {/* Aplicar correção de barreira nas mensagens de notificação para Advance */}
+                        {(() => {
+                          const strategyId = op.strategy || selectedStrategy;
+                          if (strategyId?.toLowerCase() === 'advance' && 
+                              op.notification.message.includes('ACIMA de') && 
+                              !op.notification.message.includes('ACIMA de 1')) {
+                            console.log('[RELATORIO_OPERACOES] Corrigindo mensagem de notificação para Advance:', op.notification.message);
+                            return op.notification.message.replace(/ACIMA de \d+/g, 'ACIMA de 1');
+                          }
+                          return op.notification.message;
+                        })()}
                       </p>
                     </div>
                   )}
@@ -498,6 +508,16 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                               <span className="text-gray-400 mr-1">{t('operations.symbol', 'Símbolo')}:</span>
                               <span className="text-blue-400 font-semibold">{op.symbol || 'R_100'}</span>
                             </div>
+                            
+                            {/* Barreira (quando aplicável) com correção para estratégia Advance */}
+                            {op.barrier && (
+                              <div className="flex items-center">
+                                <span className="text-gray-400 mr-1">{t('operations.barrier', 'Barreira')}:</span>
+                                <span className="text-orange-400 font-semibold">
+                                  {getCorrectBarrier(op.barrier, op.strategy || selectedStrategy)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Seção de especificações da estratégia */}
