@@ -1606,8 +1606,14 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
               commandMessage = `Estratégia IRON: ${contractType.includes('OVER') ? 'ACIMA' : 'ABAIXO'}`;
             }
             else {
+              // Para estratégia Advance, FORÇAR que a barreira exibida seja sempre 1
+              if (selectedStrategy === 'advance' && contractType.includes('DIGITOVER')) {
+                commandType = 'success';
+                commandMessage = 'Compra ACIMA de 1';
+                console.log('[BOT_PAGE] CORREÇÃO INTERFACE: Forçando exibição de barreira 1 para Advance');
+              }
               // Para outras estratégias, usar o padrão baseado no tipo de contrato
-              if (contractType.includes('DIGITOVER')) {
+              else if (contractType.includes('DIGITOVER')) {
                 commandType = 'success';
                 commandMessage = 'Compra ACIMA de ' + (contract.barrier || '?');
               } else if (contractType.includes('DIGITUNDER')) {
