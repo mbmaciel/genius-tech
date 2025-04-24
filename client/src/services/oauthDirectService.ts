@@ -3203,6 +3203,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
         duration = 1; // CRÍTICO: Advance SEMPRE usa exatamente 1 tick de duração
         console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Estratégia Advance detectada! Forçando duração de 1 tick conforme contrato real.`);
+        
+        // Para DIGITOVER, a prediction é definida pelo campo barrier
+        prediction = 1; // CRÍTICO: Este é o valor que aparece no contrato: "acima de 1"
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Forçando barrier/prediction = 1 para DIGITOVER (valor que aparece no contrato)`);
       } else {
         console.log(`[OAUTH_DIRECT] Usando duração padrão de ${duration} ticks para estratégia ${this.activeStrategy || 'desconhecida'}`);
       }
@@ -3462,10 +3466,45 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             // Se for Advance, adicionamos parâmetros extras
             if (this.activeStrategy?.toLowerCase().includes('advance')) {
               console.log(`[OAUTH_DIRECT] 🔴 MODIFICANDO COMPRA PARA ADVANCE COM BARREIRA 1`);
-              // Tentativa de adicionar parâmetros extras
+              
+              // INTERVENÇÃO CRÍTICA: Para contratos DIGITOVER, o campo "barrier" define a previsão (não prediction)
+              // Esta é a razão pela qual estava aparecendo "acima de 5" em vez de "acima de 1"
+              
+              // MÚLTIPLAS TENTATIVAS DE MODIFICAR O JSON ENVIADO:
+              
+              // 1. Tentar com parameters (mais específico)
               (buyRequest as any).parameters = {
                 barrier: "1"
               };
+              
+              // 2. Tentar diretamente no objeto principal (menos específico)
+              (buyRequest as any).barrier = "1";
+              
+              // 3. Tentar com prediction explicitamente
+              (buyRequest as any).prediction = 1;
+              
+              // 4. Tentativa de forçar alteração completa do objeto enviado
+              const originalBuyId = buyRequest.buy;
+              const originalPrice = buyRequest.price;
+              const originalReqId = buyRequest.req_id;
+              
+              // Criar objeto completamente novo (tentativa de última chance)
+              const newBuyRequest = {
+                buy: originalBuyId,
+                price: originalPrice,
+                req_id: originalReqId,
+                parameters: {
+                  barrier: "1"
+                },
+                barrier: "1",
+                prediction: 1
+              };
+              
+              // Substituir o objeto original pelo novo
+              Object.assign(buyRequest, newBuyRequest);
+              
+              console.log(`[OAUTH_DIRECT] 🔴 INTERVENÇÃO CRÍTICA: RECONSTRUÇÃO COMPLETA DO OBJETO DE COMPRA`);
+              console.log(`[OAUTH_DIRECT] 🔴 COMPRA MODIFICADA:`, JSON.stringify(buyRequest, null, 2));
             }
             
             // Log de diagnóstico adicional para verificar se o contrato tem realmente 1 tick
