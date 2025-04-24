@@ -107,6 +107,8 @@ export function evaluateAdvanceStrategy(
       shouldEnter: false, 
       contractType: 'CALL', 
       message: 'ADVANCE: Calculando estatísticas para dígitos 0 e 1...',
+      barrier: "1", // FORÇANDO BARREIRA 1
+      prediction: 1, // FORÇANDO PREVISÃO 1
       analysis: { 
         digit0: digit0Percentage, 
         digit1: digit1Percentage, 

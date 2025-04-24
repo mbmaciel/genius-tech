@@ -225,8 +225,14 @@
                       </block>
                     </value>
                     <next>
+                      <!-- BLOCO MODIFICADO PARA USAR PREVISÃO -->
                       <block type="purchase" id="W6q#Z-I3q3d[d3-`S[dS">
                         <field name="PURCHASE_LIST">DIGITOVER</field>
+                        <value name="PREDICTION">
+                          <block type="variables_get" id="prediction_value_block">
+                            <field name="VAR" id="Q#(@ZW6iS!f/}f]o%wu~" variabletype="">PREVISÃO</field>
+                          </block>
+                        </value>
                       </block>
                     </next>
                   </block>
