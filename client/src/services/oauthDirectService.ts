@@ -2482,71 +2482,86 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
 
     if (isWin) {
-      // ⚠️⚠️⚠️ CORREÇÃO DEFINITIVA APÓS VITÓRIA ⚠️⚠️⚠️
-      // Verificar se já temos um valor do input da função auxiliar acima (inputValue)
-      if (inputValue !== null) {
-        console.log(
-          `[OAUTH_DIRECT] 🔴🔴🔴 CORREÇÃO FINAL APÓS VITÓRIA: Usando valor ${inputValue} já lido do input`,
-        );
+      // ⚠️⚠️⚠️ VITÓRIA: IMPLEMENTAÇÃO CONFORME XML (VALOR APÓS VENCER) ⚠️⚠️⚠️
+      // De acordo com o XML nas linhas 8,9 e 71-77, após uma vitória devemos resetar para o VALOR INICIAL
 
-        // Forçar atualização em todos os lugares
-        this.settings.entryValue = inputValue;
-        configuracoes.valorInicial = inputValue;
-
-        // Retornar o valor do input com certeza absoluta
-        return inputValue;
-      }
-
-      // BACKUP: Verificar novamente o input para garantir (segunda tentativa)
-      const inputWinElem = document.getElementById(
-        "iron-bot-entry-value",
-      ) as HTMLInputElement;
-      if (inputWinElem && inputWinElem.value) {
-        const valueFromInput = parseFloat(inputWinElem.value);
-        if (!isNaN(valueFromInput) && valueFromInput > 0) {
+      // (1) Verificar se há configuração resetOnWin nas settings
+      const resetToInitialValue = this.settings.resetOnWin !== false; // Por padrão, resetar (seguindo XML)
+      
+      if (resetToInitialValue) {
+        console.log(`[OAUTH_DIRECT] 🌟 SEGUINDO XML: Após vitória, resetando para valor inicial`);
+        
+        // Verificar se já temos um valor do input da função auxiliar acima (inputValue)
+        if (inputValue !== null) {
           console.log(
-            `[OAUTH_DIRECT] 🔴🔴🔴 SEGUNDA TENTATIVA APÓS VITÓRIA: Usando valor ${valueFromInput} do input`,
+            `[OAUTH_DIRECT] 🔴🔴🔴 CORREÇÃO FINAL APÓS VITÓRIA: Usando valor ${inputValue} já lido do input`,
           );
 
           // Forçar atualização em todos os lugares
-          this.settings.entryValue = valueFromInput;
-          configuracoes.valorInicial = valueFromInput;
-
-          // Atualizar também no localStorage para próximas operações
-          try {
-            const currentStrategy = this.strategyConfig.toLowerCase();
-            if (currentStrategy) {
-              const configString = localStorage.getItem(
-                `strategy_config_${currentStrategy}`,
-              );
-              if (configString) {
-                let config = JSON.parse(configString);
-                config.valorInicial = valueFromInput;
-                localStorage.setItem(
-                  `strategy_config_${currentStrategy}`,
-                  JSON.stringify(config),
-                );
-                console.log(
-                  `[OAUTH_DIRECT] 🔴🔴🔴 PERSISTÊNCIA: Valor ${valueFromInput} atualizado no localStorage após vitória`,
-                );
-              }
-            }
-          } catch (e) {
-            console.error(
-              `[OAUTH_DIRECT] Erro ao atualizar valor no localStorage:`,
-              e,
-            );
-          }
+          this.settings.entryValue = inputValue;
+          configuracoes.valorInicial = inputValue;
 
           // Retornar o valor do input com certeza absoluta
-          return valueFromInput;
+          return inputValue;
         }
-      }
 
-      // Se não encontrou no input, só então usar valor das configurações
-      console.log(
-        `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial}`,
-      );
+        // BACKUP: Verificar novamente o input para garantir (segunda tentativa)
+        const inputWinElem = document.getElementById(
+          "iron-bot-entry-value",
+        ) as HTMLInputElement;
+        if (inputWinElem && inputWinElem.value) {
+          const valueFromInput = parseFloat(inputWinElem.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            console.log(
+              `[OAUTH_DIRECT] 🔴🔴🔴 SEGUNDA TENTATIVA APÓS VITÓRIA: Usando valor ${valueFromInput} do input`,
+            );
+
+            // Forçar atualização em todos os lugares
+            this.settings.entryValue = valueFromInput;
+            configuracoes.valorInicial = valueFromInput;
+
+            // Atualizar também no localStorage para próximas operações
+            try {
+              const currentStrategy = this.strategyConfig.toLowerCase();
+              if (currentStrategy) {
+                const configString = localStorage.getItem(
+                  `strategy_config_${currentStrategy}`,
+                );
+                if (configString) {
+                  let config = JSON.parse(configString);
+                  config.valorInicial = valueFromInput;
+                  localStorage.setItem(
+                    `strategy_config_${currentStrategy}`,
+                    JSON.stringify(config),
+                  );
+                  console.log(
+                    `[OAUTH_DIRECT] 🔴🔴🔴 PERSISTÊNCIA: Valor ${valueFromInput} atualizado no localStorage após vitória`,
+                  );
+                }
+              }
+            } catch (e) {
+              console.error(
+                `[OAUTH_DIRECT] Erro ao atualizar valor no localStorage:`,
+                e,
+              );
+            }
+
+            // Retornar o valor do input com certeza absoluta
+            return valueFromInput;
+          }
+        }
+
+        // Se não encontrou no input, usar o valor inicial conforme XML
+        console.log(
+          `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial} (conforme XML)`,
+        );
+      } else {
+        // Se resetOnWin estiver desativado (não padrão), manter valor atual
+        console.log(
+          `[OAUTH_DIRECT] ⚠️ resetOnWin desativado, mantendo valor atual ${buyPrice} após vitória`,
+        );
+        return buyPrice;
+      }
       console.log(
         `[OAUTH_DIRECT] ⚠️ Valor do input não encontrado, usando configurações: ${configuracoes.valorInicial}`,
       );
@@ -2556,6 +2571,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
       return configuracoes.valorInicial;
     } else {
+      // ⚠️⚠️⚠️ DERROTA: IMPLEMENTAÇÃO CONFORME XML (LOSSVIRTUAL) ⚠️⚠️⚠️
+      // De acordo com o XML nas linhas 72-97, após uma derrota devemos aplicar martingale
+
+      // (1) Verificar se lossVirtual está habilitado nas settings
+      const lossVirtualEnabled = this.settings.lossVirtualEnabled !== false; // Por padrão, habilitar (seguindo XML)
+      
       // Obter o estado atual da estratégia para verificar perdas consecutivas
       const strategyId = this.strategyConfig.toLowerCase();
       const strategyState = getStrategyState(strategyId);
@@ -2566,8 +2587,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         `[OAUTH_DIRECT] 🔴 Resultado: Derrota - Estratégia ${this.strategyConfig} - Perdas consecutivas: ${consecutiveLosses}`,
       );
       console.log(
-        `[OAUTH_DIRECT] 🔴 Configuração: Aplicar martingale após ${configuracoes.usarMartingaleAposXLoss} perdas`,
+        `[OAUTH_DIRECT] 🔴 Configuração: lossVirtual ${lossVirtualEnabled ? 'ATIVADO' : 'DESATIVADO'}, Aplicar martingale após ${configuracoes.usarMartingaleAposXLoss} perdas`,
       );
+
+      if (!lossVirtualEnabled) {
+        // Se lossVirtual estiver desativado (não padrão), manter valor atual
+        console.log(
+          `[OAUTH_DIRECT] ⚠️ lossVirtual desativado, mantendo valor atual ${buyPrice} após derrota`,
+        );
+        return buyPrice;
+      }
 
       // Verificar se já atingimos o número de perdas para aplicar martingale
       if (consecutiveLosses >= configuracoes.usarMartingaleAposXLoss) {
@@ -2584,17 +2613,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           console.log(
             `[OAUTH_DIRECT] 🔴 Iron Under: Aplicando martingale de ${configuracoes.martingale} (aumento de ${configuracoes.martingale * 100}%)`,
           );
+        } else if (this.strategyConfig.toLowerCase().includes("advance")) {
+          // Para Advance, seguir a lógica específica conforme XML (linhas 72-97)
+          nextAmount =
+            Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          console.log(
+            `[OAUTH_DIRECT] 🔴 Advance: Aplicando martingale após ${consecutiveLosses} perdas (fator: ${configuracoes.martingale}x)`,
+          );
         } else {
           // Para outras estratégias, usar o fator de multiplicação conforme configurado
           nextAmount =
             Math.round(buyPrice * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Aplicando fator martingale de ${configuracoes.martingale}x`,
+            `[OAUTH_DIRECT] 🔴 Aplicando fator martingale padrão de ${configuracoes.martingale}x`,
           );
         }
 
         console.log(
-          `[OAUTH_DIRECT] 🔴 Aplicando martingale após ${consecutiveLosses} perdas consecutivas`,
+          `[OAUTH_DIRECT] 🔴 Aplicando martingale após ${consecutiveLosses} perdas consecutivas (lossVirtual ativado)`,
         );
         console.log(
           `[OAUTH_DIRECT] 🔴 Valor anterior: ${buyPrice}, Novo valor: ${nextAmount}`,
