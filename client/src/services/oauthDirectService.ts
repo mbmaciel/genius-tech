@@ -3346,8 +3346,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               
               // Modificar parâmetros adicionais para garantir que tudo seja consistente
               if (data.proposal.longcode) {
-                data.proposal.longcode = data.proposal.longcode.replace(/acima de \d+/g, "acima de 1");
-                data.proposal.longcode = data.proposal.longcode.replace(/above \d+/g, "above 1");
+                // Importar função utilitária para correção consistente
+                const { correctBarrierText } = require('@/lib/utils');
+                // Usar a função utilitária completa com todos os padrões implementados
+                data.proposal.longcode = correctBarrierText(data.proposal.longcode, 'advance');
+                
+                // CORREÇÃO ESPECÍFICA: para o caso específico do "superior a 5 ticks"
+                if (data.proposal.longcode.includes('superior a') && data.proposal.longcode.includes('ticks')) {
+                  data.proposal.longcode = data.proposal.longcode.replace(/superior a \d+ ticks/gi, "superior a 1 ticks");
+                  console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA: Corrigido "superior a X ticks" especificamente`);
+                }
               }
               
               // Forçar duration para 1 tick se for diferente
