@@ -33,8 +33,8 @@ export function evaluateAdvanceStrategy(
   shouldEnter: boolean; 
   contractType: ContractType; 
   message: string;
-  barrier?: string;
-  prediction?: number;
+  barrier: string; // Tornando obrigatório
+  prediction: number; // Tornando obrigatório
   analysis: AdvanceStrategyAnalysis; 
   shouldLog: boolean; 
 } {
