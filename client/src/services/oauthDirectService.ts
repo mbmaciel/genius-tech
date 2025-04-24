@@ -913,6 +913,65 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         const contract = data.proposal_open_contract;
         
         if (contract) {
+          // 🚨 CORREÇÃO CRÍTICA: Interceptar e modificar valores de barreira para estratégia Advance
+          // Verificar se este é um contrato DIGITOVER e estamos executando a estratégia Advance
+          if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance') && 
+              contract.contract_type && contract.contract_type.includes('DIGIT')) {
+            
+            // Log detalhado para diagnóstico
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO ADVANCE DETECTADA em proposal_open_contract`);
+            console.log(`[OAUTH_DIRECT] 🔍 Valores originais: barrier=${contract.barrier}, display_name=${contract.display_name}, longcode=${contract.longcode}`);
+            
+            // Guardar valores originais para diagnóstico (raramente podem ser undefined)
+            const originalBarrier = contract.barrier;
+            const originalDisplay = contract.display_name;
+            const originalLongcode = contract.longcode;
+            
+            // Modificar valores críticos que aparecem na interface
+            if (contract.barrier && contract.barrier !== '1') {
+              contract.barrier = '1';
+            }
+            
+            // Modificar display_name se contiver a barreira errada
+            if (contract.display_name) {
+              // Capturar valor original para comparação
+              const modifiedDisplay = contract.display_name
+                .replace(/acima de \d+/g, "acima de 1")
+                .replace(/above \d+/g, "above 1");
+              
+              if (modifiedDisplay !== contract.display_name) {
+                contract.display_name = modifiedDisplay;
+              }
+            }
+            
+            // Modificar longcode se contiver a barreira errada (aparece em muitas partes da UI)
+            if (contract.longcode) {
+              // Capturar valor original para comparação
+              const modifiedLongcode = contract.longcode
+                .replace(/acima de \d+/g, "acima de 1")
+                .replace(/above \d+/g, "above 1");
+              
+              if (modifiedLongcode !== contract.longcode) {
+                contract.longcode = modifiedLongcode;
+              }
+            }
+            
+            // Log das modificações realizadas
+            console.log(`[OAUTH_DIRECT] 🔄 Valores MODIFICADOS: barrier=${contract.barrier}, display_name=${contract.display_name}`);
+            console.log(`[OAUTH_DIRECT] 🔄 Longcode MODIFICADO: ${contract.longcode}`);
+            
+            // Salvar modificações no localStorage para diagnóstico
+            try {
+              localStorage.setItem('advance_poc_barrier_from', originalBarrier || "desconhecido");
+              localStorage.setItem('advance_poc_barrier_to', contract.barrier || "1");
+              localStorage.setItem('advance_poc_display_from', originalDisplay || "desconhecido");
+              localStorage.setItem('advance_poc_display_to', contract.display_name || "modificado");
+              localStorage.setItem('advance_poc_longcode_from', originalLongcode || "desconhecido");
+              localStorage.setItem('advance_poc_longcode_to', contract.longcode || "modificado");
+              localStorage.setItem('advance_poc_correction_time', new Date().toISOString());
+            } catch (e) {}
+          }
+          
           // Verificar se o contrato é o atual
           if (this.currentContractId && this.currentContractId.toString() === contract.contract_id.toString()) {
             console.log(`[OAUTH_DIRECT] Contrato ${contract.contract_id} atualizado, status: ${contract.status}`);

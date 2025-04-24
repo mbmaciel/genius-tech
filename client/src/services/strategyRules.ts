@@ -17,6 +17,15 @@ export type ContractType = 'CALL' | 'PUT' | 'DIGITOVER' | 'DIGITUNDER' | 'DIGITD
  * Regra: Comprar APENAS quando os dígitos 0 E 1 tiverem frequência MENOR OU IGUAL à porcentagem definida pelo usuário
  * A análise DEVE utilizar EXATAMENTE os últimos 25 ticks para calcular os percentuais
  */
+// Definição expandida do tipo de retorno para Advance
+interface AdvanceStrategyAnalysis {
+  digit0: number;
+  digit1: number;
+  threshold: number;
+  barrier?: number;
+  predictionValue?: number;
+}
+
 export function evaluateAdvanceStrategy(
   digitStats: DigitStat[],
   entryPercentage: number | undefined
@@ -24,8 +33,10 @@ export function evaluateAdvanceStrategy(
   shouldEnter: boolean; 
   contractType: ContractType; 
   message: string;
-  analysis: { digit0: number; digit1: number; threshold: number }; // Adicionamos análise para o histórico
-  shouldLog: boolean; // Flag para informar que esta análise deve ser registrada no histórico, mesmo sem entrada
+  barrier?: string;
+  prediction?: number;
+  analysis: AdvanceStrategyAnalysis; 
+  shouldLog: boolean; 
 } {
   // Garantir que sempre temos um valor para porcentagem
   // Se valor não estiver definido, usar 10% como padrão
@@ -60,7 +71,13 @@ export function evaluateAdvanceStrategy(
       shouldEnter: false, 
       contractType: 'CALL', // Tipo correto para estratégia Advance
       message: `ADVANCE: Dados insuficientes para análise. Necessários exatamente 25 ticks, temos ${totalTicksRepresented}.`,
-      analysis: { digit0: 0, digit1: 0, threshold: percentageToUse },
+      analysis: { 
+        digit0: 0, 
+        digit1: 0, 
+        threshold: percentageToUse,
+        barrier: 1, // Valor padrão para compatibilidade
+        predictionValue: 1 // Valor padrão para compatibilidade 
+      },
       shouldLog: true // Registramos esta análise no histórico
     };
   }
@@ -86,7 +103,13 @@ export function evaluateAdvanceStrategy(
       shouldEnter: false, 
       contractType: 'CALL', 
       message: 'ADVANCE: Calculando estatísticas para dígitos 0 e 1...',
-      analysis: { digit0: digit0Percentage, digit1: digit1Percentage, threshold: percentageToUse },
+      analysis: { 
+        digit0: digit0Percentage, 
+        digit1: digit1Percentage, 
+        threshold: percentageToUse,
+        barrier: 1, // Valor padrão para compatibilidade
+        predictionValue: 1 // Valor padrão para compatibilidade 
+      },
       shouldLog: true // Registramos esta análise no histórico
     };
   }
