@@ -34,10 +34,26 @@ export function injectAdvanceBarrierCorrection(): void {
           
           // Aplicar todas as correções necessárias
           let newText = originalText
+            // Formato EXATO da interface Deriv que aparece na captura de tela
+            .replace(/Ganhe o prêmio se o último dígito de Volatility 100 Índice for estritamente superior a 5 ticks/gi, 
+                    'Ganhe o prêmio se o último dígito de Volatility 100 Índice for estritamente superior a 1 ticks')
+            .replace(/Índice for estritamente superior a 5 ticks/gi, 
+                    'Índice for estritamente superior a 1 ticks')
+            .replace(/for estritamente superior a 5 ticks/gi, 
+                    'for estritamente superior a 1 ticks')
+            
+            // Formato visto na imagem (variações parciais)
             .replace(/superior a 5 ticks/gi, 'superior a 1 ticks')
-            .replace(/superior a 5/gi, 'superior a 1')
-            .replace(/acima de 5/gi, 'acima de 1')
-            .replace(/above 5/gi, 'above 1');
+            .replace(/estritamente superior a 5 ticks/gi, 'estritamente superior a 1 ticks')
+            
+            // Variações com e sem "ticks" no final
+            .replace(/superior a 5\b/gi, 'superior a 1')
+            .replace(/acima de 5\b/gi, 'acima de 1')
+            .replace(/above 5\b/gi, 'above 1')
+            
+            // Padrões genéricos para qualquer dígito
+            .replace(/superior a \d+ ticks/gi, 'superior a 1 ticks')
+            .replace(/estritamente superior a \d+/gi, 'estritamente superior a 1');
           
           // Só modificar se houver uma diferença real
           if (newText !== originalText) {
@@ -173,16 +189,23 @@ export function correctBarrierText(
     // Substituir todos os possíveis padrões de texto que contêm informações de barreira
     // Incluindo variações com diferentes espaçamentos e formatos
     const correctedText = text
+      // CORREÇÃO CRÍTICA: O formato exato que aparece na captura de tela (maior prioridade)
+      .replace(/Índice for estritamente superior a 5 ticks/gi, "Índice for estritamente superior a 1 ticks")
+      .replace(/for estritamente superior a 5 ticks/gi, "for estritamente superior a 1 ticks")
+      .replace(/Índice for superior a 5 ticks/gi, "Índice for superior a 1 ticks")
+      
+      // Correção de padrões com dígitos numéricos (qualquer número):
+      .replace(/superior a \d+ ticks/gi, "superior a 1 ticks")
+      .replace(/estritamente superior a \d+ ticks/gi, "estritamente superior a 1 ticks")
+      .replace(/for superior a \d+ ticks/gi, "for superior a 1 ticks")
+      .replace(/for estritamente superior a \d+ ticks/gi, "for estritamente superior a 1 ticks")
+      
       // Português - minúsculas
       .replace(/acima de \d+/gi, "acima de 1")
       .replace(/acima do \d+/gi, "acima do 1")
       .replace(/maior que \d+/gi, "maior que 1")
       .replace(/maior do que \d+/gi, "maior do que 1")
       .replace(/superior a \d+/gi, "superior a 1")
-      
-      // CORREÇÃO CRÍTICA: O formato que aparece na captura de tela
-      .replace(/superior a \d+ ticks/gi, "superior a 1 ticks")
-      .replace(/estritamente superior a \d+/gi, "estritamente superior a 1")
       
       // Português - Formato alternativo com "é"
       .replace(/é acima de \d+/gi, "é acima de 1")
