@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BinaryBotStrategy } from '@/lib/automationService';
+import { BinaryBotStrategy } from "@/lib/automationService";
 
 // Interface para configurações de estratégia individuais
 export interface StrategyConfiguration {
@@ -11,12 +11,13 @@ export interface StrategyConfiguration {
   metaGanho: number | string;
   limitePerda: number | string;
   martingale: number | string;
-  
+
   // Campos específicos de algumas estratégias
   valorAposVencer?: number | string;
   parcelasMartingale?: number | string;
   porcentagemParaEntrar?: number | string;
   usarMartingaleAposXLoss?: number | string;
+  predition?: number | string;
 }
 
 interface StrategyConfigPanelProps {
@@ -26,109 +27,149 @@ interface StrategyConfigPanelProps {
 }
 
 // Cria uma configuração específica para cada estratégia
-const createCompleteConfig = (strategy: BinaryBotStrategy): StrategyConfiguration => {
-  console.log("[STRATEGY_CONFIG] Estratégia selecionada:", strategy.id, strategy.name);
-  
+const createCompleteConfig = (
+  strategy: BinaryBotStrategy,
+): StrategyConfiguration => {
+  console.log(
+    "[STRATEGY_CONFIG] Estratégia selecionada:",
+    strategy.id,
+    strategy.name,
+  );
+
   // Configuração básica que todas as estratégias têm
   const baseConfig: StrategyConfiguration = {
     valorInicial: strategy.config?.initialStake || 0.35,
     metaGanho: strategy.config?.targetProfit || 20,
     limitePerda: strategy.config?.stopLoss || 10,
-    martingale: strategy.config?.martingaleFactor || 1.5
+    martingale: strategy.config?.martingaleFactor || 1.5,
   };
-  
+
   // Configurações específicas para cada estratégia
   const strategyId = strategy.id.toLowerCase();
-  
-  // ProfitPro: Valor Inicial, Valor Após Vencer, Contador de Loss Virtual, Loss Virtual, 
+
+  // ProfitPro: Valor Inicial, Valor Após Vencer, Contador de Loss Virtual, Loss Virtual,
   // Martingale, Parcelas Martingale, Meta de Ganho, Limite de Perda
-  if (strategyId === 'profitpro') {
+  if (strategyId === "profitpro") {
     return {
       ...baseConfig,
       valorAposVencer: 0.35,
-      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3
+      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3,
     };
   }
-  
-  // Manual Over/Under: Valor Inicial, Valor Após Vencer, Martingale, 
+
+  // Manual Over/Under: Valor Inicial, Valor Após Vencer, Martingale,
   // Parcelas Martingale, Meta de Ganho, Limite de Perda
-  if (strategyId.includes('manual_over') || strategyId.includes('manual_under') || 
-      strategyId.includes('manualover') || strategyId.includes('manualunder')) {
+  if (
+    strategyId.includes("manual_over") ||
+    strategyId.includes("manual_under") ||
+    strategyId.includes("manualover") ||
+    strategyId.includes("manualunder")
+  ) {
     return {
       ...baseConfig,
       valorAposVencer: 0.35,
-      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3
+      parcelasMartingale: strategy.config?.maxMartingaleLevel || 3,
+      predition: 5,
     };
   }
-  
+
   // IRON OVER/UNDER: Valor Inicial, Martingale (0.5), Usar Martingale Após X Loss, Meta, Limite de Perda
-  if (strategyId.includes('iron_over') || strategyId.includes('iron_under') ||
-      strategyId.includes('ironover') || strategyId.includes('ironunder')) {
+  if (
+    strategyId.includes("iron_over") ||
+    strategyId.includes("iron_under") ||
+    strategyId.includes("ironover") ||
+    strategyId.includes("ironunder")
+  ) {
     return {
       ...baseConfig,
       martingale: 0.5,
-      usarMartingaleAposXLoss: 2
+      usarMartingaleAposXLoss: 2,
     };
   }
-  
+
   // BOT LOW/MAXPRO: Valor Inicial, Valor Após Vencer, Martingale, Meta de Lucro, Limite de Perda
-  if (strategyId.includes('bot_low') || strategyId.includes('botlow') || 
-      strategyId.includes('maxpro')) {
+  if (
+    strategyId.includes("bot_low") ||
+    strategyId.includes("botlow") ||
+    strategyId.includes("maxpro")
+  ) {
     return {
       ...baseConfig,
-      valorAposVencer: 0.35
+      valorAposVencer: 0.35,
     };
   }
-  
+
   // Advance: Porcentagem para Entrar, Valor Inicial, Martingale, Meta, Limite de Perda
-  if (strategyId.includes('advance')) {
+  if (strategyId.includes("advance")) {
     console.log("[STRATEGY_CONFIG] ★ Configurando estratégia ADVANCE");
-    
+
     // Verificar se já existe uma configuração salva
     const savedConfig = localStorage.getItem(`strategy_config_${strategy.id}`);
     // SEMPRE ter um valor padrão para porcentagemParaEntrar (10% é um valor conservador)
     // Em vez de undefined, usar um valor padrão para evitar "CONFIGURAÇÃO PENDENTE"
     let userValue = 10; // Valor padrão se não houver configuração salva
-    
+
     if (savedConfig) {
       try {
         const parsed = JSON.parse(savedConfig);
         // Só substituir o valor padrão se encontrou um valor válido
-        if (parsed.porcentagemParaEntrar !== undefined && parsed.porcentagemParaEntrar !== null) {
+        if (
+          parsed.porcentagemParaEntrar !== undefined &&
+          parsed.porcentagemParaEntrar !== null
+        ) {
           userValue = parsed.porcentagemParaEntrar;
-          console.log("[STRATEGY_CONFIG] ★ Carregando valor salvo para porcentagem:", userValue);
+          console.log(
+            "[STRATEGY_CONFIG] ★ Carregando valor salvo para porcentagem:",
+            userValue,
+          );
         } else {
-          console.log("[STRATEGY_CONFIG] ★ Valor salvo para porcentagem não encontrado, usando padrão:", userValue);
+          console.log(
+            "[STRATEGY_CONFIG] ★ Valor salvo para porcentagem não encontrado, usando padrão:",
+            userValue,
+          );
         }
       } catch (err) {
-        console.error("[STRATEGY_CONFIG] ★ Erro ao carregar configuração salva:", err);
+        console.error(
+          "[STRATEGY_CONFIG] ★ Erro ao carregar configuração salva:",
+          err,
+        );
       }
     } else {
-      console.log("[STRATEGY_CONFIG] ★ Nenhuma configuração salva encontrada, usando valor padrão:", userValue);
+      console.log(
+        "[STRATEGY_CONFIG] ★ Nenhuma configuração salva encontrada, usando valor padrão:",
+        userValue,
+      );
     }
-    
+
     // IMPORTANTE: Sempre usar um valor numérico para porcentagemParaEntrar
     // Nunca retorne undefined para este campo na estratégia Advance
     return {
       ...baseConfig,
-      porcentagemParaEntrar: userValue
+      porcentagemParaEntrar: userValue,
     };
   }
-  
+
   // WISE PRO TENDENCIA: Valor Inicial, Valor Após Vencer, Martingale, Meta de Lucro, Limite de Perda
-  if (strategyId.includes('wise') || strategyId.includes('tendencia')) {
+  if (strategyId.includes("wise") || strategyId.includes("tendencia")) {
     return {
       ...baseConfig,
-      valorAposVencer: 0.35
+      valorAposVencer: 0.35,
     };
   }
-  
+
   // Caso não seja nenhuma das estratégias acima, retorna configuração básica
-  console.log("[STRATEGY_CONFIG] Usando configuração padrão para estratégia desconhecida:", strategy.id);
+  console.log(
+    "[STRATEGY_CONFIG] Usando configuração padrão para estratégia desconhecida:",
+    strategy.id,
+  );
   return baseConfig;
 };
 
-export function StrategyConfigPanel({ strategy, onChange, className = '' }: StrategyConfigPanelProps) {
+export function StrategyConfigPanel({
+  strategy,
+  onChange,
+  className = "",
+}: StrategyConfigPanelProps) {
   // Estado para configuração atual
   const [config, setConfig] = useState<StrategyConfiguration>({
     valorInicial: 0.35,
@@ -140,52 +181,72 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     // Removido valor fixo padrão para estratégia ADVANCE
     // O usuário deve configurar explicitamente
     porcentagemParaEntrar: undefined,
-    usarMartingaleAposXLoss: 2
+    usarMartingaleAposXLoss: 2,
   });
 
   // Configurar a estratégia quando ela mudar
   useEffect(() => {
     if (!strategy) return;
-    
+
     console.log("[STRATEGY_CONFIG] Configurando estratégia:", strategy.name);
-    
+
     // Criar configuração com todos os campos possíveis para a estratégia
     const newConfig = createCompleteConfig(strategy);
-    console.log("[STRATEGY_CONFIG] Configuração criada para", strategy.name, newConfig);
-    
+    console.log(
+      "[STRATEGY_CONFIG] Configuração criada para",
+      strategy.name,
+      newConfig,
+    );
+
     // CRÍTICO: Garantir que a configuração inicial também seja salva no localStorage
     // A estratégia Advance precisa de um valor válido para porcentagemParaEntrar
     try {
       // Só salvamos no localStorage se não houver uma configuração prévia
       // para evitar sobrescrever configurações já definidas pelo usuário
-      const existingConfig = localStorage.getItem(`strategy_config_${strategy.id}`);
+      const existingConfig = localStorage.getItem(
+        `strategy_config_${strategy.id}`,
+      );
       if (!existingConfig) {
-        console.log(`[STRATEGY_CONFIG] Salvando configuração inicial para ${strategy.id}:`, newConfig);
-        localStorage.setItem(`strategy_config_${strategy.id}`, JSON.stringify(newConfig));
+        console.log(
+          `[STRATEGY_CONFIG] Salvando configuração inicial para ${strategy.id}:`,
+          newConfig,
+        );
+        localStorage.setItem(
+          `strategy_config_${strategy.id}`,
+          JSON.stringify(newConfig),
+        );
       } else {
-        console.log(`[STRATEGY_CONFIG] Configuração existente encontrada para ${strategy.id}, não sobrescrevendo`);
+        console.log(
+          `[STRATEGY_CONFIG] Configuração existente encontrada para ${strategy.id}, não sobrescrevendo`,
+        );
       }
     } catch (error) {
-      console.error(`[STRATEGY_CONFIG] Erro ao salvar configuração inicial:`, error);
+      console.error(
+        `[STRATEGY_CONFIG] Erro ao salvar configuração inicial:`,
+        error,
+      );
     }
-    
+
     // Atualizar estado
     setConfig(newConfig);
-    
+
     // Notificar o componente pai apenas uma vez para evitar loops
     const timer = setTimeout(() => {
       onChange(newConfig);
     }, 0);
-    
+
     return () => clearTimeout(timer);
-    
-  // eslint-disable-next-line react-hooks/exhaustive-deps  
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy?.id]);
 
   // Handler para mudança de campo
-  const handleChange = (field: keyof StrategyConfiguration, value: string | number) => {
+  const handleChange = (
+    field: keyof StrategyConfiguration,
+    value: string | number,
+  ) => {
     // Validar valor numérico
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const numValue = parseFloat(value);
       if (!isNaN(numValue)) {
         value = numValue;
@@ -195,19 +256,25 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     // Atualizar configuração
     const updatedConfig = {
       ...config,
-      [field]: value
+      [field]: value,
     };
-    
+
     // PERSISTÊNCIA CRÍTICA: Salvar no localStorage toda vez que o usuário alterar um valor
     if (strategy?.id) {
       try {
-        localStorage.setItem(`strategy_config_${strategy.id}`, JSON.stringify(updatedConfig));
-        console.log(`[STRATEGY_CONFIG] Configuração salva para ${strategy.id}:`, updatedConfig);
+        localStorage.setItem(
+          `strategy_config_${strategy.id}`,
+          JSON.stringify(updatedConfig),
+        );
+        console.log(
+          `[STRATEGY_CONFIG] Configuração salva para ${strategy.id}:`,
+          updatedConfig,
+        );
       } catch (error) {
         console.error(`[STRATEGY_CONFIG] Erro ao salvar configuração:`, error);
       }
     }
-    
+
     setConfig(updatedConfig);
     onChange(updatedConfig);
   };
@@ -217,10 +284,14 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
     return (
       <Card className={`${className} bg-[#1a2234] border-gray-700`}>
         <CardHeader>
-          <CardTitle className="text-gray-400">Configurações da Estratégia</CardTitle>
+          <CardTitle className="text-gray-400">
+            Configurações da Estratégia
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-500 text-center">Selecione uma estratégia para configurar</p>
+          <p className="text-gray-500 text-center">
+            Selecione uma estratégia para configurar
+          </p>
         </CardContent>
       </Card>
     );
@@ -228,26 +299,31 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
 
   // Verificar quais campos devem ser exibidos com base na estratégia selecionada
   const strategyId = strategy.id.toLowerCase();
-  
+
   // VALOR APÓS VENCER FOI REMOVIDO - esse valor deve ser igual ao valor de entrada definido pelo usuário
   // e não precisa ser configurado separadamente
-  
+
   // Parcelas de Martingale é um conceito usado apenas em algumas estratégias
   // As estratégias IRON não usam "parcelas", mas sim "martingale após X perdas"
-  const showParcelasMartingale = strategyId === 'profitpro' || 
-                               strategyId.includes('manual') ||
-                               strategyId.includes('green');
-  
-  const showPorcentagemParaEntrar = strategyId.includes('advance');
-  
-  const showUsarMartingaleAposXLoss = strategyId.includes('iron') ||
-                                    strategyId.includes('green');
+  const showParcelasMartingale =
+    strategyId === "profitpro" ||
+    strategyId.includes("manual") ||
+    strategyId.includes("green");
+
+  const showPredition = strategyId.includes("manual");
+
+  const showPorcentagemParaEntrar = strategyId.includes("advance");
+
+  const showUsarMartingaleAposXLoss =
+    strategyId.includes("iron") || strategyId.includes("green");
 
   // Renderizar configuração específica para a estratégia
   return (
     <Card className={`${className} bg-[#1a2234] border-gray-700`}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg text-blue-500">Configuração: {strategy.name}</CardTitle>
+        <CardTitle className="text-lg text-blue-500">
+          Configuração: {strategy.name}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
@@ -259,7 +335,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
               type="number"
               step="0.01"
               value={config.valorInicial.toString()}
-              onChange={(e) => handleChange('valorInicial', e.target.value)}
+              onChange={(e) => handleChange("valorInicial", e.target.value)}
               className="bg-[#0d1525] border-gray-700"
             />
           </div>
@@ -271,7 +347,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
               type="number"
               step="0.01"
               value={config.metaGanho.toString()}
-              onChange={(e) => handleChange('metaGanho', e.target.value)}
+              onChange={(e) => handleChange("metaGanho", e.target.value)}
               className="bg-[#0d1525] border-gray-700"
             />
           </div>
@@ -283,7 +359,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
               type="number"
               step="0.01"
               value={config.limitePerda.toString()}
-              onChange={(e) => handleChange('limitePerda', e.target.value)}
+              onChange={(e) => handleChange("limitePerda", e.target.value)}
               className="bg-[#0d1525] border-gray-700"
             />
           </div>
@@ -295,7 +371,7 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
               type="number"
               step="0.1"
               value={config.martingale.toString()}
-              onChange={(e) => handleChange('martingale', e.target.value)}
+              onChange={(e) => handleChange("martingale", e.target.value)}
               className="bg-[#0d1525] border-gray-700"
             />
           </div>
@@ -311,7 +387,23 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
                 type="number"
                 min="1"
                 value={config.parcelasMartingale?.toString() || "3"}
-                onChange={(e) => handleChange('parcelasMartingale', e.target.value)}
+                onChange={(e) =>
+                  handleChange("parcelasMartingale", e.target.value)
+                }
+                className="bg-[#0d1525] border-gray-700"
+              />
+            </div>
+          )}
+
+          {showPredition && (
+            <div className="space-y-2">
+              <Label htmlFor="parcelasMartingale">Previsão</Label>
+              <Input
+                id="predition"
+                type="number"
+                min="1"
+                value={config.predition?.toString() || "3"}
+                onChange={(e) => handleChange("predition", e.target.value)}
                 className="bg-[#0d1525] border-gray-700"
               />
             </div>
@@ -320,14 +412,18 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           {/* Campo Porcentagem para Entrar - apenas para estratégia ADVANCE */}
           {showPorcentagemParaEntrar && (
             <div className="space-y-2">
-              <Label htmlFor="porcentagemParaEntrar">Porcentagem para Entrar (%)</Label>
+              <Label htmlFor="porcentagemParaEntrar">
+                Porcentagem para Entrar (%)
+              </Label>
               <Input
                 id="porcentagemParaEntrar"
                 type="number"
                 min="0"
                 max="100"
                 value={config.porcentagemParaEntrar?.toString() || ""}
-                onChange={(e) => handleChange('porcentagemParaEntrar', e.target.value)}
+                onChange={(e) =>
+                  handleChange("porcentagemParaEntrar", e.target.value)
+                }
                 className="bg-[#0d1525] border-gray-700"
               />
             </div>
@@ -337,23 +433,24 @@ export function StrategyConfigPanel({ strategy, onChange, className = '' }: Stra
           {showUsarMartingaleAposXLoss && (
             <div className="space-y-2">
               <Label htmlFor="usarMartingaleAposXLoss">
-                {strategyId.includes('iron') ? (
-                  "Multiplicar valor após X perdas"
-                ) : (
-                  "Usar Martingale Após X Loss"
-                )}
+                {strategyId.includes("iron")
+                  ? "Multiplicar valor após X perdas"
+                  : "Usar Martingale Após X Loss"}
               </Label>
               <Input
                 id="usarMartingaleAposXLoss"
                 type="number"
                 min="1"
                 value={config.usarMartingaleAposXLoss?.toString() || "2"}
-                onChange={(e) => handleChange('usarMartingaleAposXLoss', e.target.value)}
+                onChange={(e) =>
+                  handleChange("usarMartingaleAposXLoss", e.target.value)
+                }
                 className="bg-[#0d1525] border-gray-700"
               />
-              {strategyId.includes('iron') && (
+              {strategyId.includes("iron") && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Após esse número de perdas, a próxima entrada será: Valor Inicial × Número de perdas consecutivas
+                  Após esse número de perdas, a próxima entrada será: Valor
+                  Inicial × Número de perdas consecutivas
                 </p>
               )}
             </div>

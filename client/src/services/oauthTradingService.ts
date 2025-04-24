@@ -277,7 +277,7 @@ class OAuthTradingService {
         parameters: {
           contract_type: contractType,
           currency: "USD",
-          duration: 5,
+          duration: 1,
           duration_unit: "t",
           symbol: "R_100",
           barrier: prediction.toString()
