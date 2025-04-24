@@ -499,7 +499,7 @@ export function BotController({
                 
                 // Determine explicit feedback message including user-defined value
                 message = shouldEnter 
-                  ? `ADVANCE XML: ✅ Condition satisfied! Executing DIGITOVER with barrier 5. Digits 0 (${digit0Percentage}%) and 1 (${digit1Percentage}%) both <= ${percentageToUse}%`
+                  ? `ADVANCE XML: ✅ Condition satisfied! Executing DIGITOVER with barrier 1. Digits 0 (${digit0Percentage}%) and 1 (${digit1Percentage}%) both <= ${percentageToUse}%`
                   : `ADVANCE XML: ❌ Condition not met. Digit 0 (${digit0Percentage}%) or 1 (${digit1Percentage}%) > ${percentageToUse}%`;
                   
                 console.log(`[BOT_CONTROLLER] Message: ${message}`);

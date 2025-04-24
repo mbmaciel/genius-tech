@@ -55,6 +55,8 @@
         <value name="VALUE">
           <block type="math_number" id="Khd]X.6~?pmIr[qu$(nd">
             <field name="NUM">8</field>
+            <!-- A porcentagem para entrar é configurável pelo usuário nas configurações do robô -->
+            <!-- Este valor é apenas o padrão inicial -->
           </block>
         </value>
         <next>
