@@ -57,6 +57,9 @@ export interface TradingSettings {
   activeSymbol?: string;   // Símbolo ativo (ex: R_100)
   duration?: number;       // Duração do contrato
   durationUnit?: string;   // Unidade de duração (t = ticks, s = segundos, etc)
+  lossVirtualEnabled?: boolean; // Habilita a funcionalidade de lossVirtual (martingale após perda)
+  resetOnWin?: boolean;    // Reset para valor inicial após vitória
+  barrier?: string;        // Valor da barreira para contratos que usam barrier
 }
 
 export interface OAuthDirectServiceInterface {

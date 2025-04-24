@@ -150,6 +150,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // CORREÇÃO URGENTE: A estratégia Advance deve usar prediction: 1, não 5
     // Conforme definido no XML original da estratégia
     prediction: 1, // Valor corrigido de 5 para 1
+    // NOVA IMPLEMENTAÇÃO: Suporte para lossVirtual e resetOnWin conforme XML
+    lossVirtualEnabled: true, // Habilitar lossVirtual conforme XML (linhas 72-97)
+    resetOnWin: true, // Resetar para valor inicial após vitória conforme XML (linhas 71-77)
+    barrier: "1" // Barreira para contratos DIGITOVER/DIGITUNDER
   };
 
   // Estatísticas de performance
