@@ -128,13 +128,15 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
   };
   
   // Função para corrigir o valor da barreira quando for estratégia Advance
+  // Agora usa a função utilitária para manter consistência em toda a aplicação
   const getCorrectBarrier = (barrier: string | number | undefined, strategyId: string | undefined) => {
-    // Se for estratégia Advance, forçar barreira como 1
-    if (strategyId?.toLowerCase() === 'advance') {
-      console.log('[RELATORIO_OPERACOES] Forçando barreira 1 para estratégia Advance. Valor original:', barrier);
-      return "1";
-    }
-    return barrier;
+    // Importar a função utilitária para correção de barreira
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { correctBarrier } = require('@/lib/utils');
+    
+    // Usar a função utilitária para garantir consistência
+    console.log('[RELATORIO_OPERACOES] Aplicando correção de barreira via função utilitária global');
+    return correctBarrier(barrier, strategyId);
   };
 
   // Função para formatar horário com base no idioma atual

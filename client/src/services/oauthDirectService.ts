@@ -915,60 +915,57 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         if (contract) {
           // 🚨 CORREÇÃO CRÍTICA: Interceptar e modificar valores de barreira para estratégia Advance
           // Verificar se este é um contrato DIGITOVER e estamos executando a estratégia Advance
-          if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance') && 
+          if (this.activeStrategy && 
               contract.contract_type && contract.contract_type.includes('DIGIT')) {
             
+            // Importar as funções utilitárias para correção de barreira
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { correctBarrier, correctBarrierText } = require('@/lib/utils');
+            
             // Log detalhado para diagnóstico
-            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO ADVANCE DETECTADA em proposal_open_contract`);
-            console.log(`[OAUTH_DIRECT] 🔍 Valores originais: barrier=${contract.barrier}, display_name=${contract.display_name}, longcode=${contract.longcode}`);
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO DETECTADA em proposal_open_contract para estratégia: ${this.activeStrategy}`);
+            console.log(`[OAUTH_DIRECT] 🔍 Valores originais: barrier=${contract.barrier}, contract_type=${contract.contract_type}`);
             
             // Guardar valores originais para diagnóstico (raramente podem ser undefined)
             const originalBarrier = contract.barrier;
             const originalDisplay = contract.display_name;
             const originalLongcode = contract.longcode;
             
-            // Modificar valores críticos que aparecem na interface
-            if (contract.barrier && contract.barrier !== '1') {
-              contract.barrier = '1';
+            // Usar função utilitária para corrigir a barreira de forma consistente
+            if (contract.barrier) {
+              contract.barrier = correctBarrier(contract.barrier, this.activeStrategy, contract.contract_type);
             }
             
-            // Modificar display_name se contiver a barreira errada
+            // Usar função utilitária para corrigir textos que contêm barreira
             if (contract.display_name) {
-              // Capturar valor original para comparação
-              const modifiedDisplay = contract.display_name
-                .replace(/acima de \d+/g, "acima de 1")
-                .replace(/above \d+/g, "above 1");
-              
-              if (modifiedDisplay !== contract.display_name) {
-                contract.display_name = modifiedDisplay;
-              }
+              contract.display_name = correctBarrierText(contract.display_name, this.activeStrategy);
             }
             
-            // Modificar longcode se contiver a barreira errada (aparece em muitas partes da UI)
+            // Usar função utilitária para corrigir textos no longcode
             if (contract.longcode) {
-              // Capturar valor original para comparação
-              const modifiedLongcode = contract.longcode
-                .replace(/acima de \d+/g, "acima de 1")
-                .replace(/above \d+/g, "above 1");
-              
-              if (modifiedLongcode !== contract.longcode) {
-                contract.longcode = modifiedLongcode;
-              }
+              contract.longcode = correctBarrierText(contract.longcode, this.activeStrategy);
             }
             
             // Log das modificações realizadas
             console.log(`[OAUTH_DIRECT] 🔄 Valores MODIFICADOS: barrier=${contract.barrier}, display_name=${contract.display_name}`);
             console.log(`[OAUTH_DIRECT] 🔄 Longcode MODIFICADO: ${contract.longcode}`);
             
-            // Salvar modificações no localStorage para diagnóstico
+            // Guardar essas informações para diagnóstico
             try {
-              localStorage.setItem('advance_poc_barrier_from', originalBarrier || "desconhecido");
-              localStorage.setItem('advance_poc_barrier_to', contract.barrier || "1");
-              localStorage.setItem('advance_poc_display_from', originalDisplay || "desconhecido");
-              localStorage.setItem('advance_poc_display_to', contract.display_name || "modificado");
-              localStorage.setItem('advance_poc_longcode_from', originalLongcode || "desconhecido");
-              localStorage.setItem('advance_poc_longcode_to', contract.longcode || "modificado");
-              localStorage.setItem('advance_poc_correction_time', new Date().toISOString());
+              localStorage.setItem('barrier_correction_from', originalBarrier || "desconhecido");
+              localStorage.setItem('barrier_correction_to', contract.barrier || "corrigido");
+              localStorage.setItem('barrier_correction_strategy', this.activeStrategy || "desconhecido");
+              localStorage.setItem('barrier_correction_time', new Date().toISOString());
+              
+              // Para a estratégia Advance, manter estatísticas específicas
+              if (this.activeStrategy.toLowerCase().includes('advance')) {
+                localStorage.setItem('advance_poc_barrier_from', originalBarrier || "desconhecido");
+                localStorage.setItem('advance_poc_barrier_to', contract.barrier || "1");
+                localStorage.setItem('advance_poc_display_from', originalDisplay || "desconhecido");
+                localStorage.setItem('advance_poc_display_to', contract.display_name || "modificado");
+                localStorage.setItem('advance_poc_longcode_from', originalLongcode || "desconhecido");
+                localStorage.setItem('advance_poc_longcode_to', contract.longcode || "modificado");
+              }
             } catch (e) {}
           }
           
