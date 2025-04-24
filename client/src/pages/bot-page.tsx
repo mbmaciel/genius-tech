@@ -438,6 +438,79 @@ export function BotPage() {
     },
   ]);
 
+  // ★★★ CORREÇÃO CRÍTICA: Carregar histórico de operações local ao iniciar a página ★★★
+  useEffect(() => {
+    console.log("[BOT_PAGE] Carregando histórico de operações do localStorage...");
+    
+    // Obter o histórico de operações do localStorage
+    const historyKey = "deriv_operations_history";
+    const savedHistory = localStorage.getItem(historyKey);
+    
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+          console.log(`[BOT_PAGE] Encontradas ${parsedHistory.length} operações no histórico local`);
+          
+          // Ordenar operações por data (mais recentes primeiro)
+          const sortedHistory = parsedHistory.sort((a, b) => {
+            // Usar os campos timestamp, saved_at ou time (o que estiver disponível)
+            const timeA = a.timestamp || a.saved_at || (a.time ? new Date(a.time).getTime() : 0);
+            const timeB = b.timestamp || b.saved_at || (b.time ? new Date(b.time).getTime() : 0);
+            return timeB - timeA;
+          });
+          
+          // Converter para o formato esperado pelo componente
+          const formattedHistory = sortedHistory.map(operation => ({
+            id: operation.contract_id || operation.id || Date.now(),
+            contract_id: operation.contract_id,
+            entryValue: operation.entry_value || operation.entryValue || 0,
+            entry_value: operation.entry_value || operation.entryValue || 0,
+            finalValue: operation.exit_value || operation.finalValue || 0,
+            exit_value: operation.exit_value || operation.finalValue || 0,
+            profit: operation.profit || 0,
+            time: operation.time ? new Date(operation.time) : new Date(operation.timestamp || operation.saved_at || Date.now()),
+            timestamp: operation.timestamp || operation.saved_at || Date.now(),
+            contract_type: operation.contract_type || "",
+            symbol: operation.symbol || "R_100",
+            strategy: operation.strategy || "",
+            is_win: operation.is_win ?? (operation.profit > 0),
+            isIntermediate: operation.isIntermediate || operation.is_intermediate || false,
+            notification: {
+              type: operation.is_win || operation.profit > 0 ? "success" : "error" as const,
+              message: `${operation.is_win || operation.profit > 0 ? "GANHO" : "PERDA"} | Entrada: $${(operation.entry_value || operation.entryValue || 0).toFixed(2)} | Resultado: $${(operation.profit || 0).toFixed(2)}`,
+            },
+          }));
+          
+          // Atualizar o estado com as operações carregadas
+          setOperationHistory(formattedHistory.slice(0, 50));
+          
+          // Calcular estatísticas a partir do histórico
+          const stats = formattedHistory.reduce((acc, op) => {
+            const isWin = op.is_win || op.profit > 0;
+            return {
+              wins: acc.wins + (isWin ? 1 : 0),
+              losses: acc.losses + (isWin ? 0 : 1),
+              totalProfit: acc.totalProfit + (op.profit || 0),
+            };
+          }, { wins: 0, losses: 0, totalProfit: 0 });
+          
+          // Atualizar as estatísticas
+          setStats(stats);
+          
+          console.log("[BOT_PAGE] ✅ Histórico de operações carregado com sucesso:", formattedHistory.length);
+          console.log("[BOT_PAGE] 📊 Estatísticas calculadas:", stats);
+        } else {
+          console.log("[BOT_PAGE] Nenhuma operação encontrada no histórico local");
+        }
+      } catch (error) {
+        console.error("[BOT_PAGE] Erro ao carregar histórico de operações:", error);
+      }
+    } else {
+      console.log("[BOT_PAGE] Nenhum histórico de operações encontrado no localStorage");
+    }
+  }, []); // Executar apenas uma vez ao montar o componente
+
   // ★★★ CORREÇÃO CRÍTICA: Adicionar auto-refresh para garantir que operações sejam mostradas em tempo real ★★★
   useEffect(() => {
     console.log(
@@ -465,80 +538,135 @@ export function BotPage() {
 
       // Atualizar estatísticas
       setStats((prev) => ({ ...prev }));
-
-      // Simular uma operação a cada 10 segundos (a cada 2 ciclos) para diagnóstico
-      // ⚠️ IMPORTANTE: Somente gerar novas operações se o robô estiver em execução
-      const shouldAddTestOperation =
-        botStatus === "running" && Date.now() % 10000 < 5000;
-
-      if (shouldAddTestOperation) {
-        const isWin = Math.random() > 0.5; // 50% de chance de ganho
-        const amountValue = 5; // Valor fixo para teste
-
-        // Criar evento simulado de contrato finalizado
-        const testEvent = {
-          type: "contract_finished",
-          contract_id: Date.now(),
-          entry_value: amountValue,
-          exit_value: isWin ? amountValue * 1.9 : 0,
-          profit: isWin ? amountValue * 0.9 : -amountValue,
-          contract_type: isWin ? "DIGITOVER" : "DIGITUNDER",
-          symbol: "R_100",
-          strategy: selectedStrategy || "auto",
-          is_win: isWin,
-          contract_details: {
-            contract_id: Date.now(),
-            contract_type: isWin ? "DIGITOVER" : "DIGITUNDER",
-            buy_price: amountValue,
-            symbol: "R_100",
-            status: isWin ? "won" : "lost",
-            entry_spot: 1234.56,
-            exit_spot: 5678.9,
-            profit: isWin ? amountValue * 0.9 : -amountValue,
-            payout: isWin ? amountValue * 1.9 : 0,
-          },
-        };
-
-        console.log(
-          "[BOT_PAGE] ★★★ GERANDO OPERAÇÃO DE TESTE (EVENTO COMPLETO) ★★★",
-          testEvent,
-        );
-
-        // Operação de fallback para garantir que algo apareça no histórico
-        const testOperation: Operation = {
-          id: Date.now(),
-          entryValue: amountValue,
-          entry_value: amountValue,
-          finalValue: isWin ? amountValue * 1.9 : 0,
-          exit_value: isWin ? amountValue * 1.9 : 0,
-          profit: isWin ? amountValue * 0.9 : -amountValue,
-          time: new Date(),
-          timestamp: Date.now(),
-          contract_type: isWin ? "DIGITOVER" : "DIGITUNDER",
-          symbol: "R_100",
-          strategy: selectedStrategy || "auto",
-          is_win: isWin,
-          notification: {
-            type: isWin ? "success" : "error",
-            message: `${isWin ? "GANHO" : "PERDA"} | Entrada: $${amountValue.toFixed(2)} | Resultado: ${isWin ? "$" + (amountValue * 0.9).toFixed(2) : "-$" + amountValue.toFixed(2)}`,
-          },
-        };
-
-        console.log(
-          "[BOT_PAGE] ★★★ ADICIONANDO OPERAÇÃO DE TESTE AO HISTÓRICO (FALLBACK DIRETO) ★★★",
-          testOperation,
-        );
-
-        // Adicionar operação de teste ao histórico (fallback direto)
-        setOperationHistory((prev) => [testOperation, ...prev].slice(0, 50));
+      
+      // Verificar o localStorage para operações novas que possam ter sido adicionadas por outros componentes
+      try {
+        const historyKey = "deriv_operations_history";
+        const savedHistory = localStorage.getItem(historyKey);
+        
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+            // Verificar se há novas operações no localStorage que não estão no estado
+            const existingIds = new Set(operationHistory.map(op => op.id));
+            const newOperations = parsedHistory
+              .filter(op => !existingIds.has(op.contract_id || op.id))
+              .map(operation => ({
+                id: operation.contract_id || operation.id || Date.now(),
+                contract_id: operation.contract_id,
+                entryValue: operation.entry_value || operation.entryValue || 0,
+                entry_value: operation.entry_value || operation.entryValue || 0,
+                finalValue: operation.exit_value || operation.finalValue || 0,
+                exit_value: operation.exit_value || operation.finalValue || 0,
+                profit: operation.profit || 0,
+                time: operation.time ? new Date(operation.time) : new Date(operation.timestamp || operation.saved_at || Date.now()),
+                timestamp: operation.timestamp || operation.saved_at || Date.now(),
+                contract_type: operation.contract_type || "",
+                symbol: operation.symbol || "R_100",
+                strategy: operation.strategy || "",
+                is_win: operation.is_win ?? (operation.profit > 0),
+                isIntermediate: operation.isIntermediate || operation.is_intermediate || false,
+                notification: {
+                  type: operation.is_win || operation.profit > 0 ? "success" : "error" as const,
+                  message: `${operation.is_win || operation.profit > 0 ? "GANHO" : "PERDA"} | Entrada: $${(operation.entry_value || operation.entryValue || 0).toFixed(2)} | Resultado: $${(operation.profit || 0).toFixed(2)}`,
+                },
+              }));
+              
+            if (newOperations.length > 0) {
+              console.log(`[BOT_PAGE] 🔄 Encontradas ${newOperations.length} novas operações no localStorage`);
+              setOperationHistory(prev => [...newOperations, ...prev].slice(0, 50));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[BOT_PAGE] Erro ao verificar novas operações no localStorage:", error);
       }
     }, 5000);
 
     return () => {
-      console.log("[BOT_PAGE] Limpando intervalo de auto-refresh do histórico");
+      console.log("[BOT_PAGE] Limpando auto-refresh do histórico de operações");
       clearInterval(refreshInterval);
     };
-  }, [selectedStrategy, botStatus]);
+  }, [botStatus, operationHistory.length]); // Adicionada dependência operationHistory.length para reagir a mudanças
+
+  // ★★★ CORREÇÃO CRÍTICA: Adicionar event listener específico para eventos DOM de contratos finalizados ★★★
+  useEffect(() => {
+    console.log("[BOT_PAGE] ⚠️ Configurando event listener para eventos 'contract_finished'");
+    
+    // Criar função de callback para processar eventos de contratos finalizados via DOM
+    const handleContractFinishedEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log("[BOT_PAGE] 📝 Evento DOM 'contract_finished' capturado:", customEvent.detail);
+      
+      if (customEvent.detail) {
+        // Extrair dados do evento
+        const contractEvent = customEvent.detail;
+        
+        // Valores importantes para o histórico
+        const operationEntryValue = contractEvent.entry_value || parseFloat(entryValue || "0") || 0;
+        const exitValue = contractEvent.exit_value || contractEvent.contract_details?.sell_price || 0;
+        const profitValue = contractEvent.profit || 0;
+        const isWin = contractEvent.is_win || false;
+        
+        // Criar registro de operação completo
+        const operationRecord = {
+          id: contractEvent.contract_id || Date.now(),
+          contract_id: contractEvent.contract_id,
+          entryValue: operationEntryValue,
+          entry_value: operationEntryValue,
+          finalValue: exitValue,
+          exit_value: exitValue,
+          profit: profitValue,
+          time: new Date(),
+          timestamp: Date.now(),
+          contract_type: contractEvent.contract_type || contractEvent.contract_details?.contract_type || "",
+          symbol: contractEvent.symbol || contractEvent.contract_details?.underlying_symbol || "R_100",
+          strategy: contractEvent.strategy || selectedStrategy || "",
+          is_win: isWin,
+          isIntermediate: contractEvent.isIntermediate || false,
+          is_intermediate: contractEvent.is_intermediate || false,
+          notification: {
+            type: isWin ? "success" : "error" as const,
+            message: `${isWin ? "GANHO" : "PERDA"} | Entrada: $${operationEntryValue.toFixed(2)} | Resultado: $${profitValue.toFixed(2)}`,
+          },
+        };
+        
+        console.log("[BOT_PAGE] 🔄 Atualizando histórico com nova operação:", operationRecord);
+        
+        // Atualizar histórico de operações com a nova entrada
+        setOperationHistory(prev => [operationRecord, ...prev].slice(0, 50));
+        
+        // Atualizar estatísticas
+        setStats(prev => {
+          const totalProfit = prev.totalProfit + profitValue;
+          
+          if (isWin) {
+            return { ...prev, wins: prev.wins + 1, totalProfit };
+          } else {
+            return { ...prev, losses: prev.losses + 1, totalProfit };
+          }
+        });
+        
+        // Mostrar notificação toast (apenas para operações não intermediárias)
+        if (!operationRecord.isIntermediate) {
+          toast({
+            title: isWin ? "Operação Vencedora!" : "Operação Perdedora",
+            description: `Resultado: $${profitValue.toFixed(2)}`,
+            variant: isWin ? "default" : "destructive",
+          });
+        }
+      }
+    };
+    
+    // Registrar o event listener
+    window.addEventListener("contract_finished", handleContractFinishedEvent);
+    
+    // Remover event listener quando o componente for desmontado
+    return () => {
+      console.log("[BOT_PAGE] Removendo event listener para 'contract_finished'");
+      window.removeEventListener("contract_finished", handleContractFinishedEvent);
+    };
+  }, [toast, entryValue, selectedStrategy]); // Dependências importantes para o callback
 
   // Verificar autenticação e conectar com OAuth direto
   useEffect(() => {
