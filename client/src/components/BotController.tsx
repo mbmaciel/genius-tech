@@ -1466,7 +1466,25 @@ export function BotController({
                 // CORREÇÃO CRÍTICA: Forçar valores específicos para Advance
                 if (selectedStrategy && selectedStrategy.toLowerCase().includes('advance')) {
                   // Interceptação final para estratégia Advance
-                  console.log('[BOT_CONTROLLER] 🚨 FORÇANDO CONFIGURAÇÕES PARA ADVANCE:');
+                  console.log('[BOT_CONTROLLER] 🚨 CONFIGURAÇÕES PARA ADVANCE DO XML:');
+                  
+                  // Obter a porcentagem de entrada configurada pelo usuário
+                  let userEntryPercentage = 8; // Valor padrão conforme img do bot builder
+                  
+                  try {
+                    // Tentar obter a porcentagem configurada pelo usuário na interface
+                    const percentElement = document.getElementById('porcentagem-para-entrar') as HTMLInputElement;
+                    if (percentElement && percentElement.value) {
+                      const parsedPercent = parseFloat(percentElement.value);
+                      if (!isNaN(parsedPercent)) {
+                        userEntryPercentage = parsedPercent;
+                        console.log(`[BOT_CONTROLLER] ✅ Usando porcentagem configurada pelo usuário: ${userEntryPercentage}%`);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('[BOT_CONTROLLER] Erro ao obter porcentagem configurada:', error);
+                  }
+                  
                   // Criar um novo objeto completamente novo para evitar qualquer referência antiga
                   forceSettings = {
                     // Manter configurações anteriores
@@ -1475,11 +1493,12 @@ export function BotController({
                     lossLimit: forceSettings.lossLimit,
                     martingaleFactor: forceSettings.martingaleFactor,
                     
-                    // VALORES ABSOLUTAMENTE FORÇADOS para estratégia Advance
+                    // VALORES CORRETOS conforme XML e interface da Deriv
                     duration: 1,
                     prediction: 1,
-                    contractType: 'DIGITOVER',
-                    barrier: '1'
+                    contractType: 'CALL', // Rise na interface = CALL na API
+                    barrier: '1',
+                    entryPercentage: userEntryPercentage // CRÍTICO: Usar porcentagem configurada pelo usuário
                   };
                   
                   console.log('[BOT_CONTROLLER] 🚨 CONFIGURAÇÃO FINAL ADVANCE:');

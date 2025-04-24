@@ -141,7 +141,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   private strategyConfig: string = '';
   private lastDigit: number = 0; // Último dígito recebido nos ticks
-  private advancePercentage: number = 10; // Porcentagem para estratégia Advance (padrão 10%)
+  private advancePercentage: number = 8; // Porcentagem para estratégia Advance (padrão 8% conforme Bot Builder)
   private activeStrategy: string = ''; // Estratégia ativa
   
   private operationTimeout: any = null;
@@ -1322,7 +1322,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           result = {
             shouldEnter: advanceResult.shouldEnter,
             contractType: advanceResult.contractType,
-            message: advanceResult.message
+            message: advanceResult.message,
+            prediction: advanceResult.prediction,
+            // Propriedade adicional para a duração do contrato (1 tick para Rise/CALL)
+            duration: 1
           };
           break;
         
