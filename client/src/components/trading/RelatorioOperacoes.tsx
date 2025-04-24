@@ -126,6 +126,16 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
       minimumFractionDigits: 2
     }).format(value);
   };
+  
+  // Função para corrigir o valor da barreira quando for estratégia Advance
+  const getCorrectBarrier = (barrier: string | number | undefined, strategyId: string | undefined) => {
+    // Se for estratégia Advance, forçar barreira como 1
+    if (strategyId?.toLowerCase() === 'advance') {
+      console.log('[RELATORIO_OPERACOES] Forçando barreira 1 para estratégia Advance. Valor original:', barrier);
+      return "1";
+    }
+    return barrier;
+  };
 
   // Função para formatar horário com base no idioma atual
   const formatTime = (date: Date | string) => {
