@@ -5975,6 +5975,69 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             console.log(
               `[OAUTH_DIRECT] 🛒🛒🛒 ENVIANDO COMPRA BASEADA NA PROPOSTA: ${JSON.stringify(buyRequest, null, 2)}`,
             );
+            
+            // 🚨🚨🚨 VERIFICAÇÃO CRÍTICA DE MARTINGALE: Garantir que o valor correto seja enviado 🚨🚨🚨
+            try {
+              const strategyId = this.strategyConfig.toLowerCase();
+              const strategyState = getStrategyState(strategyId);
+              const consecutiveLosses = strategyState?.consecutiveLosses || 0;
+              
+              // Verificar se existe um valor de martingale armazenado no localStorage
+              const storedMartingaleValue = localStorage.getItem('last_martingale_calculated_value');
+              
+              // Obter configuração de quando aplicar martingale
+              let martingaleAfterXLosses = 2; // Valor padrão
+              try {
+                const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
+                if (configStr) {
+                  const config = JSON.parse(configStr);
+                  if (config.usarMartingaleAposXLoss) {
+                    martingaleAfterXLosses = parseInt(config.usarMartingaleAposXLoss.toString());
+                  }
+                }
+              } catch (e) {
+                console.error(`[OAUTH_DIRECT] Erro ao ler config de martingale:`, e);
+              }
+              
+              // Verificar se estamos exatamente no ponto de aplicar martingale
+              const exactMartingalePoint = consecutiveLosses === martingaleAfterXLosses;
+              
+              console.log(`[OAUTH_DIRECT] 🚨🚨🚨 VERIFICAÇÃO FINAL DE MARTINGALE 🚨🚨🚨`);
+              console.log(`[OAUTH_DIRECT] 🚨 ESTRATÉGIA: ${strategyId}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Perdas consecutivas: ${consecutiveLosses}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Martingale após X perdas: ${martingaleAfterXLosses}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Exatamente no ponto de martingale? ${exactMartingalePoint ? 'SIM' : 'NÃO'}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Valor martingale armazenado: ${storedMartingaleValue || 'Não encontrado'}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Valor sendo enviado: price=${buyRequest.price}`);
+              
+              // INTERVENÇÃO CRÍTICA: Se estamos no ponto exato de martingale, temos um valor armazenado
+              // e o valor não está sendo enviado corretamente, FORÇAR o valor correto
+              if (exactMartingalePoint && storedMartingaleValue) {
+                const parsedMartingaleValue = parseFloat(storedMartingaleValue);
+                if (!isNaN(parsedMartingaleValue) && parsedMartingaleValue > 0) {
+                  // Note que não podemos comparar diretamente com buyRequest.buy pois isso é o ID da proposta
+                  // Comparamos com price que é o valor monetário
+                  if (parseFloat(buyRequest.price) === parsedMartingaleValue) {
+                    console.log(`[OAUTH_DIRECT] ✅✅✅ MARTINGALE OK! Valor ${parsedMartingaleValue} já está configurado corretamente!`);
+                  } else {
+                    console.log(`[OAUTH_DIRECT] ❌❌❌ ERRO MARTINGALE! Valor ${parsedMartingaleValue} NÃO está sendo usado!`);
+                    console.log(`[OAUTH_DIRECT] 📊 Preço atual: ${buyRequest.price}, Martingale calculado: ${parsedMartingaleValue}`);
+                    console.log(`[OAUTH_DIRECT] 🚨🚨🚨 INTERVENÇÃO FORÇADA: SUBSTITUINDO PREÇO PARA API`);
+                    
+                    // Alterar o price (valor monetário) - buy é o ID da proposta e não deve ser alterado!
+                    buyRequest.price = parsedMartingaleValue.toString();
+                    
+                    console.log(`[OAUTH_DIRECT] ✅✅✅ PREÇO CORRIGIDO! Novo preço a enviar: ${buyRequest.price}`);
+                    console.log(`[OAUTH_DIRECT] 🚨 REQUISIÇÃO APÓS CORREÇÃO:`, JSON.stringify(buyRequest, null, 2));
+                  }
+                }
+              }
+              
+              // Para fins de debug, registrar o valor final que será enviado
+              console.log(`[OAUTH_DIRECT] 🚨 VALOR FINAL DO CAMPO PRICE: ${buyRequest.price}`);
+            } catch (validationError) {
+              console.error(`[OAUTH_DIRECT] Erro ao validar martingale durante envio:`, validationError);
+            }
 
             // 🚨 CORREÇÃO CRÍTICA: Adicionar um listener específico para esta compra
             const handleBuyResponse = (buyEvent: MessageEvent) => {
