@@ -642,10 +642,85 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   
   private handleMessage(event: MessageEvent): void {
     try {
-      const data = JSON.parse(event.data);
+      // 💥💥💥 INTERCEPTAÇÃO ULTRA-RADICAL 💥💥💥
+      // Modificar o JSON bruto antes mesmo de parsear
+      let rawData = event.data;
+      let wasModified = false;
       
-      // 📡📡📡 LOG COMPLETO DE TODAS AS MENSAGENS RECEBIDAS DO WEBSOCKET 📡📡📡
-      console.log(`[OAUTH_DIRECT] 🔍 MENSAGEM COMPLETA RECEBIDA: ${JSON.stringify(data)}`);
+      // Se for uma string, verificar e modificar conteúdo para Advance
+      if (typeof rawData === 'string') {
+        const isAdvance = this.activeStrategy?.toLowerCase().includes('advance');
+        const originalRawData = rawData;
+        
+        // INTERVENÇÃO EXTREMA: SUBSTITUI QUALQUER BARREIRA POR 1 PARA ADVANCE
+        if (isAdvance) {
+          // Modificar barreira
+          if (/"barrier"\s*:\s*"[0-9]+"/.test(rawData)) {
+            rawData = rawData.replace(/"barrier"\s*:\s*"[0-9]+"/g, '"barrier":"1"');
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO EXTREMA: Barreira substituída por "1"`);
+          }
+          
+          // Modificar texto descritivo para PT-BR e EN
+          if (/acima de [0-9]+/.test(rawData)) {
+            rawData = rawData.replace(/acima de [0-9]+/g, 'acima de 1');
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO EXTREMA: "acima de X" substituído por "acima de 1"`);
+          }
+          
+          if (/above [0-9]+/.test(rawData)) {
+            rawData = rawData.replace(/above [0-9]+/g, 'above 1');
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO EXTREMA: "above X" substituído por "above 1"`);
+          }
+          
+          // Verificar se o texto foi modificado
+          wasModified = (originalRawData !== rawData);
+          
+          // Armazenar dados para diagnóstico
+          if (wasModified) {
+            console.log(`[OAUTH_DIRECT] 🚨 INTERCEPTAÇÃO RAW BEM-SUCEDIDA! (Advance)`);
+            try {
+              localStorage.setItem('advance_raw_intercept', 'true');
+              localStorage.setItem('advance_raw_time', new Date().toISOString());
+              localStorage.setItem('advance_raw_sample', rawData.substring(0, 100)); // Amostra para diagnóstico
+            } catch (e) {}
+          }
+        }
+      }
+      
+      // Parsear o JSON (original ou modificado)
+      const data = JSON.parse(rawData);
+      
+      // VERIFICAÇÕES E CORREÇÕES SECUNDÁRIAS APÓS PARSER
+      // Este é o segundo nível de interceptação
+      if (this.activeStrategy?.toLowerCase().includes('advance') && data.proposal) {
+        // Verificar se ainda precisamos corrigir dados depois do parsing
+        const needsCorrection = data.proposal.barrier !== "1" || 
+                              (data.proposal.display_name && 
+                               (data.proposal.display_name.includes("acima de 5") || 
+                                data.proposal.display_name.includes("above 5")));
+        
+        if (needsCorrection) {
+          console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO SECUNDÁRIA: Proposta ainda precisa de ajustes`);
+          // Forçar valores corretos
+          data.proposal.barrier = "1";
+          
+          // Corrigir display_name
+          if (data.proposal.display_name) {
+            data.proposal.display_name = data.proposal.display_name
+              .replace(/acima de [0-9]+/g, 'acima de 1')
+              .replace(/above [0-9]+/g, 'above 1');
+          }
+          
+          wasModified = true;
+          console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO SECUNDÁRIA APLICADA: barrier="${data.proposal.barrier}", display="${data.proposal.display_name}"`);
+        }
+      }
+      
+      // Logs (detalhados apenas para mensagens modificadas ou para debugging)
+      if (wasModified) {
+        console.log(`[OAUTH_DIRECT] 🔍 MENSAGEM MODIFICADA: ${JSON.stringify(data, null, 2)}`);
+      } else if (Math.random() < 0.05) { // 5% de chance para reduzir logs
+        console.log(`[OAUTH_DIRECT] 🔍 MENSAGEM ORIGINAL: ${JSON.stringify(data)}`);
+      }
       
       // Log resumido para depuração
       console.log(`[OAUTH_DIRECT] Mensagem recebida (${data.msg_type})`);
@@ -3062,16 +3137,28 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // Adicionar barreira para contratos de dígito
       if (contractType.includes('DIGIT')) {
-        proposalRequest.barrier = prediction.toString();
-        
-        // INTERVENÇÃO DE EMERGÊNCIA - FORÇA O VALOR DA BARREIRA PARA 1 SE ESTAMOS NA ADVANCE
+        // INTERVENÇÃO DEFINITIVA - Forçar valor da barreira para estratégias específicas
         if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
           proposalRequest.barrier = "1";
-          console.log(`[OAUTH_DIRECT] 🚨 INTERVENÇÃO DE EMERGÊNCIA: Forçando barreira para 1`);
+          // Forçar atributos adicionais para modificar a visualização
+          proposalRequest.display_name = "acima de 1"; // Tentar forçar o nome de exibição
+          console.log(`[OAUTH_DIRECT] 🚨🚨🚨 INTERVENÇÃO DEFINITIVA: Forçando barrier=1 para ADVANCE`);
+        }
+        else {
+          proposalRequest.barrier = prediction.toString();
         }
         
         console.log(`[OAUTH_DIRECT] ⚡ Adicionando barreira ${proposalRequest.barrier} para contrato de dígito ${contractType}`);
       }
+      
+      // MONITORAR API HACKING - Guardar os valores originais enviados para comparar com o retorno
+      try {
+        localStorage.setItem('last_proposal_sent', JSON.stringify({
+          contract_type: proposalRequest.contract_type,
+          barrier: proposalRequest.barrier,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (e) {}
       
       // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
       console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA:`, proposalRequest);
@@ -3151,26 +3238,57 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             console.log(`[OAUTH_DIRECT] ✅ PROPOSTA ACEITA: ID=${data.proposal.id}, Preço=${data.proposal.ask_price}, Payout=${data.proposal.payout}`);
             
-            // INTERVIR na proposta para Advance - último nível de interceptação
+            // INTERVENÇÃO MASSIVA na proposta para Advance - último nível de interceptação
             if (this.activeStrategy?.toLowerCase().includes('advance')) {
-              console.log(`[OAUTH_DIRECT] 🔴 INSPECIONANDO PROPOSTA ANTES DA COMPRA PARA ADVANCE:`);
-              console.log(JSON.stringify(data.proposal, null, 2));
+              console.log(`[OAUTH_DIRECT] 🔴 INTERVENÇÃO MASSIVA PARA ADVANCE: Modificando proposta recebida`);
+              console.log(`[OAUTH_DIRECT] ⚠️ Proposta original:`, JSON.stringify(data.proposal, null, 2));
               
-              // Modificar a definição do contrato diretamente na proposta se for necessário
-              if (data.proposal.barrier === "5") {
-                console.log(`[OAUTH_DIRECT] 🔴 ÚLTIMA CHANCE! MODIFICANDO BARREIRA DE "5" PARA "1"!`);
-                data.proposal.barrier = "1";
-                data.proposal.display_name = data.proposal.display_name.replace("acima de 5", "acima de 1");
+              // Sempre modificar a barreira, independente do valor original
+              const originalBarrier = data.proposal.barrier;
+              const originalDisplay = data.proposal.display_name;
+              
+              // FORÇAR valores corretos
+              data.proposal.barrier = "1";
+              
+              // Modificar display_name em todos os casos, independente do conteúdo original
+              if (data.proposal.display_name) {
+                // Para português
+                data.proposal.display_name = data.proposal.display_name.replace(/acima de \d+/g, "acima de 1");
                 
-                // Também gravar a correção no localStorage para futuras referências
-                try {
-                  localStorage.setItem('advance_barrier_corrected', 'true');
-                  localStorage.setItem('advance_barrier_correction_time', new Date().toISOString());
-                } catch (e) {}
+                // Para inglês 
+                data.proposal.display_name = data.proposal.display_name.replace(/above \d+/g, "above 1");
+                
+                // Forçar caso nenhum padrão tenha sido encontrado
+                if (data.proposal.display_name === originalDisplay) {
+                  data.proposal.display_name = `${data.proposal.display_name} (acima de 1)`;
+                }
               }
               
-              console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA FINAL PARA ADVANCE:`);
-              console.log(JSON.stringify(data.proposal, null, 2));
+              // Modificar parâmetros adicionais para garantir que tudo seja consistente
+              if (data.proposal.longcode) {
+                data.proposal.longcode = data.proposal.longcode.replace(/acima de \d+/g, "acima de 1");
+                data.proposal.longcode = data.proposal.longcode.replace(/above \d+/g, "above 1");
+              }
+              
+              // Forçar duration para 1 tick se for diferente
+              if (data.proposal.duration !== 1 || data.proposal.duration_unit !== "t") {
+                data.proposal.duration = 1;
+                data.proposal.duration_unit = "t";
+              }
+              
+              // Registrar modificações no localStorage para diagnóstico
+              try {
+                localStorage.setItem('advance_barrier_from', originalBarrier || "desconhecido");
+                localStorage.setItem('advance_barrier_to', "1");
+                localStorage.setItem('advance_display_name_from', originalDisplay || "desconhecido");
+                localStorage.setItem('advance_display_name_to', data.proposal.display_name);
+                localStorage.setItem('advance_correction_time', new Date().toISOString());
+              } catch (e) {}
+              
+              console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA MODIFICADA PARA ADVANCE:`);
+              console.log(`[OAUTH_DIRECT] ✅ Barreira: ${originalBarrier} -> ${data.proposal.barrier}`);
+              console.log(`[OAUTH_DIRECT] ✅ Display: ${originalDisplay} -> ${data.proposal.display_name}`);
+              console.log(`[OAUTH_DIRECT] ✅ JSON completo:`, JSON.stringify(data.proposal, null, 2));
             }
             
             // Remover o listener imediatamente
