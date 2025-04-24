@@ -526,7 +526,7 @@ export function BotController({
                 shouldEnter = true;
                 contractType = 'DIGITOVER';
                 prediction = 5; // Hard-coded value from IRON OVER XML strategy
-                message = `IRON OVER XML: Direct operation. Prediction: DIGITOVER ${prediction} (barrier 5)`;
+                message = `IRON OVER XML: Direct operation. Prediction: DIGITOVER ${prediction}`;
                 
                 // CRITICAL: Log exact parameters - this must match XML strategy
                 console.log(`[BOT_CONTROLLER] IRON OVER STRATEGY EXECUTION:`);
@@ -554,7 +554,7 @@ export function BotController({
                 shouldEnter = true;
                 contractType = 'DIGITUNDER';
                 prediction = 5; // Hard-coded value from IRON UNDER XML strategy
-                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction} (barrier 5)`;
+                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction}`;
                 
                 // CRITICAL: Log exact parameters - this must match XML strategy
                 console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
