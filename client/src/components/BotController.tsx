@@ -1570,6 +1570,8 @@ export function BotController({
                     contractType: 'DIGITOVER', // Contrato é DIGITOVER conforme confirmado pelo usuário
                     prediction: 1,
                     barrier: '1',
+                    duration: 1, // CRÍTICO: FORÇAR duração de 1 tick conforme a imagem do contrato
+                    duration_unit: 't', // CRÍTICO: Forçar unidade de duração como ticks
                     entryPercentage: userEntryPercentage // CRÍTICO: Usar porcentagem configurada pelo usuário
                   };
                   

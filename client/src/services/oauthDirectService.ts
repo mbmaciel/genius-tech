@@ -3248,6 +3248,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(`[OAUTH_DIRECT] 🔴 INTERVENÇÃO CRÍTICA FINAL: FORÇANDO valores para Advance antes de enviar`);
       }
       
+      // VERIFICAÇÃO FINAL ABSOLUTA PARA ADVANCE
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        // GARANTIR valores da duração estão certos para Advance
+        duration = 1; // FORÇAR 1 tick conforme imagem do contrato
+        console.log(`[OAUTH_DIRECT] 🔴 GARANTINDO valor final antes de montar objeto: duration=${duration}`);
+      }
+      
       // Montagem final do objeto de proposta
       const proposalRequest: any = {
         proposal: 1,
@@ -3256,10 +3263,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         basis: "stake",
         contract_type: contractType,
         currency: "USD",
-        duration: duration, // CORREÇÃO: Usar o valor correto de duração
+        duration: duration, // CORREÇÃO: Usar EXATAMENTE 1 tick para Advance
         duration_unit: "t",
         symbol: "R_100"
       };
+      
+      // VERIFICAR OBJETO FINAL - se for Advance, duration deve ser 1
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        if (proposalRequest.duration !== 1) {
+          console.log(`[OAUTH_DIRECT] 🚨 ERRO CRÍTICO: duration=${proposalRequest.duration}, DEVERIA SER 1! CORRIGINDO...`);
+          proposalRequest.duration = 1; // GARANTIR que é 1
+        }
+      }
       
       // DIAGNÓSTICO CRÍTICO: Mostrar detalhes exatos do que estamos enviando
       console.log(`[OAUTH_DIRECT] 🔍 ANTES DE ENVIAR - DETALHES DO CONTRATO:`);
@@ -3409,11 +3424,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 }
               }
               
-              // Forçar duration para 1 tick se for diferente
-              if (data.proposal.duration !== 1 || data.proposal.duration_unit !== "t") {
-                data.proposal.duration = 1;
-                data.proposal.duration_unit = "t";
-              }
+              // CORREÇÃO CRÍTICA: SEMPRE forçar duration para 1 tick INDEPENDENTE do valor original
+              // Imagem do contrato mostra que precisa SER 1 tick EXATAMENTE
+              console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA: Valor original da duração: ${data.proposal.duration} ${data.proposal.duration_unit}`);
+              data.proposal.duration = 1;
+              data.proposal.duration_unit = "t";
+              console.log(`[OAUTH_DIRECT] 🔴 PROPOSTA: FORÇANDO duração para 1 tick conforme imagem do contrato!`);
               
               // Registrar modificações no localStorage para diagnóstico
               try {
