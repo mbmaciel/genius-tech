@@ -131,15 +131,15 @@ export function evaluateAdvanceStrategy(
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
   let message = shouldEnter 
-    ? `ADVANCE XML: ✅ Condição satisfeita! Executando compra CALL (Rise) conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
+    ? `ADVANCE XML: ✅ Condição satisfeita! Executando DIGITOVER conforme XML. Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) ambos <= ${percentageToUse}%`
     : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
     
   // CORREÇÃO CRÍTICA: Forçar valores para a estratégia Advance
-  // Especialmente a duração = 1 tick para contratos CALL
-  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA ADVANCE: Forçando CALL com duração de 1 tick!`);
+  // Especialmente a barreira = 1 para DIGITOVER
+  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA ADVANCE: Forçando DIGITOVER com barreira 1!`);
   
-  // Atualizar para duração de 1 tick
-  message = message.replace('CALL', 'CALL (duração: 1 tick)');
+  // Atualizar para mostrar a barreira correta
+  message = message.replace('DIGITOVER', 'DIGITOVER 1');
   
   // SALVAR NO LOCALSTORAGE para rastreabilidade e diagnóstico
   try {
@@ -149,7 +149,7 @@ export function evaluateAdvanceStrategy(
   
   return { 
     shouldEnter, 
-    contractType: 'CALL', // CORRIGIDO CONFORME IMAGEM DA DERIV: "Rise" no botbuilder é CALL na API
+    contractType: 'DIGITOVER', // CORREÇÃO: O contrato é DIGITOVER conforme confirmado pelo usuário
     message,
     barrier: "1", // CRITICO - FORÇANDO BARREIRA 1
     prediction: 1, // CRÍTICO - FORÇANDO PREVISÃO 1 

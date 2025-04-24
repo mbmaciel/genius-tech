@@ -1472,15 +1472,88 @@ export function BotController({
                   let userEntryPercentage = 8; // Valor padrão conforme img do bot builder
                   
                   try {
-                    // Tentar obter a porcentagem configurada pelo usuário na interface
-                    const percentElement = document.getElementById('porcentagem-para-entrar') as HTMLInputElement;
-                    if (percentElement && percentElement.value) {
-                      const parsedPercent = parseFloat(percentElement.value);
-                      if (!isNaN(parsedPercent)) {
-                        userEntryPercentage = parsedPercent;
-                        console.log(`[BOT_CONTROLLER] ✅ Usando porcentagem configurada pelo usuário: ${userEntryPercentage}%`);
+                    // IMPORTANTE: Tentar múltiplas estratégias para obter a porcentagem configurada pelo usuário
+                    
+                    // 1. Tentar buscar pelo ID que vimos na interface
+                    const possiblePercentIds = ['porcentagem-para-entrar', 'PORCENTAGEM-PARA-ENTRAR', 'porcentagemParaEntrar'];
+                    
+                    // Verificar cada ID possível
+                    for (const id of possiblePercentIds) {
+                      const element = document.getElementById(id) as HTMLInputElement;
+                      if (element && element.value) {
+                        const parsedPercent = parseFloat(element.value);
+                        if (!isNaN(parsedPercent)) {
+                          userEntryPercentage = parsedPercent;
+                          console.log(`[BOT_CONTROLLER] ✅ Encontrado input de porcentagem com ID '${id}': ${userEntryPercentage}%`);
+                          break;
+                        }
                       }
                     }
+                    
+                    // 2. Se não encontrou por ID, procurar qualquer input com valor entre 1-100
+                    if (userEntryPercentage === 8) { // Se ainda tem o valor padrão
+                      const allInputs = document.querySelectorAll('input[type="number"]');
+                      
+                      console.log(`[BOT_CONTROLLER] 🔍 Procurando entre ${allInputs.length} inputs numéricos...`);
+                      
+                      // Procurar qualquer input com valor entre 1-100 (provável ser porcentagem)
+                      for (let i = 0; i < allInputs.length; i++) {
+                        const input = allInputs[i] as HTMLInputElement;
+                        if (input.value) {
+                          const value = parseFloat(input.value);
+                          if (!isNaN(value) && value > 0 && value <= 100) {
+                            // Se o valor parece ser uma porcentagem válida
+                            console.log(`[BOT_CONTROLLER] ✅ Input #${i} parece ser porcentagem: ${value}%`);
+                            
+                            // Verificar se o elemento contém "percent" ou "porcentagem" no ID ou atributos
+                            const isLikelyPercentField = 
+                              (input.id && (input.id.toLowerCase().includes('percent') || input.id.toLowerCase().includes('porcent'))) ||
+                              (input.name && (input.name.toLowerCase().includes('percent') || input.name.toLowerCase().includes('porcent'))) ||
+                              (input.placeholder && (input.placeholder.toLowerCase().includes('percent') || input.placeholder.toLowerCase().includes('porcent')));
+                            
+                            if (isLikelyPercentField) {
+                              userEntryPercentage = value;
+                              console.log(`[BOT_CONTROLLER] ✅ Confirmado: Input #${i} é campo de porcentagem: ${value}%`);
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                    
+                    // 3. ESTRATÉGIA ESPECÍFICA PARA DERIV BOT BUILDER: Buscar valor direto da interface
+                    // Pegar o valor do input que está dentro de algum container relacionado à porcentagem
+                    if (userEntryPercentage === 8) { // Se ainda tem o valor padrão
+                      const percentElements = document.querySelectorAll('input[type="number"]');
+                      
+                      // Verificar especificamente o elemento que aparece na imagem
+                      // O valor "PORCENTAGEM PARA ENTRAR" aparece na imagem com valor 8
+                      console.log(`[BOT_CONTROLLER] 🔍 Verificando inputs específicos da Deriv Bot Builder:`);
+                      
+                      percentElements.forEach((elem, idx) => {
+                        const input = elem as HTMLInputElement;
+                        // Log para diagnóstico, capturar todos os elementos próximos
+                        const parentText = input.parentElement?.textContent || '';
+                        
+                        console.log(`[BOT_CONTROLLER] Input #${idx}: value=${input.value}, parentText=${parentText.substring(0, 30)}`);
+                        
+                        // Verificar se o elemento pai ou avô tem texto relacionado a porcentagem
+                        if (
+                          parentText.toLowerCase().includes('porcent') || 
+                          parentText.toLowerCase().includes('percent') ||
+                          parentText.toLowerCase().includes('entrar')
+                        ) {
+                          const value = parseFloat(input.value);
+                          if (!isNaN(value) && value > 0 && value <= 100) {
+                            userEntryPercentage = value;
+                            console.log(`[BOT_CONTROLLER] ✅ ENCONTRADO na Deriv Bot Builder: ${value}%`);
+                          }
+                        }
+                      });
+                    }
+                    
+                    console.log(`[BOT_CONTROLLER] ✅ Valor final da porcentagem: ${userEntryPercentage}%`);
+                    
                   } catch (error) {
                     console.error('[BOT_CONTROLLER] Erro ao obter porcentagem configurada:', error);
                   }
@@ -1494,9 +1567,8 @@ export function BotController({
                     martingaleFactor: forceSettings.martingaleFactor,
                     
                     // VALORES CORRETOS conforme XML e interface da Deriv
-                    duration: 1,
+                    contractType: 'DIGITOVER', // Contrato é DIGITOVER conforme confirmado pelo usuário
                     prediction: 1,
-                    contractType: 'CALL', // Rise na interface = CALL na API
                     barrier: '1',
                     entryPercentage: userEntryPercentage // CRÍTICO: Usar porcentagem configurada pelo usuário
                   };
