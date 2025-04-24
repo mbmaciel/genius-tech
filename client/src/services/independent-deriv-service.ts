@@ -33,11 +33,18 @@ class IndependentDerivService {
   // Gerenciamento de eventos
   private eventListeners: Map<string, Set<EventCallback>> = new Map();
   
-  // Gerenciamento de reconexão
+  // Gerenciamento de reconexão avançado
   private reconnectTimer: any = null;
+  private pingTimer: any = null;
+  private pingTimeout: any = null;
+  private lastPongTime: number = 0;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 10; // Aumentado para mais tentativas
+  private maxReconnectAttempts: number = 20; // Aumentado para maior persistência
   private reconnectDelayMs: number = 1000; // Delay inicial de 1 segundo
+  private pingIntervalMs: number = 10000; // Intervalo de 10 segundos para ping
+  private pingTimeoutMs: number = 5000; // Timeout de 5 segundos para resposta de ping
+  private forceReconnectAfterMs: number = 60000; // Forçar reconexão após 1 minuto sem comunicação
+  private lastMessageTime: number = 0; // Último momento que recebemos qualquer mensagem
   
   // Cache de dados
   private digitHistories: Map<string, DigitHistory> = new Map();
@@ -124,6 +131,102 @@ class IndependentDerivService {
   /**
    * Estabelece conexão com o WebSocket da Deriv
    */
+  /**
+   * Envia ping para verificar se o WebSocket está ativo e responde
+   */
+  private startPingPongMonitoring(): void {
+    // Limpar timers existentes
+    if (this.pingTimer) {
+      clearTimeout(this.pingTimer);
+      this.pingTimer = null;
+    }
+    
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
+    }
+    
+    // Iniciar monitoramento de ping/pong
+    this.pingTimer = setInterval(() => {
+      if (!this.socket || !this.isConnected) {
+        return;
+      }
+      
+      // Enviar ping
+      this.send({ ping: 1 }).then((response) => {
+        if (response && response.ping) {
+          // Pong recebido
+          this.lastPongTime = Date.now();
+          this.lastMessageTime = Date.now();
+          console.log(`[INDEPENDENT_DERIV] Pong recebido: ${response.ping}`);
+        }
+      }).catch(error => {
+        console.error('[INDEPENDENT_DERIV] Erro ao enviar ping:', error);
+        // Verificar tempo desde último pong
+        const timeSinceLastPong = Date.now() - this.lastPongTime;
+        if (timeSinceLastPong > this.forceReconnectAfterMs) {
+          console.error(`[INDEPENDENT_DERIV] Sem resposta de ping por ${timeSinceLastPong}ms, forçando reconexão`);
+          this.forceReconnect();
+        }
+      });
+      
+      // Verificar inatividade total
+      const timeSinceLastMsg = Date.now() - this.lastMessageTime;
+      if (timeSinceLastMsg > this.forceReconnectAfterMs) {
+        console.error(`[INDEPENDENT_DERIV] Sem mensagens por ${timeSinceLastMsg}ms, forçando reconexão`);
+        this.forceReconnect();
+      }
+    }, this.pingIntervalMs);
+  }
+  
+  /**
+   * Força a reconexão do WebSocket
+   */
+  private forceReconnect(): void {
+    // Limpar recursos existentes
+    this.cleanup();
+    
+    // Forçar reconexão
+    console.log('[INDEPENDENT_DERIV] Forçando reconexão...');
+    this.connect()
+      .then(() => console.log('[INDEPENDENT_DERIV] Reconexão forçada bem-sucedida'))
+      .catch(err => console.error('[INDEPENDENT_DERIV] Falha na reconexão forçada:', err));
+  }
+  
+  /**
+   * Limpa todos os recursos e timers
+   */
+  private cleanup(): void {
+    // Limpar timers
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+    
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
+    }
+    
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    // Fechar WebSocket existente
+    if (this.socket) {
+      try {
+        this.socket.onclose = null; // Evitar que o handler seja chamado
+        this.socket.close();
+        this.socket = null;
+      } catch (e) {
+        console.error('[INDEPENDENT_DERIV] Erro ao fechar WebSocket:', e);
+      }
+    }
+    
+    this.isConnected = false;
+  }
+
   public connect(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       if (this.socket && this.isConnected) {
@@ -132,11 +235,8 @@ class IndependentDerivService {
         return;
       }
       
-      // Limpar timer de reconexão existente
-      if (this.reconnectTimer) {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-      }
+      // Limpar recursos existentes
+      this.cleanup();
       
       console.log('[INDEPENDENT_DERIV] Conectando ao WebSocket da Deriv...');
       const url = `wss://ws.derivws.com/websockets/v3?app_id=${this.appId}`;
@@ -148,7 +248,12 @@ class IndependentDerivService {
           console.log('[INDEPENDENT_DERIV] Conexão WebSocket estabelecida');
           this.isConnected = true;
           this.reconnectAttempts = 0;
+          this.lastMessageTime = Date.now();
+          this.lastPongTime = Date.now();
           this.notifyListeners('connection', { connected: true });
+          
+          // Iniciar monitoramento de ping/pong
+          this.startPingPongMonitoring();
           
           // Reativar subscrições
           this.resubscribeAll();
@@ -217,6 +322,16 @@ class IndependentDerivService {
    * Processa as mensagens recebidas do WebSocket
    */
   private handleMessage(data: any): void {
+    // Atualizar timestamp da última mensagem recebida
+    this.lastMessageTime = Date.now();
+    
+    // Verificar se é resposta de ping
+    if (data.ping !== undefined) {
+      console.log(`[INDEPENDENT_DERIV] Resposta de ping recebida: ${data.ping}`);
+      this.lastPongTime = Date.now();
+      return;
+    }
+    
     // Verificar se é uma resposta a uma solicitação específica
     if (data.req_id && this.callbacks.has(data.req_id)) {
       const callback = this.callbacks.get(data.req_id);
