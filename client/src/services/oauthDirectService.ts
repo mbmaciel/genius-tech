@@ -2626,11 +2626,28 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(`[OAUTH_DIRECT] 🚨 FATOR MARTINGALE CONFIGURADO: ${configuracoes.martingale}`);
         
         if (strategyLower.includes("ironunder") || strategyLower.includes("ironover")) {
-          // Para Iron Under/Over, seguir estritamente a lógica do XML
-          // Multiplicar o VALOR INICIAL pelo fator martingale (não o buyPrice)
-          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
+          // 🚨🚨🚨 CORREÇÃO CRÍTICA 24/04/2025: Implementando exatamente como descrito no XML 🚨🚨🚨
+          // No XML, usa math_change que ADICIONA o valor do martingale multiplicado, não substitui
+          // A fórmula no XML é: VALOR_INICIAL += VALOR_INICIAL * MARTINGALE
+          
+          // Aumento incremental (adição) como no XML
+          const incremento = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
+          nextAmount = Math.round((valorEntrada + incremento) * 100) / 100;
+          
           console.log(
-            `[OAUTH_DIRECT] 🔴 Iron Under/Over: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
+            `[OAUTH_DIRECT] 🔴 Iron Under/Over: Aplicando martingale corretamente:`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] 🔴 - Valor atual: ${valorEntrada}`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] 🔴 - Fator martingale: ${configuracoes.martingale}`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] 🔴 - Incremento calculado: ${incremento} (${valorEntrada} × ${configuracoes.martingale})`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] 🔴 - Valor final após incremento: ${nextAmount} (${valorEntrada} + ${incremento})`,
           );
         } else if (strategyLower.includes("advance")) {
           // Para Advance, multiplicar o valor inicial pelo fator martingale
@@ -3966,23 +3983,89 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
 
     try {
-      // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - CORREÇÃO 22/04/2025 🚨🚨🚨
-      // USAR EXCLUSIVAMENTE o valor configurado pelo usuário, sem exceções ou valores padrão
+      // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA - CORREÇÃO 24/04/2025 🚨🚨🚨
+      // CORREÇÃO CRÍTICA DO MARTINGALE - GARANTIR QUE O VALOR SEJA ENVIADO CORRETAMENTE
 
-      // NUNCA USAR VALOR PADRÃO - APENAS o valor do usuário
+      // NUNCA USAR VALOR PADRÃO - APENAS o valor do usuário ou martingale calculado
       let finalAmount: number | undefined = undefined;
+      
+      // PRIORIDADE MÁXIMA: Verificar se existe um valor de martingale recém calculado
+      try {
+        // Verificar estado da estratégia para saber se estamos no ponto exato de aplicar martingale
+        const strategyId = this.strategyConfig.toLowerCase();
+        const strategyState = getStrategyState(strategyId);
+        const consecutiveLosses = strategyState?.consecutiveLosses || 0;
+        
+        // Obter configuração de quando aplicar martingale
+        let martingaleAfterXLosses = 2; // Valor padrão
+        try {
+          const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
+          if (configStr) {
+            const config = JSON.parse(configStr);
+            if (config.usarMartingaleAposXLoss) {
+              martingaleAfterXLosses = parseInt(config.usarMartingaleAposXLoss.toString());
+            }
+          }
+        } catch (e) {
+          console.error(`[OAUTH_DIRECT] Erro ao ler config de martingale:`, e);
+        }
+        
+        // Verificar se estamos exatamente no ponto de aplicar martingale
+        const exactMartingalePoint = consecutiveLosses === martingaleAfterXLosses;
+        
+        console.log(`[OAUTH_DIRECT] 🚨 DIAGNÓSTICO MARTINGALE:`);
+        console.log(`[OAUTH_DIRECT] 🚨 - Perdas consecutivas: ${consecutiveLosses}`);
+        console.log(`[OAUTH_DIRECT] 🚨 - Martingale após X perdas: ${martingaleAfterXLosses}`);
+        console.log(`[OAUTH_DIRECT] 🚨 - Exatamente no ponto de martingale? ${exactMartingalePoint ? 'SIM' : 'NÃO'}`);
+        
+        // Se estamos exatamente no ponto de aplicar martingale, verificar se temos um valor calculado
+        if (exactMartingalePoint) {
+          const martingaleValue = localStorage.getItem('last_martingale_calculated_value');
+          const martingaleTime = localStorage.getItem('last_martingale_calculation_time');
+          
+          if (martingaleValue) {
+            const parsedMartingaleValue = parseFloat(martingaleValue);
+            console.log(`[OAUTH_DIRECT] 🚨 Valor martingale encontrado: ${parsedMartingaleValue}`);
+            
+            // Verificar se o valor do martingale é válido
+            if (!isNaN(parsedMartingaleValue) && parsedMartingaleValue > 0) {
+              finalAmount = parsedMartingaleValue;
+              console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE MÁXIMA: Usando valor martingale ${finalAmount}`);
+              
+              // Verificar timestamp para garantir que o valor é recente
+              if (martingaleTime) {
+                const calculationTime = new Date(martingaleTime);
+                const now = new Date();
+                const diffMs = now.getTime() - calculationTime.getTime();
+                const diffSec = Math.floor(diffMs / 1000);
+                
+                console.log(`[OAUTH_DIRECT] 🚨 Valor martingale calculado há ${diffSec} segundos`);
+                
+                // Se o valor foi calculado há mais de 60 segundos, avisar mas ainda usar
+                if (diffSec > 60) {
+                  console.log(`[OAUTH_DIRECT] ⚠️ Valor martingale tem mais de 60 segundos, mas ainda será usado`);
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[OAUTH_DIRECT] Erro ao verificar valor martingale:`, e);
+      }
 
-      // PRIORIDADE 1: Buscar diretamente do input do usuário na interface (máxima prioridade)
-      const inputElement = document.getElementById(
-        "iron-bot-entry-value",
-      ) as HTMLInputElement;
-      if (inputElement && inputElement.value) {
-        const valueFromInput = parseFloat(inputElement.value);
-        if (!isNaN(valueFromInput) && valueFromInput > 0) {
-          finalAmount = valueFromInput;
-          console.log(
-            `[OAUTH_DIRECT] ✅ CORREÇÃO FINAL: Usando valor ${finalAmount} DIRETAMENTE do input do usuário`,
-          );
+      // PRIORIDADE 2: Se não encontramos valor martingale, buscar do input do usuário
+      if (!finalAmount || finalAmount <= 0) {
+        const inputElement = document.getElementById(
+          "iron-bot-entry-value",
+        ) as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseFloat(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            finalAmount = valueFromInput;
+            console.log(
+              `[OAUTH_DIRECT] ✅ Usando valor ${finalAmount} do input do usuário`,
+            );
+          }
         }
       }
 
@@ -4847,13 +4930,85 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               `[OAUTH_DIRECT] 🔍 - barrier: ${data.proposal.barrier}`,
             );
 
+            // 🚨🚨🚨 CORREÇÃO CRÍTICA 24/04/2025: Logs adicionais para diagnóstico do martingale 🚨🚨🚨
             console.log(`[OAUTH_DIRECT] 🛒 ENVIANDO COMPRA:`, buyRequest);
+            
+            // TESTE FORÇADO: Verificar e GARANTIR que o valor do martingale seja enviado corretamente
+            try {
+              const strategyId = this.strategyConfig.toLowerCase();
+              const strategyState = getStrategyState(strategyId);
+              const consecutiveLosses = strategyState?.consecutiveLosses || 0;
+              
+              // Verificar se existe um valor de martingale armazenado
+              const storedMartingaleValue = localStorage.getItem('last_martingale_calculated_value');
+              
+              // Obter configuração de quando aplicar martingale
+              let martingaleAfterXLosses = 2; // Valor padrão
+              try {
+                const configStr = localStorage.getItem(`strategy_config_${strategyId}`);
+                if (configStr) {
+                  const config = JSON.parse(configStr);
+                  if (config.usarMartingaleAposXLoss) {
+                    martingaleAfterXLosses = parseInt(config.usarMartingaleAposXLoss.toString());
+                  }
+                }
+              } catch (e) {
+                console.error(`[OAUTH_DIRECT] Erro ao ler config de martingale:`, e);
+              }
+              
+              // Verificar se estamos exatamente no ponto de aplicar martingale
+              const exactMartingalePoint = consecutiveLosses === martingaleAfterXLosses;
+              
+              console.log(`[OAUTH_DIRECT] 🚨🚨🚨 TESTE CRÍTICO DE VALIDAÇÃO MARTINGALE 🚨🚨🚨`);
+              console.log(`[OAUTH_DIRECT] 🚨 ESTRATÉGIA: ${strategyId}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Perdas consecutivas: ${consecutiveLosses}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Martingale após X perdas: ${martingaleAfterXLosses}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Exatamente no ponto de martingale? ${exactMartingalePoint ? 'SIM' : 'NÃO'}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Valor martingale armazenado: ${storedMartingaleValue || 'Não encontrado'}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Valor sendo enviado originalmente: ${buyRequest.buy}`);
+              
+              // INTERVENÇÃO CRÍTICA: Se estamos no ponto exato de martingale e temos um valor armazenado,
+              // mas o valor não está sendo enviado corretamente, FORÇAR o valor correto
+              if (exactMartingalePoint && storedMartingaleValue) {
+                const parsedMartingaleValue = parseFloat(storedMartingaleValue);
+                if (!isNaN(parsedMartingaleValue) && parsedMartingaleValue > 0) {
+                  if (parseFloat(buyRequest.buy) === parsedMartingaleValue) {
+                    console.log(`[OAUTH_DIRECT] ✅✅✅ SUCESSO! Valor martingale ${parsedMartingaleValue} está sendo usado corretamente!`);
+                  } else {
+                    console.log(`[OAUTH_DIRECT] ❌❌❌ ERRO GRAVE! Valor martingale ${parsedMartingaleValue} NÃO está sendo usado! Enviando ${buyRequest.buy} em vez disso.`);
+                    console.log(`[OAUTH_DIRECT] 🚨🚨🚨 INTERVENÇÃO FORÇADA: SUBSTITUINDO VALOR DE ENVIO PARA API`);
+                    
+                    // CORREÇÃO FORÇADA: Alterar o valor diretamente no objeto da requisição
+                    buyRequest.buy = parsedMartingaleValue.toString(); 
+                    buyRequest.price = parsedMartingaleValue.toString();
+                    
+                    // Log após a substituição
+                    console.log(`[OAUTH_DIRECT] ✅✅✅ VALOR CORRIGIDO! Novo valor a enviar: ${buyRequest.buy}`);
+                    console.log(`[OAUTH_DIRECT] 🚨 REQUISIÇÃO APÓS CORREÇÃO:`, JSON.stringify(buyRequest, null, 2));
+                  }
+                }
+              }
+              
+              // Para fins de debug, registrar o valor final que será enviado independentemente
+              console.log(`[OAUTH_DIRECT] 🚨 VALOR FINAL DO CAMPO BUY: ${buyRequest.buy}`);
+              console.log(`[OAUTH_DIRECT] 🚨 VALOR FINAL DO CAMPO PRICE: ${buyRequest.price}`);
+              
+            } catch (validationError) {
+              console.error(`[OAUTH_DIRECT] Erro ao validar martingale durante envio:`, validationError);
+            }
 
             // Enviar a solicitação de compra
             try {
               // Registrar o ID do contrato para inscrição de updates futuros
               this.webSocket.send(JSON.stringify(buyRequest));
               console.log(`[OAUTH_DIRECT] ✅ Compra enviada com sucesso!`);
+              
+              // Limpar o valor do martingale para evitar uso acidental em operações subsequentes
+              if (localStorage.getItem('last_martingale_calculated_value')) {
+                console.log(`[OAUTH_DIRECT] 🧹 Limpando valor martingale do localStorage após uso bem-sucedido`);
+                localStorage.removeItem('last_martingale_calculated_value');
+                localStorage.removeItem('last_martingale_calculation_time');
+              }
             } catch (buyError) {
               console.error(
                 `[OAUTH_DIRECT] ❌ ERRO AO ENVIAR COMPRA:`,
