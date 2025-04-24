@@ -1308,16 +1308,26 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       switch (strategyId) {
         case 'advance':
-          // Obter a porcentagem de entrada configurada pelo usuário (padrão 10%)
+          // Obter a porcentagem de entrada configurada pelo usuário (padrão 8% conforme BotBuilder)
           let userPercentage = this.advancePercentage;
           
-          // Verificar se há uma configuração específica
+          // CORREÇÃO CRÍTICA: Verificar se há configuração específica
           if (strategy.config && typeof strategy.config.entryPercentage === 'number') {
             userPercentage = strategy.config.entryPercentage;
+            console.log(`[OAUTH_DIRECT] ✅ USANDO PORCENTAGEM CONFIGURADA: ${userPercentage}% passada por props/configuração`);
+          } else {
+            console.log(`[OAUTH_DIRECT] ⚠️ Usando valor padrão de porcentagem: ${userPercentage}%`);
           }
           
-          console.log(`[OAUTH_DIRECT] Avaliando estratégia ADVANCE com porcentagem ${userPercentage}%`);
+          // Verificação adicional para garantir valor válido
+          if (userPercentage <= 0 || userPercentage > 100) {
+            console.log(`[OAUTH_DIRECT] ⚠️ PORCENTAGEM INVÁLIDA ${userPercentage}%! Usando valor seguro de 8%`);
+            userPercentage = 8; // Valor seguro conforme interface padrão
+          }
           
+          console.log(`[OAUTH_DIRECT] 🔍 Avaliando ADVANCE com porcentagem ${userPercentage}% - AMBOS os dígitos 0 e 1 devem estar <= ${userPercentage}%`);
+          
+          // GARANTIR que estamos passando o percentageToUse corretamente
           const advanceResult = evaluateAdvanceStrategy(digitStats, userPercentage);
           result = {
             shouldEnter: advanceResult.shouldEnter,

@@ -117,16 +117,29 @@ export function evaluateAdvanceStrategy(
   // CRÍTICO: Adicionar log específico para debugar os valores usados na comparação
   console.log(`[STRATEGY_RULES] ADVANCE DEBUG: Comparando digit0=${digit0Percentage}% e digit1=${digit1Percentage}% com limite=${percentageToUse}%`);
   
-  // Verificar se AMBOS os dígitos 0 E 1 estão com percentual MENOR OU IGUAL ao definido pelo usuário
-  // IMPORTANTE: Esta é a condição principal que determina a entrada na operação
-  const shouldEnter = digit0Percentage <= percentageToUse && digit1Percentage <= percentageToUse;
+  // CORREÇÃO CRÍTICA: Verificar explicitamente cada condição separadamente para facilitar debugging
+  const digit0Ok = digit0Percentage <= percentageToUse;
+  const digit1Ok = digit1Percentage <= percentageToUse;
   
-  console.log(`[STRATEGY_RULES] ADVANCE RESULTADO: shouldEnter=${shouldEnter}`);
-  console.log(`[STRATEGY_RULES] 🔍 Verificando ambos os dígitos: 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+  // IMPORTANTE: A condição só é satisfeita quando AMBOS os dígitos estão com percentual MENOR OU IGUAL ao definido
+  const shouldEnter = digit0Ok && digit1Ok;
   
-  // Notificar usuário no console para diagnóstico
+  console.log(`[STRATEGY_RULES] 🔎 VERIFICAÇÃO DETALHADA ADVANCE:`);
+  console.log(`[STRATEGY_RULES] 🔎 Dígito 0 (${digit0Percentage}%) <= ${percentageToUse}%? ${digit0Ok ? 'SIM ✅' : 'NÃO ❌'}`);
+  console.log(`[STRATEGY_RULES] 🔎 Dígito 1 (${digit1Percentage}%) <= ${percentageToUse}%? ${digit1Ok ? 'SIM ✅' : 'NÃO ❌'}`);
+  console.log(`[STRATEGY_RULES] 🔎 AMBOS os dígitos estão abaixo do limite? ${shouldEnter ? 'SIM ✅' : 'NÃO ❌'}`);
+  
+  // Notificar usuário no console para diagnóstico com mais detalhes
   if (shouldEnter) {
-    console.log(`[STRATEGY_RULES] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! Dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+    console.log(`[STRATEGY_RULES] 🚀🚀🚀 ATENÇÃO: CONDIÇÃO DE ENTRADA IDENTIFICADA! AMBOS os dígitos 0 (${digit0Percentage}%) e 1 (${digit1Percentage}%) <= ${percentageToUse}%`);
+  } else {
+    console.log(`[STRATEGY_RULES] ❌ CONDIÇÃO NÃO ATENDIDA! Um ou ambos os dígitos estão acima do limite de ${percentageToUse}%`);
+    if (!digit0Ok) {
+      console.log(`[STRATEGY_RULES] ❌ Dígito 0 (${digit0Percentage}%) > ${percentageToUse}%`);
+    }
+    if (!digit1Ok) {
+      console.log(`[STRATEGY_RULES] ❌ Dígito 1 (${digit1Percentage}%) > ${percentageToUse}%`);
+    }
   }
   
   // Determinar mensagem de feedback explícita incluindo o valor definido pelo usuário
