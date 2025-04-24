@@ -69,18 +69,26 @@ export function correctBarrierText(
       .replace(/maior que \d+/gi, "maior que 1")
       .replace(/maior do que \d+/gi, "maior do que 1")
       .replace(/superior a \d+/gi, "superior a 1")
+      
+      // CORREÇÃO CRÍTICA: O formato que aparece na captura de tela
+      .replace(/superior a \d+ ticks/gi, "superior a 1 ticks")
+      .replace(/estritamente superior a \d+/gi, "estritamente superior a 1")
+      
       // Português - Formato alternativo com "é"
       .replace(/é acima de \d+/gi, "é acima de 1")
       .replace(/é maior que \d+/gi, "é maior que 1")
+      
       // Inglês
       .replace(/above \d+/gi, "above 1")
       .replace(/higher than \d+/gi, "higher than 1")
       .replace(/greater than \d+/gi, "greater than 1")
       .replace(/over \d+/gi, "over 1")
+      
       // Formatos específicos da API Deriv (tanto DigitOver quanto DIGITOVER)
       .replace(/DigitOver \d+/g, "DigitOver 1")
       .replace(/DIGITOVER \d+/g, "DIGITOVER 1")
       .replace(/digit over \d+/gi, "digit over 1")
+      
       // Formatos com números e sem espaço
       .replace(/>\s*\d+/g, ">1")
       .replace(/DigitOver\d+/g, "DigitOver1")
