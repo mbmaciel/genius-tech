@@ -2690,6 +2690,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(
           `[OAUTH_DIRECT] 🔴 Valor anterior: ${buyPrice}, Novo valor: ${nextAmount}`,
         );
+        
+        // 🚨🚨🚨 CORREÇÃO CRÍTICA 24/04/2025: Persistir o valor do martingale no localStorage 🚨🚨🚨
+        // Este valor terá PRIORIDADE MÁXIMA no executeContractBuy
+        try {
+          localStorage.setItem('last_martingale_calculated_value', nextAmount.toString());
+          localStorage.setItem('last_martingale_calculation_time', new Date().toISOString());
+          console.log(`[OAUTH_DIRECT] 🚨 VALOR MARTINGALE SALVO NO LOCALSTORAGE: ${nextAmount}`);
+        } catch (e) {
+          console.error(`[OAUTH_DIRECT] Erro ao salvar valor martingale no localStorage:`, e);
+        }
 
         return nextAmount;
       } else {
