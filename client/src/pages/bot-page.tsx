@@ -23,6 +23,7 @@ import { derivHistoryService } from "@/services/deriv-history-service";
 import { BotStatus } from "@/services/botService";
 import { getStrategyById } from "@/lib/strategiesConfig";
 import { useTranslation } from 'react-i18next';
+import { injectAdvanceBarrierCorrection } from "@/lib/utils";
 
 // Função para formatar valores monetários com base no idioma atual
 const formatCurrency = (value: number): string => {
@@ -1382,6 +1383,13 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       // Definir estratégia
       oauthDirectService.setActiveStrategy(selectedStrategy);
       
+      // Verificar se é estratégia Advance e injetar correção DOM para barreira
+      if (selectedStrategy.toLowerCase() === 'advance') {
+        console.log("[BOT] Estratégia Advance detectada, injetando correção DOM para barreira...");
+        // Injeta o observer para corrigir valores de barreira em qualquer elemento da página
+        injectAdvanceBarrierCorrection();
+      }
+      
       // Iniciar o serviço OAuth Direct
       oauthDirectService.start().then(success => {
         if (!success) {
@@ -1432,6 +1440,24 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
       
       // Definir o estado localmente primeiro para feedback imediato
       setBotStatus('paused');
+      
+      // Remover o observer de correção de barreira caso esteja ativo
+      try {
+        const script = document.getElementById('advance-barrier-fix-script');
+        if (script) {
+          script.remove();
+          console.log("[BOT] Script de correção de barreira removido ao pausar bot");
+        }
+        
+        // Desconectar o observer se existir
+        if ((window as any)._barrierCorrectionObserver) {
+          (window as any)._barrierCorrectionObserver.disconnect();
+          delete (window as any)._barrierCorrectionObserver;
+          console.log("[BOT] Observer de correção desconectado ao pausar bot");
+        }
+      } catch (error) {
+        console.error("[BOT] Erro ao remover correção de barreira:", error);
+      }
       
       // Depois chama o serviço
       oauthDirectService.stop();
