@@ -22,6 +22,13 @@ export interface StrategyVariables {
   usarMartingaleAposXLoss?: number;
   parcelasMartingale?: number;
   contadorDeLoss?: number;
+  martingaleAtivo?: boolean; // Se martingale está ativo
+  resetOnWin?: boolean; // Resetar para valor inicial após vitória
+
+  // Configurações de duração e barreiras
+  duration?: number; // Duração em ticks
+  durationUnit?: string; // Unidade de duração (normalmente 't' para ticks)
+  barrier?: string; // Barreira para contratos
 
   // Lista de dígitos (para estratégias que usam histórico)
   listaDeDigitos?: number[];
@@ -37,6 +44,186 @@ export interface StrategyAnalysisResult {
   duration?: number; // Duração do contrato em ticks (normalmente 1 para 1 tick)
   message: string;
   rawCommands?: any;
+}
+
+// Interface para configuração completa da estratégia
+export interface StrategyConfiguration {
+  // Informações básicas
+  name: string; // Nome da estratégia (ex: Advance, IRON UNDER)
+  description?: string; // Descrição opcional
+  
+  // Configurações de operação
+  contractType: string; // Tipo de contrato (DIGITOVER, DIGITUNDER, etc)
+  symbol: string; // Símbolo a ser operado (R_100)
+  
+  // Valores de entrada e gerenciamento de risco
+  entryValue: number; // Valor inicial
+  martingaleFactor: number; // Fator de martingale
+  profitTarget?: number; // Meta de lucro
+  lossLimit?: number; // Limite de perda
+  
+  // Configurações técnicas
+  prediction?: number; // Previsão (para contratos de dígito)
+  barrier?: string; // Barreira (para contratos de dígito)
+  duration?: number; // Duração em ticks/segundos
+  durationUnit?: string; // Unidade de duração (t=ticks, s=segundos)
+  
+  // Configurações de regras 
+  lossVirtualEnabled?: boolean; // Habilitar lossVirtual (martingale)
+  resetOnWin?: boolean; // Resetar para valor inicial após vitória
+  martingaleAfterConsecutiveLosses?: number; // Aplicar martingale após X perdas
+  martingaleInstallments?: number; // Parcelas de martingale
+}
+
+/**
+ * Extrai todas as configurações relevantes de um arquivo XML de estratégia
+ * para garantir que a implementação siga fielmente o XML
+ * 
+ * @param xmlContent Conteúdo do arquivo XML como string
+ * @param strategyName Nome da estratégia para identificação
+ */
+export function extractStrategyConfig(xmlContent: string, strategyName: string): StrategyConfiguration {
+  // Criar parser XML
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+  
+  // Configuração padrão
+  const config: StrategyConfiguration = {
+    name: strategyName,
+    contractType: "DIGITOVER", // Valor padrão
+    symbol: "R_100", // Símbolo padrão
+    entryValue: 1, // Valor inicial padrão
+    martingaleFactor: 1.5, // Fator de martingale padrão
+    lossVirtualEnabled: true, // Ativar martingale por padrão
+    resetOnWin: true, // Resetar após vitória por padrão
+  };
+  
+  try {
+    // Tentar extrair informações do XML
+    
+    // 1. Buscar tipo de contrato
+    const tradeBlock = xmlDoc.getElementsByTagName("field");
+    for (let i = 0; i < tradeBlock.length; i++) {
+      const field = tradeBlock[i];
+      if (field.getAttribute("name") === "TRADETYPE_LIST") {
+        const tradeType = field.textContent?.trim().toLowerCase();
+        if (tradeType === "overunder") {
+          config.contractType = "DIGITOVER"; // Padrão para overunder quando não especificado
+        } else if (tradeType === "matches") {
+          config.contractType = "DIGITMATCHES";
+        } else if (tradeType === "differs") {
+          config.contractType = "DIGITDIFF";
+        } else if (tradeType === "even") {
+          config.contractType = "DIGITEVEN";
+        } else if (tradeType === "odd") {
+          config.contractType = "DIGITODD";
+        }
+      }
+      
+      // Buscar símbolo
+      if (field.getAttribute("name") === "SYMBOL_LIST") {
+        config.symbol = field.textContent?.trim() || "R_100";
+      }
+    }
+    
+    // 2. Extrair variáveis definidas no bloco de variáveis
+    const variableBlocks = xmlDoc.getElementsByTagName("variables_set");
+    for (let i = 0; i < variableBlocks.length; i++) {
+      const varBlock = variableBlocks[i];
+      const varField = varBlock.getElementsByTagName("field")[0];
+      
+      if (!varField) continue;
+      
+      const varName = varField.textContent?.trim().toUpperCase();
+      
+      // Obter o valor da variável (normalmente em um bloco math_number)
+      const valueBlock = varBlock.getElementsByTagName("value")[0];
+      if (!valueBlock) continue;
+      
+      const mathBlock = valueBlock.getElementsByTagName("block")[0];
+      if (!mathBlock) continue;
+      
+      const numField = mathBlock.getElementsByTagName("field")[0];
+      if (!numField || numField.getAttribute("name") !== "NUM") continue;
+      
+      const value = parseFloat(numField.textContent || "0");
+      
+      // Mapear variáveis para a configuração
+      if (varName?.includes("VALOR INICIAL")) {
+        config.entryValue = value;
+      } else if (varName?.includes("MARTINGALE")) {
+        config.martingaleFactor = value;
+      } else if (varName?.includes("META")) {
+        config.profitTarget = value;
+      } else if (varName?.includes("LIMITE DE PERDA")) {
+        config.lossLimit = value;
+      } else if (varName?.includes("PREVISÃO") || varName?.includes("PREDICTION")) {
+        config.prediction = value;
+      } else if (varName?.includes("PORCENTAGEM")) {
+        // Variável específica do Advance
+        if (strategyName.toLowerCase().includes("advance")) {
+          config.description = `Entra quando frequência <= ${value}%`;
+        }
+      } else if (varName?.includes("PARCELAS")) {
+        config.martingaleInstallments = value;
+      } else if (varName?.includes("DURATION") || varName?.includes("DURAÇÃO")) {
+        config.duration = value;
+      }
+    }
+    
+    // 3. Verificar se há lossVirtual (aumento após perda) implementado
+    // Vamos verificar se existe algum controle de loop ou martingale no XML
+    if (xmlContent.toLowerCase().includes("martingale") || 
+        xmlContent.toLowerCase().includes("loss") ||
+        xmlContent.toLowerCase().includes("perda")) {
+      config.lossVirtualEnabled = true;
+    }
+    
+    // 4. Verificar se resetOnWin é mencionado (reset após vitória)
+    if (xmlContent.toLowerCase().includes("valor") && 
+        xmlContent.toLowerCase().includes("vencer")) {
+      config.resetOnWin = true;
+    }
+    
+    // 5. Ajustes específicos baseados no nome da estratégia
+    const strategyLower = strategyName.toLowerCase();
+    
+    if (strategyLower.includes("advance")) {
+      // Advance é sempre DIGITOVER com barreira 1
+      config.contractType = "DIGITOVER";
+      config.barrier = "1";
+      config.prediction = 1;
+      config.duration = 1;
+      config.durationUnit = "t";
+    } else if (strategyLower.includes("ironunder")) {
+      config.contractType = "DIGITUNDER";
+      // Para IRON UNDER, martingale é um percentual (ex: 0.5 = 50%)
+      if (config.martingaleFactor < 1) {
+        config.martingaleFactor = 1 + config.martingaleFactor;
+      }
+    } else if (strategyLower.includes("ironover")) {
+      config.contractType = "DIGITOVER";
+      // Para IRON OVER, martingale é um percentual (ex: 0.5 = 50%)
+      if (config.martingaleFactor < 1) {
+        config.martingaleFactor = 1 + config.martingaleFactor;
+      }
+    } else if (strategyLower.includes("botlow")) {
+      // BOT LOW é tipicamente DIGITUNDER
+      config.contractType = "DIGITUNDER";
+    } else if (strategyLower.includes("manual")) {
+      // Manual pode ser OVER ou UNDER dependendo do nome
+      if (strategyLower.includes("under")) {
+        config.contractType = "DIGITUNDER";
+      } else {
+        config.contractType = "DIGITOVER";
+      }
+    }
+    
+  } catch (error) {
+    console.error(`[XML_PARSER] Erro ao analisar XML para ${strategyName}:`, error);
+  }
+  
+  return config;
 }
 
 // Classe para interpretar e executar estratégias XML

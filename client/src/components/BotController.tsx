@@ -21,6 +21,8 @@ import {
 import { useTranslation } from "react-i18next";
 // Importação do módulo completo para evitar problemas
 import * as strategyRules from "@/services/strategyRules";
+// Novo importador de XML para estratégias
+import { extractStrategyConfig } from "@/services/xmlStrategyParser";
 
 interface BotControllerProps {
   entryValue: number;
