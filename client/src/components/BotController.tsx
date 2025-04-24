@@ -2336,96 +2336,96 @@ export function BotController({
                     if (strategyName.includes("advance")) {
                       // Estratégia Advance - DIGITOVER com previsão 1
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITOVER",
                         prediction: 1,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia ADVANCE: DIGITOVER com previsão 1`);
                     } 
                     else if (strategyName.includes("iron") && strategyName.includes("under")) {
                       // Estratégia IRON UNDER - DIGITUNDER com previsão 7
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITUNDER",
                         prediction: 7,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia IRON UNDER: DIGITUNDER com previsão 7`);
                     } 
                     else if (strategyName.includes("iron") && strategyName.includes("over")) {
                       // Estratégia IRON OVER - DIGITOVER com previsão 7
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITOVER",
                         prediction: 7,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia IRON OVER: DIGITOVER com previsão 7`);
                     }
                     else if (strategyName.includes("maxpro")) {
                       // Estratégia MAXPRO - DIGITOVER com previsão específica
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITOVER",
                         prediction: 5,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia MAXPRO: DIGITOVER com previsão 5`);
                     }
                     else if (strategyName.includes("wise")) {
                       // Estratégia WISE PRO - configurações específicas
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITOVER",
                         prediction: 2,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia WISE PRO: DIGITOVER com previsão 2`);
                     }
                     else if (strategyName.includes("green")) {
                       // Estratégia GREEN - DIGITUNDER com previsão específica
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITUNDER",
                         prediction: 2,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia GREEN: DIGITUNDER com previsão 2`);
                     }
                     else if (strategyName.includes("profitpro")) {
                       // Estratégia PROFITPRO - DIGITOVER com configurações específicas
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITOVER",
                         prediction: 9,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia PROFITPRO: DIGITOVER com previsão 9`);
                     }
                     else if (strategyName.includes("botlow")) {
                       // Estratégia BOT LOW - DIGITUNDER com previsão específica
                       forceSettings = {
-                        ...forceSettings,
+                        profitTarget: forceSettings.profitTarget,
+                        lossLimit: forceSettings.lossLimit,
+                        martingaleFactor: forceSettings.martingaleFactor,
                         contractType: "DIGITUNDER",
                         prediction: 5,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                        lossVirtualEnabled: true,
-                        resetOnWin: true
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia BOT LOW: DIGITUNDER com previsão 5`);
                     }
@@ -2444,12 +2444,12 @@ export function BotController({
                     
                     // Fallback para configurações padrão em caso de erro
                     forceSettings = {
-                      ...forceSettings,
+                      profitTarget: forceSettings.profitTarget,
+                      lossLimit: forceSettings.lossLimit,
+                      martingaleFactor: forceSettings.martingaleFactor,
                       contractType: "DIGITOVER", 
                       prediction: 1,
-                      entryValue: userEntryValue !== null ? userEntryValue : entryValue,
-                      lossVirtualEnabled: true,
-                      resetOnWin: true
+                      entryValue: userEntryValue !== null ? userEntryValue : entryValue
                     };
                   }
 
