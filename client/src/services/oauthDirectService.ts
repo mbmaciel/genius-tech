@@ -122,7 +122,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     lossLimit: 20,
     martingaleFactor: 1.5,
     contractType: 'DIGITOVER',
-    prediction: 5
+    // CORREÇÃO URGENTE: A estratégia Advance deve usar prediction: 1, não 5
+    // Conforme definido no XML original da estratégia
+    prediction: 1 // Valor corrigido de 5 para 1
   };
   
   // Estatísticas de performance
