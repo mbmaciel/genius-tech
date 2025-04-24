@@ -2621,62 +2621,66 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         const strategyLower = this.strategyConfig.toLowerCase();
         let nextAmount;
         
+        const valorEntrada = configuracoes.valorInicial;
+        console.log(`[OAUTH_DIRECT] 🚨 VALOR DE ENTRADA ORIGINAL: ${valorEntrada}`);
+        console.log(`[OAUTH_DIRECT] 🚨 FATOR MARTINGALE CONFIGURADO: ${configuracoes.martingale}`);
+        
         if (strategyLower.includes("ironunder") || strategyLower.includes("ironover")) {
           // Para Iron Under/Over, seguir estritamente a lógica do XML
-          // No XML de Iron Under/Over, o martingale é um valor absoluto (0.5 para aumentar 50%)
-          nextAmount = Math.round(buyPrice * (1 + configuracoes.martingale) * 100) / 100;
+          // Multiplicar o VALOR INICIAL pelo fator martingale (não o buyPrice)
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Iron Under/Over: Aplicando martingale de ${configuracoes.martingale} (aumento de ${configuracoes.martingale * 100}%)`,
+            `[OAUTH_DIRECT] 🔴 Iron Under/Over: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("advance")) {
-          // Para Advance, seguir a lógica específica conforme XML (linhas 72-97)
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para Advance, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Advance: Aplicando martingale após ${consecutiveLosses} perdas (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 Advance: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("maxpro")) {
-          // Para MAXPRO, seguir a lógica de martingale específica
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para MAXPRO, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 MAXPRO: Aplicando martingale específico após ${consecutiveLosses} perdas (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 MAXPRO: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("botlow")) {
-          // Para BOT LOW, usar o fator específico
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para BOT LOW, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 BOT LOW: Aplicando martingale específico após perda (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 BOT LOW: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("profitpro")) {
           // Para Profitpro, usar martingale com múltiplas parcelas
           // As parcelas são definidas como configuracoes.parcelasMartingale (padrão 1)
           const parcelas = configuracoes.parcelasMartingale || 1;
-          nextAmount = Math.round(buyPrice * (configuracoes.martingale / parcelas) * 100) / 100;
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Profitpro: Aplicando parcela ${parcelas} de martingale (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 Profitpro: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("wisepro") || strategyLower.includes("tendencia")) {
-          // Para WISE PRO TENDENCIA, usar configuração específica
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para WISE PRO TENDENCIA, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 WISE PRO: Aplicando martingale específico (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 WISE PRO: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("green")) {
-          // Para GREEN, configuração específica
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para GREEN, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Green: Aplicando martingale específico (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 Green: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else if (strategyLower.includes("manual")) {
-          // Para Manual Under/Over, usar configuração default
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para Manual Under/Over, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Manual: Aplicando martingale padrão (fator: ${configuracoes.martingale}x)`,
+            `[OAUTH_DIRECT] 🔴 Manual: Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         } else {
-          // Para outras estratégias, usar o fator de multiplicação conforme configurado
-          nextAmount = Math.round(buyPrice * configuracoes.martingale * 100) / 100;
+          // Para outras estratégias, multiplicar o valor inicial pelo fator martingale
+          nextAmount = Math.round(valorEntrada * configuracoes.martingale * 100) / 100;
           console.log(
-            `[OAUTH_DIRECT] 🔴 Estratégia não identificada (${strategyLower}): Aplicando fator martingale padrão de ${configuracoes.martingale}x`,
+            `[OAUTH_DIRECT] 🔴 Estratégia não identificada (${strategyLower}): Aplicando martingale: ${valorEntrada} x ${configuracoes.martingale} = ${nextAmount}`,
           );
         }
 
