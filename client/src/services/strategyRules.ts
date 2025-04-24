@@ -148,8 +148,8 @@ export function evaluateAdvanceStrategy(
     : `ADVANCE XML: ❌ Condição não atendida. Dígito 0 (${digit0Percentage}%) ou 1 (${digit1Percentage}%) > ${percentageToUse}%`;
     
   // CORREÇÃO CRÍTICA: Forçar valores para a estratégia Advance
-  // Especialmente a barreira = 1 para DIGITOVER
-  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA ADVANCE: Forçando DIGITOVER com barreira 1!`);
+  // Especialmente a barreira = 1 para DIGITOVER e duração = 1 tick, conforme imagem do contrato
+  console.log(`[STRATEGY_RULES] 🚨 CORREÇÃO CRÍTICA ADVANCE: Forçando DIGITOVER com barreira 1 e duration 1 tick!`);
   
   // Atualizar para mostrar a barreira correta
   message = message.replace('DIGITOVER', 'DIGITOVER 1');
@@ -157,6 +157,8 @@ export function evaluateAdvanceStrategy(
   // SALVAR NO LOCALSTORAGE para rastreabilidade e diagnóstico
   try {
     localStorage.setItem('ADVANCE_BARRIER_FORCED', '1');
+    localStorage.setItem('ADVANCE_DURATION_FORCED', '1');
+    localStorage.setItem('ADVANCE_PREDICTION_FORCED', '1');
     localStorage.setItem('ADVANCE_EXECUTION_TIME', new Date().toISOString());
   } catch (e) {}
   

@@ -3193,15 +3193,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       const reqId = Date.now(); // ID único para essa solicitação
       
       // Montar objeto de proposta conforme documentação da API
-      // CORREÇÃO CRÍTICA: Usar duração conforme especificado na estratégia
-      // Esta correção específica para a estratégia Advance que deve usar exatamente 1 tick
-      // Verificar se estamos trabalhando com a estratégia Advance
-      let duration = 5; // valor padrão
+      // CORREÇÃO CRÍTICA: SEMPRE usar duração de 1 tick para a estratégia Advance
+      // Conforme imagem do contrato fornecida pelo usuário, duração DEVE ser 1 tick
       
-      // Verificar se estamos com a estratégia Advance para usar duração exata de 1 tick
+      // Valor padrão para outras estratégias
+      let duration = 5; 
+      
+      // Para a estratégia Advance, forçar SEMPRE 1 tick
       if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
-        duration = 1; // CORREÇÃO CRÍTICA: Advance usa exatamente 1 tick de duração
-        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Estratégia Advance detectada! Usando duração de 1 tick conforme requisito.`);
+        duration = 1; // CRÍTICO: Advance SEMPRE usa exatamente 1 tick de duração
+        console.log(`[OAUTH_DIRECT] 🚨 CORREÇÃO CRÍTICA: Estratégia Advance detectada! Forçando duração de 1 tick conforme contrato real.`);
       } else {
         console.log(`[OAUTH_DIRECT] Usando duração padrão de ${duration} ticks para estratégia ${this.activeStrategy || 'desconhecida'}`);
       }
@@ -3215,20 +3216,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       
       // IMPLEMENTAÇÃO CRÍTICA - CORREÇÃO ESPECÍFICA PARA ADVANCE
       // Para a estratégia Advance, SEMPRE usar 1 tick e previsão 1, independente do que esteja configurado
+      // Conforme a imagem do contrato real fornecida pelo usuário, esses valores são obrigatórios
       if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
         // FORÇAR duração de 1 tick para Advance
-        duration = 1;
+        duration = 1; // OBRIGATÓRIO: Duração 1 tick conforme a imagem do contrato
         
         // FORÇAR previsão de 1 para Advance (valor acima de 1)
-        prediction = 1;
+        prediction = 1; // OBRIGATÓRIO: Previsão 1 conforme a imagem do contrato
         
         // Garantir que o contractType seja DIGITOVER
-        contractType = 'DIGITOVER';
+        contractType = 'DIGITOVER'; // OBRIGATÓRIO: DIGITOVER conforme a imagem do contrato
         
-        console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO EMERGENCIAL: FORÇANDO valores para Advance:`);
-        console.log(`[OAUTH_DIRECT] 🔴 - Duration: ${duration} tick (FORÇADO)`);
-        console.log(`[OAUTH_DIRECT] 🔴 - Prediction: ${prediction} (FORÇADO)`);
-        console.log(`[OAUTH_DIRECT] 🔴 - Contract Type: ${contractType} (FORÇADO)`);
+        console.log(`[OAUTH_DIRECT] 🔴 CORREÇÃO EMERGENCIAL: FORÇANDO valores EXATAMENTE como na imagem do contrato:`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Duration: ${duration} tick (OBRIGATÓRIO conforme imagem)`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Prediction: ${prediction} (OBRIGATÓRIO conforme imagem)`);
+        console.log(`[OAUTH_DIRECT] 🔴 - Contract Type: ${contractType} (OBRIGATÓRIO conforme imagem)`);
       } 
       // Para outras estratégias, usar duration do XML se disponível
       else if (this.settings.duration !== undefined) {
