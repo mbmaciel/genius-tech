@@ -2333,11 +2333,14 @@ export function BotController({
 
                     // VALORES CORRETOS conforme XML e interface da Deriv
                     contractType: "DIGITOVER", // Contrato é DIGITOVER conforme confirmado pelo usuário
-                    prediction: 1,
-                    barrier: "1",
+                    prediction: 1, // PREVISÃO é sempre 1 para DIGITOVER conforme XML linhas 227, 273, 297
+                    barrier: "1", // O valor "1" significa acima de 1 para o DIGITOVER
                     duration: 1, // CRÍTICO: FORÇAR duração de 1 tick conforme a imagem do contrato
                     duration_unit: "t", // CRÍTICO: Forçar unidade de duração como ticks
                     entryPercentage: userEntryPercentage, // CRÍTICO: Usar porcentagem configurada pelo usuário
+                    // CONFIGURAÇÕES ESPECÍFICAS DE MARTINGALE E LOSSVIRTUAL CONFORME XML
+                    lossVirtualEnabled: true, // Habilitar mecânica de lossVirtual (aumento após perda)
+                    resetOnWin: true, // Resetar valor para inicial após vitória conforme XML (linha 885-920)
                   };
 
                   console.log(
