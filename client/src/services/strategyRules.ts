@@ -52,6 +52,8 @@ export function evaluateAdvanceStrategy(
       shouldEnter: false, 
       contractType: 'CALL', // A estratégia Advance usa CALL para melhor compatibilidade
       message: `Configuração de porcentagem inválida: ${percentageToUse}. Usando valor padrão 10%.`,
+      barrier: "1", // FORÇAR aqui também
+      prediction: 1, // FORÇAR aqui também
       analysis: { digit0: 0, digit1: 0, threshold: 10 },
       shouldLog: false // NÃO registramos esta operação intermediária no histórico (CORREÇÃO)
     };
@@ -71,6 +73,8 @@ export function evaluateAdvanceStrategy(
       shouldEnter: false, 
       contractType: 'CALL', // Tipo correto para estratégia Advance
       message: `ADVANCE: Dados insuficientes para análise. Necessários exatamente 25 ticks, temos ${totalTicksRepresented}.`,
+      barrier: "1", // FORÇANDO BARREIRA 1
+      prediction: 1, // FORÇANDO PREVISÃO 1
       analysis: { 
         digit0: 0, 
         digit1: 0, 

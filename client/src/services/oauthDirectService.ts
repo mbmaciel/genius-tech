@@ -3310,6 +3310,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }));
       } catch (e) {}
       
+      // INTERVENÇÃO CRÍTICA FINAL PARA ADVANCE - ÚLTIMO RECURSO ANTES DE ENVIAR
+      if (this.activeStrategy && this.activeStrategy.toLowerCase().includes('advance')) {
+        // OVERRIDE FINAL - FORÇAR VALOR BARRIER=1 PARA ADVANCE
+        console.log(`[OAUTH_DIRECT] 🚨🚨🚨 INTERVENÇÃO FINAL ABSOLUTA: ⭐ FORÇANDO BARRIER = 1 ⭐`);
+        
+        // Forçar novamente todos os valores críticos
+        proposalRequest.barrier = "1";
+        proposalRequest.duration = 1;
+        proposalRequest.duration_unit = "t";
+        proposalRequest.contract_type = "DIGITOVER";
+        
+        // Registrar JSON final
+        console.log(`[OAUTH_DIRECT] 📝 PROPOSTA FINAL ADVANCE:`, JSON.stringify(proposalRequest, null, 2));
+        
+        // Salvar no localStorage para diagnóstico
+        try {
+          localStorage.setItem('ADVANCE_FINAL_PROPOSAL', JSON.stringify({
+            barrier: proposalRequest.barrier,
+            duration: proposalRequest.duration,
+            contract_type: proposalRequest.contract_type,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {}
+      }
+      
       // ESSA SERÁ A PRIMEIRA MENSAGEM ENVIADA - PROPOSAL REQUEST
       console.log(`[OAUTH_DIRECT] 📤 ENVIANDO SOLICITAÇÃO DE PROPOSTA:`, proposalRequest);
       
