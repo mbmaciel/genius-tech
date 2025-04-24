@@ -930,3 +930,6 @@ class IndependentDerivService {
 
 // Exportar instância única do serviço
 export const independentDerivService = IndependentDerivService.getInstance();
+
+// Adicionar ao globalThis para acesso emergencial entre módulos
+(globalThis as any).independentDerivService = independentDerivService;

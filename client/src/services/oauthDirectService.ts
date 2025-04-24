@@ -1686,8 +1686,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             contractType: advanceResult.contractType,
             message: advanceResult.message,
             prediction: advanceResult.prediction,
-            // Propriedade adicional para a duração do contrato (1 tick para Rise/CALL)
-            duration: 1,
+            // A propriedade 'duration' não faz parte do tipo GenericStrategyResult, usamos apenas internamente
           };
           break;
 
@@ -1729,7 +1728,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           console.log(
             `[OAUTH_DIRECT] Avaliando estratégia padrão para ${strategyId}`,
           );
-          const defaultResult = evaluateDefaultStrategy(digitStats, 5); // Valor padrão seguro
+          const defaultResult = evaluateDefaultStrategy(digitStats, 'CALL'); // Valor padrão seguro (ContractType)
           result = {
             shouldEnter: defaultResult.shouldEnter,
             contractType: defaultResult.contractType,
@@ -1816,22 +1815,43 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         );
 
         // CORREÇÃO CRÍTICA: Usar independentDerivService para obter dados de ticks se não houver dados no localStorage
-        if (window.independentDerivService) {
-          console.log(
-            "[OAUTH_DIRECT] 🔄 Tentando obter histórico do independentDerivService",
-          );
-          const independentStats = window.independentDerivService.getDigitStats(
-            this.activeSymbol,
-            25,
-          );
-
-          if (independentStats && independentStats.length > 0) {
+        // Como não podemos usar await aqui (método é síncrono), devemos usar uma abordagem alternativa
+        try {
+          // Usar o objeto de globalThis para acessar o serviço carregado em outro lugar
+          // Este é um fallback para manter o método síncrono
+          const independentService = (globalThis as any).independentDerivService;
+          
+          if (independentService) {
             console.log(
-              "[OAUTH_DIRECT] ✅ Histórico obtido do independentDerivService:",
-              independentStats,
+              "[OAUTH_DIRECT] 🔄 Tentando obter histórico do independentDerivService via global",
             );
-            return independentStats;
+            
+            // Usar o método correto do serviço independente
+            const digitHistory = independentService.getDigitHistory(
+              this.activeSymbol,
+              25,
+            );
+            
+            // Adaptar formato para compatibilidade
+            const independentStats = digitHistory.stats.map((stat: any) => ({
+              digit: stat.digit,
+              count: stat.count,
+              percentage: stat.percentage
+            }));
+
+            if (independentStats && independentStats.length > 0) {
+              console.log(
+                "[OAUTH_DIRECT] ✅ Histórico obtido do independentDerivService:",
+                independentStats,
+              );
+              return independentStats;
+            }
           }
+        } catch (error) {
+          console.error(
+            "[OAUTH_DIRECT] ❌ Erro ao obter histórico do independentDerivService:",
+            error,
+          );
         }
 
         return [];
