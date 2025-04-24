@@ -262,6 +262,9 @@ class IndependentDerivService {
         };
         
         this.socket.onmessage = (event) => {
+          // Atualizar o timestamp de última mensagem recebida
+          this.lastMessageTime = Date.now();
+          
           try {
             const data = JSON.parse(event.data);
             this.handleMessage(data);
@@ -790,6 +793,45 @@ class IndependentDerivService {
   }
   
   /**
+   * Envia uma mensagem e retorna uma promise com a resposta
+   */
+  public send(message: any): Promise<any> {
+    if (!this.socket || !this.isConnected) {
+      return Promise.reject(new Error('WebSocket não está conectado'));
+    }
+    
+    return new Promise((resolve, reject) => {
+      const reqId = this.requestId++;
+      
+      // Adicionar id à mensagem
+      const messageWithId = {
+        ...message,
+        req_id: reqId
+      };
+      
+      // Configurar callback para a resposta
+      this.callbacks.set(reqId, (response) => {
+        if (response.error) {
+          reject(new Error(response.error.message || 'Erro na API Deriv'));
+        } else {
+          resolve(response);
+        }
+      });
+      
+      // Enviar a mensagem
+      this.sendMessage(messageWithId);
+      
+      // Configurar timeout para a resposta (3 segundos)
+      setTimeout(() => {
+        if (this.callbacks.has(reqId)) {
+          this.callbacks.delete(reqId);
+          reject(new Error('Timeout ao aguardar resposta da API'));
+        }
+      }, 3000);
+    });
+  }
+  
+  /**
    * Enviar mensagem para o WebSocket
    */
   private sendMessage(message: any): void {
@@ -871,20 +913,17 @@ class IndependentDerivService {
   }
   
   /**
-   * Fecha a conexão WebSocket
+   * Fecha a conexão WebSocket e limpa recursos
    */
   public disconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    console.log('[INDEPENDENT_DERIV] Desconectando WebSocket');
     
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
+    // Usar o cleanup centralizado
+    this.cleanup();
     
-    this.isConnected = false;
+    // Limpar todas as subscrições ativas
+    this.activeSubscriptions.clear();
+    
     console.log('[INDEPENDENT_DERIV] Conexão WebSocket fechada');
   }
 }
