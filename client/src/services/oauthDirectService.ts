@@ -2602,15 +2602,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return buyPrice;
       }
 
-      // Verificar se já atingimos o número de perdas para aplicar martingale
-      if (consecutiveLosses >= configuracoes.usarMartingaleAposXLoss) {
-        // CORREÇÃO CRÍTICA: Aplicar martingale corretamente conforme XML
-        // No XML da estratégia Iron Under, o martingale é usado para MULTIPLICAR o valor
-        // Verificar se é Iron Under e aplicar lógica correta
-        let nextAmount;
-
+      // CORREÇÃO CRÍTICA DO MARTINGALE
+      // Verificar se já atingimos EXATAMENTE o número de perdas para aplicar martingale
+      // Ou seja, aplicar SOMENTE quando consecutiveLosses === configuracoes.usarMartingaleAposXLoss
+      
+      console.log(
+        `[OAUTH_DIRECT] 🚨 Perdas consecutivas: ${consecutiveLosses}, Martingale após X perdas: ${configuracoes.usarMartingaleAposXLoss}`,
+      );
+      
+      if (consecutiveLosses === configuracoes.usarMartingaleAposXLoss) {
+        // CORREÇÃO DO BUG DE MARTINGALE:
+        // Aplicar martingale SOMENTE quando o número de perdas for EXATAMENTE igual ao configurado
+        console.log(
+          `[OAUTH_DIRECT] 🔴⚠️ MARTINGALE ATIVADO! Número de perdas (${consecutiveLosses}) é EXATAMENTE igual ao configurado (${configuracoes.usarMartingaleAposXLoss})`,
+        );
+        
         // Analisar string da estratégia para identificar tipo correto de comportamento
         const strategyLower = this.strategyConfig.toLowerCase();
+        let nextAmount;
         
         if (strategyLower.includes("ironunder") || strategyLower.includes("ironover")) {
           // Para Iron Under/Over, seguir estritamente a lógica do XML
@@ -2680,11 +2689,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
         return nextAmount;
       } else {
-        // Ainda não atingiu o número de perdas para aplicar martingale
-        console.log(
-          `[OAUTH_DIRECT] 🟠 Mantendo valor original (${buyPrice}) - Ainda não atingiu ${configuracoes.usarMartingaleAposXLoss} perdas consecutivas`,
-        );
-        return buyPrice; // Manter o mesmo valor até atingir o limite de perdas consecutivas
+        // Se não atingiu o número exato de perdas para aplicar martingale OU se já passou desse número
+        if (consecutiveLosses < configuracoes.usarMartingaleAposXLoss) {
+          console.log(
+            `[OAUTH_DIRECT] 🟠 Mantendo valor original (${buyPrice}) - Ainda não atingiu ${configuracoes.usarMartingaleAposXLoss} perdas consecutivas`,
+          );
+        } else {
+          // CORREÇÃO CRITICAL: Se já passou do número de perdas configurado, voltar ao valor inicial
+          console.log(
+            `[OAUTH_DIRECT] 🟠 Já passou do número configurado de perdas, voltando ao valor inicial (${configuracoes.valorInicial})`,
+          );
+          return configuracoes.valorInicial;
+        }
+        return buyPrice; // Manter o mesmo valor
       }
     }
   }
