@@ -1377,7 +1377,9 @@ const [selectedAccount, setSelectedAccount] = useState<DerivAccount>({
         lossLimit: lossNum,
         martingaleFactor: 1.5, // Valor padrão
         contractType: contractType as any,
-        prediction: 5 // Valor padrão para previsão
+        // CORREÇÃO CRÍTICA: A estratégia Advance usa prediction: 1, não 5
+        // Este valor 5 estava causando o problema de barreira incorreta
+        prediction: selectedStrategy.toLowerCase() === 'advance' ? 1 : 5
       });
       
       // Definir estratégia
