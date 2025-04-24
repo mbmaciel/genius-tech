@@ -2325,24 +2325,133 @@ export function BotController({
                     );
                   }
 
-                  // Criar um novo objeto completamente novo para evitar qualquer referência antiga
-                  forceSettings = {
-                    // Manter configurações anteriores, mas substituir entryValue com valor mais recente
-                    profitTarget: forceSettings.profitTarget,
-                    lossLimit: forceSettings.lossLimit,
-                    martingaleFactor: forceSettings.martingaleFactor,
-
-                    // VALORES CORRETOS conforme XML e interface da Deriv
-                    contractType: "DIGITOVER", // Contrato é DIGITOVER conforme confirmado pelo usuário
-                    prediction: 1, // PREVISÃO é sempre 1 para DIGITOVER conforme XML linhas 227, 273, 297
-                    barrier: "1", // O valor "1" significa acima de 1 para o DIGITOVER
-                    duration: 1, // CRÍTICO: FORÇAR duração de 1 tick conforme a imagem do contrato
-                    durationUnit: "t", // CRÍTICO: Forçar unidade de duração como ticks
-                    entryValue: userEntryValue !== null ? userEntryValue : entryValue, // CRÍTICO: Usar valor configurado pelo usuário
-                    // CONFIGURAÇÕES ESPECÍFICAS DE MARTINGALE E LOSSVIRTUAL CONFORME XML
-                    lossVirtualEnabled: true, // Habilitar mecânica de lossVirtual (aumento após perda)
-                    resetOnWin: true // Resetar valor para inicial após vitória conforme XML (linha 885-920)
-                  };
+                  // Usar as regras específicas baseadas no tipo de estratégia selecionada
+                  // Esta abordagem não requer carregamento assíncrono de XML
+                  try {
+                    // Identificar o tipo de estratégia pelo nome para configurar corretamente
+                    const strategyName = selectedStrategy?.toLowerCase() || "";
+                    console.log(`[BOT_CONTROLLER] 🔍 Configurando para estratégia: ${strategyName}`);
+                    
+                    // Aplicar regras específicas para cada estratégia reconhecida
+                    if (strategyName.includes("advance")) {
+                      // Estratégia Advance - DIGITOVER com previsão 1
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITOVER",
+                        prediction: 1,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia ADVANCE: DIGITOVER com previsão 1`);
+                    } 
+                    else if (strategyName.includes("iron") && strategyName.includes("under")) {
+                      // Estratégia IRON UNDER - DIGITUNDER com previsão 7
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITUNDER",
+                        prediction: 7,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia IRON UNDER: DIGITUNDER com previsão 7`);
+                    } 
+                    else if (strategyName.includes("iron") && strategyName.includes("over")) {
+                      // Estratégia IRON OVER - DIGITOVER com previsão 7
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITOVER",
+                        prediction: 7,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia IRON OVER: DIGITOVER com previsão 7`);
+                    }
+                    else if (strategyName.includes("maxpro")) {
+                      // Estratégia MAXPRO - DIGITOVER com previsão específica
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITOVER",
+                        prediction: 5,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia MAXPRO: DIGITOVER com previsão 5`);
+                    }
+                    else if (strategyName.includes("wise")) {
+                      // Estratégia WISE PRO - configurações específicas
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITOVER",
+                        prediction: 2,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia WISE PRO: DIGITOVER com previsão 2`);
+                    }
+                    else if (strategyName.includes("green")) {
+                      // Estratégia GREEN - DIGITUNDER com previsão específica
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITUNDER",
+                        prediction: 2,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia GREEN: DIGITUNDER com previsão 2`);
+                    }
+                    else if (strategyName.includes("profitpro")) {
+                      // Estratégia PROFITPRO - DIGITOVER com configurações específicas
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITOVER",
+                        prediction: 9,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia PROFITPRO: DIGITOVER com previsão 9`);
+                    }
+                    else if (strategyName.includes("botlow")) {
+                      // Estratégia BOT LOW - DIGITUNDER com previsão específica
+                      forceSettings = {
+                        ...forceSettings,
+                        contractType: "DIGITUNDER",
+                        prediction: 5,
+                        entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                        lossVirtualEnabled: true,
+                        resetOnWin: true
+                      };
+                      console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia BOT LOW: DIGITUNDER com previsão 5`);
+                    }
+                    else {
+                      // Estratégia padrão/desconhecida
+                      console.log(`[BOT_CONTROLLER] ⚠️ Estratégia não reconhecida. Usando configuração padrão DIGITOVER.`);
+                    }
+                    
+                    // Garantir que o valor de entrada do usuário é sempre prioridade absoluta
+                    if (userEntryValue !== null) {
+                      forceSettings.entryValue = userEntryValue;
+                      console.log(`[BOT_CONTROLLER] 🚨 VALOR DEFINIDO PELO USUÁRIO: ${userEntryValue}`);
+                    }
+                  } catch (configError) {
+                    console.error("[BOT_CONTROLLER] ❌ Erro ao configurar estratégia:", configError);
+                    
+                    // Fallback para configurações padrão em caso de erro
+                    forceSettings = {
+                      ...forceSettings,
+                      contractType: "DIGITOVER", 
+                      prediction: 1,
+                      entryValue: userEntryValue !== null ? userEntryValue : entryValue,
+                      lossVirtualEnabled: true,
+                      resetOnWin: true
+                    };
+                  }
 
                   console.log(
                     "[BOT_CONTROLLER] 🚨 CONFIGURAÇÃO FINAL ADVANCE:",
