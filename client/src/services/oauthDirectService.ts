@@ -1211,6 +1211,18 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
   
   /**
+   * Controle de frequência para evitar operações excessivas
+   * Cada estratégia tem seu próprio controle de tempo
+   */
+  private lastOperationTimes: Record<string, number> = {};
+  private operationCooldowns: Record<string, number> = {
+    'advance': 15000, // Estratégia Advance: intervalo mínimo de 15 segundos entre operações (evita operações excessivas)
+    'ironover': 5000, // Estratégia Iron Over: intervalo mínimo de 5 segundos
+    'ironunder': 5000, // Estratégia Iron Under: intervalo mínimo de 5 segundos
+    'default': 3000 // Outras estratégias: intervalo mínimo de 3 segundos
+  };
+
+  /**
    * Avalia a estratégia atual com base no último tick recebido e executa operação se necessário
    * FUNÇÃO CRÍTICA: Esta é a função central que decide quando executar operações automaticamente
    * 
@@ -1240,6 +1252,23 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return;
       }
       
+      // CORREÇÃO CRÍTICA: Verificar intervalo mínimo entre operações para evitar execuções excessivas
+      const currentTime = Date.now();
+      const lastOpTime = this.lastOperationTimes[strategyId] || 0;
+      const cooldownPeriod = this.operationCooldowns[strategyId] || this.operationCooldowns.default;
+      
+      // Tempo decorrido desde a última operação (em milissegundos)
+      const timeSinceLastOp = currentTime - lastOpTime;
+      
+      // Se não passou tempo suficiente desde a última operação, ignorar este tick
+      if (timeSinceLastOp < cooldownPeriod) {
+        // Reduzir frequência de logs para não sobrecarregar o console (log a cada 10 ticks em média)
+        if (Math.random() < 0.1) {
+          console.log(`[OAUTH_DIRECT] 🕒 Ignorando tick - Intervalo mínimo não atingido. Passados ${Math.floor(timeSinceLastOp/1000)}s de ${Math.floor(cooldownPeriod/1000)}s`);
+        }
+        return;
+      }
+
       console.log(`[OAUTH_DIRECT] Avaliando estratégia ${strategy.name} para o dígito ${lastDigit}`);
       
       // NOVO SISTEMA: Usar o sistema unificado de avaliação de estratégias
@@ -1354,6 +1383,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           this.settings.prediction = result.prediction;
           console.log(`[OAUTH_DIRECT] ✅ Previsão específica: ${result.prediction}`);
         }
+        
+        // CORREÇÃO CRÍTICA: Atualizar o timestamp da última operação ANTES de executar
+        // Isso evita que múltiplas operações sejam disparadas mesmo que a primeira falhe
+        this.lastOperationTimes[strategyId] = Date.now();
+        console.log(`[OAUTH_DIRECT] ⏱️ Atualizando timestamp da última operação para ${strategyId}`);
         
         // Executar a operação com o valor de entrada configurado
         this.executeContractBuy(entryAmount);
