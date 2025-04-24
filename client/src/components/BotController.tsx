@@ -2325,8 +2325,7 @@ export function BotController({
 
                   // Criar um novo objeto completamente novo para evitar qualquer referência antiga
                   forceSettings = {
-                    // Manter configurações anteriores
-                    entryValue: forceSettings.entryValue,
+                    // Manter configurações anteriores, mas substituir entryValue com valor mais recente
                     profitTarget: forceSettings.profitTarget,
                     lossLimit: forceSettings.lossLimit,
                     martingaleFactor: forceSettings.martingaleFactor,
