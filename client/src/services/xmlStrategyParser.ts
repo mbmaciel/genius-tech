@@ -1592,6 +1592,81 @@ export class XmlStrategyParser {
       
       return profitProResult;
     }
+    // Estratégia Bot Low
+    else if (normalizedId === "botlow" || normalizedId.includes("bot_low") || normalizedId === "bot low") {
+      console.log(`[XML_PARSER] Estratégia Bot Low reconhecida!`);
+      
+      // Obter dígitos recentes para análise
+      let recentDigits: number[] = [];
+      
+      try {
+        // Tentar obter os dígitos mais recentes do serviço de histórico
+        const localStorageDigits = localStorage.getItem("deriv_digits_history_R_100");
+        if (localStorageDigits) {
+          recentDigits = JSON.parse(localStorageDigits);
+          console.log(`[XML_PARSER] Bot Low: Carregados ${recentDigits.length} dígitos recentes do localStorage`);
+        } else {
+          // Se não encontrar no localStorage, usar os dígitos das estatísticas
+          recentDigits = digitStats.map(stat => stat.digit);
+          console.log(`[XML_PARSER] Bot Low: Usando ${recentDigits.length} dígitos das estatísticas`);
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] Bot Low: Erro ao obter dígitos recentes:`, error);
+        // Usar os dígitos das estatísticas como fallback
+        recentDigits = digitStats.map(stat => stat.digit);
+      }
+      
+      // Analisar estratégia Bot Low (sem configuração de Loss Virtual, é sempre 1)
+      const botLowResult = {
+        shouldEnter: false,
+        contractType: 'DIGITOVER',
+        prediction: 3,
+        amount: 1, // Valor padrão, será substituído abaixo
+        message: "Bot Low: Analisando..."
+      };
+      
+      // Obter valor de entrada configurado
+      let valorInicial = 0; // Inicializado com zero, será substituído
+      
+      try {
+        const configStr = localStorage.getItem("strategy_config_botlow");
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.valorInicial && !isNaN(parseFloat(config.valorInicial.toString()))) {
+            valorInicial = parseFloat(config.valorInicial.toString());
+            console.log(`[XML_PARSER] ✅ Bot Low: Usando valor ${valorInicial} das configurações salvas`);
+          }
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] Bot Low: Erro ao obter valor configurado:`, error);
+      }
+      
+      // Se não tiver valor configurado, usar padrão
+      if (valorInicial <= 0) {
+        valorInicial = 1; // Valor padrão seguro
+        console.log(`[XML_PARSER] ⚠️ Bot Low: Usando valor padrão ${valorInicial}`);
+      }
+      
+      // Aplicar lógica do Bot Low
+      const lastDigit = recentDigits.length > 0 ? recentDigits[0] : -1;
+      if (lastDigit >= 0 && lastDigit <= 2) {
+        botLowResult.shouldEnter = true;
+        botLowResult.message = `Bot Low: Condição atendida! Último dígito ${lastDigit} está entre 0-2. Executando DIGITOVER 3`;
+      } else {
+        botLowResult.shouldEnter = false;
+        botLowResult.message = `Bot Low: Aguardando dígito entre 0-2. Último dígito: ${lastDigit}`;
+      }
+      
+      botLowResult.amount = valorInicial;
+      
+      // GARANTIR que usamos o contractType do XML se disponível
+      if (xmlContractType) {
+        botLowResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 Bot Low: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      return botLowResult;
+    }
     // Estratégia MaxPro
     else if (normalizedId === "maxpro" || normalizedId.includes("max_pro")) {
       console.log(`[XML_PARSER] Estratégia MaxPro reconhecida!`);
@@ -1601,7 +1676,7 @@ export class XmlStrategyParser {
       
       try {
         // Tentar obter os dígitos mais recentes do serviço de histórico
-        const localStorageDigits = localStorage.getItem("r100_digits_history");
+        const localStorageDigits = localStorage.getItem("deriv_digits_history_R_100");
         if (localStorageDigits) {
           recentDigits = JSON.parse(localStorageDigits);
           console.log(`[XML_PARSER] MaxPro: Carregados ${recentDigits.length} dígitos recentes do localStorage`);

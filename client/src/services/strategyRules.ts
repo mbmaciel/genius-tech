@@ -271,6 +271,8 @@ export function evaluateIronUnderStrategy(
 /**
  * Avalia a estratégia ProfitPro
  * Implementa a lógica de Loss Virtual para dígitos 0-6
+ * 
+ * O parâmetro lossVirtual controla quantos dígitos consecutivos (0-6) devem aparecer antes de entrar
  */
 export function evaluateProfitProStrategy(
   digitStats: DigitStat[],
@@ -322,6 +324,8 @@ export function evaluateProfitProStrategy(
 /**
  * Avalia a estratégia MAXPRO
  * Implementa a lógica de Loss Virtual para dígitos 0-3
+ * 
+ * O parâmetro lossVirtual controla quantos dígitos consecutivos (0-3) devem aparecer antes de entrar
  */
 export function evaluateMaxProStrategy(
   digitStats: DigitStat[],
@@ -371,6 +375,55 @@ export function evaluateMaxProStrategy(
 }
 
 
+
+/**
+ * Avalia a estratégia Bot Low
+ * Implementa a lógica para dígitos 0-2
+ * O parâmetro lossVirtual é fixo em 1 para esta estratégia
+ */
+export function evaluateBotLowStrategy(
+  digitStats: DigitStat[],
+  recentDigits: number[]
+): { shouldEnter: boolean; contractType: ContractType; prediction: number; message: string } {
+  const lossVirtual = 1; // Bot Low tem sempre Loss Virtual = 1 (fixo)
+  console.log(`[STRATEGY_RULES] Bot Low: Analisando com Loss Virtual fixo = ${lossVirtual}`);
+  console.log(`[STRATEGY_RULES] Bot Low: Dígitos recentes:`, recentDigits.slice(0, 10).join(', '));
+  
+  // Verificar se temos dígitos suficientes para análise
+  if (recentDigits.length < 1) {
+    console.log(`[STRATEGY_RULES] Bot Low: Dígitos insuficientes (${recentDigits.length}) para análise`);
+    return {
+      shouldEnter: false,
+      contractType: 'DIGITOVER',
+      prediction: 3,
+      message: `Bot Low: Dígitos insuficientes (${recentDigits.length}) para análise`
+    };
+  }
+  
+  // Verificar o último dígito para determinar se devemos operar
+  // Precisamos verificar se o último dígito é entre 0-2
+  const lastDigit = recentDigits[0];
+  const isTargetDigit = lastDigit >= 0 && lastDigit <= 2;
+  
+  console.log(`[STRATEGY_RULES] Bot Low: Verificando último dígito: ${lastDigit}`);
+  console.log(`[STRATEGY_RULES] Bot Low: Dígito é 0-2? ${isTargetDigit ? 'SIM ✅' : 'NÃO ❌'}`);
+  
+  // Se o último dígito for 0-2, devemos entrar com DIGITOVER 3
+  const shouldEnter = isTargetDigit;
+  const contractType: ContractType = 'DIGITOVER';
+  const prediction = 3; // Entrar com DIGITOVER 3 quando o último dígito é 0-2
+  
+  let message = shouldEnter
+    ? `Bot Low: Condição atendida! Último dígito ${lastDigit} está entre 0-2. Executando DIGITOVER ${prediction}`
+    : `Bot Low: Aguardando dígito entre 0-2. Último dígito: ${lastDigit}`;
+  
+  return {
+    shouldEnter,
+    contractType,
+    prediction,
+    message
+  };
+}
 
 /**
  * Avalia a estratégia padrão (fallback)
