@@ -890,9 +890,16 @@ export function BotController({
                 const lastDigit = event.lastDigit !== undefined ? event.lastDigit : -1;
                 
                 // Obter os últimos dígitos do histórico
-                const recentDigits: number[] = oauthDirectService.getRecentDigits ? 
-                  oauthDirectService.getRecentDigits() : 
-                  [lastDigit];
+                const recentDigits: number[] = [lastDigit]; // Valor padrão
+                try {
+                  const recentDigitsData = oauthDirectService.getRecentDigits();
+                  if (recentDigitsData && recentDigitsData.length > 0) {
+                    // Se conseguir obter os dígitos recentes, usar eles
+                    Object.assign(recentDigits, recentDigitsData);
+                  }
+                } catch (error) {
+                  console.error("[BOT_CONTROLLER] Erro ao obter dígitos recentes para BotLow:", error);
+                }
                 
                 console.log(`[BOT_CONTROLLER] BOT LOW: Último dígito = ${lastDigit}, Dígitos recentes = ${recentDigits.slice(0, 5).join(', ')}...`);
                 
@@ -946,9 +953,16 @@ export function BotController({
                 const lossVirtual = Number(strategyConfig?.lossVirtual) || 1;
                 
                 // Obter os últimos dígitos do histórico
-                const recentDigits: number[] = oauthDirectService.getRecentDigits ? 
-                  oauthDirectService.getRecentDigits().slice(0, 20) : // Pegar apenas os 20 mais recentes
-                  [lastDigit];
+                const recentDigits: number[] = [lastDigit]; // Valor padrão
+                try {
+                  const recentDigitsData = oauthDirectService.getRecentDigits();
+                  if (recentDigitsData && recentDigitsData.length > 0) {
+                    // Se conseguir obter os dígitos recentes, usar eles (limitando a 20)
+                    Object.assign(recentDigits, recentDigitsData.slice(0, 20));
+                  }
+                } catch (error) {
+                  console.error("[BOT_CONTROLLER] Erro ao obter dígitos recentes para ProfitPro:", error);
+                }
                 
                 console.log(`[BOT_CONTROLLER] PROFITPRO: Loss Virtual configurado = ${lossVirtual}`);
                 console.log(`[BOT_CONTROLLER] PROFITPRO: Último dígito = ${lastDigit}`);
@@ -2252,10 +2266,14 @@ export function BotController({
                   // Buscar previsão da configuração da estratégia se disponível
                   if (
                     strategyConfig &&
-                    strategyConfig.prediction !== undefined
+                    (strategyConfig.predition !== undefined || strategyConfig.prediction !== undefined)
                   ) {
-                    prediction =
-                      parseInt(strategyConfig.prediction.toString()) || 5;
+                    // Verifica primeiro predition (grafia correta na interface), depois prediction (retrocompatibilidade)
+                    const predictionValue = strategyConfig.predition !== undefined ? 
+                      strategyConfig.predition : 
+                      (strategyConfig as any).prediction;
+                      
+                    prediction = parseInt(String(predictionValue)) || 5;
                   }
                 }
 
