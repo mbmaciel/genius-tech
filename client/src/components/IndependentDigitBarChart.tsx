@@ -129,31 +129,20 @@ export function IndependentDigitBarChart({
               // Extrair apenas os últimos dígitos
               const lastDigits = parsedData.map(tick => tick.lastDigit || 0);
               
-              // Método alternativo: Adicionamos cada dígito individualmente ao histórico
-              // Isso usa os métodos públicos disponíveis ao invés do método privado
-              console.log(`[IndependentDigitBarChart] Processando ${lastDigits.length} dígitos carregados do localStorage`);
+              // NOVO MÉTODO: Usamos o método público específico para carregar histórico
+              console.log(`[IndependentDigitBarChart] Usando método dedicado para carregar histórico de ${lastDigits.length} dígitos do localStorage`);
               
-              // Intencionalmente esperar um pouco para garantir que o serviço já tenha inicializado
-              setTimeout(() => {
-                // Aplicar um por um - isso será mais lento, mas é uma solução alternativa
-                lastDigits.forEach(digit => {
-                  // Simulamos a atualização de dígito que aconteceria no recebimento de ticks
-                  const mockTick = {
-                    symbol,
-                    quote: 0,
-                    lastDigit: digit,
-                    epoch: 0
-                  };
-                  
-                  // Notificamos como se fosse um tick real
-                  independentDerivService.notifyListeners('tick', mockTick);
-                });
-                
-                // Obter o histórico atualizado depois de processar todos os dígitos
+              // Carregando diretamente do localStorage usando nosso novo método
+              const success = independentDerivService.loadHistoryDirectlyFromLocalStorage(symbol);
+              
+              if (success) {
+                // Obter o histórico atualizado depois de carregar
                 const cachedHistory = independentDerivService.getDigitHistory(symbol, parseInt(selectedCount));
-                console.log(`[IndependentDigitBarChart] Processamento completo, histórico tem ${cachedHistory.lastDigits.length} dígitos`);
+                console.log(`[IndependentDigitBarChart] Carregamento direto concluído, histórico tem ${cachedHistory.lastDigits.length} dígitos`);
                 handleHistoryUpdate(cachedHistory);
-              }, 300);
+              } else {
+                console.warn(`[IndependentDigitBarChart] Falha ao carregar histórico diretamente do localStorage`);
+              }
               
               console.log(`[IndependentDigitBarChart] CARREGAMENTO IMEDIATO: Inicializado com ${lastDigits.length} ticks`);
               localHistoryLoaded = true;

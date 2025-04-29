@@ -921,6 +921,66 @@ class IndependentDerivService {
   }
   
   /**
+   * Carrega diretamente dados históricos de ticks do localStorage
+   * Este método é utilizado para garantir que os dados persistidos estejam disponíveis imediatamente
+   * após a abertura da página, sem precisar esperar por conexão WebSocket
+   * @param symbol O símbolo para carregar o histórico (ex: 'R_100')
+   * @returns true se os dados foram carregados com sucesso, false caso contrário
+   */
+  public loadHistoryDirectlyFromLocalStorage(symbol: string): boolean {
+    console.log(`[INDEPENDENT_DERIV] Tentando carregar histórico diretamente do localStorage para ${symbol}`);
+    
+    try {
+      // Chave usada pelo oauthDirectService para salvar ticks
+      const storageKey = `deriv_ticks_${symbol}`;
+      const storageData = localStorage.getItem(storageKey);
+      
+      if (storageData) {
+        const parsedData = JSON.parse(storageData);
+        
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          // Extrair dígitos dos ticks
+          const lastDigits = parsedData.map(tick => {
+            // Verificar se o tick tem o campo lastDigit
+            if (typeof tick.lastDigit === 'number' && tick.lastDigit >= 0 && tick.lastDigit <= 9) {
+              return tick.lastDigit;
+            }
+            
+            // Fallback: tentar extrair do quote
+            if (tick.quote) {
+              const priceStr = parseFloat(tick.quote.toString()).toFixed(2);
+              const lastChar = priceStr.charAt(priceStr.length - 1);
+              return parseInt(lastChar, 10);
+            }
+            
+            return null;
+          }).filter(digit => digit !== null) as number[];
+          
+          if (lastDigits.length > 0) {
+            // Usar o método privado para inicializar o histórico
+            this.initializeDigitHistory(symbol, lastDigits);
+            
+            // Notificar sobre a atualização do histórico
+            const history = this.digitHistories.get(symbol);
+            if (history) {
+              this.notifyListeners('history', history);
+            }
+            
+            console.log(`[INDEPENDENT_DERIV] ✅ Histórico carregado com sucesso do localStorage: ${lastDigits.length} ticks`);
+            return true;
+          }
+        }
+      }
+      
+      console.log(`[INDEPENDENT_DERIV] ⚠️ Não foram encontrados dados históricos no localStorage para ${symbol}`);
+      return false;
+    } catch (error) {
+      console.error(`[INDEPENDENT_DERIV] ❌ Erro ao carregar histórico do localStorage para ${symbol}:`, error);
+      return false;
+    }
+  }
+  
+  /**
    * Notifica todos os ouvintes registrados para um evento
    */
   private notifyListeners(event: string, data: any): void {
