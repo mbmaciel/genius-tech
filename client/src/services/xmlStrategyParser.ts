@@ -997,6 +997,180 @@ export class XmlStrategyParser {
    * Analisa a estratégia Iron Under - Implementação FIEL ao XML com prioridade ao usuário
    * Segue exatamente o que está no XML do IRON UNDER.xml fornecido
    */
+  /**
+   * Analisa a estratégia ProfitPro com suporte ao parâmetro Loss Virtual
+   * Aplica a lógica de verificação para dígitos 0-6 consecutivos
+   */
+  public analyzeProfitProStrategy(
+    digitStats: DigitStat[],
+    recentDigits: number[],
+    lossVirtual: number = 1
+  ): StrategyAnalysisResult {
+    console.log(`[XML_PARSER] 🔄 ProfitPro: Analisando com Loss Virtual = ${lossVirtual}`);
+    console.log(`[XML_PARSER] 🔄 ProfitPro: Dígitos recentes:`, recentDigits.slice(0, 10).join(', '));
+    
+    // PASSO 1: Obter valores iniciais a partir da hierarquia correta
+    // MODIFICAÇÃO CRÍTICA - APENAS valor do usuário, sem fallbacks!
+    let valorInicial = 0; // Inicializado com zero, será rejeitado se não for modificado
+
+    // Buscar no localStorage
+    try {
+      const configStr = localStorage.getItem("strategy_config_profitpro");
+      if (configStr) {
+        const config = JSON.parse(configStr);
+        if (config.valorInicial && !isNaN(parseFloat(config.valorInicial.toString()))) {
+          valorInicial = parseFloat(config.valorInicial.toString());
+          console.log(
+            `[XML_PARSER] ✅ ProfitPro: Usando valor ${valorInicial} das configurações salvas`,
+          );
+        }
+        
+        // Obter valor de Loss Virtual configurado
+        if (config.lossVirtual && !isNaN(parseInt(config.lossVirtual.toString()))) {
+          lossVirtual = parseInt(config.lossVirtual.toString());
+          console.log(
+            `[XML_PARSER] ✅ ProfitPro: Usando Loss Virtual ${lossVirtual} das configurações salvas`,
+          );
+        }
+      }
+    } catch (e) {
+      console.error("[XML_PARSER] Erro ao ler configurações salvas para ProfitPro:", e);
+    }
+    
+    // Se não tiver valor configurado, usar padrão
+    if (valorInicial <= 0) {
+      valorInicial = 1; // Valor padrão seguro
+      console.log(`[XML_PARSER] ⚠️ ProfitPro: Usando valor padrão ${valorInicial}`);
+    }
+    
+    // Verificar se temos dígitos suficientes para análise
+    if (recentDigits.length < lossVirtual) {
+      console.log(`[XML_PARSER] ⚠️ ProfitPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`);
+      return {
+        shouldEnter: false,
+        contractType: 'DIGITOVER',
+        prediction: 7,
+        amount: valorInicial,
+        message: `ProfitPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`
+      };
+    }
+    
+    // PASSO 2: Verificar os últimos 'lossVirtual' dígitos para determinar se devemos operar
+    // Precisamos verificar se há 'lossVirtual' ocorrências consecutivas de dígitos 0-6
+    const relevantDigits = recentDigits.slice(0, lossVirtual);
+    const isTargetDigit = (digit: number) => digit >= 0 && digit <= 6;
+    
+    // Verificar se todos os dígitos relevantes são entre 0-6
+    const allTargetDigits = relevantDigits.every(isTargetDigit);
+    
+    console.log(`[XML_PARSER] 🔍 ProfitPro: Verificando ${lossVirtual} dígitos consecutivos:`, relevantDigits.join(', '));
+    console.log(`[XML_PARSER] 🔍 ProfitPro: Todos os dígitos são 0-6? ${allTargetDigits ? 'SIM ✅' : 'NÃO ❌'}`);
+    
+    // PASSO 3: Decidir se devemos entrar na operação
+    // Se todos os dígitos relevantes forem 0-6, devemos entrar com DIGITOVER 7
+    const shouldEnter = allTargetDigits;
+    const prediction = 7; // Entrar com DIGITOVER 7 quando dígitos 0-6 aparecem lossVirtual vezes consecutivas
+    
+    let message = shouldEnter
+      ? `ProfitPro: Condição atendida! ${lossVirtual} dígitos consecutivos entre 0-6. Executando DIGITOVER ${prediction}`
+      : `ProfitPro: Aguardando ${lossVirtual} dígitos consecutivos entre 0-6. Sequência atual: ${relevantDigits.join(', ')}`;
+    
+    return {
+      shouldEnter,
+      contractType: 'DIGITOVER',
+      prediction,
+      amount: valorInicial,
+      message
+    };
+  }
+  
+  /**
+   * Analisa a estratégia MaxPro com suporte ao parâmetro Loss Virtual
+   * Aplica a lógica de verificação para dígitos 0-3 consecutivos
+   */
+  public analyzeMaxProStrategy(
+    digitStats: DigitStat[],
+    recentDigits: number[],
+    lossVirtual: number = 1
+  ): StrategyAnalysisResult {
+    console.log(`[XML_PARSER] 🔄 MaxPro: Analisando com Loss Virtual = ${lossVirtual}`);
+    console.log(`[XML_PARSER] 🔄 MaxPro: Dígitos recentes:`, recentDigits.slice(0, 10).join(', '));
+    
+    // PASSO 1: Obter valores iniciais a partir da hierarquia correta
+    // MODIFICAÇÃO CRÍTICA - APENAS valor do usuário, sem fallbacks!
+    let valorInicial = 0; // Inicializado com zero, será rejeitado se não for modificado
+
+    // Buscar no localStorage
+    try {
+      const configStr = localStorage.getItem("strategy_config_maxpro");
+      if (configStr) {
+        const config = JSON.parse(configStr);
+        if (config.valorInicial && !isNaN(parseFloat(config.valorInicial.toString()))) {
+          valorInicial = parseFloat(config.valorInicial.toString());
+          console.log(
+            `[XML_PARSER] ✅ MaxPro: Usando valor ${valorInicial} das configurações salvas`,
+          );
+        }
+        
+        // Obter valor de Loss Virtual configurado
+        if (config.lossVirtual && !isNaN(parseInt(config.lossVirtual.toString()))) {
+          lossVirtual = parseInt(config.lossVirtual.toString());
+          console.log(
+            `[XML_PARSER] ✅ MaxPro: Usando Loss Virtual ${lossVirtual} das configurações salvas`,
+          );
+        }
+      }
+    } catch (e) {
+      console.error("[XML_PARSER] Erro ao ler configurações salvas para MaxPro:", e);
+    }
+    
+    // Se não tiver valor configurado, usar padrão
+    if (valorInicial <= 0) {
+      valorInicial = 1; // Valor padrão seguro
+      console.log(`[XML_PARSER] ⚠️ MaxPro: Usando valor padrão ${valorInicial}`);
+    }
+    
+    // Verificar se temos dígitos suficientes para análise
+    if (recentDigits.length < lossVirtual) {
+      console.log(`[XML_PARSER] ⚠️ MaxPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`);
+      return {
+        shouldEnter: false,
+        contractType: 'DIGITOVER',
+        prediction: 4,
+        amount: valorInicial,
+        message: `MaxPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`
+      };
+    }
+    
+    // PASSO 2: Verificar os últimos 'lossVirtual' dígitos para determinar se devemos operar
+    // Precisamos verificar se há 'lossVirtual' ocorrências consecutivas de dígitos 0-3
+    const relevantDigits = recentDigits.slice(0, lossVirtual);
+    const isTargetDigit = (digit: number) => digit >= 0 && digit <= 3;
+    
+    // Verificar se todos os dígitos relevantes são entre 0-3
+    const allTargetDigits = relevantDigits.every(isTargetDigit);
+    
+    console.log(`[XML_PARSER] 🔍 MaxPro: Verificando ${lossVirtual} dígitos consecutivos:`, relevantDigits.join(', '));
+    console.log(`[XML_PARSER] 🔍 MaxPro: Todos os dígitos são 0-3? ${allTargetDigits ? 'SIM ✅' : 'NÃO ❌'}`);
+    
+    // PASSO 3: Decidir se devemos entrar na operação
+    // Se todos os dígitos relevantes forem 0-3, devemos entrar com DIGITOVER 4
+    const shouldEnter = allTargetDigits;
+    const prediction = 4; // Entrar com DIGITOVER 4 quando dígitos 0-3 aparecem lossVirtual vezes consecutivas
+    
+    let message = shouldEnter
+      ? `MaxPro: Condição atendida! ${lossVirtual} dígitos consecutivos entre 0-3. Executando DIGITOVER ${prediction}`
+      : `MaxPro: Aguardando ${lossVirtual} dígitos consecutivos entre 0-3. Sequência atual: ${relevantDigits.join(', ')}`;
+    
+    return {
+      shouldEnter,
+      contractType: 'DIGITOVER',
+      prediction,
+      amount: valorInicial,
+      message
+    };
+  }
+  
   public analyzeIronUnderStrategy(
     consecutiveLosses: number,
   ): StrategyAnalysisResult {
@@ -1361,6 +1535,120 @@ export class XmlStrategyParser {
     }
     // Implementar outras estratégias conforme necessário
 
+    // Estratégia ProfitPro
+    else if (normalizedId === "profitpro" || normalizedId.includes("profit_pro")) {
+      console.log(`[XML_PARSER] Estratégia ProfitPro reconhecida!`);
+      
+      // Obter dígitos recentes para análise de Loss Virtual
+      let recentDigits: number[] = [];
+      
+      try {
+        // Tentar obter os dígitos mais recentes do serviço de histórico
+        const localStorageDigits = localStorage.getItem("deriv_digits_history_R_100");
+        if (localStorageDigits) {
+          recentDigits = JSON.parse(localStorageDigits);
+          console.log(`[XML_PARSER] ProfitPro: Carregados ${recentDigits.length} dígitos recentes do localStorage`);
+        } else {
+          // Se não encontrar no localStorage, usar os dígitos das estatísticas
+          recentDigits = digitStats.map(stat => stat.digit);
+          console.log(`[XML_PARSER] ProfitPro: Usando ${recentDigits.length} dígitos das estatísticas`);
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] ProfitPro: Erro ao obter dígitos recentes:`, error);
+        // Usar os dígitos das estatísticas como fallback
+        recentDigits = digitStats.map(stat => stat.digit);
+      }
+      
+      // Obter valor de Loss Virtual configurado
+      let lossVirtual = 1; // Valor padrão
+      
+      try {
+        const configStr = localStorage.getItem("strategy_config_profitpro");
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.lossVirtual && !isNaN(parseInt(config.lossVirtual.toString()))) {
+            lossVirtual = parseInt(config.lossVirtual.toString());
+            console.log(`[XML_PARSER] ProfitPro: Usando Loss Virtual ${lossVirtual} das configurações salvas`);
+          }
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] ProfitPro: Erro ao obter Loss Virtual configurado:`, error);
+      }
+      
+      // Analisar estratégia com a configuração de Loss Virtual
+      const profitProResult = this.analyzeProfitProStrategy(digitStats, recentDigits, lossVirtual);
+      
+      // GARANTIR que usamos o contractType do XML se disponível
+      if (xmlContractType) {
+        profitProResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 ProfitPro: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      // GARANTIR que usamos o prediction configurado
+      if (profitProResult.prediction === undefined) {
+        profitProResult.prediction = 7; // Valor padrão para ProfitPro
+        console.log(`[XML_PARSER] 🚨 ProfitPro: Usando previsão padrão: 7`);
+      }
+      
+      return profitProResult;
+    }
+    // Estratégia MaxPro
+    else if (normalizedId === "maxpro" || normalizedId.includes("max_pro")) {
+      console.log(`[XML_PARSER] Estratégia MaxPro reconhecida!`);
+      
+      // Obter dígitos recentes para análise de Loss Virtual
+      let recentDigits: number[] = [];
+      
+      try {
+        // Tentar obter os dígitos mais recentes do serviço de histórico
+        const localStorageDigits = localStorage.getItem("r100_digits_history");
+        if (localStorageDigits) {
+          recentDigits = JSON.parse(localStorageDigits);
+          console.log(`[XML_PARSER] MaxPro: Carregados ${recentDigits.length} dígitos recentes do localStorage`);
+        } else {
+          // Se não encontrar no localStorage, usar os dígitos das estatísticas
+          recentDigits = digitStats.map(stat => stat.digit);
+          console.log(`[XML_PARSER] MaxPro: Usando ${recentDigits.length} dígitos das estatísticas`);
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] MaxPro: Erro ao obter dígitos recentes:`, error);
+        // Usar os dígitos das estatísticas como fallback
+        recentDigits = digitStats.map(stat => stat.digit);
+      }
+      
+      // Obter valor de Loss Virtual configurado
+      let lossVirtual = 1; // Valor padrão
+      
+      try {
+        const configStr = localStorage.getItem("strategy_config_maxpro");
+        if (configStr) {
+          const config = JSON.parse(configStr);
+          if (config.lossVirtual && !isNaN(parseInt(config.lossVirtual.toString()))) {
+            lossVirtual = parseInt(config.lossVirtual.toString());
+            console.log(`[XML_PARSER] MaxPro: Usando Loss Virtual ${lossVirtual} das configurações salvas`);
+          }
+        }
+      } catch (error) {
+        console.error(`[XML_PARSER] MaxPro: Erro ao obter Loss Virtual configurado:`, error);
+      }
+      
+      // Analisar estratégia com a configuração de Loss Virtual
+      const maxProResult = this.analyzeMaxProStrategy(digitStats, recentDigits, lossVirtual);
+      
+      // GARANTIR que usamos o contractType do XML se disponível
+      if (xmlContractType) {
+        maxProResult.contractType = xmlContractType;
+        console.log(`[XML_PARSER] 🚨 MaxPro: Usando tipo de contrato do XML: ${xmlContractType}`);
+      }
+      
+      // GARANTIR que usamos o prediction configurado
+      if (maxProResult.prediction === undefined) {
+        maxProResult.prediction = 4; // Valor padrão para MaxPro
+        console.log(`[XML_PARSER] 🚨 MaxPro: Usando previsão padrão: 4`);
+      }
+      
+      return maxProResult;
+    }
     // Se chegou aqui, não reconheceu nenhuma estratégia específica
     console.log(
       `[XML_PARSER] AVISO: Estratégia não reconhecida: "${strategyId}". Usando configuração baseada apenas no XML.`,
