@@ -2965,14 +2965,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Tratar a meta de lucro como valor absoluto conforme configurado na interface
     let targetValue = profitTargetNum;
     
-    // CORREÇÃO CRÍTICA (29/04/2025): Validar que o lucro líquido seja ESTRITAMENTE MAIOR que a meta
-    // netProfit agora deve ser ESTRITAMENTE MAIOR que o limite de lucro configurado
-    // Isso evita que o bot pare após uma única operação de lucro
+    // CORREÇÃO CRÍTICA (29/04/2025): Validar a meta de lucro conforme EXATAMENTE configurado
+    // O robô deve parar quando atingir ou superar o limite de lucro configurado
     console.log(
       `[OAUTH_DIRECT] 🔍 DEBUG META DE LUCRO: Lucro atual ${this.sessionStats.netProfit.toFixed(2)}, Meta configurada: ${targetValue.toFixed(2)}`,
     );
     
-    if (hasProfitTarget && this.sessionStats.netProfit > targetValue) {
+    if (hasProfitTarget && this.sessionStats.netProfit >= targetValue) {
       const targetMessage = `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] 🎯 META DE LUCRO ATINGIDA: ${this.sessionStats.netProfit.toFixed(2)} / ${targetValue.toFixed(2)}`,
@@ -2998,14 +2997,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // Tratar limite de perda como valor absoluto conforme configurado na interface
     let lossLimitValue = lossLimitNum;
     
-    // CORREÇÃO CRÍTICA (29/04/2025): Validar que o limite de perda ABSOLUTO seja atingido
-    // totalLoss agora deve ser ESTRITAMENTE MAIOR que o limite de perda configurado
-    // Isso evita que o bot pare após uma única operação de perda
+    // CORREÇÃO CRÍTICA (29/04/2025): Validar o limite de perda conforme EXATAMENTE configurado
+    // O robô deve parar quando atingir ou superar o limite de perda configurado
     console.log(
       `[OAUTH_DIRECT] 🔍 DEBUG LIMITE DE PERDA: Perda atual ${this.sessionStats.totalLoss.toFixed(2)}, Limite configurado: ${lossLimitValue.toFixed(2)}`,
     );
     
-    if (hasLossLimit && this.sessionStats.totalLoss > lossLimitValue) {
+    if (hasLossLimit && this.sessionStats.totalLoss >= lossLimitValue) {
       const limitMessage = `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] ⚠️ LIMITE DE PERDA ATINGIDO: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitValue.toFixed(2)}`,
