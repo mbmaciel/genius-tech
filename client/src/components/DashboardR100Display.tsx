@@ -1,10 +1,11 @@
 /**
- * Componente TOTALMENTE ISOLADO para exibição de dados do R_100 no dashboard
- * Este componente NÃO compartilha nenhuma conexão com o robô de operações
- * e cria sua própria conexão WebSocket independente.
+ * Componente de exibição de dados do R_100 no dashboard
+ * Este componente carrega dados do histórico salvo no localStorage
+ * e mantém atualização em tempo real usando WebSocket dedicado
  */
 
 import { useEffect, useState, useRef } from "react";
+import { derivHistoryService, type DigitHistoryData } from "../services/deriv-history-service";
 
 interface DigitData {
   digit: number;
@@ -19,6 +20,73 @@ export function DashboardR100Display() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
+  
+  // Efeito para carregar histórico do localStorage ao iniciar componente
+  useEffect(() => {
+    // Obter histórico do derivHistoryService (que já carrega do localStorage)
+    try {
+      const historyData = derivHistoryService.getDigitStats('R_100');
+      
+      if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+        console.log(`[DASHBOARD_R100] Carregados ${historyData.lastDigits.length} ticks do histórico salvo`);
+        
+        // Atualizar o estado com dados carregados (pegando os últimos 20)
+        setLastDigits(historyData.lastDigits.slice(0, 20));
+        setLastUpdate(historyData.lastUpdated);
+        
+        // Converter estatísticas para o formato usado pelo componente
+        const stats: DigitData[] = [];
+        for (let i = 0; i <= 9; i++) {
+          if (historyData.digitStats[i]) {
+            stats.push({
+              digit: i,
+              count: historyData.digitStats[i].count,
+              percentage: historyData.digitStats[i].percentage
+            });
+          }
+        }
+        
+        setDigitStats(stats);
+      } else {
+        console.log('[DASHBOARD_R100] Nenhum histórico encontrado, começando do zero');
+      }
+    } catch (error) {
+      console.error('[DASHBOARD_R100] Erro ao carregar histórico:', error);
+    }
+  }, []);
+  
+  // Registrar um ouvinte para atualizações do serviço
+  useEffect(() => {
+    const handleHistoryUpdate = (data: DigitHistoryData) => {
+      // Atualizar com dados mais recentes do serviço
+      if (data && data.lastDigits && data.lastDigits.length > 0) {
+        setLastDigits(data.lastDigits.slice(0, 20));
+        setLastUpdate(data.lastUpdated);
+        
+        // Converter estatísticas para o formato usado pelo componente
+        const stats: DigitData[] = [];
+        for (let i = 0; i <= 9; i++) {
+          if (data.digitStats[i]) {
+            stats.push({
+              digit: i,
+              count: data.digitStats[i].count,
+              percentage: data.digitStats[i].percentage
+            });
+          }
+        }
+        
+        setDigitStats(stats);
+      }
+    };
+    
+    // Registrar ouvinte
+    derivHistoryService.addListener(handleHistoryUpdate, 'R_100');
+    
+    // Remover ouvinte ao desmontar
+    return () => {
+      derivHistoryService.removeListener(handleHistoryUpdate);
+    };
+  }, []);
   
   // Efeito para criar uma conexão WebSocket dedicada e isolada apenas para este componente
   useEffect(() => {
