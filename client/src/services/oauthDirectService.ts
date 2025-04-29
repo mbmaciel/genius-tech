@@ -2962,22 +2962,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     );
 
     // Se atingiu a meta de lucro, parar
-    // Tratar meta de lucro como percentual quando for menor que 100
+    // Tratar a meta de lucro como valor absoluto conforme configurado na interface
     let targetValue = profitTargetNum;
-    let isPercentage = false;
-    
-    // Se a meta for menor que 100, consideramos como percentual
-    if (profitTargetNum > 0 && profitTargetNum < 100) {
-      isPercentage = true;
-      const initialStake = this.settings.entryValue || 1;
-      targetValue = initialStake * (profitTargetNum / 100);
-      console.log(
-        `[OAUTH_DIRECT] Interpretando meta de lucro ${profitTargetNum}% como valor absoluto de ${targetValue.toFixed(2)}`,
-      );
-    }
     
     if (hasProfitTarget && this.sessionStats.netProfit >= targetValue) {
-      const targetMessage = `Meta de lucro de ${isPercentage ? profitTargetNum + '%' : profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
+      const targetMessage = `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] 🎯 META DE LUCRO ATINGIDA: ${this.sessionStats.netProfit.toFixed(2)} / ${targetValue.toFixed(2)}`,
       );
@@ -2999,22 +2988,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     }
 
     // Se atingiu o limite de perda, parar
-    // Tratar limite de perda como percentual quando for menor que 100
+    // Tratar limite de perda como valor absoluto conforme configurado na interface
     let lossLimitValue = lossLimitNum;
-    let isLossPercentage = false;
-    
-    // Se o limite for menor que 100, consideramos como percentual
-    if (lossLimitNum > 0 && lossLimitNum < 100) {
-      isLossPercentage = true;
-      const initialStake = this.settings.entryValue || 1;
-      lossLimitValue = initialStake * (lossLimitNum / 100);
-      console.log(
-        `[OAUTH_DIRECT] Interpretando limite de perda ${lossLimitNum}% como valor absoluto de ${lossLimitValue.toFixed(2)}`,
-      );
-    }
     
     if (hasLossLimit && this.sessionStats.totalLoss >= lossLimitValue) {
-      const limitMessage = `Limite de perda de ${isLossPercentage ? lossLimitNum + '%' : lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
+      const limitMessage = `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] ⚠️ LIMITE DE PERDA ATINGIDO: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitValue.toFixed(2)}`,
       );
