@@ -32,15 +32,75 @@ class DerivHistoryService {
   private readonly MIN_SAVE_INTERVAL = 5000; // 5 segundos entre salvamentos
   
   private constructor() {
-    // Inicializar estruturas com dados vazios para começar sempre limpo
+    // Inicializar estruturas para R_100
     this.initializeDigitStats('R_100');
     
-    // NUNCA carregar dados de localStorage ou outras fontes de persistência
-    // durante a inicialização
-    console.log('[DerivHistoryService] Iniciado com estruturas vazias, ignorando qualquer persistência');
+    // Carregar histórico existente do localStorage (oauthDirectService)
+    this.loadHistoryFromLocalStorage('R_100');
     
-    // Remover dados do localStorage para R_100 para garantir que começamos do zero
-    localStorage.removeItem('digit_history_R_100');
+    console.log('[DerivHistoryService] Iniciado: carregando histórico salvo do localStorage');
+  }
+  
+  /**
+   * Carrega o histórico de ticks do localStorage mantido pelo oauthDirectService
+   */
+  private loadHistoryFromLocalStorage(symbol: string): void {
+    try {
+      // Verificar primeiro na chave usada pelo oauthDirectService
+      const oauthStorageKey = `deriv_ticks_${symbol}`;
+      const storedData = localStorage.getItem(oauthStorageKey);
+      
+      if (storedData) {
+        const ticks = JSON.parse(storedData);
+        if (Array.isArray(ticks) && ticks.length > 0) {
+          console.log(`[DerivHistoryService] Carregados ${ticks.length} ticks do localStorage para ${symbol}`);
+          
+          // Extrair os últimos dígitos
+          const lastDigits = ticks.map(tick => tick.lastDigit);
+          
+          // Processar os dígitos para estatísticas
+          const counts: Record<number, number> = {};
+          for (let i = 0; i <= 9; i++) {
+            counts[i] = 0;
+          }
+          
+          // Contar ocorrências
+          lastDigits.forEach(digit => {
+            if (digit >= 0 && digit <= 9) {
+              counts[digit]++;
+            }
+          });
+          
+          // Calcular percentuais
+          const total = lastDigits.length;
+          const stats: DigitStats = {};
+          
+          for (let i = 0; i <= 9; i++) {
+            stats[i] = {
+              count: counts[i],
+              percentage: Math.round((counts[i] / total) * 100)
+            };
+          }
+          
+          // Atualizar o estado interno
+          this.historyData[symbol] = {
+            lastDigits: lastDigits,
+            digitStats: stats,
+            lastUpdated: new Date(),
+            totalCount: total
+          };
+          
+          this.tickHistories[symbol] = [...lastDigits];
+          
+          console.log(`[DerivHistoryService] Histórico carregado e processado para ${symbol}`);
+          return;
+        }
+      }
+      
+      console.log(`[DerivHistoryService] Nenhum histórico encontrado no localStorage para ${symbol}, começando do zero`);
+    } catch (error) {
+      console.error(`[DerivHistoryService] Erro ao carregar histórico do localStorage:`, error);
+    }
   }
   
   public static getInstance(): DerivHistoryService {
