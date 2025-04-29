@@ -792,45 +792,74 @@ export function BotController({
                 }
               }
             } else if (selectedStrategy.toLowerCase().includes("maxpro")) {
-              // Estratégia MaxPro - Implementação direta para evitar problemas de importação
+              // Implementação correta da estratégia MaxPro com Loss Virtual configurável para dígitos 0-3
               console.log(
-                "[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia MAXPRO",
+                "[BOT_CONTROLLER] Implementando a lógica correta da estratégia MAXPRO com Loss Virtual configurável",
               );
               try {
-                // Ordenar dígitos por frequência (do menor para o maior)
-                const sortedStats = [...digitStats].sort(
-                  (a, b) => a.percentage - b.percentage,
-                );
-
-                // Pegar o dígito com menor frequência
-                const lowestFreqDigit = sortedStats[0]?.digit ?? 5;
-
-                // Pegar o dígito com maior frequência
-                const highestFreqDigit =
-                  sortedStats[sortedStats.length - 1]?.digit ?? 5;
-
-                // Verificar se a diferença entre maior e menor frequência é significativa
-                const lowestPercentage = sortedStats[0]?.percentage ?? 0;
-                const highestPercentage =
-                  sortedStats[sortedStats.length - 1]?.percentage ?? 0;
-                const percentageDiff = highestPercentage - lowestPercentage;
-
-                shouldEnter = percentageDiff >= 8; // Precisa de pelo menos 8% de diferença
-
-                // Determine o tipo de contrato (DIGITOVER para dígito com baixa frequência)
-                contractType = "DIGITOVER";
-                prediction = 3;
-
-                message = shouldEnter
-                  ? `MAXPRO: Condição atendida! Dígito ${lowestFreqDigit} com frequência baixa (${lowestPercentage}%). Diferença: ${percentageDiff}%`
-                  : `MAXPRO: Distribuição muito equilibrada (dif: ${percentageDiff}%). Aguardando melhor oportunidade.`;
-
-                console.log(
-                  `[BOT_CONTROLLER] Análise MAXPRO: ${shouldEnter ? "ENTRAR" : "AGUARDAR"} - ${message}`,
-                );
+                // Obter o último dígito recebido
+                const lastDigit = event.lastDigit !== undefined ? event.lastDigit : -1;
+                
+                // Obter valor de Loss Virtual configurado pelo usuário (default: 1 se não configurado)
+                const lossVirtual = Number(strategyConfig?.lossVirtual) || 1;
+                
+                // Obter os últimos dígitos do histórico
+                const recentDigits: number[] = oauthDirectService.getLastDigits ? 
+                  oauthDirectService.getLastDigits(20) : // Pegar apenas os 20 mais recentes
+                  [lastDigit];
+                
+                console.log(`[BOT_CONTROLLER] MAXPRO: Loss Virtual configurado = ${lossVirtual}`);
+                console.log(`[BOT_CONTROLLER] MAXPRO: Último dígito = ${lastDigit}`);
+                console.log(`[BOT_CONTROLLER] MAXPRO: Dígitos recentes = ${recentDigits.slice(0, 5).join(', ')}...`);
+                
+                // Verificar se o último dígito está entre 0-3 (faixa de dígitos para MaxPro)
+                const isValidDigit = lastDigit >= 0 && lastDigit <= 3;
+                
+                if (!isValidDigit) {
+                  shouldEnter = false;
+                  message = `MAXPRO: ❌ Último dígito ${lastDigit} não está na faixa válida (0-3).`;
+                  console.log(`[BOT_CONTROLLER] ${message}`);
+                } else {
+                  // Contar ocorrências consecutivas de dígitos na faixa 0-3 no histórico recente
+                  let consecutiveOccurrences = 0;
+                  // Percorrer dígitos recentes (começando pelo mais recente)
+                  for (let i = 0; i < recentDigits.length; i++) {
+                    // Verificar apenas dígitos válidos na faixa 0-3
+                    if (recentDigits[i] >= 0 && recentDigits[i] <= 3) {
+                      consecutiveOccurrences++;
+                    } else {
+                      // Se encontrar um dígito fora da faixa 0-3, interrompe a contagem
+                      break;
+                    }
+                  }
+                  
+                  console.log(`[BOT_CONTROLLER] MAXPRO: Ocorrências consecutivas de dígitos 0-3 = ${consecutiveOccurrences}`);
+                  console.log(`[BOT_CONTROLLER] MAXPRO: Loss Virtual configurado = ${lossVirtual}`);
+                  
+                  // Verificar se atingiu o número de ocorrências consecutivas configurado no Loss Virtual
+                  shouldEnter = consecutiveOccurrences >= lossVirtual;
+                  
+                  // Definir parâmetros da operação
+                  contractType = "DIGITOVER";
+                  prediction = 3; // Valor padrão para MaxPro
+                  
+                  // Determinar mensagem com base na condição
+                  message = shouldEnter
+                    ? `MAXPRO: ✅ Condição atendida! ${consecutiveOccurrences} ocorrências consecutivas de dígitos 0-3 (Loss Virtual = ${lossVirtual}). Executando DIGITOVER ${prediction}`
+                    : `MAXPRO: ❌ Condição não atendida. ${consecutiveOccurrences}/${lossVirtual} ocorrências consecutivas de dígitos 0-3.`;
+                }
+                
+                // Logs detalhados para depuração
+                console.log(`[BOT_CONTROLLER] MAXPRO STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Último dígito: ${lastDigit}`);
+                console.log(`[BOT_CONTROLLER] - Loss Virtual configurado: ${lossVirtual}`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType || 'N/A'}`);
+                console.log(`[BOT_CONTROLLER] - Prediction: ${prediction || 'N/A'}`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`);
+                console.log(`[BOT_CONTROLLER] - Message: ${message}`);
               } catch (maxProError) {
                 console.error(
-                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA MAXPRO (implementação direta):",
+                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA MAXPRO:",
                   maxProError,
                 );
                 if (maxProError instanceof Error) {
@@ -845,83 +874,136 @@ export function BotController({
               selectedStrategy.toLowerCase().includes("bot_low") ||
               selectedStrategy.toLowerCase().includes("botlow")
             ) {
-              //checkpoint botlow
-              // Estratégia Iron Under - Implementação direta para evitar problemas de importação
+              // Implementação correta do BOT LOW com Loss Virtual fixo = 1 para dígitos 0-2
               console.log(
-                "[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER",
+                "[BOT_CONTROLLER] Implementando a lógica correta da estratégia BOT LOW com Loss Virtual=1 para dígitos 0-2",
               );
               try {
-                // IRON UNDER ALWAYS uses DIGITUNDER (specific barrier value from XML)
-                shouldEnter = true;
-                contractType = "DIGITUNDER";
-                prediction = 8; // Hard-coded value from IRON UNDER XML strategy
-                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction}`;
-
-                // CRITICAL: Log exact parameters - this must match XML strategy
-                console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
-                console.log(
-                  `[BOT_CONTROLLER] - Contract Type: ${contractType}`,
-                );
-                console.log(
-                  `[BOT_CONTROLLER] - Prediction/Barrier: ${prediction}`,
-                );
-                console.log(
-                  `[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`,
-                );
+                // Obter o último dígito recebido
+                const lastDigit = event.lastDigit !== undefined ? event.lastDigit : -1;
+                
+                // Obter os últimos dígitos do histórico
+                const recentDigits: number[] = oauthDirectService.getRecentDigits ? 
+                  oauthDirectService.getRecentDigits() : 
+                  [lastDigit];
+                
+                console.log(`[BOT_CONTROLLER] BOT LOW: Último dígito = ${lastDigit}, Dígitos recentes = ${recentDigits.slice(0, 5).join(', ')}...`);
+                
+                // Verificar se o último dígito está entre 0-2 (Loss Virtual = 1 fixo para BOT LOW)
+                const isValidDigit = lastDigit >= 0 && lastDigit <= 2;
+                
+                // Definir parâmetros da operação
+                shouldEnter = isValidDigit;
+                contractType = "DIGITOVER";
+                prediction = 3; // BOT LOW usa DIGITOVER 3 quando o último dígito é 0-2
+                
+                // Determinar mensagem com base na condição
+                message = isValidDigit
+                  ? `BOT LOW: ✅ Condição atendida! Último dígito ${lastDigit} está entre 0-2. Executando DIGITOVER ${prediction}`
+                  : `BOT LOW: ❌ Condição não atendida. Último dígito ${lastDigit} não está entre 0-2.`;
+                
+                // Logs detalhados para depuração
+                console.log(`[BOT_CONTROLLER] BOT LOW STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Último dígito: ${lastDigit}`);
+                console.log(`[BOT_CONTROLLER] - Condição: Dígito entre 0-2? ${isValidDigit ? 'SIM' : 'NÃO'}`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType}`);
+                console.log(`[BOT_CONTROLLER] - Prediction: ${prediction}`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`);
                 console.log(`[BOT_CONTROLLER] - Message: ${message}`);
-              } catch (ironUnderError) {
+              } catch (botLowError) {
                 console.error(
-                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):",
-                  ironUnderError,
+                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA BOT LOW:",
+                  botLowError,
                 );
-                if (ironUnderError instanceof Error) {
+                if (botLowError instanceof Error) {
                   console.error(
-                    "[BOT_CONTROLLER] Erro IRON UNDER - detalhes:",
+                    "[BOT_CONTROLLER] Erro BOT LOW - detalhes:",
                     {
-                      message: ironUnderError.message,
-                      stack: ironUnderError.stack,
-                      name: ironUnderError.name,
+                      message: botLowError.message,
+                      stack: botLowError.stack,
+                      name: botLowError.name,
                     },
                   );
                 }
               }
             } else if (selectedStrategy.toLowerCase().includes("profitpro")) {
-              //checkpoint profitpro
-              // Estratégia Iron Under - Implementação direta para evitar problemas de importação
+              // Implementação correta da estratégia ProfitPro com Loss Virtual configurável para dígitos 0-6
               console.log(
-                "[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER",
+                "[BOT_CONTROLLER] Implementando a lógica correta da estratégia PROFITPRO com Loss Virtual configurável",
               );
               try {
-                // IRON UNDER ALWAYS uses DIGITUNDER (specific barrier value from XML)
-                shouldEnter = true;
-                contractType = "DIGITUNDER";
-                prediction = 7; // Hard-coded value from IRON UNDER XML strategy
-                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction}`;
-
-                // CRITICAL: Log exact parameters - this must match XML strategy
-                console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
-                console.log(
-                  `[BOT_CONTROLLER] - Contract Type: ${contractType}`,
-                );
-                console.log(
-                  `[BOT_CONTROLLER] - Prediction/Barrier: ${prediction}`,
-                );
-                console.log(
-                  `[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`,
-                );
+                // Obter o último dígito recebido
+                const lastDigit = event.lastDigit !== undefined ? event.lastDigit : -1;
+                
+                // Obter valor de Loss Virtual configurado pelo usuário (default: 1 se não configurado)
+                const lossVirtual = Number(strategyConfig?.lossVirtual) || 1;
+                
+                // Obter os últimos dígitos do histórico
+                const recentDigits: number[] = oauthDirectService.getRecentDigits ? 
+                  oauthDirectService.getRecentDigits().slice(0, 20) : // Pegar apenas os 20 mais recentes
+                  [lastDigit];
+                
+                console.log(`[BOT_CONTROLLER] PROFITPRO: Loss Virtual configurado = ${lossVirtual}`);
+                console.log(`[BOT_CONTROLLER] PROFITPRO: Último dígito = ${lastDigit}`);
+                console.log(`[BOT_CONTROLLER] PROFITPRO: Dígitos recentes = ${recentDigits.slice(0, 5).join(', ')}...`);
+                
+                // Verificar se o último dígito está entre 0-6 (faixa de dígitos para ProfitPro)
+                const isValidDigit = lastDigit >= 0 && lastDigit <= 6;
+                
+                if (!isValidDigit) {
+                  shouldEnter = false;
+                  message = `PROFITPRO: ❌ Último dígito ${lastDigit} não está na faixa válida (0-6).`;
+                  console.log(`[BOT_CONTROLLER] ${message}`);
+                } else {
+                  // Contar ocorrências consecutivas do dígito atual no histórico recente
+                  let consecutiveOccurrences = 0;
+                  // Percorrer dígitos recentes (começando pelo mais recente)
+                  for (let i = 0; i < recentDigits.length; i++) {
+                    // Verificar apenas dígitos válidos na faixa 0-6
+                    if (recentDigits[i] >= 0 && recentDigits[i] <= 6) {
+                      consecutiveOccurrences++;
+                    } else {
+                      // Se encontrar um dígito fora da faixa 0-6, interrompe a contagem
+                      break;
+                    }
+                  }
+                  
+                  console.log(`[BOT_CONTROLLER] PROFITPRO: Ocorrências consecutivas de dígitos 0-6 = ${consecutiveOccurrences}`);
+                  console.log(`[BOT_CONTROLLER] PROFITPRO: Loss Virtual configurado = ${lossVirtual}`);
+                  
+                  // Verificar se atingiu o número de ocorrências consecutivas configurado no Loss Virtual
+                  shouldEnter = consecutiveOccurrences >= lossVirtual;
+                  
+                  // Definir parâmetros da operação
+                  contractType = "DIGITOVER";
+                  prediction = 6; // Valor padrão para ProfitPro
+                  
+                  // Determinar mensagem com base na condição
+                  message = shouldEnter
+                    ? `PROFITPRO: ✅ Condição atendida! ${consecutiveOccurrences} ocorrências consecutivas de dígitos 0-6 (Loss Virtual = ${lossVirtual}). Executando DIGITOVER ${prediction}`
+                    : `PROFITPRO: ❌ Condição não atendida. ${consecutiveOccurrences}/${lossVirtual} ocorrências consecutivas de dígitos 0-6.`;
+                }
+                
+                // Logs detalhados para depuração
+                console.log(`[BOT_CONTROLLER] PROFITPRO STRATEGY EXECUTION:`);
+                console.log(`[BOT_CONTROLLER] - Último dígito: ${lastDigit}`);
+                console.log(`[BOT_CONTROLLER] - Loss Virtual configurado: ${lossVirtual}`);
+                console.log(`[BOT_CONTROLLER] - Contract Type: ${contractType || 'N/A'}`);
+                console.log(`[BOT_CONTROLLER] - Prediction: ${prediction || 'N/A'}`);
+                console.log(`[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`);
                 console.log(`[BOT_CONTROLLER] - Message: ${message}`);
-              } catch (ironUnderError) {
+              } catch (profitProError) {
                 console.error(
-                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):",
-                  ironUnderError,
+                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA PROFITPRO:",
+                  profitProError,
                 );
-                if (ironUnderError instanceof Error) {
+                if (profitProError instanceof Error) {
                   console.error(
-                    "[BOT_CONTROLLER] Erro IRON UNDER - detalhes:",
+                    "[BOT_CONTROLLER] Erro PROFITPRO - detalhes:",
                     {
-                      message: ironUnderError.message,
-                      stack: ironUnderError.stack,
-                      name: ironUnderError.name,
+                      message: profitProError.message,
+                      stack: profitProError.stack,
+                      name: profitProError.name,
                     },
                   );
                 }
