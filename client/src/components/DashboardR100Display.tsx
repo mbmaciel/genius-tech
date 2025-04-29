@@ -23,35 +23,79 @@ export function DashboardR100Display() {
   
   // Efeito para carregar histórico do localStorage ao iniciar componente
   useEffect(() => {
-    // Obter histórico do derivHistoryService (que já carrega do localStorage)
-    try {
-      const historyData = derivHistoryService.getDigitStats('R_100');
-      
-      if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
-        console.log(`[DASHBOARD_R100] Carregados ${historyData.lastDigits.length} ticks do histórico salvo`);
+    // Verificar os dados no localStorage diretamente
+    console.log('[DASHBOARD_R100] Verificando dados no localStorage diretamente');
+    const localStorageData = localStorage.getItem('deriv_ticks_R_100');
+    console.log('[DASHBOARD_R100] Dados brutos no localStorage:', localStorageData ? 'ENCONTRADOS' : 'NÃO ENCONTRADOS');
+    
+    if (localStorageData) {
+      try {
+        const parsedData = JSON.parse(localStorageData);
+        console.log('[DASHBOARD_R100] Quantidade de ticks no localStorage:', parsedData.length);
         
-        // Atualizar o estado com dados carregados (pegando os últimos 20)
-        setLastDigits(historyData.lastDigits.slice(0, 20));
-        setLastUpdate(historyData.lastUpdated);
+        // Extrair apenas os últimos dígitos
+        const lastDigitsExtracted = parsedData.map((tick: any) => tick.lastDigit).slice(0, 20);
+        console.log('[DASHBOARD_R100] Últimos dígitos extraídos:', lastDigitsExtracted);
         
-        // Converter estatísticas para o formato usado pelo componente
-        const stats: DigitData[] = [];
-        for (let i = 0; i <= 9; i++) {
-          if (historyData.digitStats[i]) {
-            stats.push({
-              digit: i,
-              count: historyData.digitStats[i].count,
-              percentage: historyData.digitStats[i].percentage
-            });
+        // Atualizar o estado com os dados extraídos
+        setLastDigits(lastDigitsExtracted);
+        setLastUpdate(new Date());
+        
+        // Calcular estatísticas manualmente
+        const digitCounts = Array(10).fill(0);
+        parsedData.forEach((tick: any) => {
+          if (tick.lastDigit >= 0 && tick.lastDigit <= 9) {
+            digitCounts[tick.lastDigit]++;
           }
+        });
+        
+        // Calcular percentuais e formar estatísticas
+        const totalCount = parsedData.length || 1; // Evitar divisão por zero
+        const stats: DigitData[] = [];
+        
+        for (let digit = 0; digit <= 9; digit++) {
+          const count = digitCounts[digit];
+          const percentage = Math.round((count / totalCount) * 100);
+          stats.push({ digit, count, percentage });
         }
         
+        console.log('[DASHBOARD_R100] Estatísticas calculadas:', stats.map(s => `${s.digit}:${s.percentage}%`).join(', '));
         setDigitStats(stats);
-      } else {
-        console.log('[DASHBOARD_R100] Nenhum histórico encontrado, começando do zero');
+      } catch (error) {
+        console.error('[DASHBOARD_R100] Erro ao processar dados do localStorage:', error);
       }
-    } catch (error) {
-      console.error('[DASHBOARD_R100] Erro ao carregar histórico:', error);
+    } else {
+      // Tentar o método original
+      try {
+        const historyData = derivHistoryService.getDigitStats('R_100');
+        console.log('[DASHBOARD_R100] Dados do derivHistoryService:', historyData);
+        
+        if (historyData && historyData.lastDigits && historyData.lastDigits.length > 0) {
+          console.log(`[DASHBOARD_R100] Carregados ${historyData.lastDigits.length} ticks do histórico salvo`);
+          
+          // Atualizar o estado com dados carregados (pegando os últimos 20)
+          setLastDigits(historyData.lastDigits.slice(0, 20));
+          setLastUpdate(historyData.lastUpdated);
+          
+          // Converter estatísticas para o formato usado pelo componente
+          const stats: DigitData[] = [];
+          for (let i = 0; i <= 9; i++) {
+            if (historyData.digitStats[i]) {
+              stats.push({
+                digit: i,
+                count: historyData.digitStats[i].count,
+                percentage: historyData.digitStats[i].percentage
+              });
+            }
+          }
+          
+          setDigitStats(stats);
+        } else {
+          console.log('[DASHBOARD_R100] Nenhum histórico encontrado, começando do zero');
+        }
+      } catch (error) {
+        console.error('[DASHBOARD_R100] Erro ao carregar histórico:', error);
+      }
     }
   }, []);
   
