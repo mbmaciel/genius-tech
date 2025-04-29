@@ -5226,6 +5226,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return true;
       }
 
+      // Reinicializar estatísticas da sessão ao iniciar o bot
+      this.sessionStats = {
+        totalProfit: 0,
+        totalLoss: 0,
+        wins: 0,
+        losses: 0,
+        initialBalance: 0,
+        currentBalance: 0,
+        netProfit: 0,
+        startTime: new Date(),
+      };
+      
+      console.log("[OAUTH_DIRECT] ✅ Estatísticas da sessão reinicializadas com sucesso");
+
       // Carregar tokens novamente para garantir que temos os mais recentes
       this.loadAllTokens();
 
