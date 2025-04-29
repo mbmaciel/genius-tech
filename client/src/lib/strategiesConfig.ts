@@ -61,6 +61,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
       stopLoss: 10,
       martingaleFactor: 1.5,
       maxMartingaleLevel: 3,
+      lossVirtual: 1, // CORREÇÃO (29/04/2025): Adicionado parâmetro lossVirtual para entradas em dígitos 0-2
     },
   },
 
