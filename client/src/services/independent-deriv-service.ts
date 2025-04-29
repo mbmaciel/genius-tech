@@ -109,6 +109,25 @@ class IndependentDerivService {
         }
       }
       
+      // Tentar a chave que está sendo usada atualmente pelo oauthDirectService
+      if (lastDigits.length === 0) {
+        const oauthDirectKey = `deriv_ticks_R_100`;
+        const oauthDirectJson = localStorage.getItem(oauthDirectKey);
+        
+        if (oauthDirectJson) {
+          try {
+            const oauthDirectData = JSON.parse(oauthDirectJson);
+            if (Array.isArray(oauthDirectData) && oauthDirectData.length > 0) {
+              // Extrair apenas o último dígito de cada tick
+              lastDigits = oauthDirectData.map(tick => tick.lastDigit);
+              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave oauthDirect`);
+            }
+          } catch (e) {
+            console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados do oauthDirect:', e);
+          }
+        }
+      }
+      
       // Inicializar com os dígitos encontrados (se houver)
       if (lastDigits.length > 0) {
         console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} ticks carregados do localStorage`);
@@ -447,6 +466,23 @@ class IndependentDerivService {
     });
     
     console.log(`[INDEPENDENT_DERIV] Histórico de dígitos inicializado para ${symbol} com ${totalSamples} amostras`);
+  }
+  
+  /**
+   * Método público para inicializar diretamente o histórico de dígitos
+   * Usado para carregar dados salvos do localStorage direto do componente
+   */
+  public initializeHistoryDirectly(symbol: string, lastDigits: number[]): void {
+    console.log(`[INDEPENDENT_DERIV] Inicializando diretamente histórico com ${lastDigits.length} dígitos para ${symbol}`);
+    
+    // Usar o método privado para inicializar
+    this.initializeDigitHistory(symbol, lastDigits);
+    
+    // Notificar sobre atualização do histórico
+    const history = this.digitHistories.get(symbol);
+    if (history) {
+      this.notifyListeners('history', history);
+    }
   }
   
   /**

@@ -116,10 +116,59 @@ export function IndependentDigitBarChart({
     // Iniciar busca de dados
     const fetchData = async () => {
       try {
-        // Verificar se já temos dados em cache
-        const cachedHistory = independentDerivService.getDigitHistory(symbol);
-        if (cachedHistory && cachedHistory.totalSamples > 0) {
-          handleHistoryUpdate(cachedHistory);
+        // CARREGAMENTO IMEDIATO: Verificar diretamente dados do localStorage
+        const localStorageData = localStorage.getItem(`deriv_ticks_${symbol}`);
+        let localHistoryLoaded = false;
+        
+        if (localStorageData) {
+          try {
+            const parsedData = JSON.parse(localStorageData);
+            if (Array.isArray(parsedData) && parsedData.length > 0) {
+              console.log(`[IndependentDigitBarChart] CARREGAMENTO IMEDIATO: Encontrados ${parsedData.length} ticks no localStorage`);
+              
+              // Extrair apenas os últimos dígitos
+              const lastDigits = parsedData.map(tick => tick.lastDigit || 0);
+              
+              // Método alternativo: Adicionamos cada dígito individualmente ao histórico
+              // Isso usa os métodos públicos disponíveis ao invés do método privado
+              console.log(`[IndependentDigitBarChart] Processando ${lastDigits.length} dígitos carregados do localStorage`);
+              
+              // Intencionalmente esperar um pouco para garantir que o serviço já tenha inicializado
+              setTimeout(() => {
+                // Aplicar um por um - isso será mais lento, mas é uma solução alternativa
+                lastDigits.forEach(digit => {
+                  // Simulamos a atualização de dígito que aconteceria no recebimento de ticks
+                  const mockTick = {
+                    symbol,
+                    quote: 0,
+                    lastDigit: digit,
+                    epoch: 0
+                  };
+                  
+                  // Notificamos como se fosse um tick real
+                  independentDerivService.notifyListeners('tick', mockTick);
+                });
+                
+                // Obter o histórico atualizado depois de processar todos os dígitos
+                const cachedHistory = independentDerivService.getDigitHistory(symbol, parseInt(selectedCount));
+                console.log(`[IndependentDigitBarChart] Processamento completo, histórico tem ${cachedHistory.lastDigits.length} dígitos`);
+                handleHistoryUpdate(cachedHistory);
+              }, 300);
+              
+              console.log(`[IndependentDigitBarChart] CARREGAMENTO IMEDIATO: Inicializado com ${lastDigits.length} ticks`);
+              localHistoryLoaded = true;
+            }
+          } catch (e) {
+            console.error('[IndependentDigitBarChart] Erro ao processar dados do localStorage:', e);
+          }
+        }
+        
+        // Verificar se já temos dados em cache do serviço (caso o carregamento direto tenha falhado)
+        if (!localHistoryLoaded) {
+          const cachedHistory = independentDerivService.getDigitHistory(symbol);
+          if (cachedHistory && cachedHistory.totalSamples > 0) {
+            handleHistoryUpdate(cachedHistory);
+          }
         }
         
         // Solicitar histórico e assinar ticks (mesmo que tenhamos cache)
@@ -127,7 +176,10 @@ export function IndependentDigitBarChart({
           await independentDerivService.fetchTicksHistory(symbol, 500);
         } catch (historyError) {
           console.warn('[IndependentDigitBarChart] Erro ao buscar histórico, tentando apenas subscrição:', historyError);
-          setError('Usando dados recentes. Atualizando...');
+          // Não exibir erro se já temos dados do localStorage
+          if (!localHistoryLoaded) {
+            setError('Usando dados recentes. Atualizando...');
+          }
         }
         
         try {
