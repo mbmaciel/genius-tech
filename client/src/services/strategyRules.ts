@@ -269,35 +269,98 @@ export function evaluateIronUnderStrategy(
 }
 
 /**
- * Avalia a estratégia MAXPRO
- * Usa análise de padrões de dígitos e filtra por distribuição equilibrada
+ * Avalia a estratégia ProfitPro
+ * Implementa a lógica de Loss Virtual para dígitos 0-6
  */
-export function evaluateMaxProStrategy(
-  digitStats: DigitStat[]
+export function evaluateProfitProStrategy(
+  digitStats: DigitStat[],
+  recentDigits: number[],
+  lossVirtual: number = 1
 ): { shouldEnter: boolean; contractType: ContractType; prediction: number; message: string } {
-  // Ordenar dígitos por frequência (do menor para o maior)
-  const sortedStats = [...digitStats].sort((a, b) => a.percentage - b.percentage);
+  console.log(`[STRATEGY_RULES] ProfitPro: Analisando com Loss Virtual = ${lossVirtual}`);
+  console.log(`[STRATEGY_RULES] ProfitPro: Dígitos recentes:`, recentDigits.slice(0, 10).join(', '));
   
-  // Pegar o dígito com menor frequência
-  const lowestFreqDigit = sortedStats[0]?.digit ?? 5;
+  // Verificar se temos dígitos suficientes para análise
+  if (recentDigits.length < lossVirtual) {
+    console.log(`[STRATEGY_RULES] ProfitPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`);
+    return {
+      shouldEnter: false,
+      contractType: 'DIGITOVER',
+      prediction: 7,
+      message: `ProfitPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`
+    };
+  }
   
-  // Pegar o dígito com maior frequência
-  const highestFreqDigit = sortedStats[sortedStats.length - 1]?.digit ?? 5;
+  // Verificar os últimos 'lossVirtual' dígitos para determinar se devemos operar
+  // Precisamos verificar se há 'lossVirtual' ocorrências consecutivas de dígitos 0-6
+  const relevantDigits = recentDigits.slice(0, lossVirtual);
+  const isTargetDigit = (digit: number) => digit >= 0 && digit <= 6;
   
-  // Verificar se a diferença entre maior e menor frequência é significativa
-  const lowestPercentage = sortedStats[0]?.percentage ?? 0;
-  const highestPercentage = sortedStats[sortedStats.length - 1]?.percentage ?? 0;
-  const percentageDiff = highestPercentage - lowestPercentage;
+  // Verificar se todos os dígitos relevantes são entre 0-6
+  const allTargetDigits = relevantDigits.every(isTargetDigit);
   
-  const shouldEnter = percentageDiff >= 8; // Precisa de pelo menos 8% de diferença
+  console.log(`[STRATEGY_RULES] ProfitPro: Verificando ${lossVirtual} dígitos consecutivos:`, relevantDigits.join(', '));
+  console.log(`[STRATEGY_RULES] ProfitPro: Todos os dígitos são 0-6? ${allTargetDigits ? 'SIM ✅' : 'NÃO ❌'}`);
   
-  // Determine o tipo de contrato (DIGITOVER para dígito com baixa frequência)
+  // Se todos os dígitos relevantes forem 0-6, devemos entrar com DIGITOVER 7
+  const shouldEnter = allTargetDigits;
   const contractType: ContractType = 'DIGITOVER';
-  const prediction = lowestFreqDigit;
+  const prediction = 7; // Entrar com DIGITOVER 7 quando dígitos 0-6 aparecem lossVirtual vezes consecutivas
   
   let message = shouldEnter
-    ? `MAXPRO: Condição atendida! Dígito ${lowestFreqDigit} com frequência baixa (${lowestPercentage}%). Diferença: ${percentageDiff}%`
-    : `MAXPRO: Distribuição muito equilibrada (dif: ${percentageDiff}%). Aguardando melhor oportunidade.`;
+    ? `ProfitPro: Condição atendida! ${lossVirtual} dígitos consecutivos entre 0-6. Executando DIGITOVER ${prediction}`
+    : `ProfitPro: Aguardando ${lossVirtual} dígitos consecutivos entre 0-6. Sequência atual: ${relevantDigits.join(', ')}`;
+  
+  return {
+    shouldEnter,
+    contractType,
+    prediction,
+    message
+  };
+}
+
+/**
+ * Avalia a estratégia MAXPRO
+ * Implementa a lógica de Loss Virtual para dígitos 0-3
+ */
+export function evaluateMaxProStrategy(
+  digitStats: DigitStat[],
+  recentDigits: number[],
+  lossVirtual: number = 1
+): { shouldEnter: boolean; contractType: ContractType; prediction: number; message: string } {
+  console.log(`[STRATEGY_RULES] MaxPro: Analisando com Loss Virtual = ${lossVirtual}`);
+  console.log(`[STRATEGY_RULES] MaxPro: Dígitos recentes:`, recentDigits.slice(0, 10).join(', '));
+  
+  // Verificar se temos dígitos suficientes para análise
+  if (recentDigits.length < lossVirtual) {
+    console.log(`[STRATEGY_RULES] MaxPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`);
+    return {
+      shouldEnter: false,
+      contractType: 'DIGITOVER',
+      prediction: 4,
+      message: `MaxPro: Dígitos insuficientes (${recentDigits.length}) para análise de Loss Virtual (${lossVirtual})`
+    };
+  }
+  
+  // Verificar os últimos 'lossVirtual' dígitos para determinar se devemos operar
+  // Precisamos verificar se há 'lossVirtual' ocorrências consecutivas de dígitos 0-3
+  const relevantDigits = recentDigits.slice(0, lossVirtual);
+  const isTargetDigit = (digit: number) => digit >= 0 && digit <= 3;
+  
+  // Verificar se todos os dígitos relevantes são entre 0-3
+  const allTargetDigits = relevantDigits.every(isTargetDigit);
+  
+  console.log(`[STRATEGY_RULES] MaxPro: Verificando ${lossVirtual} dígitos consecutivos:`, relevantDigits.join(', '));
+  console.log(`[STRATEGY_RULES] MaxPro: Todos os dígitos são 0-3? ${allTargetDigits ? 'SIM ✅' : 'NÃO ❌'}`);
+  
+  // Se todos os dígitos relevantes forem 0-3, devemos entrar com DIGITOVER 4
+  const shouldEnter = allTargetDigits;
+  const contractType: ContractType = 'DIGITOVER';
+  const prediction = 4; // Entrar com DIGITOVER 4 quando dígitos 0-3 aparecem lossVirtual vezes consecutivas
+  
+  let message = shouldEnter
+    ? `MaxPro: Condição atendida! ${lossVirtual} dígitos consecutivos entre 0-3. Executando DIGITOVER ${prediction}`
+    : `MaxPro: Aguardando ${lossVirtual} dígitos consecutivos entre 0-3. Sequência atual: ${relevantDigits.join(', ')}`;
   
   return {
     shouldEnter,
