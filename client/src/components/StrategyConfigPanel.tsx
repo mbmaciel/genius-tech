@@ -331,6 +331,11 @@ export function StrategyConfigPanel({
 
   const showUsarMartingaleAposXLoss =
     strategyId.includes("iron") || strategyId.includes("green");
+    
+  // Mostrar configuração de Loss Virtual apenas para ProfitPro e MaxPro
+  // Bot Low já é pré-configurado com loss virtual = 1 para dígitos 0-2
+  const showLossVirtual = 
+    strategyId === "profitpro" || strategyId.includes("maxpro");
 
   // Renderizar configuração específica para a estratégia
   return (
@@ -468,6 +473,30 @@ export function StrategyConfigPanel({
                   Inicial × Número de perdas consecutivas
                 </p>
               )}
+            </div>
+          )}
+          
+          {/* Campo Loss Virtual - apenas para estratégias ProfitPro e MaxPro */}
+          {showLossVirtual && (
+            <div className="space-y-2">
+              <Label htmlFor="lossVirtual">
+                {strategyId === "profitpro"
+                  ? "Loss Virtual para Dígitos 0-6"
+                  : "Loss Virtual para Dígitos 0-3"}
+              </Label>
+              <Input
+                id="lossVirtual"
+                type="number"
+                min="1"
+                value={config.lossVirtual?.toString() || "1"}
+                onChange={(e) => handleChange("lossVirtual", e.target.value)}
+                className="bg-[#0d1525] border-gray-700"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {strategyId === "profitpro" 
+                  ? "Número de vezes consecutivas que os dígitos 0-6 devem aparecer antes de realizar uma entrada"
+                  : "Número de vezes consecutivas que os dígitos 0-3 devem aparecer antes de realizar uma entrada"}
+              </p>
             </div>
           )}
         </div>

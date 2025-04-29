@@ -10,6 +10,11 @@ export interface BotConfig {
   prediction?: number;
   entryPercentage?: number; // Porcentagem para entrar em estratégias específicas como Advance
   lossVirtual?: number; // Número de ocorrências consecutivas para loss virtual em estratégias ProfitPro e MaxPro
+  
+  // Campos específicos para estratégia ADVANCE
+  forceBarrier?: string;
+  forcePrediction?: number;
+  forceDigitOver?: boolean;
 }
 
 // Tipos de estratégias suportadas

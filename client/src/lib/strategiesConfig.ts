@@ -18,6 +18,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
       stopLoss: 10,
       martingaleFactor: 1.5,
       maxMartingaleLevel: 3,
+      lossVirtual: 1, // Configuração de loss virtual para dígitos 0-6
     },
   },
   {
@@ -104,6 +105,7 @@ export const availableStrategies: BinaryBotStrategy[] = [
       stopLoss: 10,
       martingaleFactor: 1.5,
       maxMartingaleLevel: 3,
+      lossVirtual: 1, // Configuração de loss virtual para dígitos 0-3
     },
   },
   {
