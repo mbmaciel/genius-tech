@@ -84,6 +84,8 @@ export interface OAuthDirectServiceInterface {
   // Métodos para estatísticas e análise
   getDigitStats(): any[]; // Método para obter estatísticas de dígitos
   getDigitPercentage(digit: number): number; // Método para obter porcentagem de um dígito específico
+  getRecentDigits(): number[]; // Método para obter os dígitos mais recentes
+  getLastDigits(count?: number): number[]; // Método para obter os últimos N dígitos
   
   // Métodos para operação
   executeFirstOperation(amount?: number | string): Promise<boolean>; // Iniciar primeira operação
