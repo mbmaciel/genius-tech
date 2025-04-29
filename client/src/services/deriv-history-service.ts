@@ -195,12 +195,13 @@ class DerivHistoryService {
   public clearHistory(symbol: string): Promise<void> {
     return new Promise((resolve) => {
       try {
-        console.log(`[DerivHistoryService] Limpando todo o histórico armazenado para ${symbol}`);
+        console.log(`[DerivHistoryService] Limpando histórico em memória para ${symbol}`);
         
-        // Remover dados do localStorage
-        localStorage.removeItem(`digit_history_${symbol}`);
+        // NÃO removemos dados do localStorage usado pelo oauthDirectService
+        // Isso garantirá que os dados persistam entre sessões
+        console.log(`[DerivHistoryService] Preservando dados no localStorage para persistência`);
         
-        // Reinicializar estruturas de dados
+        // Reinicializar estruturas de dados em memória apenas
         const statsObj: DigitStats = {};
         for (let i = 0; i <= 9; i++) {
           statsObj[i] = {count: 0, percentage: 0};
@@ -215,7 +216,10 @@ class DerivHistoryService {
         
         this.tickHistories[symbol] = [];
         
-        console.log(`[DerivHistoryService] Histórico para ${symbol} limpo com sucesso`);
+        // Recarregar dados do localStorage
+        this.loadHistoryFromLocalStorage(symbol);
+        
+        console.log(`[DerivHistoryService] Histórico em memória para ${symbol} redefinido e recarregado do localStorage`);
         resolve();
       } catch (error) {
         console.error(`[DerivHistoryService] Erro ao limpar histórico para ${symbol}:`, error);
@@ -252,12 +256,11 @@ class DerivHistoryService {
       
       console.log(`[DerivHistoryService] Solicitando os ${count} ticks mais recentes do mercado para ${symbol}`);
       
-      // Se forceRefresh é true, limpar todos os dados anteriores
+      // Se forceRefresh é true, limpar dados em memória mas preservar localStorage
       if (forceRefresh) {
-        console.log(`[DerivHistoryService] FORÇA ATUALIZAÇÃO: limpando dados armazenados para ${symbol} antes de buscar novos`);
+        console.log(`[DerivHistoryService] FORÇA ATUALIZAÇÃO: limpando dados em memória para ${symbol} antes de buscar novos`);
         
-        // Limpar dados anteriores antes de buscar novos ticks
-        // Isto garante que sempre começamos com o estado atual do mercado
+        // Limpar dados anteriores em memória antes de buscar novos ticks
         const statsObj: DigitStats = {};
         for (let i = 0; i <= 9; i++) {
           statsObj[i] = {count: 0, percentage: 0};
@@ -272,8 +275,9 @@ class DerivHistoryService {
         
         this.tickHistories[symbol] = [];
         
-        // Também remover do localStorage
-        localStorage.removeItem(`digit_history_${symbol}`);
+        // NÃO removemos dados do localStorage usado pelo oauthDirectService
+        // para preservar a persistência entre sessões
+        console.log(`[DerivHistoryService] Preservando dados no localStorage para persistência (mesmo com forceRefresh)`);
       }
       
       // Enviar solicitação para autorização
@@ -527,10 +531,9 @@ class DerivHistoryService {
    * Método mantido por compatibilidade, mas não faz nada
    */
   private saveToLocalStorage(symbol: string) {
-    // A persistência em localStorage foi desativada
-    // Método mantido por compatibilidade com o código existente
-    // O REQUISITO CRÍTICO é NUNCA usar dados persistidos de sessões anteriores
-    console.log(`[DerivHistoryService] Método saveToLocalStorage chamado para ${symbol}, mas desativado por projeto`);
+    // Não precisamos implementar o salvamento aqui, pois o oauthDirectService
+    // já está salvando os ticks no localStorage. Apenas mantemos compatibilidade.
+    console.log(`[DerivHistoryService] Método saveToLocalStorage: usando persistência do oauthDirectService para ${symbol}`);
     return;
   }
   
@@ -539,11 +542,10 @@ class DerivHistoryService {
    * Método mantido por compatibilidade, mas não faz nada
    */
   private loadFromLocalStorage(symbol: string) {
-    // O carregamento de dados do localStorage foi desativado
-    // Método mantido por compatibilidade com o código existente
-    // O REQUISITO CRÍTICO é NUNCA usar dados persistidos de sessões anteriores
-    console.log(`[DerivHistoryService] Método loadFromLocalStorage chamado para ${symbol}, mas desativado por projeto`);
-    return false;
+    // Redirecionamos para o novo método de carregamento que usa o localStorage
+    // mantido pelo oauthDirectService para manter a compatibilidade
+    this.loadHistoryFromLocalStorage(symbol);
+    return true;
   }
   
   /**
