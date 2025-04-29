@@ -804,9 +804,16 @@ export function BotController({
                 const lossVirtual = Number(strategyConfig?.lossVirtual) || 1;
                 
                 // Obter os últimos dígitos do histórico
-                const recentDigits: number[] = oauthDirectService.getLastDigits ? 
-                  oauthDirectService.getLastDigits(20) : // Pegar apenas os 20 mais recentes
-                  [lastDigit];
+                const recentDigits: number[] = [lastDigit]; // Valor padrão
+                try {
+                  const lastDigits = oauthDirectService.getLastDigits(20); // Pegar apenas os 20 mais recentes
+                  if (lastDigits && lastDigits.length > 0) {
+                    // Se conseguir obter os dígitos recentes, usar eles
+                    Object.assign(recentDigits, lastDigits);
+                  }
+                } catch (error) {
+                  console.error("[BOT_CONTROLLER] Erro ao obter dígitos recentes:", error);
+                }
                 
                 console.log(`[BOT_CONTROLLER] MAXPRO: Loss Virtual configurado = ${lossVirtual}`);
                 console.log(`[BOT_CONTROLLER] MAXPRO: Último dígito = ${lastDigit}`);

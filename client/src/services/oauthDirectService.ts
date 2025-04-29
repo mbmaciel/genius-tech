@@ -1796,6 +1796,103 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     return digitStat?.percentage || 0;
   }
+  
+  /**
+   * Retorna os dígitos mais recentes (até 20)
+   * @returns Array com os dígitos mais recentes, do mais novo para o mais antigo
+   */
+  public getRecentDigits(): number[] {
+    try {
+      // Obter dados de ticks da chave de localStorage
+      const localDataKey = `deriv_ticks_${this.activeSymbol}`;
+      const localData = localStorage.getItem(localDataKey);
+      
+      if (!localData) {
+        console.log(
+          "[OAUTH_DIRECT] ⚠️ Nenhum histórico de ticks disponível para getRecentDigits"
+        );
+        return [];
+      }
+      
+      const ticksData = JSON.parse(localData);
+      if (!Array.isArray(ticksData) || ticksData.length === 0) {
+        console.log(
+          "[OAUTH_DIRECT] ⚠️ Histórico de ticks inválido ou vazio para getRecentDigits"
+        );
+        return [];
+      }
+      
+      // Limitar a 20 dígitos mais recentes
+      const recentTickLimit = Math.min(20, ticksData.length);
+      const recentTicks = ticksData.slice(0, recentTickLimit);
+      
+      // Extrair apenas os dígitos
+      const digits = recentTicks.map(
+        (tick: any) => tick.lastDigit || parseInt(tick.price.toString().slice(-1))
+      );
+      
+      console.log(
+        `[OAUTH_DIRECT] getRecentDigits: Retornando ${digits.length} dígitos recentes`
+      );
+      
+      return digits;
+    } catch (error) {
+      console.error(
+        "[OAUTH_DIRECT] Erro ao obter dígitos recentes:",
+        error
+      );
+      return [];
+    }
+  }
+  
+  /**
+   * Retorna os últimos N dígitos
+   * @param count Quantidade de dígitos para retornar (default: 10)
+   * @returns Array com os últimos N dígitos, do mais novo para o mais antigo
+   */
+  public getLastDigits(count: number = 10): number[] {
+    try {
+      // Obter dados de ticks da chave de localStorage
+      const localDataKey = `deriv_ticks_${this.activeSymbol}`;
+      const localData = localStorage.getItem(localDataKey);
+      
+      if (!localData) {
+        console.log(
+          "[OAUTH_DIRECT] ⚠️ Nenhum histórico de ticks disponível para getLastDigits"
+        );
+        return [];
+      }
+      
+      const ticksData = JSON.parse(localData);
+      if (!Array.isArray(ticksData) || ticksData.length === 0) {
+        console.log(
+          "[OAUTH_DIRECT] ⚠️ Histórico de ticks inválido ou vazio para getLastDigits"
+        );
+        return [];
+      }
+      
+      // Limitar à quantidade solicitada ou disponível
+      const tickLimit = Math.min(count, ticksData.length);
+      const selectedTicks = ticksData.slice(0, tickLimit);
+      
+      // Extrair apenas os dígitos
+      const digits = selectedTicks.map(
+        (tick: any) => tick.lastDigit || parseInt(tick.price.toString().slice(-1))
+      );
+      
+      console.log(
+        `[OAUTH_DIRECT] getLastDigits: Retornando ${digits.length}/${count} dígitos solicitados`
+      );
+      
+      return digits;
+    } catch (error) {
+      console.error(
+        "[OAUTH_DIRECT] Erro ao obter últimos dígitos:",
+        error
+      );
+      return [];
+    }
+  }
 
   /**
    * Obtém estatísticas de dígitos dos últimos 25 ticks
