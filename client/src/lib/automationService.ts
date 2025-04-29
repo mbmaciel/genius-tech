@@ -9,6 +9,7 @@ export interface BotConfig {
   stopLoss: number;
   prediction?: number;
   entryPercentage?: number; // Porcentagem para entrar em estratégias específicas como Advance
+  lossVirtual?: number; // Número de ocorrências consecutivas para loss virtual em estratégias ProfitPro e MaxPro
 }
 
 // Tipos de estratégias suportadas

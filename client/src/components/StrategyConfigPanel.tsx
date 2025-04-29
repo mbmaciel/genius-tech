@@ -18,6 +18,10 @@ export interface StrategyConfiguration {
   porcentagemParaEntrar?: number | string;
   usarMartingaleAposXLoss?: number | string;
   predition?: number | string;
+  
+  // Campo específico para configuração de Loss Virtual
+  // Define quantas vezes consecutivas os dígitos alvo devem aparecer antes da entrada
+  lossVirtual?: number | string;
 }
 
 interface StrategyConfigPanelProps {
@@ -54,6 +58,7 @@ const createCompleteConfig = (
       ...baseConfig,
       valorAposVencer: 0.35,
       parcelasMartingale: strategy.config?.maxMartingaleLevel || 3,
+      lossVirtual: strategy.config?.lossVirtual || 1, // Loss Virtual para dígitos 0-6
     };
   }
 
@@ -93,6 +98,16 @@ const createCompleteConfig = (
     strategyId.includes("botlow") ||
     strategyId.includes("maxpro")
   ) {
+    // Configuração específica para MaxPro
+    if (strategyId.includes("maxpro")) {
+      return {
+        ...baseConfig,
+        valorAposVencer: 0.35,
+        lossVirtual: strategy.config?.lossVirtual || 1, // Loss Virtual para dígitos 0-3
+      };
+    }
+    
+    // BOT LOW (pré-configurado para loss virtual = 1, não necessita configuração adicional)
     return {
       ...baseConfig,
       valorAposVencer: 0.35,
