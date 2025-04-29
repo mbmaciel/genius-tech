@@ -2033,6 +2033,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       console.log(
         `[OAUTH_DIRECT] WebSocket status: ${this.webSocket?.readyState || "DESCONECTADO"}`,
       );
+      
+      // CORREÇÃO CRÍTICA (29/04/2025): Logs adicionais para mostrar o parâmetro lossVirtual
+      // e os dígitos recentes que serão usados na avaliação da estratégia
+      const botStrategy = getStrategyById(this.strategyConfig);
+      const lossVirtual = botStrategy?.config?.lossVirtual || 1;
+      const recentDigits = this.getRecentDigits();
+      
+      console.log(
+        `[OAUTH_DIRECT] 🔍 DIAGNÓSTICO LOSS VIRTUAL: Parâmetro configurado = ${lossVirtual}, Dígitos recentes = ${recentDigits.slice(0, 10).join(', ')}`,
+      );
 
       // CORREÇÃO CRÍTICA: Garantir que estamos em execução
       if (!this.isRunning) {
@@ -2146,7 +2156,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
       // Obter a estratégia atual
       const strategyId = this.strategyConfig.toLowerCase();
-      const strategy = getStrategyById(strategyId);
+      const currentStrategy = getStrategyById(strategyId);
 
       // Calcular corretamente o lucro para atualizar o resultado na estratégia
       let calculatedProfit = lastContract.profit || 0;

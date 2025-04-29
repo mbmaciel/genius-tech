@@ -458,8 +458,21 @@ export async function evaluateEntryConditions(
       
     } else if (normalizedId.includes('maxpro')) {
       // Configuração para MAXPRO
-      const result = evaluateMaxProStrategy(digitStats);
+      // CORREÇÃO CRÍTICA (29/04/2025): Garantir que estamos passando os dígitos recentes e o loss virtual
+      // para que a estratégia MAXPRO possa avaliar corretamente as condições de entrada
+      // Verificar configurações de lossVirtual nos parâmetros da função ou usar valor padrão
+      const lossVirtual = strategyConfig?.lossVirtual 
+        ? parseInt(strategyConfig.lossVirtual.toString())
+        : 1;
+      // Usar os dígitos recentes passados como parâmetro para a função
+      const recentDigits = Array.isArray(digitStats) ? digitStats.map(d => d.digit) : [];
+      
+      console.log(`[STRATEGY_HANDLER] 🔍 MAXPRO: Usando análise de loss virtual = ${lossVirtual}`);
+      console.log(`[STRATEGY_HANDLER] 🔍 MAXPRO: Analisando dígitos recentes = ${recentDigits.slice(0, 10).join(', ')}`);
+      
+      const result = evaluateMaxProStrategy(digitStats, recentDigits, lossVirtual);
       shouldEnter = result.shouldEnter;
+      console.log(`[STRATEGY_HANDLER] 🔍 MAXPRO: Resultado da análise = ${shouldEnter ? 'ENTRAR ✅' : 'NÃO ENTRAR ❌'}, Motivo: ${result.message}`);
       contractType = result.contractType;
       prediction = result.prediction;
       message = result.message;
