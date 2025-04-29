@@ -33,9 +33,12 @@ export function DashboardR100Display() {
         const parsedData = JSON.parse(localStorageData);
         console.log('[DASHBOARD_R100] Quantidade de ticks no localStorage:', parsedData.length);
         
-        // Extrair apenas os últimos dígitos
-        const lastDigitsExtracted = parsedData.map((tick: any) => tick.lastDigit).slice(0, 20);
-        console.log('[DASHBOARD_R100] Últimos dígitos extraídos:', lastDigitsExtracted);
+        // Extrair todos os dígitos do histórico (até 500)
+        const allDigits = parsedData.map((tick: any) => tick.lastDigit);
+        // Para exibição, pegamos apenas os últimos 20 dígitos
+        const lastDigitsExtracted = allDigits.slice(-20);
+        console.log('[DASHBOARD_R100] Total de dígitos carregados:', allDigits.length);
+        console.log('[DASHBOARD_R100] Últimos 20 dígitos para exibição:', lastDigitsExtracted);
         
         // Atualizar o estado com os dados extraídos
         setLastDigits(lastDigitsExtracted);
@@ -305,7 +308,7 @@ export function DashboardR100Display() {
       
       {/* Gráfico de estatísticas de dígitos */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-300">Estatísticas - Últimos {lastDigits.length} ticks</h3>
+        <h3 className="text-sm font-medium text-slate-300">Estatísticas - Histórico de 500 ticks</h3>
         {digitStats.map((stat) => (
           <div key={stat.digit} className="flex items-center">
             <div className="w-4 text-xs text-slate-400 mr-2">{stat.digit}</div>
