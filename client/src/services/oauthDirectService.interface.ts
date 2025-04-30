@@ -60,6 +60,10 @@ export interface TradingSettings {
   lossVirtualEnabled?: boolean; // Habilita a funcionalidade de lossVirtual (martingale após perda)
   resetOnWin?: boolean;    // Reset para valor inicial após vitória
   barrier?: string;        // Valor da barreira para contratos que usam barrier
+  
+  // Novas configurações para as regras específicas de Loss Virtual
+  lossVirtualConsecutiveDigits?: number; // Número mínimo de ocorrências consecutivas para ativar Loss Virtual (para ProfitPro e MaxPro)
+  martingaleAfterXLosses?: number;      // Aplicar martingale após X perdas consecutivas
 }
 
 export interface OAuthDirectServiceInterface {

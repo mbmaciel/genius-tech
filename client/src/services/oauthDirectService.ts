@@ -1553,6 +1553,135 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   };
 
   /**
+   * Avalia se o padrão de Loss Virtual deve ser aplicado com base no tipo da estratégia
+   * 
+   * Implementação específica para cada tipo de robô:
+   * - Bot Low: entrar quando aparecer 0, 1 ou 2 (sem comando adicional)
+   * - ProfitPro: entrar quando aparecer 0, 1, 2, 3, 4, 5 ou 6 (precisa de comando configurável)
+   * - MaxPro: entrar quando aparecer 0, 1, 2 ou 3 (precisa de comando configurável)
+   *
+   * @param lastDigit O último dígito recebido no tick atual
+   * @param strategy Nome da estratégia ativa
+   * @returns true se deve executar entrada baseada no padrão Loss Virtual
+   */
+  private shouldApplyLossVirtual(lastDigit: number, strategy: string): boolean {
+    // Normalizar nome da estratégia para comparação
+    const strategyLower = strategy.toLowerCase();
+    
+    // BOT LOW: entra automaticamente quando o dígito for 0, 1 ou 2 (sem comando adicional)
+    if (strategyLower.includes("botlow") || strategyLower.includes("bot low")) {
+      const shouldEnter = [0, 1, 2].includes(lastDigit);
+      if (shouldEnter) {
+        console.log(`[OAUTH_DIRECT] 🎯 BOT LOW: Entrada automática para dígito ${lastDigit} (regra: 0, 1 ou 2)`);
+      }
+      return shouldEnter;
+    }
+    
+    // PROFITPRO: entra quando o dígito for de 0 a 6, com verificação de ocorrências consecutivas
+    if (strategyLower.includes("profitpro") || strategyLower.includes("profit pro")) {
+      // Verificar se o dígito está no range definido (0-6)
+      if (![0, 1, 2, 3, 4, 5, 6].includes(lastDigit)) {
+        return false;
+      }
+      
+      // Obter configuração específica da estratégia via settings ou localStorage
+      let requiredConsecutiveOccurrences = 1; // Valor padrão
+      
+      try {
+        // Tentar obter configuração das settings
+        if (this.settings && this.settings.lossVirtualConsecutiveDigits) {
+          requiredConsecutiveOccurrences = Number(this.settings.lossVirtualConsecutiveDigits);
+        } else {
+          // Tentar obter de localStorage
+          const configStr = localStorage.getItem(`strategy_config_${strategyLower.replace(/\s+/g, "")}`);
+          if (configStr) {
+            const config = JSON.parse(configStr);
+            if (config.lossVirtualConsecutiveDigits) {
+              requiredConsecutiveOccurrences = Number(config.lossVirtualConsecutiveDigits);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[OAUTH_DIRECT] Erro ao obter configuração de ocorrências consecutivas para ProfitPro:`, e);
+      }
+      
+      // Obter os últimos dígitos para verificar ocorrências consecutivas
+      const recentDigits = this.getLastDigits(10); // Últimos 10 dígitos
+      
+      // Contar ocorrências consecutivas do range de dígitos (0-6)
+      let consecutiveCount = 0;
+      for (const digit of recentDigits) {
+        if ([0, 1, 2, 3, 4, 5, 6].includes(digit)) {
+          consecutiveCount++;
+        } else {
+          // Se encontrar um dígito fora do range, reiniciar contagem
+          break;
+        }
+      }
+      
+      const shouldEnter = consecutiveCount >= requiredConsecutiveOccurrences;
+      if (shouldEnter) {
+        console.log(`[OAUTH_DIRECT] 🎯 PROFITPRO: Entrada para dígito ${lastDigit} (regra: 0-6 apareceu ${consecutiveCount}x, mínimo: ${requiredConsecutiveOccurrences}x)`);
+      }
+      
+      return shouldEnter;
+    }
+    
+    // MAXPRO: entra quando o dígito for de 0 a 3, com verificação de ocorrências consecutivas
+    if (strategyLower.includes("maxpro") || strategyLower.includes("max pro")) {
+      // Verificar se o dígito está no range definido (0-3)
+      if (![0, 1, 2, 3].includes(lastDigit)) {
+        return false;
+      }
+      
+      // Obter configuração específica da estratégia via settings ou localStorage
+      let requiredConsecutiveOccurrences = 1; // Valor padrão
+      
+      try {
+        // Tentar obter configuração das settings
+        if (this.settings && this.settings.lossVirtualConsecutiveDigits) {
+          requiredConsecutiveOccurrences = Number(this.settings.lossVirtualConsecutiveDigits);
+        } else {
+          // Tentar obter de localStorage
+          const configStr = localStorage.getItem(`strategy_config_${strategyLower.replace(/\s+/g, "")}`);
+          if (configStr) {
+            const config = JSON.parse(configStr);
+            if (config.lossVirtualConsecutiveDigits) {
+              requiredConsecutiveOccurrences = Number(config.lossVirtualConsecutiveDigits);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[OAUTH_DIRECT] Erro ao obter configuração de ocorrências consecutivas para MaxPro:`, e);
+      }
+      
+      // Obter os últimos dígitos para verificar ocorrências consecutivas
+      const recentDigits = this.getLastDigits(10); // Últimos 10 dígitos
+      
+      // Contar ocorrências consecutivas do range de dígitos (0-3)
+      let consecutiveCount = 0;
+      for (const digit of recentDigits) {
+        if ([0, 1, 2, 3].includes(digit)) {
+          consecutiveCount++;
+        } else {
+          // Se encontrar um dígito fora do range, reiniciar contagem
+          break;
+        }
+      }
+      
+      const shouldEnter = consecutiveCount >= requiredConsecutiveOccurrences;
+      if (shouldEnter) {
+        console.log(`[OAUTH_DIRECT] 🎯 MAXPRO: Entrada para dígito ${lastDigit} (regra: 0-3 apareceu ${consecutiveCount}x, mínimo: ${requiredConsecutiveOccurrences}x)`);
+      }
+      
+      return shouldEnter;
+    }
+    
+    // Outros tipos de estratégia (padrão)
+    return false;
+  }
+
+  /**
    * Avalia a estratégia atual com base no último tick recebido e executa operação se necessário
    * FUNÇÃO CRÍTICA: Esta é a função central que decide quando executar operações automaticamente
    *
@@ -1741,23 +1870,46 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           break;
       }
 
-      // Se a estratégia indica que devemos entrar em uma operação
-      if (result && result.shouldEnter) {
-        console.log(
-          `[OAUTH_DIRECT] ✅ CONDIÇÃO DE ENTRADA DETECTADA: ${result.message}`,
-        );
-        console.log(
-          `[OAUTH_DIRECT] ✅ Tipo de contrato: ${result.contractType}`,
-        );
-
-        // Configurar tipo de contrato e possível valor de previsão
-        this.settings.contractType = result.contractType;
-
-        if (result.prediction !== undefined) {
-          this.settings.prediction = result.prediction;
+      // Verificar condições específicas de Loss Virtual para estratégias como BotLow, ProfitPro e MaxPro
+      const shouldEnterLossVirtual = this.shouldApplyLossVirtual(lastDigit, this.activeStrategy);
+      
+      // Se a estratégia indica que devemos entrar em uma operação OU
+      // se devemos aplicar a regra de Loss Virtual para esta estratégia e dígito
+      if ((result && result.shouldEnter) || shouldEnterLossVirtual) {
+        // Se estamos entrando devido ao Loss Virtual, registrar isso explicitamente
+        if (shouldEnterLossVirtual) {
           console.log(
-            `[OAUTH_DIRECT] ✅ Previsão específica: ${result.prediction}`,
+            `[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Condição específica para estratégia ${this.activeStrategy} com dígito ${lastDigit}`
           );
+          
+          // Configurar tipo de contrato adequado com base na estratégia
+          if (this.activeStrategy.toLowerCase().includes("botlow")) {
+            this.settings.contractType = "DIGITOVER";
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL BOT LOW: Usando DIGITOVER com dígito ${lastDigit}`);
+          } else if (this.activeStrategy.toLowerCase().includes("profitpro")) {
+            this.settings.contractType = "DIGITOVER";
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL PROFITPRO: Usando DIGITOVER com dígito ${lastDigit} (0-6)`);
+          } else if (this.activeStrategy.toLowerCase().includes("maxpro")) {
+            this.settings.contractType = "DIGITOVER";
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL MAXPRO: Usando DIGITOVER com dígito ${lastDigit} (0-3)`);
+          }
+        } else {
+          console.log(
+            `[OAUTH_DIRECT] ✅ CONDIÇÃO DE ENTRADA DETECTADA: ${result.message}`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] ✅ Tipo de contrato: ${result.contractType}`,
+          );
+
+          // Configurar tipo de contrato e possível valor de previsão
+          this.settings.contractType = result.contractType;
+
+          if (result.prediction !== undefined) {
+            this.settings.prediction = result.prediction;
+            console.log(
+              `[OAUTH_DIRECT] ✅ Previsão específica: ${result.prediction}`,
+            );
+          }
         }
 
         // CORREÇÃO CRÍTICA: Atualizar o timestamp da última operação ANTES de executar
