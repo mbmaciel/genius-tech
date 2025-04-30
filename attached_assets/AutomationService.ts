@@ -125,7 +125,7 @@ class AutomationService {
   
   // Parâmetros de configuração do robô
   private initialStake: number = 1.0;  // Valor inicial padrão
-  private martingaleFactor: number = 1.5;  // Fator de martingale padrão
+  private martingaleFactor: number = 1.0;  // Fator de martingale padrão
   private targetProfit: number = 20;  // Meta de lucro padrão
   private stopLoss: number = 20;  // Limite de perda padrão
 
