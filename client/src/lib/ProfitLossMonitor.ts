@@ -190,11 +190,12 @@ export class ProfitLossMonitor {
     // Calcular resultado estimado incluindo contratos em andamento
     let estimatedProfit = this.netResult;
     
-    for (const [_, contract] of this.contractsInProgress) {
+    // Usar Array.from para compatibilidade com versões mais antigas do JavaScript
+    Array.from(this.contractsInProgress.entries()).forEach(([_, contract]) => {
       if (contract.currentValue !== undefined) {
         estimatedProfit += (contract.currentValue - contract.entryValue);
       }
-    }
+    });
     
     return {
       profitTarget: this.profitTarget,
@@ -238,11 +239,11 @@ export class ProfitLossMonitor {
     let estimatedNetResult = this.netResult;
     
     // Adicionar resultados estimados de contratos em andamento
-    for (const [_, contract] of this.contractsInProgress) {
+    Array.from(this.contractsInProgress.entries()).forEach(([_, contract]) => {
       if (contract.currentValue !== undefined) {
         estimatedNetResult += (contract.currentValue - contract.entryValue);
       }
-    }
+    });
     
     // Notificar sobre atualização do status
     if (this.onUpdate) {

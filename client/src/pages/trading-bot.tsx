@@ -94,10 +94,33 @@ export default function TradingBotPage() {
               <h1 className="text-2xl font-bold text-white">Robô de Operações</h1>
             </div>
             
+            {/* Seção de histórico de ticks */}
+            <div className="mb-6 flex items-center">
+              <History className="h-5 w-5 mr-2 text-blue-400" />
+              <h2 className="text-xl font-semibold text-white">Histórico de Ticks</h2>
+              
+              {!historyLoaded && (
+                <div className="ml-2 text-sm text-yellow-400">
+                  Carregando histórico... ({isConnected ? 'conectado' : 'desconectado'})
+                </div>
+              )}
+            </div>
+            
+            {/* Visualização de histórico de ticks */}
+            <TickHistoryDisplay 
+              symbol="R_100"
+              className="mb-6"
+            />
+            
+            <div className="mb-6 flex items-center">
+              <Bot className="h-5 w-5 mr-2 text-[#00e5b3]" />
+              <h2 className="text-xl font-semibold text-white">Controle do Robô</h2>
+            </div>
+            
             <div className="bg-[#162440] rounded-lg p-6 border border-slate-800">
               <TradingBot 
-                apiToken={derivAPI.getToken() || ''}
-                isConnected={derivAPI.getConnectionStatus()}
+                apiToken={derivAPI.getToken?.() || ''}
+                isConnected={!!derivAPI.getConnectionStatus?.()}
                 onError={(error: string) => {
                   toast({
                     title: "Erro no Robô de Operações",

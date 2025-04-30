@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart, LineChart, PieChart } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Grid, BarChart, Activity } from "lucide-react";
+import { derivHistoryService } from '@/services/deriv-history-service';
 
 interface TickHistoryProps {
   symbol?: string;
@@ -15,148 +15,78 @@ interface TickData {
   timestamp: number;
 }
 
-// Componente de Exibição em Grade
+// Visualização em grid dos dígitos
 function GridView({ ticks }: { ticks: TickData[] }) {
   return (
-    <div className="grid grid-cols-10 gap-1 max-h-[300px] overflow-y-auto p-1">
-      {ticks.map((tick, index) => {
-        // Determinar a cor do dígito baseado em seu valor
-        const getDigitColor = (digit: number) => {
-          if (digit >= 0 && digit <= 2) return 'bg-red-500/90 text-white';
-          if (digit >= 3 && digit <= 6) return 'bg-blue-500/90 text-white';
-          return 'bg-green-500/90 text-white';
-        };
-        
-        const digitClass = getDigitColor(tick.digit);
-        
-        return (
+    <div className="max-h-[200px] overflow-y-auto">
+      <div className="grid grid-cols-10 gap-1 p-2">
+        {ticks.map((tick, index) => (
           <div 
             key={index} 
-            className={`${digitClass} w-full aspect-square flex items-center justify-center
-                        text-lg font-bold rounded-md transition-transform hover:scale-105`}
-            title={`Valor: ${tick.quote.toFixed(2)} - Hora: ${new Date(tick.timestamp).toLocaleTimeString()}`}
+            className={`
+              aspect-square flex items-center justify-center rounded-md text-xs font-semibold
+              ${tick.digit === 0 ? 'bg-violet-600' : ''}
+              ${tick.digit === 1 ? 'bg-blue-600' : ''}
+              ${tick.digit === 2 ? 'bg-cyan-600' : ''}
+              ${tick.digit === 3 ? 'bg-teal-600' : ''}
+              ${tick.digit === 4 ? 'bg-green-600' : ''}
+              ${tick.digit === 5 ? 'bg-lime-600' : ''}
+              ${tick.digit === 6 ? 'bg-yellow-600' : ''}
+              ${tick.digit === 7 ? 'bg-amber-600' : ''}
+              ${tick.digit === 8 ? 'bg-orange-600' : ''}
+              ${tick.digit === 9 ? 'bg-red-600' : ''}
+              hover:opacity-90 transition-opacity
+            `}
+            title={`${tick.quote} (${new Date(tick.timestamp).toLocaleTimeString()})`}
           >
             {tick.digit}
           </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Componente de Visualização Linear
-function LineView({ ticks }: { ticks: TickData[] }) {
-  const lastTicks = ticks.slice(-100); // Usar os últimos 100 ticks para a visualização linear
-  
-  // Calcular altura da barra para cada dígito (0-9)
-  const maxHeight = 100; // Altura máxima em pixels
-  
-  return (
-    <div className="h-[300px] flex items-end justify-between gap-0.5 p-2">
-      {lastTicks.map((tick, index) => {
-        // Determinar a cor do dígito baseado em seu valor
-        const getDigitColor = (digit: number) => {
-          if (digit >= 0 && digit <= 2) return 'bg-red-500/90';
-          if (digit >= 3 && digit <= 6) return 'bg-blue-500/90';
-          return 'bg-green-500/90';
-        };
-        
-        const height = ((tick.digit + 1) / 10) * maxHeight;
-        const digitClass = getDigitColor(tick.digit);
-        
-        return (
-          <div 
-            key={index} 
-            className="relative flex-1 min-w-1"
-            title={`Dígito: ${tick.digit} - Valor: ${tick.quote.toFixed(2)}`}
-          >
-            <div 
-              className={`${digitClass} w-full transition-all duration-300 ease-out rounded-t`}
-              style={{ height: `${height}%` }}
-            />
-            {index % 10 === 0 && (
-              <div className="absolute -bottom-6 text-xs text-gray-400">
-                {index}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Componente de Estatísticas
-function StatsView({ ticks }: { ticks: TickData[] }) {
-  // Calcular estatísticas de frequência
-  const digitCounts = Array(10).fill(0);
-  
-  ticks.forEach(tick => {
-    digitCounts[tick.digit]++;
-  });
-  
-  const totalTicks = ticks.length;
-  
-  // Calcular percentagens
-  const digitPercentages = digitCounts.map(count => 
-    totalTicks > 0 ? ((count / totalTicks) * 100).toFixed(1) : '0.0'
-  );
-  
-  // Encontrar valores máximo e mínimo para destaque
-  const maxPercentage = Math.max(...digitPercentages.map(p => parseFloat(p)));
-  const minPercentage = Math.min(...digitPercentages.map(p => parseFloat(p)));
-  
-  // Obter os últimos dígitos para estatísticas recentes
-  const lastDigits = ticks.slice(-10).map(t => t.digit).reverse();
-  
-  return (
-    <div className="space-y-4">
-      <div className="bg-[#0f172a] p-4 rounded-md">
-        <h3 className="font-medium text-blue-400 mb-2">Últimos 10 Dígitos</h3>
-        <div className="flex gap-1">
-          {lastDigits.map((digit, index) => {
-            const getDigitColor = (d: number) => {
-              if (d >= 0 && d <= 2) return 'bg-red-500/90 text-white';
-              if (d >= 3 && d <= 6) return 'bg-blue-500/90 text-white';
-              return 'bg-green-500/90 text-white';
-            };
-            
-            return (
-              <div 
-                key={index}
-                className={`${getDigitColor(digit)} w-8 h-8 flex items-center justify-center
-                          font-medium rounded-md ${index === 0 ? 'ring-2 ring-yellow-400' : ''}`}
-              >
-                {digit}
-              </div>
-            );
-          })}
-        </div>
+        ))}
       </div>
-      
-      <div className="grid grid-cols-5 gap-4">
-        {Array.from({ length: 10 }).map((_, digit) => {
-          const percentage = parseFloat(digitPercentages[digit]);
-          let badgeClass = 'bg-gray-600';
-          
-          // Destacar valores máximos e mínimos
-          if (percentage === maxPercentage) badgeClass = 'bg-green-600';
-          if (percentage === minPercentage) badgeClass = 'bg-red-600';
-          
+    </div>
+  );
+}
+
+// Visualização linear dos dígitos
+function LineView({ ticks }: { ticks: TickData[] }) {
+  // Determinar altura máxima para escala
+  const max = Math.max(...ticks.map(t => t.quote));
+  const min = Math.min(...ticks.map(t => t.quote));
+  const range = max - min;
+  const scale = 150 / (range || 1); // altura máxima de 150px
+
+  return (
+    <div className="relative h-[200px] w-full overflow-hidden p-2">
+      <div className="flex items-end h-full">
+        {ticks.map((tick, index) => {
+          const height = ((tick.quote - min) * scale) || 1;
           return (
-            <div key={digit} className="bg-[#0f172a] p-3 rounded-md">
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-medium">{digit}</span>
-                <Badge className={badgeClass}>{percentage}%</Badge>
-              </div>
-              <div className="bg-gray-700 h-2 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full ${percentage === maxPercentage ? 'bg-green-500' : percentage === minPercentage ? 'bg-red-500' : 'bg-blue-500'}`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                {digitCounts[digit]} de {totalTicks}
+            <div 
+              key={index}
+              className="relative flex-grow h-full flex flex-col justify-end"
+              style={{ minWidth: `${100 / Math.min(ticks.length, 100)}%` }}
+            >
+              <div 
+                className={`
+                  w-full rounded-t-sm cursor-pointer
+                  ${tick.digit === 0 ? 'bg-violet-600' : ''}
+                  ${tick.digit === 1 ? 'bg-blue-600' : ''}
+                  ${tick.digit === 2 ? 'bg-cyan-600' : ''}
+                  ${tick.digit === 3 ? 'bg-teal-600' : ''}
+                  ${tick.digit === 4 ? 'bg-green-600' : ''}
+                  ${tick.digit === 5 ? 'bg-lime-600' : ''}
+                  ${tick.digit === 6 ? 'bg-yellow-600' : ''}
+                  ${tick.digit === 7 ? 'bg-amber-600' : ''}
+                  ${tick.digit === 8 ? 'bg-orange-600' : ''}
+                  ${tick.digit === 9 ? 'bg-red-600' : ''}
+                  hover:opacity-90 transition-opacity
+                `}
+                style={{ height: `${height}px` }}
+                title={`${tick.quote} (${new Date(tick.timestamp).toLocaleTimeString()})`}
+              >
+                <div className="text-[8px] text-white font-bold text-center">
+                  {tick.digit}
+                </div>
               </div>
             </div>
           );
@@ -166,102 +96,202 @@ function StatsView({ ticks }: { ticks: TickData[] }) {
   );
 }
 
-export function TickHistoryDisplay({ symbol = 'R_100', className = '' }: TickHistoryProps) {
-  const [tickData, setTickData] = useState<TickData[]>([]);
-  const [viewMode, setViewMode] = useState<'grid' | 'line' | 'stats'>('grid');
+// Visualização estatística dos dígitos
+function StatsView({ ticks }: { ticks: TickData[] }) {
+  // Calcular estatísticas de distribuição dos dígitos
+  const digitCount = Array(10).fill(0);
+  ticks.forEach(tick => {
+    digitCount[tick.digit]++;
+  });
   
+  const digitPercentage = digitCount.map(count => 
+    Math.round((count / ticks.length) * 100)
+  );
+  
+  // Encontrar tendências
+  const getColorForTrend = (percentage: number) => {
+    if (percentage >= 15) return 'text-green-500'; // Alta frequência
+    if (percentage <= 5) return 'text-red-500';   // Baixa frequência
+    return 'text-gray-400';                        // Frequência média
+  };
+  
+  return (
+    <div className="p-4">
+      <div className="grid grid-cols-10 gap-2">
+        {digitPercentage.map((percentage, digit) => (
+          <div key={digit} className="flex flex-col items-center">
+            <div className={`text-lg font-bold ${getColorForTrend(percentage)}`}>
+              {digit}
+            </div>
+            <div className="h-[120px] w-6 bg-gray-800 rounded-full relative overflow-hidden">
+              <div 
+                className={`
+                  absolute bottom-0 left-0 right-0 
+                  ${digit === 0 ? 'bg-violet-600' : ''}
+                  ${digit === 1 ? 'bg-blue-600' : ''}
+                  ${digit === 2 ? 'bg-cyan-600' : ''}
+                  ${digit === 3 ? 'bg-teal-600' : ''}
+                  ${digit === 4 ? 'bg-green-600' : ''}
+                  ${digit === 5 ? 'bg-lime-600' : ''}
+                  ${digit === 6 ? 'bg-yellow-600' : ''}
+                  ${digit === 7 ? 'bg-amber-600' : ''}
+                  ${digit === 8 ? 'bg-orange-600' : ''}
+                  ${digit === 9 ? 'bg-red-600' : ''}
+                  rounded-b-full
+                `}
+                style={{ height: `${percentage}%` }}
+              />
+            </div>
+            <div className="text-xs mt-1">{percentage}%</div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mt-4 text-sm text-gray-400">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-green-500 font-semibold">●</span> Alta frequência (&gt;15%)
+          </div>
+          <div>
+            <span className="text-red-500 font-semibold">●</span> Baixa frequência (&lt;5%)
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TickHistoryDisplay({ symbol = 'R_100', className = '' }: TickHistoryProps) {
+  const [ticks, setTicks] = useState<TickData[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('grid');
+  const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Carregar histórico de ticks
   useEffect(() => {
-    // Função para carregar histórico de ticks do localStorage
-    const loadTickHistory = () => {
+    const loadHistory = async () => {
       try {
-        const storedTicks = localStorage.getItem(`ticks_history_${symbol}`);
-        if (storedTicks) {
-          const parsedTicks = JSON.parse(storedTicks);
-          
-          if (Array.isArray(parsedTicks) && parsedTicks.length > 0) {
-            // Processar ticks para garantir que temos o formato correto
-            const processedTicks = parsedTicks.map(tick => ({
-              quote: typeof tick.quote === 'number' ? tick.quote : parseFloat(tick.quote),
-              digit: typeof tick.quote === 'number' 
-                ? parseInt(tick.quote.toFixed(2).slice(-1)) 
-                : parseInt(parseFloat(tick.quote).toFixed(2).slice(-1)),
-              timestamp: tick.timestamp || Date.now()
-            }));
-            
-            setTickData(processedTicks);
-            console.log(`[TICK_HISTORY] Carregados ${processedTicks.length} ticks para ${symbol}`);
-          }
-        }
+        setIsLoading(true);
+        
+        // Buscar histórico de 500 ticks
+        const history = await derivHistoryService.getTicksHistory(symbol, 500, true);
+        
+        // Transformar para o formato usado pelo componente
+        const tickData: TickData[] = history.map((tick: any) => ({
+          quote: tick.quote,
+          digit: parseInt(tick.quote.toString().slice(-1)),
+          timestamp: tick.epoch * 1000
+        }));
+        
+        setTicks(tickData);
+        setIsLoading(false);
       } catch (error) {
-        console.error('[TICK_HISTORY] Erro ao carregar histórico de ticks:', error);
+        console.error('Erro ao carregar histórico de ticks:', error);
+        setIsLoading(false);
       }
     };
     
-    // Carregar histórico inicial
-    loadTickHistory();
+    loadHistory();
     
-    // Adicionar listener para atualizações de ticks
-    const handleTickUpdate = () => {
-      loadTickHistory();
+    // Configurar um intervalo para atualizar os dados
+    const interval = window.setInterval(() => {
+      loadHistory();
+    }, 5000);
+    
+    setRefreshInterval(interval);
+    
+    // Limpar o intervalo ao desmontar
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
+  }, [symbol]);
+  
+  // Configurar listener para novos ticks
+  useEffect(() => {
+    const handleTickUpdate = (event: CustomEvent) => {
+      const tick = event.detail.tick;
+      
+      if (tick && tick.symbol === symbol) {
+        const newTick: TickData = {
+          quote: tick.quote,
+          digit: parseInt(tick.quote.toString().slice(-1)),
+          timestamp: tick.epoch * 1000
+        };
+        
+        setTicks(prevTicks => {
+          const newTicks = [newTick, ...prevTicks.slice(0, 499)];
+          return newTicks;
+        });
+      }
     };
     
-    // Configurar evento personalizado para atualizar quando novos ticks chegarem
-    window.addEventListener('tick_history_updated', handleTickUpdate);
+    // Adicionar listener
+    document.addEventListener('deriv:tick' as any, handleTickUpdate as any);
     
-    // Também atualizar a cada 2 segundos para garantir dados atuais
-    const intervalId = setInterval(loadTickHistory, 2000);
-    
+    // Remover listener ao desmontar
     return () => {
-      window.removeEventListener('tick_history_updated', handleTickUpdate);
-      clearInterval(intervalId);
+      document.removeEventListener('deriv:tick' as any, handleTickUpdate as any);
     };
   }, [symbol]);
   
   return (
-    <Card className={`${className} bg-[#1a2234] border-gray-700`}>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-lg text-blue-500">
-            Histórico de Ticks - {symbol}
-          </CardTitle>
-          <Badge variant="outline" className="font-mono">
-            {tickData.length} ticks
-          </Badge>
-        </div>
-      </CardHeader>
-      
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-full">
-        <div className="px-6">
-          <TabsList className="grid grid-cols-3 mb-2">
-            <TabsTrigger value="grid" className="flex items-center gap-2">
-              <BarChart className="h-4 w-4" />
-              <span>Grade</span>
-            </TabsTrigger>
-            <TabsTrigger value="line" className="flex items-center gap-2">
-              <LineChart className="h-4 w-4" />
-              <span>Linear</span>
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="flex items-center gap-2">
-              <PieChart className="h-4 w-4" />
-              <span>Estatísticas</span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        
-        <CardContent>
+    <Card className={`bg-[#162440] rounded-lg border border-slate-800 ${className}`}>
+      <CardContent className="p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex justify-between items-center mb-4">
+            <TabsList className="bg-[#0e1a33] border border-[#1c3654]">
+              <TabsTrigger value="grid" className="data-[state=active]:bg-[#1c3654]">
+                <Grid className="h-4 w-4 mr-1" />
+                Grid
+              </TabsTrigger>
+              <TabsTrigger value="line" className="data-[state=active]:bg-[#1c3654]">
+                <Activity className="h-4 w-4 mr-1" />
+                Linear
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="data-[state=active]:bg-[#1c3654]">
+                <BarChart className="h-4 w-4 mr-1" />
+                Estatísticas
+              </TabsTrigger>
+            </TabsList>
+            
+            <div className="text-sm text-[#8492b4]">
+              {isLoading ? 'Carregando...' : `${ticks.length} ticks`}
+            </div>
+          </div>
+          
           <TabsContent value="grid" className="mt-0">
-            <GridView ticks={tickData} />
+            {ticks.length > 0 ? (
+              <GridView ticks={ticks} />
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-[#8492b4]">
+                {isLoading ? 'Carregando ticks...' : 'Nenhum dado disponível'}
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="line" className="mt-0">
-            <LineView ticks={tickData} />
+            {ticks.length > 0 ? (
+              <LineView ticks={ticks.slice(0, 100)} />
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-[#8492b4]">
+                {isLoading ? 'Carregando ticks...' : 'Nenhum dado disponível'}
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="stats" className="mt-0">
-            <StatsView ticks={tickData} />
+            {ticks.length > 0 ? (
+              <StatsView ticks={ticks} />
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-[#8492b4]">
+                {isLoading ? 'Carregando ticks...' : 'Nenhum dado disponível'}
+              </div>
+            )}
           </TabsContent>
-        </CardContent>
-      </Tabs>
+        </Tabs>
+      </CardContent>
     </Card>
   );
 }
