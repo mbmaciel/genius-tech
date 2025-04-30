@@ -3005,7 +3005,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se atingiu o limite de perda, parar
     // Tratar limite de perda como valor absoluto conforme configurado na interface
-    let lossLimitValue = lossLimitNum;
+    // CORREÇÃO CRÍTICA (30/04/2025): O valor do limite de perda DEVE ser recuperado diretamente 
+    // da configuração da estratégia ativa no painel StrategyConfigPanel
+    let lossLimitValue = 0;
+    try {
+      const currentStrategy = this.strategyConfig.toLowerCase();
+      if (currentStrategy) {
+        const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+        if (configString) {
+          const config = JSON.parse(configString);
+          if (config.limitePerda && !isNaN(parseFloat(config.limitePerda.toString()))) {
+            lossLimitValue = parseFloat(config.limitePerda.toString());
+            console.log(`[OAUTH_DIRECT] ✅ Usando limite de perda ${lossLimitValue} da configuração salva para ${currentStrategy}`);
+          } else {
+            lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
+            console.log(`[OAUTH_DIRECT] ⚠️ Configuração de limite de perda não encontrada para ${currentStrategy}, usando valor padrão: ${lossLimitValue}`);
+          }
+        } else {
+          lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
+          console.log(`[OAUTH_DIRECT] ⚠️ Configuração não encontrada para ${currentStrategy}, usando valor padrão: ${lossLimitValue}`);
+        }
+      } else {
+        lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
+        console.log(`[OAUTH_DIRECT] ⚠️ Estratégia atual não definida, usando valor padrão: ${lossLimitValue}`);
+      }
+    } catch (error) {
+      lossLimitValue = lossLimitNum; // Em caso de erro, usar o valor das configurações gerais
+      console.error(`[OAUTH_DIRECT] ❌ Erro ao recuperar limite de perda:`, error);
+      console.log(`[OAUTH_DIRECT] ❌ Usando valor padrão para limite de perda: ${lossLimitValue}`);
+    }
     
     // CORREÇÃO CRÍTICA (29/04/2025): Validar o limite de perda conforme EXATAMENTE configurado
     // O robô deve parar quando atingir ou superar o limite de perda configurado
