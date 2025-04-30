@@ -2,11 +2,13 @@ import React from 'react';
 import { toast } from '@/hooks/use-toast';
 import TradingBot from '@/components/tradingBot/TradingBot';
 import derivAPI from '@/lib/derivApi';
-import { Bot } from 'lucide-react';
+import { Bot, History } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { Button } from '@/components/ui/button';
 import { useLocation } from 'wouter';
 import { derivHistoryService } from '@/services/deriv-history-service';
+import { TickHistoryDisplay } from '@/components/TickHistoryDisplay';
+import { profitLossMonitor } from '@/lib/ProfitLossMonitor';
 
 export default function TradingBotPage() {
   const [, navigate] = useLocation();

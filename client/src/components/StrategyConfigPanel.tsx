@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BinaryBotStrategy } from "@/lib/automationService";
+import { MartingaleWizardButton } from "./MartingaleWizardButton";
+import { AlertTriangleIcon } from "lucide-react";
 
 // Interface para configurações de estratégia individuais
 export interface StrategyConfiguration {
@@ -342,9 +344,48 @@ export function StrategyConfigPanel({
   return (
     <Card className={`${className} bg-[#1a2234] border-gray-700`}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg text-blue-500">
-          Configuração: {strategy.name}
-        </CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-lg text-blue-500">
+            Configuração: {strategy.name}
+          </CardTitle>
+          
+          <MartingaleWizardButton 
+            strategyId={strategy.id}
+            initialValues={{
+              valorInicial: Number(config.valorInicial),
+              martingale: Number(config.martingale),
+              lossVirtual: config.lossVirtual ? Number(config.lossVirtual) : 1,
+              metaGanho: Number(config.metaGanho),
+              limitePerda: Number(config.limitePerda),
+              parcelasMartingale: config.parcelasMartingale ? Number(config.parcelasMartingale) : 3,
+              resetAposVitoria: true
+            }}
+            onConfigSaved={(newConfig) => {
+              // Atualizar todos os campos de uma vez
+              const updatedConfig = {
+                ...config,
+                valorInicial: newConfig.valorInicial,
+                martingale: newConfig.martingale,
+                lossVirtual: newConfig.lossVirtual,
+                metaGanho: newConfig.metaGanho,
+                limitePerda: newConfig.limitePerda,
+                parcelasMartingale: newConfig.parcelasMartingale
+              };
+              
+              setConfig(updatedConfig);
+              onChange(updatedConfig);
+            }}
+          />
+        </div>
+        {strategyId.includes("botlow") && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2 mt-2 flex items-start gap-2">
+            <AlertTriangleIcon className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-500">
+              Meta de lucro e limite de perda podem ser ultrapassados em uma operação individual.
+              A verificação de limite ocorre após cada operação completa.
+            </p>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
