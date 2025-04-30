@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { derivHistoryService } from "@/services/deriv-history-service";
+import { derivHistoryService, DigitHistoryData } from "@/services/deriv-history-service";
 
 interface DigitHistoryDisplayProps {
   symbol?: string;
@@ -34,7 +34,7 @@ export default function DigitHistoryDisplay({
         await derivHistoryService.getTicksHistory(symbol, 500, true);
         
         // Obter o histórico atualizado
-        const historyData = derivHistoryService.getDigitHistory(symbol);
+        const historyData = derivHistoryService.getDigitStats(symbol);
         
         if (isMounted && historyData && historyData.lastDigits) {
           setDigits(historyData.lastDigits.slice(0, showCount));
@@ -51,7 +51,7 @@ export default function DigitHistoryDisplay({
     loadHistory();
 
     // Configurar listener para atualizações contínuas
-    const handleHistoryUpdate = (data: any) => {
+    const handleHistoryUpdate = (data: DigitHistoryData) => {
       if (isMounted && data && data.lastDigits) {
         setDigits(data.lastDigits.slice(0, showCount));
       }
