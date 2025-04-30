@@ -2709,19 +2709,27 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return buyPrice;
       }
 
-      // CORREÇÃO CRÍTICA DO MARTINGALE
-      // Verificar se já atingimos EXATAMENTE o número de perdas para aplicar martingale
-      // Ou seja, aplicar SOMENTE quando consecutiveLosses === configuracoes.usarMartingaleAposXLoss
+      // CORREÇÃO CRÍTICA DO MARTINGALE (01/05/2025)
+      // Verificar se já atingimos ou ultrapassamos o número de perdas para aplicar martingale
+      // Corrigido para aplicar quando consecutiveLosses >= configuracoes.usarMartingaleAposXLoss
       
       console.log(
         `[OAUTH_DIRECT] 🚨 Perdas consecutivas: ${consecutiveLosses}, Martingale após X perdas: ${configuracoes.usarMartingaleAposXLoss}`,
       );
       
-      if (consecutiveLosses === configuracoes.usarMartingaleAposXLoss) {
-        // CORREÇÃO DO BUG DE MARTINGALE:
-        // Aplicar martingale SOMENTE quando o número de perdas for EXATAMENTE igual ao configurado
+      // CORREÇÃO CRÍTICA (01/05/2025): Aplicar martingale quando o número de perdas for IGUAL OU MAIOR ao configurado
+      // Isso garante que o Loss Virtual continua sendo aplicado em todas as operações subsequentes
+      if (consecutiveLosses >= configuracoes.usarMartingaleAposXLoss) {
+        let mensagemTipoMartingale = "";
+        
+        if (consecutiveLosses === configuracoes.usarMartingaleAposXLoss) {
+          mensagemTipoMartingale = "PRIMEIRA ATIVAÇÃO";
+        } else {
+          mensagemTipoMartingale = "CONTINUANDO APLICAÇÃO";
+        }
+        
         console.log(
-          `[OAUTH_DIRECT] 🔴⚠️ MARTINGALE ATIVADO! Número de perdas (${consecutiveLosses}) é EXATAMENTE igual ao configurado (${configuracoes.usarMartingaleAposXLoss})`,
+          `[OAUTH_DIRECT] 🔴⚠️ MARTINGALE ATIVADO! (${mensagemTipoMartingale}) - Perdas consecutivas (${consecutiveLosses}) >= Configurado (${configuracoes.usarMartingaleAposXLoss})`,
         );
         
         // Analisar string da estratégia para identificar tipo correto de comportamento
@@ -2827,19 +2835,33 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
         return nextAmount;
       } else {
-        // Se não atingiu o número exato de perdas para aplicar martingale OU se já passou desse número
+        // Essa condição nunca deve ser executada após a correção do if acima,
+        // mas mantemos como um fallback de segurança
+        
+        // CORREÇÃO CRÍTICA (01/05/2025): Este bloco else é apenas um fallback,
+        // já que todas as condições de martingale agora são tratadas no if acima
+        console.log(
+          `[OAUTH_DIRECT] ⚠️ ATENÇÃO: Caiu no fallback de segurança para o martingale (não deveria acontecer)`,
+        );
+        
         if (consecutiveLosses < configuracoes.usarMartingaleAposXLoss) {
           console.log(
             `[OAUTH_DIRECT] 🟠 Mantendo valor original (${buyPrice}) - Ainda não atingiu ${configuracoes.usarMartingaleAposXLoss} perdas consecutivas`,
           );
+          return buyPrice;
         } else {
-          // CORREÇÃO CRITICAL: Se já passou do número de perdas configurado, voltar ao valor inicial
+          // Este código não deveria mais ser acessado devido à correção no IF principal
+          // Mas mantemos como medida de segurança
           console.log(
-            `[OAUTH_DIRECT] 🟠 Já passou do número configurado de perdas, voltando ao valor inicial (${configuracoes.valorInicial})`,
+            `[OAUTH_DIRECT] 🔴🔴 FALLBACK CRÍTICO: O martingale deveria ter sido aplicado no IF anterior`,
           );
-          return configuracoes.valorInicial;
+          // Aplicar o martingale como uma medida de segurança
+          const valorEstimado = Math.round(configuracoes.valorInicial * configuracoes.martingale * 100) / 100;
+          console.log(
+            `[OAUTH_DIRECT] 🔴 FALLBACK: Aplicando martingale: ${configuracoes.valorInicial} x ${configuracoes.martingale} = ${valorEstimado}`,
+          );
+          return valorEstimado;
         }
-        return buyPrice; // Manter o mesmo valor
       }
     }
   }
