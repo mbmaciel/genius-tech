@@ -103,12 +103,23 @@ export function updateStrategyResult(
   
   // Atualizar contagem de perdas consecutivas
   if (result === 'win') {
+    // CORREÇÃO CRÍTICA (01/05/2025): Ao obter uma vitória, resetar o contador de perdas
     state.consecutiveLosses = 0;
     
     // CORREÇÃO CRÍTICA: Não usar valor fixo de 0.35, mas sim o valor inicial configurado pelo usuário
     // Obter configuração do usuário para esta estratégia
     const strategyCurrent = strategyId.toLowerCase();
     const strategyConfigString = localStorage.getItem(`strategy_config_${strategyCurrent}`);
+    
+    // Verificar se o martingale foi salvo no localStorage e remover
+    try {
+      // CORREÇÃO CRÍTICA (01/05/2025): Limpar valores de martingale quando houver vitória
+      localStorage.removeItem('last_martingale_calculated_value');
+      localStorage.removeItem('last_martingale_calculation_time');
+      console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO LOSS VIRTUAL: Valores de martingale removidos do localStorage após vitória`);
+    } catch (e) {
+      console.error('[STRATEGY_HANDLER] Erro ao remover dados de martingale:', e);
+    }
     
     if (strategyConfigString) {
       try {
@@ -133,8 +144,16 @@ export function updateStrategyResult(
     }
   } else {
     state.consecutiveLosses++;
-    // Valor de Entrada será calculado de acordo com a estratégia
-    console.log(`[STRATEGY_HANDLER] Derrota registrada! Aumentando consecutiveLosses para: ${state.consecutiveLosses}`);
+    // CORREÇÃO CRÍTICA (01/05/2025): Garantir que o contador de perdas seja persistido
+    console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO LOSS VIRTUAL: Derrota registrada! Aumentando consecutiveLosses para: ${state.consecutiveLosses}`);
+    
+    try {
+      // Persistir o contador de perdas no localStorage
+      localStorage.setItem(`${strategyId}_consecutive_losses`, state.consecutiveLosses.toString());
+      console.log(`[STRATEGY_HANDLER] 🚨 CORREÇÃO LOSS VIRTUAL: Contador de perdas (${state.consecutiveLosses}) salvo no localStorage`);
+    } catch (e) {
+      console.error('[STRATEGY_HANDLER] Erro ao persistir contador de perdas:', e);
+    }
   }
   
   console.log(`[STRATEGY_HANDLER] ${strategyId}: Resultado ${result}, Profit ${profit}, Perdas consecutivas: ${state.consecutiveLosses}`);
