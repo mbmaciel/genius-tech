@@ -6,10 +6,29 @@ import { Bot } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { Button } from '@/components/ui/button';
 import { useLocation } from 'wouter';
+import { derivHistoryService } from '@/services/deriv-history-service';
 
 export default function TradingBotPage() {
   const [, navigate] = useLocation();
   const [isConnected, setIsConnected] = React.useState(false);
+  const [historyLoaded, setHistoryLoaded] = React.useState(false);
+
+  // Carregar o histórico de ticks quando a página carregar
+  React.useEffect(() => {
+    const loadTickHistory = async () => {
+      try {
+        // Tentar buscar histórico de 500 ticks para R_100
+        console.log('[TradingBot] Pré-carregando histórico de 500 ticks para R_100');
+        await derivHistoryService.getTicksHistory('R_100', 500, true);
+        setHistoryLoaded(true);
+        console.log('[TradingBot] Histórico de ticks carregado com sucesso');
+      } catch (error) {
+        console.error('[TradingBot] Erro ao pré-carregar histórico de ticks:', error);
+      }
+    };
+
+    loadTickHistory();
+  }, []);
 
   React.useEffect(() => {
     // Check initial connection status

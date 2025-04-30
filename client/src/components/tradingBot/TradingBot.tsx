@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import derivAPI from "@/lib/derivApi";
 import { parseXMLStrategy } from "./StrategyParser";
+import DigitHistoryDisplay from "./DigitHistoryDisplay";
 import {
   Bot,
   Play,
@@ -25,6 +26,7 @@ import {
   FileText,
   BarChart2,
   Settings,
+  BarChart,
 } from "lucide-react";
 
 interface TradingBotProps {
@@ -578,7 +580,7 @@ export default function TradingBot({
             </Alert>
           )}
 
-          {/* Results and Logs */}
+          {/* Results, Logs and Digit History */}
           <Tabs defaultValue="results" className="w-full">
             <TabsList className="bg-[#1f3158] text-white mb-4">
               <TabsTrigger
@@ -594,6 +596,13 @@ export default function TradingBot({
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Log de Atividades
+              </TabsTrigger>
+              <TabsTrigger
+                value="history"
+                className="data-[state=active]:bg-[#0e1a33]"
+              >
+                <BarChart className="h-4 w-4 mr-2" />
+                Histórico de Dígitos
               </TabsTrigger>
             </TabsList>
 
@@ -757,6 +766,29 @@ export default function TradingBot({
                       Sistema aguardando início das operações...
                     </div>
                   )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="history">
+              {/* Digit History Display */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-[#00e5b3] mb-3 flex items-center">
+                  <BarChart className="h-4 w-4 mr-2" />
+                  Histórico dos Últimos 500 Ticks do {selectedSymbol}
+                </h3>
+                
+                <div className="bg-[#0e1a33]/40 rounded-lg p-4 border border-[#1c3654]">
+                  <DigitHistoryDisplay 
+                    symbol={selectedSymbol} 
+                    showCount={500}
+                    title={`Histórico do ${selectedSymbol}`}
+                  />
+                </div>
+                
+                <div className="text-sm text-[#8492b4] p-2">
+                  <p>O histórico exibe os últimos 500 ticks recebidos do mercado.</p>
+                  <p>Útil para identificar padrões e tendências nos dígitos finais.</p>
                 </div>
               </div>
             </TabsContent>
