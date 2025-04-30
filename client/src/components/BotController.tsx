@@ -2276,13 +2276,13 @@ export function BotController({
                 }
 
                 // Definir configurações específicas para a estratégia atual com o valor do usuário
-                let forceSettings = {
+                let forceSettings: Partial<TradingSettings> = {
                   contractType: contractType,
                   prediction: prediction,
-                  entryValue: userEntryValue || Number(entryValue) || undefined, // CORREÇÃO CRÍTICA: Usar valor do usuário
-                  profitTarget: profitTarget || strategyConfig?.metaGanho || 20,
-                  lossLimit: lossLimit || strategyConfig?.limitePerda || 10,
-                  martingaleFactor: strategyConfig?.martingale || 1.5,
+                  entryValue: userEntryValue || Number(entryValue) || 1, // CORREÇÃO CRÍTICA: Usar valor do usuário
+                  profitTarget: profitTarget || (strategyConfig?.metaGanho ? Number(strategyConfig.metaGanho) : 20),
+                  lossLimit: lossLimit || (strategyConfig?.limitePerda ? Number(strategyConfig.limitePerda) : 10),
+                  martingaleFactor: strategyConfig?.martingale ? Number(strategyConfig.martingale) : 1.5,
                 };
 
                 // CORREÇÃO CRÍTICA: Forçar valores específicos para Advance
@@ -2441,12 +2441,12 @@ export function BotController({
                     if (strategyName.includes("advance")) {
                       // Estratégia Advance - DIGITOVER com previsão 1
                       forceSettings = {
-                        profitTarget: forceSettings.profitTarget,
-                        lossLimit: forceSettings.lossLimit,
-                        martingaleFactor: forceSettings.martingaleFactor,
+                        profitTarget: typeof forceSettings.profitTarget === 'number' ? forceSettings.profitTarget : Number(forceSettings.profitTarget) || 20,
+                        lossLimit: typeof forceSettings.lossLimit === 'number' ? forceSettings.lossLimit : Number(forceSettings.lossLimit) || 10,
+                        martingaleFactor: typeof forceSettings.martingaleFactor === 'number' ? forceSettings.martingaleFactor : 1.5,
                         contractType: "DIGITOVER",
                         prediction: 1,
-                        entryValue: userEntryValue !== null ? userEntryValue : entryValue
+                        entryValue: userEntryValue !== null ? userEntryValue : Number(entryValue) || 1
                       };
                       console.log(`[BOT_CONTROLLER] ✅ Configurada estratégia ADVANCE: DIGITOVER com previsão 1`);
                     } 
