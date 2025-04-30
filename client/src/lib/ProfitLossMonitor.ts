@@ -13,6 +13,7 @@ export class ProfitLossMonitor {
   private isMonitoring: boolean = false;
   private checkIntervalId: number | null = null;
   private contractsInProgress: Map<number, { entryValue: number, currentValue?: number }> = new Map();
+  private strategyId: string = '';
   
   // Callbacks
   private onProfitTargetReached: (() => void) | null = null;
@@ -21,14 +22,62 @@ export class ProfitLossMonitor {
   
   /**
    * Cria uma nova instância do monitor de lucro/perda
-   * @param profitTarget Meta de lucro a ser atingida
-   * @param lossLimit Limite de perda a ser respeitado
+   * @param profitTarget Meta de lucro a ser atingida como valor padrão
+   * @param lossLimit Limite de perda a ser respeitado como valor padrão
    */
-  constructor(profitTarget: number, lossLimit: number) {
+  constructor(profitTarget: number = 20, lossLimit: number = 10) {
     this.profitTarget = profitTarget;
     this.lossLimit = lossLimit;
     
-    console.log("[PROFIT_LOSS_MONITOR] Iniciado com meta de lucro:", profitTarget, "e limite de perda:", lossLimit);
+    // Isso apenas define os valores padrão; leremos os valores configurados pelo usuário
+    console.log("[PROFIT_LOSS_MONITOR] Iniciado com valores PADRÃO. Meta de lucro:", profitTarget, "e limite de perda:", lossLimit);
+    console.log("[PROFIT_LOSS_MONITOR] ⚠️ Estes valores serão substituídos pelos configurados pelo usuário.");
+  }
+  
+  /**
+   * Define a estratégia atual sendo utilizada
+   * @param strategyId ID da estratégia 
+   */
+  setStrategy(strategyId: string): void {
+    this.strategyId = strategyId;
+    this.updateLimitsFromConfig();
+    console.log(`[PROFIT_LOSS_MONITOR] Estratégia definida: ${strategyId}`);
+  }
+  
+  /**
+   * Atualiza os limites com base na configuração da estratégia
+   */
+  private updateLimitsFromConfig(): void {
+    if (!this.strategyId) return;
+    
+    try {
+      // Tentar obter configuração do localStorage
+      const configKey = `strategy_config_${this.strategyId.toLowerCase()}`;
+      const savedConfig = localStorage.getItem(configKey);
+      
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        
+        // Verificar e atualizar os valores
+        if (config.metaGanho !== undefined && !isNaN(Number(config.metaGanho))) {
+          const newTarget = Number(config.metaGanho);
+          if (this.profitTarget !== newTarget) {
+            console.log(`[PROFIT_LOSS_MONITOR] Meta de lucro atualizada: ${this.profitTarget} → ${newTarget}`);
+            this.profitTarget = newTarget;
+          }
+        }
+        
+        if (config.limitePerda !== undefined && !isNaN(Number(config.limitePerda))) {
+          const newLimit = Number(config.limitePerda);
+          if (this.lossLimit !== newLimit) {
+            console.log(`[PROFIT_LOSS_MONITOR] Limite de perda atualizado: ${this.lossLimit} → ${newLimit}`);
+            this.lossLimit = newLimit;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[PROFIT_LOSS_MONITOR] Erro ao carregar configurações:", error);
+    }
   }
   
   /**
@@ -213,9 +262,16 @@ export class ProfitLossMonitor {
    * @returns true se algum limite foi atingido
    */
   private checkLimits(): boolean {
+    // Sempre atualizar os limites com os valores mais recentes configurados pelo usuário
+    this.updateLimitsFromConfig();
+    
     // Verificar se a meta de lucro foi atingida
     if (this.netResult >= this.profitTarget) {
-      console.log("[PROFIT_LOSS_MONITOR] ✅ Meta de lucro atingida!", this.netResult, ">=", this.profitTarget);
+      console.log(
+        "[PROFIT_LOSS_MONITOR] ✅ Meta de lucro atingida!", 
+        this.netResult, ">=", this.profitTarget,
+        "(valor configurado pelo usuário)"
+      );
       
       if (this.onProfitTargetReached) {
         this.onProfitTargetReached();
@@ -226,7 +282,11 @@ export class ProfitLossMonitor {
     
     // Verificar se o limite de perda foi ultrapassado
     if (this.netResult <= -this.lossLimit) {
-      console.log("[PROFIT_LOSS_MONITOR] ❌ Limite de perda atingido!", this.netResult, "<=", -this.lossLimit);
+      console.log(
+        "[PROFIT_LOSS_MONITOR] ❌ Limite de perda atingido!", 
+        this.netResult, "<=", -this.lossLimit,
+        "(valor configurado pelo usuário)"
+      );
       
       if (this.onLossLimitReached) {
         this.onLossLimitReached();
