@@ -332,10 +332,11 @@ export function StrategyConfigPanel({
   const showUsarMartingaleAposXLoss =
     strategyId.includes("iron") || strategyId.includes("green");
     
-  // Mostrar configuração de Loss Virtual apenas para ProfitPro e MaxPro
+  // Mostrar configuração de Loss Virtual para estratégias que o suportam
   // Bot Low já é pré-configurado com loss virtual = 1 para dígitos 0-2
   const showLossVirtual = 
-    strategyId === "profitpro" || strategyId.includes("maxpro");
+    strategyId === "profitpro" || strategyId.includes("maxpro") || 
+    strategyId.includes("bot_low") || strategyId.includes("botlow");
 
   // Renderizar configuração específica para a estratégia
   return (
