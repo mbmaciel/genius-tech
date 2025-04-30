@@ -172,20 +172,35 @@ class IndependentDerivService {
       }
       
       try {
-        // Enviar ping diretamente sem usar o método send()
+        // Enviar ping seguindo exatamente o formato da API Deriv
         if (this.socket.readyState === WebSocket.OPEN) {
-          // Usar método direto para evitar o problema com promessas
-          this.sendMessage({ ping: 1 });
+          // Gerar um req_id para poder rastrear a resposta específica do ping
+          const pingReqId = this.requestId++;
           
-          // Vamos considerar qualquer mensagem recebida nos próximos segundos como resposta válida
-          // já que os ticks continuam chegando regularmente
-          this.lastPongTime = Date.now();
-          console.log('[INDEPENDENT_DERIV] Ping enviado');
+          // Enviar ping no formato correto conforme documentação da API
+          this.sendMessage({ 
+            ping: 1,
+            req_id: pingReqId
+          });
+          
+          console.log('[INDEPENDENT_DERIV] Ping enviado com req_id:', pingReqId);
+          
+          // Configurar timeout para verificar se recebemos uma resposta
+          this.pingTimeout = setTimeout(() => {
+            console.warn('[INDEPENDENT_DERIV] Timeout de ping - Sem resposta');
+            
+            // Verificar tempo desde último pong
+            const timeSinceLastPong = Date.now() - this.lastPongTime;
+            if (timeSinceLastPong > this.forceReconnectAfterMs) {
+              console.error(`[INDEPENDENT_DERIV] Sem resposta de ping por ${timeSinceLastPong}ms, forçando reconexão`);
+              this.forceReconnect();
+            }
+          }, 5000); // 5 segundos para timeout
         } else {
           console.warn('[INDEPENDENT_DERIV] Socket não está aberto para enviar ping');
         }
       } catch (error) {
-        console.error('[INDEPENDENT_DERIV] Erro ao enviar ping direto:', error);
+        console.error('[INDEPENDENT_DERIV] Erro ao enviar ping:', error);
       }
       
       // Verificar inatividade total
@@ -346,9 +361,16 @@ class IndependentDerivService {
     // Atualizar timestamp da última mensagem recebida
     this.lastMessageTime = Date.now();
     
-    // Verificar se é resposta de ping
-    if (data.ping !== undefined) {
-      console.log(`[INDEPENDENT_DERIV] Resposta de ping recebida: ${data.ping}`);
+    // Verificar se é resposta de ping (conforme JSON Schema, a resposta deve ser ping: "pong")
+    if (data.msg_type === 'ping' && data.ping === 'pong') {
+      console.log('[INDEPENDENT_DERIV] Resposta de ping recebida: pong');
+      
+      // Limpar o timeout do ping se estiver ativo
+      if (this.pingTimeout) {
+        clearTimeout(this.pingTimeout);
+        this.pingTimeout = null;
+      }
+      
       this.lastPongTime = Date.now();
       return;
     }
