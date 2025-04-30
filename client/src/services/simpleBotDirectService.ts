@@ -154,6 +154,27 @@ class SimpleBotDirectService {
       stats: { ...this.stats } 
     });
     
+    // Verificar se atingiu a meta de lucro ou limite de perda
+    if (this.settings.profitTarget > 0 && this.stats.totalProfit >= this.settings.profitTarget) {
+      console.log(`[SIMPLEBOT] 🎯 Meta de lucro atingida: ${this.stats.totalProfit.toFixed(2)}. Parando o bot.`);
+      this.emitEvent({ 
+        type: 'target_reached', 
+        message: `Meta de lucro atingida: $${this.stats.totalProfit.toFixed(2)}` 
+      });
+      this.stop();
+      return;
+    }
+    
+    if (this.settings.lossLimit > 0 && this.stats.totalProfit <= -this.settings.lossLimit) {
+      console.log(`[SIMPLEBOT] ⚠️ Limite de perda atingido: ${this.stats.totalProfit.toFixed(2)}. Parando o bot.`);
+      this.emitEvent({ 
+        type: 'limit_reached', 
+        message: `Limite de perda atingido: $${Math.abs(this.stats.totalProfit).toFixed(2)}` 
+      });
+      this.stop();
+      return;
+    }
+    
     // Agendar próxima operação se o bot estiver rodando
     if (this.status === 'running') {
       this.scheduleNextOperation();
