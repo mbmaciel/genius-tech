@@ -4221,34 +4221,80 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         console.log(`[OAUTH_DIRECT] 🚨 - Martingale após X perdas: ${martingaleAfterXLosses}`);
         console.log(`[OAUTH_DIRECT] 🚨 - Exatamente no ponto de martingale? ${exactMartingalePoint ? 'SIM' : 'NÃO'}`);
         
-        // Se estamos exatamente no ponto de aplicar martingale, verificar se temos um valor calculado
-        if (exactMartingalePoint) {
+        // CORREÇÃO CRÍTICA (01/05/2025): Verificar se estamos no ponto de martingale OU ALÉM
+        // Aplicar em todas as operações após atingir o número configurado de perdas
+        if (consecutiveLosses >= martingaleAfterXLosses) {
+          // Notificar que estamos aplicando martingale devido ao Loss Virtual
+          console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Aplicando martingale porque ${consecutiveLosses} perdas >= ${martingaleAfterXLosses} configurado`);
+          
           const martingaleValue = localStorage.getItem('last_martingale_calculated_value');
           const martingaleTime = localStorage.getItem('last_martingale_calculation_time');
           
           if (martingaleValue) {
             const parsedMartingaleValue = parseFloat(martingaleValue);
-            console.log(`[OAUTH_DIRECT] 🚨 Valor martingale encontrado: ${parsedMartingaleValue}`);
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Valor martingale encontrado: ${parsedMartingaleValue}`);
             
             // Verificar se o valor do martingale é válido
             if (!isNaN(parsedMartingaleValue) && parsedMartingaleValue > 0) {
               finalAmount = parsedMartingaleValue;
-              console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE MÁXIMA: Usando valor martingale ${finalAmount}`);
+              console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Usando valor de martingale: ${finalAmount}`);
+            } else {
+              // Se o valor não for válido, calcular novamente
+              console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Valor martingale inválido, recalculando`);
               
-              // Verificar timestamp para garantir que o valor é recente
-              if (martingaleTime) {
-                const calculationTime = new Date(martingaleTime);
-                const now = new Date();
-                const diffMs = now.getTime() - calculationTime.getTime();
-                const diffSec = Math.floor(diffMs / 1000);
-                
-                console.log(`[OAUTH_DIRECT] 🚨 Valor martingale calculado há ${diffSec} segundos`);
-                
-                // Se o valor foi calculado há mais de 60 segundos, avisar mas ainda usar
-                if (diffSec > 60) {
-                  console.log(`[OAUTH_DIRECT] ⚠️ Valor martingale tem mais de 60 segundos, mas ainda será usado`);
-                }
+              // Obter valores de configuração da estratégia ativa
+              const strategyConfig = this.settings || {};
+              const entryValue = strategyConfig.entryValue || 1;
+              const martingaleFactor = strategyConfig.martingaleFactor || 2;
+              
+              const calculatedMartingale = Math.round(entryValue * martingaleFactor * 100) / 100;
+              finalAmount = calculatedMartingale;
+              console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Martingale recalculado: ${entryValue} × ${martingaleFactor} = ${finalAmount}`);
+              
+              // Salvar o novo valor calculado
+              try {
+                localStorage.setItem('last_martingale_calculated_value', finalAmount.toString());
+                localStorage.setItem('last_martingale_calculation_time', new Date().toISOString());
+              } catch (e) {
+                console.error(`[OAUTH_DIRECT] Erro ao salvar martingale recalculado:`, e);
               }
+            }
+            
+            console.log(`[OAUTH_DIRECT] 🚨 PRIORIDADE MÁXIMA: Usando valor martingale ${finalAmount}`);
+            
+            // Verificar timestamp para garantir que o valor é recente
+            if (martingaleTime) {
+              const calculationTime = new Date(martingaleTime);
+              const now = new Date();
+              const diffMs = now.getTime() - calculationTime.getTime();
+              const diffSec = Math.floor(diffMs / 1000);
+              
+              console.log(`[OAUTH_DIRECT] 🚨 Valor martingale calculado há ${diffSec} segundos`);
+              
+              // Se o valor foi calculado há mais de 60 segundos, avisar mas ainda usar
+              if (diffSec > 60) {
+                console.log(`[OAUTH_DIRECT] ⚠️ Valor martingale tem mais de 60 segundos, mas ainda será usado`);
+              }
+            }
+          } else {
+            // Se não há valor martingale salvo, calcular um novo
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Nenhum valor martingale encontrado, calculando`);
+            
+            // Obter valores de configuração da estratégia ativa
+            const strategyConfig = this.settings || {};
+            const entryValue = strategyConfig.entryValue || 1;
+            const martingaleFactor = strategyConfig.martingaleFactor || 2;
+            
+            const calculatedMartingale = Math.round(entryValue * martingaleFactor * 100) / 100;
+            finalAmount = calculatedMartingale;
+            console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Martingale calculado: ${entryValue} × ${martingaleFactor} = ${finalAmount}`);
+            
+            // Salvar o novo valor calculado
+            try {
+              localStorage.setItem('last_martingale_calculated_value', finalAmount.toString());
+              localStorage.setItem('last_martingale_calculation_time', new Date().toISOString());
+            } catch (e) {
+              console.error(`[OAUTH_DIRECT] Erro ao salvar martingale calculado:`, e);
             }
           }
         }
@@ -5159,20 +5205,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 console.error(`[OAUTH_DIRECT] Erro ao ler config de martingale:`, e);
               }
               
-              // Verificar se estamos exatamente no ponto de aplicar martingale
-              const exactMartingalePoint = consecutiveLosses === martingaleAfterXLosses;
+              // CORREÇÃO CRÍTICA (01/05/2025): Verificar se atingimos OU SUPERAMOS o ponto de aplicar martingale
+              // Isso garante que todas as operações após atingir o número configurado de perdas continuem aplicando martingale
+              const shouldApplyMartingale = consecutiveLosses >= martingaleAfterXLosses;
               
               console.log(`[OAUTH_DIRECT] 🚨🚨🚨 TESTE CRÍTICO DE VALIDAÇÃO MARTINGALE 🚨🚨🚨`);
               console.log(`[OAUTH_DIRECT] 🚨 ESTRATÉGIA: ${strategyId}`);
               console.log(`[OAUTH_DIRECT] 🚨 - Perdas consecutivas: ${consecutiveLosses}`);
               console.log(`[OAUTH_DIRECT] 🚨 - Martingale após X perdas: ${martingaleAfterXLosses}`);
-              console.log(`[OAUTH_DIRECT] 🚨 - Exatamente no ponto de martingale? ${exactMartingalePoint ? 'SIM' : 'NÃO'}`);
+              console.log(`[OAUTH_DIRECT] 🚨 - Deve aplicar martingale? ${shouldApplyMartingale ? 'SIM' : 'NÃO'}`);
               console.log(`[OAUTH_DIRECT] 🚨 - Valor martingale armazenado: ${storedMartingaleValue || 'Não encontrado'}`);
               console.log(`[OAUTH_DIRECT] 🚨 - Valor sendo enviado originalmente: ${buyRequest.buy}`);
               
-              // INTERVENÇÃO CRÍTICA: Se estamos no ponto exato de martingale e temos um valor armazenado,
+              // CORREÇÃO CRÍTICA (01/05/2025): Se atingimos ou superamos o ponto de martingale e temos um valor armazenado,
               // mas o valor não está sendo enviado corretamente, FORÇAR o valor correto
-              if (exactMartingalePoint && storedMartingaleValue) {
+              if (shouldApplyMartingale && storedMartingaleValue) {
                 const parsedMartingaleValue = parseFloat(storedMartingaleValue);
                 if (!isNaN(parsedMartingaleValue) && parsedMartingaleValue > 0) {
                   if (parseFloat(buyRequest.buy) === parsedMartingaleValue) {
