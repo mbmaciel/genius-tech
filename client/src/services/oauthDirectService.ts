@@ -3042,7 +3042,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     );
     
     if (hasLossLimit && this.sessionStats.totalLoss >= lossLimitValue) {
-      const limitMessage = `Limite de perda de ${lossLimitNum} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
+      const limitMessage = `Limite de perda de ${lossLimitValue} atingido! Perda total: ${this.sessionStats.totalLoss.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] ⚠️ LIMITE DE PERDA ATINGIDO: ${this.sessionStats.totalLoss.toFixed(2)} / ${lossLimitValue.toFixed(2)}`,
       );
