@@ -53,9 +53,9 @@ class SimpleBotDirectService {
   private activeStrategyId: string | null = null;
   private webSocket: WebSocket | null = null;
   private settings: BotSettings = {
-    entryValue: 1.0, // CORREÇÃO: Valor default mais visível
-    profitTarget: 10,
-    lossLimit: 20,
+    entryValue: 1.0,
+    profitTarget: 20, // Valor padrão deve ser consistente com a UI
+    lossLimit: 10,    // Valor padrão deve ser consistente com a UI
     martingaleFactor: 1.5
   };
   private eventListeners: ((event: BotEvent) => void)[] = [];

@@ -2283,7 +2283,7 @@ export function BotController({
                   prediction: prediction,
                   entryValue: userEntryValue || Number(entryValue) || undefined, // CORREÇÃO CRÍTICA: Usar valor do usuário
                   profitTarget: profitTarget || strategyConfig?.metaGanho || 20,
-                  lossLimit: lossLimit || strategyConfig?.limitePerda || 20,
+                  lossLimit: lossLimit || strategyConfig?.limitePerda || 10,
                   martingaleFactor: strategyConfig?.martingale || 1.5,
                 };
 

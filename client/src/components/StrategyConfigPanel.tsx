@@ -187,12 +187,12 @@ export function StrategyConfigPanel({
 }: StrategyConfigPanelProps) {
   // Estado para configuração atual
   const [config, setConfig] = useState<StrategyConfiguration>({
-    valorInicial: 0.35,
-    metaGanho: 20,
-    limitePerda: 10,
-    martingale: 1.5,
+    valorInicial: strategy?.config?.initialStake || 0.35,
+    metaGanho: strategy?.config?.targetProfit || 20,
+    limitePerda: strategy?.config?.stopLoss || 10,
+    martingale: strategy?.config?.martingaleFactor || 1.5,
     valorAposVencer: 0.35,
-    parcelasMartingale: 3,
+    parcelasMartingale: strategy?.config?.maxMartingaleLevel || 3,
     // Removido valor fixo padrão para estratégia ADVANCE
     // O usuário deve configurar explicitamente
     porcentagemParaEntrar: undefined,
