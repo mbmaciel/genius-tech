@@ -363,7 +363,7 @@ export default function TradingBot({
                 <SelectTrigger className="w-full bg-[#0e1a33] border border-[#1c3654] text-white">
                   <SelectValue placeholder="Selecione uma estratégia" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white">
+                <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white" position="popper" sideOffset={5} align="start" side="bottom">
                   {strategies.map((strategy) => (
                     <SelectItem key={strategy.id} value={strategy.id}>
                       {strategy.name}
