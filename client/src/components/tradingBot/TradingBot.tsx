@@ -18,7 +18,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import derivAPI from "@/lib/derivApi";
 import { parseXMLStrategy } from "./StrategyParser";
 import DigitHistoryDisplay from "./DigitHistoryDisplay";
-import { profitLossMonitor } from "@/lib/ProfitLossMonitor";
 import {
   Bot,
   Play,
@@ -176,29 +175,6 @@ export default function TradingBot({
     ]);
   };
 
-  // Função para salvar a configuração da estratégia no localStorage
-  const saveStrategyConfig = () => {
-    // Criar um objeto com a configuração atual
-    const strategyConfig = {
-      metaGanho: parseFloat(takeProfit),
-      limitePerda: parseFloat(stopLoss),
-      valorInicial: parseFloat(initialAmount),
-      multiplicadorMartingale: parseFloat(martingaleMultiplier),
-      maxMartingale: parseInt(maxMartingales),
-      maxPerdasConsecutivas: parseInt(maxConsecutiveLosses),
-      timeframe: timeframe,
-      symbol: selectedSymbol,
-      autoMode: autoMode
-    };
-    
-    // Salvar no localStorage usando o ID da estratégia como chave
-    const configKey = `strategy_config_${selectedStrategy.toLowerCase()}`;
-    localStorage.setItem(configKey, JSON.stringify(strategyConfig));
-    
-    console.log(`[TRADING_BOT] Configuração salva para estratégia ${selectedStrategy}:`, strategyConfig);
-    return strategyConfig;
-  };
-
   // Handle start trading
   const handleStartTrading = async () => {
     if (!isConnected) {
@@ -219,32 +195,6 @@ export default function TradingBot({
       setWins(0);
       setLosses(0);
       setContractResults([]);
-      
-      // Salvar configuração atual da estratégia
-      const config = saveStrategyConfig();
-      
-      // Configurar monitor de lucro/perda com os valores definidos pelo usuário
-      profitLossMonitor.reset(config.metaGanho, config.limitePerda);
-      profitLossMonitor.setStrategy(selectedStrategy);
-      
-      // Configurar callbacks para o monitor
-      profitLossMonitor.setCallbacks({
-        onProfitTargetReached: () => {
-          addLog(`Meta de lucro de ${config.metaGanho} atingida! Parando operações...`, "success");
-          handleStopTrading();
-        },
-        onLossLimitReached: () => {
-          addLog(`Limite de perda de ${config.limitePerda} atingido! Parando operações...`, "error");
-          handleStopTrading();
-        },
-        onUpdate: (data) => {
-          // Opcional: atualizar a UI com dados atualizados de lucro/perda
-          console.log("[PROFIT_LOSS_UPDATE]", data);
-        }
-      });
-      
-      // Iniciar o monitor
-      profitLossMonitor.start();
 
       // Start the bot
       setLogEntries([
@@ -253,11 +203,6 @@ export default function TradingBot({
           message: `Iniciando operações com estratégia ${selectedStrategy} em ${selectedSymbol}`,
           type: "info",
         },
-        {
-          time: new Date(),
-          message: `Meta de lucro: ${config.metaGanho} | Limite de perda: ${config.limitePerda}`,
-          type: "info",
-        }
       ]);
 
       // Subscribe to ticks
@@ -278,8 +223,6 @@ export default function TradingBot({
           winRate: 0,
           tradesCount: 0,
           startTime: Date.now(),
-          metaGanho: config.metaGanho,
-          limitePerda: config.limitePerda
         }),
       );
 
@@ -309,23 +252,9 @@ export default function TradingBot({
     setIsBusy(true);
 
     try {
-      // Parar o monitor de lucro/perda
-      profitLossMonitor.stop();
-      
-      // Registrar estatísticas finais
-      const stats = profitLossMonitor.getStats();
-      console.log("[TRADING_BOT] Estatísticas finais:", stats);
-      
-      // Verificar se o robô atingiu algum limite configurado
-      if (stats.netResult >= stats.profitTarget) {
-        addLog(`Bot parado: Meta de lucro de ${stats.profitTarget} atingida! Lucro atual: ${stats.netResult.toFixed(2)}`, "success");
-      } else if (stats.netResult <= -stats.lossLimit) {
-        addLog(`Bot parado: Limite de perda de ${stats.lossLimit} atingido! Prejuízo atual: ${Math.abs(stats.netResult).toFixed(2)}`, "error");
-      }
-      
       // Cancel subscriptions
       await derivAPI.cancelSubscription(`tick_${selectedSymbol}`);
-      addLog("Operações interrompidas", stats.netResult >= 0 ? "success" : "warning");
+      addLog("Operações interrompidas pelo usuário", "warning");
 
       // Clear simulated data
       localStorage.removeItem("trading_bot_running");
@@ -333,29 +262,10 @@ export default function TradingBot({
 
       // Set trading as stopped
       setIsRunning(false);
-      
-      // Salvar as operações para análise posterior (opcional)
-      localStorage.setItem(
-        `trading_history_${new Date().toISOString().split('T')[0]}`,
-        JSON.stringify({
-          strategy: selectedStrategy,
-          symbol: selectedSymbol,
-          contracts: contractResults,
-          stats: {
-            profit: totalProfit,
-            wins,
-            losses,
-            winRate: winRate.toFixed(2)
-          },
-          profitTarget: parseFloat(takeProfit),
-          lossLimit: parseFloat(stopLoss)
-        })
-      );
 
       toast({
         title: "Operações Interrompidas",
-        description: `O robô foi interrompido com ${totalProfit >= 0 ? 'lucro' : 'prejuízo'} de $${Math.abs(totalProfit).toFixed(2)}`,
-        variant: totalProfit >= 0 ? "default" : "destructive",
+        description: "O robô de operações foi interrompido com sucesso.",
       });
     } catch (error) {
       console.error("Error stopping trading:", error);
@@ -369,32 +279,20 @@ export default function TradingBot({
   const simulateTrade = () => {
     if (!isRunning) return;
 
-    // Obter valor configurado para entrada
-    const entryAmount = parseFloat(initialAmount);
-    
-    // Gerar um ID único para o contrato
-    const contractId = Date.now();
-    
-    // Registrar contrato no monitor de lucro/perda
-    profitLossMonitor.registerContract(contractId, entryAmount);
-    
     // Simulate a contract result
     const isWin = Math.random() > 0.4; // 60% win rate for demonstration
     const profit = isWin
-      ? entryAmount * 0.95
-      : -entryAmount;
-    
-    // Valor final do contrato
-    const finalValue = entryAmount + profit;
+      ? parseFloat(initialAmount) * 0.95
+      : -parseFloat(initialAmount);
 
     // Add to results
     const newContract: ContractResult = {
-      id: contractId,
+      id: contractResults.length + 1,
       type: Math.random() > 0.5 ? "CALL" : "PUT",
       result: isWin ? "won" : "lost",
       profit: profit,
-      entry: entryAmount,
-      exit: finalValue,
+      entry: 5000 + Math.random() * 50,
+      exit: 5000 + Math.random() * 50,
       time: new Date(),
     };
 
@@ -415,19 +313,12 @@ export default function TradingBot({
         "error",
       );
     }
-    
-    // Registrar resultado no monitor de lucro/perda
-    profitLossMonitor.completeContract(contractId, finalValue);
-    
-    // Verificar se ainda estamos executando (pode ter parado devido ao atingimento dos limites)
-    if (!isRunning) return;
 
     // Update localStorage data
     const totalTrades = wins + losses + 1;
     const winRate =
       totalTrades > 0 ? ((isWin ? wins + 1 : wins) / totalTrades) * 100 : 0;
 
-    // Atualizar dados do localStorage com valores de configuração também
     localStorage.setItem(
       "trading_bot_data",
       JSON.stringify({
@@ -439,8 +330,6 @@ export default function TradingBot({
         startTime:
           JSON.parse(localStorage.getItem("trading_bot_data") || "{}")
             .startTime || Date.now(),
-        metaGanho: parseFloat(takeProfit),
-        limitePerda: parseFloat(stopLoss)
       }),
     );
 
