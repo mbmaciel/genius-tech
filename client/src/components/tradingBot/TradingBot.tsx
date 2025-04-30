@@ -432,7 +432,7 @@ export default function TradingBot({
                   <SelectTrigger className="w-full bg-[#0e1a33]/70 border border-[#1c3654] text-white text-sm">
                     <SelectValue placeholder="Selecione o multiplicador" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white">
+                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white" position="popper" sideOffset={5} align="start" side="bottom">
                     <SelectItem value="0">Não usar</SelectItem>
                     <SelectItem value="1.5">1.5x</SelectItem>
                     <SelectItem value="2.0">2.0x</SelectItem>
@@ -469,7 +469,7 @@ export default function TradingBot({
                   <SelectTrigger className="w-full bg-[#0e1a33]/70 border border-[#1c3654] text-white text-sm">
                     <SelectValue placeholder="Selecione o símbolo" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white">
+                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white" position="popper" sideOffset={5} align="start" side="bottom">
                     {availableSymbols.map((symbol) => (
                       <SelectItem key={symbol.symbol} value={symbol.symbol}>
                         {symbol.name}
@@ -519,7 +519,7 @@ export default function TradingBot({
                   <SelectTrigger className="w-full bg-[#0e1a33]/70 border border-[#1c3654] text-white text-sm">
                     <SelectValue placeholder="Selecione a temporalidade" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white">
+                  <SelectContent className="bg-[#1f3158] border-[#1c3654] text-white" position="popper" sideOffset={5} align="start" side="bottom">
                     {timeframes.map((tf) => (
                       <SelectItem key={tf.id} value={tf.id}>
                         {tf.name}
