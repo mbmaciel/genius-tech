@@ -143,8 +143,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private settings: TradingSettings = {
     // CORREÇÃO CRÍTICA: Não usar valor fixo, será substituído pelo valor do localStorage
     entryValue: 1.0, // Valor default mais visível quando usado como fallback
-    profitTarget: 20,
-    lossLimit: 20,
+    profitTarget: 20, // Valor padrão deve ser consistente com a UI
+    lossLimit: 10,    // Valor padrão deve ser consistente com a UI
     martingaleFactor: 1.5,
     contractType: "DIGITOVER",
     // CORREÇÃO URGENTE: A estratégia Advance deve usar prediction: 1, não 5
@@ -2973,7 +2973,35 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se atingiu a meta de lucro, parar
     // Tratar a meta de lucro como valor absoluto conforme configurado na interface
-    let targetValue = profitTargetNum;
+    // CORREÇÃO CRÍTICA (30/04/2025): O valor da meta de lucro DEVE ser recuperado diretamente 
+    // da configuração da estratégia ativa no painel StrategyConfigPanel
+    let targetValue = 0;
+    try {
+      const currentStrategy = this.strategyConfig.toLowerCase();
+      if (currentStrategy) {
+        const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+        if (configString) {
+          const config = JSON.parse(configString);
+          if (config.metaGanho && !isNaN(parseFloat(config.metaGanho.toString()))) {
+            targetValue = parseFloat(config.metaGanho.toString());
+            console.log(`[OAUTH_DIRECT] ✅ Usando meta de lucro ${targetValue} da configuração salva para ${currentStrategy}`);
+          } else {
+            targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
+            console.log(`[OAUTH_DIRECT] ⚠️ Configuração de meta de lucro não encontrada para ${currentStrategy}, usando valor padrão: ${targetValue}`);
+          }
+        } else {
+          targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
+          console.log(`[OAUTH_DIRECT] ⚠️ Configuração não encontrada para ${currentStrategy}, usando valor padrão: ${targetValue}`);
+        }
+      } else {
+        targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
+        console.log(`[OAUTH_DIRECT] ⚠️ Estratégia atual não definida, usando valor padrão: ${targetValue}`);
+      }
+    } catch (error) {
+      targetValue = profitTargetNum; // Em caso de erro, usar o valor das configurações gerais
+      console.error(`[OAUTH_DIRECT] ❌ Erro ao recuperar meta de lucro:`, error);
+      console.log(`[OAUTH_DIRECT] ❌ Usando valor padrão para meta de lucro: ${targetValue}`);
+    }
     
     // CORREÇÃO CRÍTICA (29/04/2025): Validar a meta de lucro conforme EXATAMENTE configurado
     // O robô deve parar quando atingir ou superar o limite de lucro configurado

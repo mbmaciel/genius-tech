@@ -2266,12 +2266,10 @@ export function BotController({
                   // Buscar previsão da configuração da estratégia se disponível
                   if (
                     strategyConfig &&
-                    (strategyConfig.predition !== undefined || strategyConfig.prediction !== undefined)
+                    strategyConfig.predition !== undefined
                   ) {
-                    // Verifica primeiro predition (grafia correta na interface), depois prediction (retrocompatibilidade)
-                    const predictionValue = strategyConfig.predition !== undefined ? 
-                      strategyConfig.predition : 
-                      (strategyConfig as any).prediction;
+                    // Verifica predition (grafia correta na interface)
+                    const predictionValue = strategyConfig.predition;
                       
                     prediction = parseInt(String(predictionValue)) || 5;
                   }
