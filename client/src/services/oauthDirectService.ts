@@ -1761,9 +1761,31 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         return;
       }
 
-      // Evitar operações se já existe um contrato em andamento
+      // ATENÇÃO: Removemos a verificação de contrato em andamento para permitir
+      // que o Loss Virtual seja aplicado em todas as entradas, não só na primeira
+      // Isso é necessário para que o robô respeite as regras específicas de cada estratégia
       if (this.currentContractId) {
-        // console.log(`[OAUTH_DIRECT] Contrato em andamento (ID: ${this.currentContractId}), aguardando resultado...`);
+        // Como ainda há um contrato em andamento, não vamos executar nova operação agora
+        // mas ainda assim avaliaremos as condições de Loss Virtual para preparar a próxima entrada
+
+        // Verificar se devemos aplicar Loss Virtual na próxima oportunidade
+        const shouldUseVirtualLoss = this.shouldApplyLossVirtual(lastDigit, this.activeStrategy);
+        
+        if (shouldUseVirtualLoss) {
+          // Registrar que encontramos uma condição para aplicar Loss Virtual na próxima entrada
+          console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Condição identificada para aplicar na próxima entrada com dígito ${lastDigit}`);
+          
+          // Salvar no localStorage para uso quando o contrato atual terminar
+          try {
+            localStorage.setItem('pending_loss_virtual_entry', 'true');
+            localStorage.setItem('pending_loss_virtual_digit', lastDigit.toString());
+            localStorage.setItem('pending_loss_virtual_time', Date.now().toString());
+          } catch (e) {
+            console.error(`[OAUTH_DIRECT] Erro ao salvar informação de Loss Virtual pendente:`, e);
+          }
+        }
+        
+        // Ainda temos um contrato em andamento, então não executamos operação agora
         return;
       }
 
@@ -3184,7 +3206,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     );
     
     if (hasProfitTarget && this.sessionStats.netProfit >= targetValue) {
-      const targetMessage = `Meta de lucro de ${profitTargetNum} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
+      const targetMessage = `Meta de lucro de ${targetValue} atingida! Lucro atual: ${this.sessionStats.netProfit.toFixed(2)}`;
       console.log(
         `[OAUTH_DIRECT] 🎯 META DE LUCRO ATINGIDA: ${this.sessionStats.netProfit.toFixed(2)} / ${targetValue.toFixed(2)}`,
       );
