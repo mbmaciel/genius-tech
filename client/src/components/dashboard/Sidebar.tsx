@@ -47,21 +47,6 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
       path: '/gestao-operacional', 
       label: 'Gestão Operacional', 
       icon: <CalculatorIcon className="h-5 w-5" /> 
-    },
-    { 
-      path: '/statistics', 
-      label: 'Estatísticas', 
-      icon: <BarChart className="h-5 w-5" /> 
-    },
-    { 
-      path: '/settings', 
-      label: 'Configurações', 
-      icon: <Settings className="h-5 w-5" /> 
-    },
-    { 
-      path: '/cashier', 
-      label: 'Operações de Caixa', 
-      icon: <Wallet className="h-5 w-5" /> 
     }
   ];
 
