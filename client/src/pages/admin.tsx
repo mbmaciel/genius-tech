@@ -106,6 +106,42 @@ export default function AdminPage() {
           localStorage.setItem('user_credentials', JSON.stringify(simplifiedCreds));
           
           console.log('[ADMIN] Carregados ' + formattedUsers.length + ' usuários do banco de dados');
+          
+          // Calcular estatísticas com base nos dados do banco
+          try {
+            // Calcular estatísticas básicas
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            
+            const activeUsers = formattedUsers.filter(user => user.isActive).length;
+            const newUsersToday = formattedUsers.filter(user => {
+              const createdAt = new Date(user.createdAt).getTime();
+              return createdAt >= todayStart;
+            }).length;
+            
+            const loginsToday = formattedUsers.filter(user => {
+              if (!user.lastLogin) return false;
+              const lastLogin = new Date(user.lastLogin).getTime();
+              return lastLogin >= todayStart;
+            }).length;
+            
+            setStats({
+              totalUsers: formattedUsers.length,
+              activeUsers,
+              newUsersToday,
+              loginsToday,
+            });
+            
+            console.log('[ADMIN] Estatísticas calculadas do banco de dados:', { 
+              totalUsers: formattedUsers.length, 
+              activeUsers, 
+              newUsersToday, 
+              loginsToday 
+            });
+          } catch (error) {
+            console.error('[ADMIN] Erro ao calcular estatísticas do banco de dados:', error);
+          }
+          
           return;
         }
       }
@@ -124,6 +160,41 @@ export default function AdminPage() {
         const parsedUsers = JSON.parse(storedUsers);
         setUsers(parsedUsers);
         console.log('[ADMIN] Carregados ' + parsedUsers.length + ' usuários do localStorage');
+        
+        // Calcular estatísticas com base nos dados do localStorage
+        try {
+          // Calcular estatísticas básicas
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          
+          const activeUsers = parsedUsers.filter((user: User) => user.isActive).length;
+          const newUsersToday = parsedUsers.filter((user: User) => {
+            const createdAt = new Date(user.createdAt).getTime();
+            return createdAt >= todayStart;
+          }).length;
+          
+          const loginsToday = parsedUsers.filter((user: User) => {
+            if (!user.lastLogin) return false;
+            const lastLogin = new Date(user.lastLogin).getTime();
+            return lastLogin >= todayStart;
+          }).length;
+          
+          setStats({
+            totalUsers: parsedUsers.length,
+            activeUsers,
+            newUsersToday,
+            loginsToday,
+          });
+          
+          console.log('[ADMIN] Estatísticas calculadas do localStorage:', { 
+            totalUsers: parsedUsers.length, 
+            activeUsers, 
+            newUsersToday, 
+            loginsToday 
+          });
+        } catch (error) {
+          console.error('[ADMIN] Erro ao calcular estatísticas do localStorage:', error);
+        }
       }
     } catch (error) {
       console.error('[ADMIN] Erro ao carregar usuários:', error);
@@ -140,6 +211,41 @@ export default function AdminPage() {
           const parsedUsers = JSON.parse(storedUsers);
           setUsers(parsedUsers);
           console.log('[ADMIN] Fallback: carregados ' + parsedUsers.length + ' usuários do localStorage');
+          
+          // Calcular estatísticas com base nos dados do localStorage (fallback)
+          try {
+            // Calcular estatísticas básicas
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            
+            const activeUsers = parsedUsers.filter((user: User) => user.isActive).length;
+            const newUsersToday = parsedUsers.filter((user: User) => {
+              const createdAt = new Date(user.createdAt).getTime();
+              return createdAt >= todayStart;
+            }).length;
+            
+            const loginsToday = parsedUsers.filter((user: User) => {
+              if (!user.lastLogin) return false;
+              const lastLogin = new Date(user.lastLogin).getTime();
+              return lastLogin >= todayStart;
+            }).length;
+            
+            setStats({
+              totalUsers: parsedUsers.length,
+              activeUsers,
+              newUsersToday,
+              loginsToday,
+            });
+            
+            console.log('[ADMIN] Estatísticas calculadas do localStorage (fallback):', { 
+              totalUsers: parsedUsers.length, 
+              activeUsers, 
+              newUsersToday, 
+              loginsToday 
+            });
+          } catch (error) {
+            console.error('[ADMIN] Erro ao calcular estatísticas do localStorage (fallback):', error);
+          }
         }
       } catch (e) {
         console.error('[ADMIN] Erro também no fallback:', e);
