@@ -62,11 +62,106 @@ class IndependentDerivService {
     this.eventListeners.set('connection', new Set());
     this.eventListeners.set('error', new Set());
     
-    // Carregar históricos salvos do localStorage
+    // ETAPA 1: Carregar histórico do localStorage para exibição imediata
     this.loadSavedHistoriesFromLocalStorage();
     
-    // Conectar automaticamente
-    this.connect();
+    // ETAPA 2: Carregar histórico do banco de dados (persistência entre diferentes URLs)
+    this.loadFromDatabase('R_100')
+      .then(dbLoaded => {
+        if (!dbLoaded) {
+          console.log('[INDEPENDENT_DERIV] Banco de dados não tem ticks, usando apenas localStorage');
+        } else {
+          console.log('[INDEPENDENT_DERIV] Histórico de ticks carregado do banco de dados com sucesso');
+          // Também atualizar o localStorage com os dados do banco para garantir coerência
+          this.saveHistoryToLocalStorage('R_100');
+        }
+        
+        // ETAPA 3: Iniciar conexão WebSocket para atualizações em tempo real
+        this.connect();
+      })
+      .catch(err => {
+        console.error('[INDEPENDENT_DERIV] Erro ao carregar do banco:', err);
+        // Ainda assim, conectar para receber atualizações em tempo real
+        this.connect();
+      });
+  }
+  
+  /**
+   * Carrega histórico de ticks do banco de dados do servidor
+   */
+  private async loadFromDatabase(symbol: string): Promise<boolean> {
+    try {
+      console.log(`[INDEPENDENT_DERIV] Carregando ticks do banco de dados para ${symbol}`);
+      
+      // Fazer requisição para API do servidor
+      const response = await fetch(`/api/market/ticks/${symbol}?limit=500`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar do banco: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Verificar se temos dados válidos
+      if (!data.success || !data.data || !data.data.lastDigits || data.data.lastDigits.length === 0) {
+        console.log(`[INDEPENDENT_DERIV] Banco de dados não tem ticks para ${symbol}`);
+        return false;
+      }
+      
+      // Extrair dígitos e configurar histórico
+      const digits = data.data.lastDigits;
+      this.initializeDigitHistory(symbol, digits);
+      
+      console.log(`[INDEPENDENT_DERIV] ✅ Carregados ${digits.length} ticks do banco de dados para ${symbol}`);
+      return true;
+    } catch (error) {
+      console.error(`[INDEPENDENT_DERIV] Erro ao carregar ticks do banco: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Salva os ticks mais recentes no banco de dados para persistência
+   */
+  private async saveToDatabase(symbol: string): Promise<boolean> {
+    try {
+      // Obter dados do histórico atual
+      const history = this.digitHistories.get(symbol);
+      if (!history || !history.lastDigits || history.lastDigits.length === 0) {
+        console.warn(`[INDEPENDENT_DERIV] Sem dígitos para salvar no banco para ${symbol}`);
+        return false;
+      }
+      
+      // Transformar dígitos em formato de ticks para API
+      const ticksToSave = history.lastDigits.map(digit => ({
+        value: parseFloat(`1000.${digit}`), // Valor aproximado para armazenamento
+        last_digit: digit
+      }));
+      
+      // Enviar para API do servidor
+      const response = await fetch('/api/market/ticks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          symbol,
+          ticks: ticksToSave
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log(`[INDEPENDENT_DERIV] ✅ Salvos ${history.lastDigits.length} ticks no banco para ${symbol}`);
+      
+      return result.success;
+    } catch (error) {
+      console.error(`[INDEPENDENT_DERIV] Erro ao salvar ticks no banco: ${error}`);
+      return false;
+    }
   }
   
   /**
