@@ -17,17 +17,35 @@ export default function TradingBotPage() {
   React.useEffect(() => {
     const loadTickHistory = async () => {
       try {
-        // Tentar buscar histórico de 500 ticks para R_100
-        console.log('[TradingBot] Pré-carregando histórico de 500 ticks para R_100');
-        await derivHistoryService.getTicksHistory('R_100', 500, true);
-        setHistoryLoaded(true);
-        console.log('[TradingBot] Histórico de ticks carregado com sucesso');
+        // Verificar se já temos histórico pré-carregado
+        const currentHistory = derivHistoryService.getDigitStats('R_100');
+        
+        if (currentHistory && currentHistory.lastDigits && currentHistory.lastDigits.length >= 500) {
+          // Já temos 500 ticks carregados - usar dados existentes
+          console.log(`[TradingBot] Usando histórico existente com ${currentHistory.lastDigits.length} ticks já carregados`);
+          setHistoryLoaded(true);
+          
+          // Ainda fazer uma atualização em segundo plano sem aguardar
+          derivHistoryService.getTicksHistory('R_100', 500, true, false)
+            .catch(error => console.error('[TradingBot] Erro ao atualizar histórico em background:', error));
+        } else {
+          // Não temos histórico completo, buscar agora 
+          console.log('[TradingBot] Pré-carregando histórico de 500 ticks para R_100');
+          await derivHistoryService.getTicksHistory('R_100', 500, true);
+          setHistoryLoaded(true);
+          console.log('[TradingBot] Histórico de ticks carregado com sucesso');
+        }
       } catch (error) {
         console.error('[TradingBot] Erro ao pré-carregar histórico de ticks:', error);
       }
     };
 
-    loadTickHistory();
+    // OTIMIZAÇÃO: Agendar para executar após 50ms para não bloquear a renderização inicial
+    const timerId = setTimeout(() => {
+      loadTickHistory();
+    }, 50);
+    
+    return () => clearTimeout(timerId);
   }, []);
 
   React.useEffect(() => {

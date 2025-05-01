@@ -26,34 +26,59 @@ export default function DigitHistoryDisplay({
   // Carregar o histórico de dígitos
   useEffect(() => {
     let isMounted = true;
-    setIsLoading(true);
-
-    const loadHistory = async () => {
-      try {
-        // Solicitar histórico com 500 ticks para o símbolo R_100
-        await derivHistoryService.getTicksHistory(symbol, 500, true);
-        
-        // Obter o histórico atualizado
-        const historyData = derivHistoryService.getDigitStats(symbol);
-        
-        if (isMounted && historyData && historyData.lastDigits) {
-          setDigits(historyData.lastDigits.slice(0, showCount));
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("[DigitHistoryDisplay] Erro ao carregar histórico:", error);
-        if (isMounted) {
-          setIsLoading(false);
-        }
+    let loadingTimerId: ReturnType<typeof setTimeout> | null = null;
+    
+    // Definir um tempo máximo para o estado de "carregando"
+    // Se tivermos dados em 300ms, vamos mostrar, mesmo que não sejam 500 ticks
+    loadingTimerId = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
       }
-    };
+    }, 300);
+    
+    // OTIMIZAÇÃO: Primeiro verificar se já temos dados carregados no serviço
+    // Isso permite exibir imediatamente os dados que já temos, sem esperar por uma nova requisição
+    const currentHistory = derivHistoryService.getDigitStats(symbol);
+    if (currentHistory && currentHistory.lastDigits && currentHistory.lastDigits.length > 0) {
+      console.log(`[DigitHistoryDisplay] Usando ${currentHistory.lastDigits.length} ticks já carregados em memória`);
+      setDigits(currentHistory.lastDigits.slice(0, showCount));
+      setIsLoading(false);
+      
+      // Ainda solicitar uma atualização em segundo plano
+      derivHistoryService.getTicksHistory(symbol, 500, true)
+        .catch(error => console.error("[DigitHistoryDisplay] Erro ao atualizar histórico em background:", error));
+    } else {
+      // Se não temos dados em memória, fazer a carga completa
+      const loadHistory = async () => {
+        try {
+          // Solicitar histórico com 500 ticks para o símbolo R_100
+          await derivHistoryService.getTicksHistory(symbol, 500, true);
+          
+          // Obter o histórico atualizado
+          const historyData = derivHistoryService.getDigitStats(symbol);
+          
+          if (isMounted && historyData && historyData.lastDigits) {
+            setDigits(historyData.lastDigits.slice(0, showCount));
+            setIsLoading(false);
+          }
+        } catch (error) {
+          console.error("[DigitHistoryDisplay] Erro ao carregar histórico:", error);
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        }
+      };
 
-    loadHistory();
+      loadHistory();
+    }
 
     // Configurar listener para atualizações contínuas
     const handleHistoryUpdate = (data: DigitHistoryData) => {
       if (isMounted && data && data.lastDigits) {
         setDigits(data.lastDigits.slice(0, showCount));
+        
+        // Uma vez que recebemos uma atualização real, podemos remover o estado de carregamento
+        setIsLoading(false);
       }
     };
 
@@ -62,6 +87,11 @@ export default function DigitHistoryDisplay({
     return () => {
       isMounted = false;
       derivHistoryService.removeListener(handleHistoryUpdate);
+      
+      // Limpar timer se existir
+      if (loadingTimerId) {
+        clearTimeout(loadingTimerId);
+      }
     };
   }, [symbol, showCount]);
 
