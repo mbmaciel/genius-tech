@@ -131,6 +131,31 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
             </nav>
           </div>
           
+          {/* Botões de Depósito e Saque para Mobile */}
+          <div className="px-2 py-3">
+            <a 
+              href="https://app.deriv.com/cashier/deposit?lang=PT" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="side-nav-item px-3 py-2 rounded-md text-[#00e5b3] hover:bg-[#1d2a45] flex items-center space-x-3 cursor-pointer mb-2"
+              onClick={closeSidebar}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span>Deposite</span>
+            </a>
+            
+            <a 
+              href="https://app.deriv.com/cashier/withdrawal?lang=PT" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="side-nav-item px-3 py-2 rounded-md text-[#ffcc00] hover:bg-[#1d2a45] flex items-center space-x-3 cursor-pointer"
+              onClick={closeSidebar}
+            >
+              <ArrowDownCircle className="h-5 w-5" />
+              <span>Saque</span>
+            </a>
+          </div>
+          
           {/* Área do rodapé da sidebar com seletor de idioma */}
           <div className="p-4 border-t border-[#1c3654]">
             <LanguageSwitcher />
@@ -169,6 +194,29 @@ export function Sidebar({ className = '', isMobile = false }: SidebarProps) {
                 );
               })}
             </nav>
+          </div>
+          
+          {/* Botões de Depósito e Saque */}
+          <div className="px-2 py-2">
+            <a 
+              href="https://app.deriv.com/cashier/deposit?lang=PT" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className={`side-nav-item px-3 py-2 rounded-md text-[#00e5b3] hover:bg-[#1d2a45] flex items-center cursor-pointer ${isHovered ? 'justify-start' : 'justify-center'} mb-2`}
+            >
+              <CreditCard className="h-5 w-5" />
+              {isHovered && <span className="ml-3">Deposite</span>}
+            </a>
+            
+            <a 
+              href="https://app.deriv.com/cashier/withdrawal?lang=PT" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className={`side-nav-item px-3 py-2 rounded-md text-[#ffcc00] hover:bg-[#1d2a45] flex items-center cursor-pointer ${isHovered ? 'justify-start' : 'justify-center'}`}
+            >
+              <ArrowDownCircle className="h-5 w-5" />
+              {isHovered && <span className="ml-3">Saque</span>}
+            </a>
           </div>
           
           {/* Área do rodapé da sidebar com seletor de idioma */}
