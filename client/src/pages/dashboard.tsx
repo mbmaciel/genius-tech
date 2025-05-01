@@ -5,8 +5,6 @@ import { AccountSelector } from "@/components/AccountSelector";
 import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
 import { RefreshCw, AlertCircle, Users, ChevronDown, Bot } from "lucide-react";
-// Importar o novo componente isolado para o dashboard
-import { DashboardR100Display } from "@/dashboard_exclusive/R100Display";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import {
@@ -509,14 +507,8 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Grade com os dois gráficos lado a lado como na imagem */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            {/* Coluna da esquerda: Gráfico de barras */}
-            <div className="w-full">
-              <DashboardR100Display tickCount={100} />
-            </div>
-            
-            {/* Coluna da direita: Gráfico Deriv */}
+          {/* Gráfico Deriv em tela cheia */}
+          <div className="mt-4">
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
               <div className="bg-[#0c1525] rounded-md" style={{ height: "480px" }}>
