@@ -85,7 +85,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             symbol,
             digits: lastDigits,
             total_count: totalCount,
-            created_at: new Date(),
             updated_at: new Date()
           });
       }
@@ -497,11 +496,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Converter os ticks para o formato do banco de dados
-      const ticksToStore = ticks.map(tick => ({
-        symbol,
-        tick_value: parseFloat(tick.value || tick.price || tick.quote),
-        last_digit: parseInt((tick.value || tick.price || tick.quote).toString().slice(-1))
-      }));
+      const ticksToStore = ticks.map(tick => {
+        // Identificar qual propriedade contém o valor do tick
+        let tickValue = null;
+        if (tick.value !== undefined) tickValue = tick.value;
+        else if (tick.tick_value !== undefined) tickValue = tick.tick_value;
+        else if (tick.price !== undefined) tickValue = tick.price;
+        else if (tick.quote !== undefined) tickValue = tick.quote;
+        
+        // Verificar se o valor do tick foi encontrado
+        if (tickValue === null) {
+          console.warn('[API] Tick com formato inválido:', tick);
+          return null;
+        }
+        
+        // Verificar se já temos o last_digit ou se precisamos extrair do valor
+        let lastDigit;
+        if (tick.last_digit !== undefined) {
+          lastDigit = parseInt(tick.last_digit);
+        } else {
+          const tickValueStr = tickValue.toString();
+          lastDigit = parseInt(tickValueStr.charAt(tickValueStr.length - 1));
+        }
+        
+        return {
+          symbol,
+          tick_value: parseFloat(tickValue),
+          last_digit: lastDigit
+        };
+      }).filter(tick => tick !== null);
       
       // Armazenar ticks no banco de dados
       await ticksRepository.storeMultipleTicks(ticksToStore);

@@ -1,4 +1,6 @@
-import { pool } from '../db';
+import { db } from '../db';
+import { marketTicks } from '@shared/schema';
+import { eq, desc, sql, and, not, inArray } from 'drizzle-orm';
 
 interface MarketTick {
   symbol: string;
@@ -17,12 +19,13 @@ export class TicksRepository {
    */
   async storeTick(tick: MarketTick): Promise<void> {
     try {
-      const query = `
-        INSERT INTO market_ticks (symbol, tick_value, last_digit)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (symbol, timestamp) DO NOTHING
-      `;
-      await pool.query(query, [tick.symbol, tick.tick_value, tick.last_digit]);
+      await db.insert(marketTicks).values({
+        symbol: tick.symbol,
+        tick_value: tick.tick_value,
+        last_digit: tick.last_digit
+      }).onConflictDoNothing();
+      
+      console.log(`[TicksRepository] Tick armazenado para ${tick.symbol}: ${tick.tick_value} (${tick.last_digit})`);
     } catch (error) {
       console.error('[TicksRepository] Erro ao armazenar tick:', error);
     }
@@ -35,30 +38,17 @@ export class TicksRepository {
     if (!ticks.length) return;
     
     try {
-      // Iniciar transação
-      const client = await pool.connect();
+      // Converter para o formato aceito pelo Drizzle
+      const ticksToInsert = ticks.map(tick => ({
+        symbol: tick.symbol,
+        tick_value: tick.tick_value,
+        last_digit: tick.last_digit
+      }));
       
-      try {
-        await client.query('BEGIN');
-        
-        // Preparar a query com múltiplos valores
-        const values = ticks.map((tick, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(',');
-        const params = ticks.flatMap(tick => [tick.symbol, tick.tick_value, tick.last_digit]);
-        
-        const query = `
-          INSERT INTO market_ticks (symbol, tick_value, last_digit)
-          VALUES ${values}
-          ON CONFLICT (symbol, timestamp) DO NOTHING
-        `;
-        
-        await client.query(query, params);
-        await client.query('COMMIT');
-      } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('[TicksRepository] Erro na transação de ticks:', error);
-      } finally {
-        client.release();
-      }
+      // Inserir em uma única operação (mais eficiente)
+      await db.insert(marketTicks).values(ticksToInsert).onConflictDoNothing();
+      
+      console.log(`[TicksRepository] ${ticks.length} ticks armazenados para ${ticks[0].symbol}`);
     } catch (error) {
       console.error('[TicksRepository] Erro ao armazenar múltiplos ticks:', error);
     }
@@ -69,16 +59,20 @@ export class TicksRepository {
    */
   async getLastTicks(symbol: string, limit: number = 500): Promise<MarketTick[]> {
     try {
-      const query = `
-        SELECT symbol, tick_value, last_digit, timestamp
-        FROM market_ticks
-        WHERE symbol = $1
-        ORDER BY timestamp DESC
-        LIMIT $2
-      `;
+      const result = await db.select({
+        id: marketTicks.id,
+        symbol: marketTicks.symbol,
+        tick_value: marketTicks.tick_value,
+        last_digit: marketTicks.last_digit,
+        timestamp: marketTicks.timestamp
+      })
+      .from(marketTicks)
+      .where(eq(marketTicks.symbol, symbol))
+      .orderBy(desc(marketTicks.timestamp))
+      .limit(limit);
       
-      const result = await pool.query(query, [symbol, limit]);
-      return result.rows;
+      console.log(`[TicksRepository] Recuperados ${result.length} ticks para ${symbol}`);
+      return result as MarketTick[];
     } catch (error) {
       console.error('[TicksRepository] Erro ao recuperar ticks:', error);
       return [];
@@ -90,14 +84,13 @@ export class TicksRepository {
    */
   async hasStoredTicks(symbol: string): Promise<boolean> {
     try {
-      const query = `
-        SELECT COUNT(*) as count
-        FROM market_ticks
-        WHERE symbol = $1
-      `;
+      const result = await db.select({
+        count: sql<number>`count(*)`
+      })
+      .from(marketTicks)
+      .where(eq(marketTicks.symbol, symbol));
       
-      const result = await pool.query(query, [symbol]);
-      return parseInt(result.rows[0].count, 10) > 0;
+      return result[0].count > 0;
     } catch (error) {
       console.error('[TicksRepository] Erro ao verificar ticks armazenados:', error);
       return false;
@@ -111,31 +104,29 @@ export class TicksRepository {
   async cleanupOldTicks(symbol: string, keepLatest: number = 1000): Promise<void> {
     try {
       // Identificar os IDs dos ticks mais recentes que devem ser mantidos
-      const findLatestQuery = `
-        SELECT id
-        FROM market_ticks
-        WHERE symbol = $1
-        ORDER BY timestamp DESC
-        LIMIT $2
-      `;
+      const latestIds = await db.select({ id: marketTicks.id })
+        .from(marketTicks)
+        .where(eq(marketTicks.symbol, symbol))
+        .orderBy(desc(marketTicks.timestamp))
+        .limit(keepLatest);
       
-      const latestResult = await pool.query(findLatestQuery, [symbol, keepLatest]);
-      
-      if (latestResult.rows.length < keepLatest) {
+      if (latestIds.length < keepLatest) {
         // Não há ticks suficientes para limpar
         return;
       }
       
       // Extrair os IDs para manter
-      const idsToKeep = latestResult.rows.map(row => row.id);
+      const idsToKeep = latestIds.map(row => row.id);
       
-      // Remover todos os outros ticks para este símbolo
-      const deleteQuery = `
-        DELETE FROM market_ticks
-        WHERE symbol = $1 AND id NOT IN (${idsToKeep.join(',')})
-      `;
+      // Remover todos os outros ticks para este símbolo (que não estão na lista de IDs a manter)
+      const result = await db.delete(marketTicks)
+        .where(
+          and(
+            eq(marketTicks.symbol, symbol),
+            not(inArray(marketTicks.id, idsToKeep))
+          )
+        );
       
-      await pool.query(deleteQuery, [symbol]);
       console.log(`[TicksRepository] Limpeza executada para ${symbol}. Mantendo ${keepLatest} ticks mais recentes.`);
     } catch (error) {
       console.error('[TicksRepository] Erro ao limpar ticks antigos:', error);
