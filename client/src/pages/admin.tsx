@@ -48,15 +48,8 @@ export default function AdminPage() {
   
   const { toast } = useToast();
   
-  // Carregar usuários e estatísticas
+  // Configurar intervalo de atualização para estatísticas em tempo real
   useEffect(() => {
-    async function initialize() {
-      await loadUsers();
-      calculateStats();
-    }
-    
-    initialize();
-    
     // Verificar se é admin
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
     if (!isAdmin) {
@@ -68,7 +61,23 @@ export default function AdminPage() {
       
       // Redirecionar para login
       window.location.href = '/login';
+      return;
     }
+    
+    // Carregar dados iniciais
+    async function initialize() {
+      await loadUsers();
+    }
+    
+    initialize();
+    
+    // Configurar atualização periódica a cada 5 segundos
+    const intervalId = setInterval(async () => {
+      await loadUsers();
+    }, 5000);
+    
+    // Limpar intervalo ao desmontar
+    return () => clearInterval(intervalId);
   }, []);
   
   // Carregar usuários do banco de dados e do localStorage
@@ -639,13 +648,19 @@ export default function AdminPage() {
       
       {/* Conteúdo principal */}
       <div className="container mx-auto py-6 px-4">
+        {/* Debug - remover isso depois que o problema estiver resolvido */}
+        <div className="bg-slate-800 p-2 mb-4 text-xs rounded overflow-auto">
+          <pre>Total de usuários no banco: {users.length}</pre>
+          <pre>Stats atuais: {JSON.stringify(stats, null, 2)}</pre>
+        </div>
+  
         {/* Estatísticas rápidas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-[#151b25] border-slate-800">
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-slate-400">Total de Usuários</p>
-                <p className="text-3xl font-bold text-indigo-500 mt-1">{stats.totalUsers}</p>
+                <p className="text-3xl font-bold text-indigo-500 mt-1">{users.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -654,7 +669,9 @@ export default function AdminPage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-slate-400">Usuários Ativos</p>
-                <p className="text-3xl font-bold text-emerald-500 mt-1">{stats.activeUsers}</p>
+                <p className="text-3xl font-bold text-emerald-500 mt-1">
+                  {users.filter(user => user.isActive).length}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -663,7 +680,16 @@ export default function AdminPage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-slate-400">Novos Hoje</p>
-                <p className="text-3xl font-bold text-blue-500 mt-1">{stats.newUsersToday}</p>
+                <p className="text-3xl font-bold text-blue-500 mt-1">
+                  {(() => {
+                    const now = new Date();
+                    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                    return users.filter(user => {
+                      const createdAt = new Date(user.createdAt).getTime();
+                      return createdAt >= todayStart;
+                    }).length;
+                  })()}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -672,7 +698,17 @@ export default function AdminPage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-slate-400">Logins Hoje</p>
-                <p className="text-3xl font-bold text-amber-500 mt-1">{stats.loginsToday}</p>
+                <p className="text-3xl font-bold text-amber-500 mt-1">
+                  {(() => {
+                    const now = new Date();
+                    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                    return users.filter(user => {
+                      if (!user.lastLogin) return false;
+                      const lastLogin = new Date(user.lastLogin).getTime();
+                      return lastLogin >= todayStart;
+                    }).length;
+                  })()}
+                </p>
               </div>
             </CardContent>
           </Card>
