@@ -35,25 +35,131 @@ class DerivHistoryService {
     // Inicializar estruturas para R_100
     this.initializeDigitStats('R_100');
     
-    // Carregar histórico existente do localStorage (oauthDirectService)
-    // OTIMIZAÇÃO: Garantir que o histórico seja carregado de forma síncrona
-    // para estar imediatamente disponível ao acessar a página
+    // OTIMIZAÇÃO 1: Carregar histórico existente do localStorage
+    // para display imediato enquanto carregamos dados mais atualizados
     this.loadHistoryFromLocalStorage('R_100');
     
-    // Verificar se temos pelo menos 500 ticks para R_100
-    const preloadedHistory = this.historyData['R_100'];
-    if (!preloadedHistory || !preloadedHistory.lastDigits || preloadedHistory.lastDigits.length < 500) {
-      console.log('[DerivHistoryService] Menos de 500 ticks pré-carregados, agendando carga imediata em background');
-      // Agendar carregamento em segundo plano sem aguardar
+    // OTIMIZAÇÃO 2: Carregar do banco de dados no servidor
+    // para garantir persistência entre diferentes URLs/domínios
+    this.loadFromDatabase('R_100').then(dbLoaded => {
+      // Verificar se precisamos buscar da API Deriv
+      const preloadedHistory = this.historyData['R_100'];
+      const hasSufficientData = preloadedHistory && 
+                               preloadedHistory.lastDigits && 
+                               preloadedHistory.lastDigits.length >= 500;
+      
+      if (!hasSufficientData) {
+        console.log('[DerivHistoryService] Menos de 500 ticks disponíveis, agendando carga em background');
+        // Agendar carregamento em segundo plano sem aguardar
+        setTimeout(() => {
+          this.getTicksHistory('R_100', 500, true, false)
+            .then(digits => {
+              // Salvar no banco de dados para persistência
+              this.saveToDatabase('R_100', digits);
+              return digits;
+            })
+            .catch(err => console.error('[DerivHistoryService] Erro ao pré-carregar histórico em background:', err));
+        }, 100);
+      } else {
+        console.log(`[DerivHistoryService] Iniciado com ${preloadedHistory.lastDigits.length} ticks já pré-carregados`);
+      }
+    }).catch(err => {
+      console.error('[DerivHistoryService] Erro ao carregar do banco:', err);
+      
+      // Fallback para carregamento da API
       setTimeout(() => {
         this.getTicksHistory('R_100', 500, true, false)
-          .catch(err => console.error('[DerivHistoryService] Erro ao pré-carregar histórico em background:', err));
+          .catch(err => console.error('[DerivHistoryService] Erro no fallback de carregamento:', err));
       }, 100);
-    } else {
-      console.log(`[DerivHistoryService] Iniciado com ${preloadedHistory.lastDigits.length} ticks já pré-carregados`);
-    }
+    });
     
-    console.log('[DerivHistoryService] Iniciado: carregando histórico salvo do localStorage');
+    console.log('[DerivHistoryService] Iniciado: carregando histórico salvo');
+  }
+  
+  /**
+   * Carrega histórico de ticks do banco de dados do servidor
+   */
+  private async loadFromDatabase(symbol: string): Promise<boolean> {
+    try {
+      // Fazer requisição para obter ticks do banco de dados do servidor
+      console.log(`[DerivHistoryService] Carregando ticks do banco de dados para ${symbol}`);
+      const response = await fetch(`/api/market/ticks/${symbol}?limit=500`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar do banco: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Verificar se temos dados
+      if (!data.success || !data.data || !data.data.lastDigits || data.data.lastDigits.length === 0) {
+        console.log(`[DerivHistoryService] Banco de dados não tem ticks para ${symbol}`);
+        return false;
+      }
+      
+      // Atualizar historyData com dados do banco
+      this.historyData[symbol] = {
+        lastDigits: data.data.lastDigits,
+        digitStats: data.data.digitStats,
+        lastUpdated: new Date(data.data.lastUpdated),
+        totalCount: data.data.totalCount
+      };
+      
+      console.log(`[DerivHistoryService] ✅ Carregados ${data.data.lastDigits.length} ticks do banco de dados para ${symbol}`);
+      
+      // Também salvar no localStorage como cache secundário
+      this.saveHistoryToLocalStorage(symbol);
+      
+      return true;
+    } catch (error) {
+      console.error(`[DerivHistoryService] Erro ao carregar do banco: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Salva histórico de ticks no banco de dados
+   */
+  private async saveToDatabase(symbol: string, ticks?: number[]): Promise<boolean> {
+    try {
+      // Se não temos ticks especificados, usar os do historyData
+      const digitData = ticks ? ticks : this.historyData[symbol]?.lastDigits;
+      
+      if (!digitData || digitData.length === 0) {
+        console.warn(`[DerivHistoryService] Sem dados para salvar no banco para ${symbol}`);
+        return false;
+      }
+      
+      // Preparar dados para envio
+      const ticksToSave = digitData.map((digit, index) => ({
+        value: parseFloat(`1000.${digit}`), // Valor aproximado apenas para armazenamento
+        last_digit: digit
+      }));
+      
+      // Enviar para API
+      const response = await fetch('/api/market/ticks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          symbol,
+          ticks: ticksToSave
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao salvar no banco: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log(`[DerivHistoryService] ✅ Salvos ${digitData.length} ticks no banco para ${symbol}`);
+      
+      return result.success;
+    } catch (error) {
+      console.error(`[DerivHistoryService] Erro ao salvar no banco: ${error}`);
+      return false;
+    }
   }
   
   /**
