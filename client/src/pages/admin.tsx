@@ -50,8 +50,12 @@ export default function AdminPage() {
   
   // Carregar usuários e estatísticas
   useEffect(() => {
-    loadUsers();
-    calculateStats();
+    async function initialize() {
+      await loadUsers();
+      calculateStats();
+    }
+    
+    initialize();
     
     // Verificar se é admin
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
@@ -147,48 +151,44 @@ export default function AdminPage() {
   
   // Calcular estatísticas
   const calculateStats = () => {
-    // Inicializar array vazio se não existir
-    const storedUsers = localStorage.getItem('registered_users');
-    if (!storedUsers) {
-      localStorage.setItem('registered_users', JSON.stringify([]));
-      console.log('[ADMIN] Nenhum usuário encontrado. Inicializando array vazio para estatísticas.');
-      setStats({
-        totalUsers: 0,
-        activeUsers: 0,
-        newUsersToday: 0,
-        loginsToday: 0,
-      });
-      return;
-    }
-    
     try {
-      const parsedUsers = JSON.parse(storedUsers) as User[];
+      // Usar os usuários que já estão carregados no estado do componente
+      if (users.length === 0) {
+        console.log('[ADMIN] Nenhum usuário encontrado para calcular estatísticas.');
+        setStats({
+          totalUsers: 0,
+          activeUsers: 0,
+          newUsersToday: 0,
+          loginsToday: 0,
+        });
+        return;
+      }
       
       // Calcular estatísticas básicas
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       
-      const activeUsers = parsedUsers.filter(user => user.isActive).length;
-      const newUsersToday = parsedUsers.filter(user => {
+      const activeUsers = users.filter(user => user.isActive).length;
+      const newUsersToday = users.filter(user => {
         const createdAt = new Date(user.createdAt).getTime();
         return createdAt >= todayStart;
       }).length;
       
-      const loginsToday = parsedUsers.filter(user => {
+      const loginsToday = users.filter(user => {
         if (!user.lastLogin) return false;
         const lastLogin = new Date(user.lastLogin).getTime();
         return lastLogin >= todayStart;
       }).length;
       
       setStats({
-        totalUsers: parsedUsers.length,
+        totalUsers: users.length,
         activeUsers,
         newUsersToday,
         loginsToday,
       });
       
       console.log('[ADMIN] Estatísticas calculadas:', { 
-        totalUsers: parsedUsers.length, 
+        totalUsers: users.length, 
         activeUsers, 
         newUsersToday, 
         loginsToday 
