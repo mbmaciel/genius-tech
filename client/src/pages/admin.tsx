@@ -71,10 +71,10 @@ export default function AdminPage() {
     
     initialize();
     
-    // Configurar atualização periódica a cada 5 segundos
+    // Configurar atualização periódica a cada 60 segundos (1 minuto)
     const intervalId = setInterval(async () => {
       await loadUsers();
-    }, 5000);
+    }, 60000);
     
     // Limpar intervalo ao desmontar
     return () => clearInterval(intervalId);
@@ -648,12 +648,6 @@ export default function AdminPage() {
       
       {/* Conteúdo principal */}
       <div className="container mx-auto py-6 px-4">
-        {/* Debug - remover isso depois que o problema estiver resolvido */}
-        <div className="bg-slate-800 p-2 mb-4 text-xs rounded overflow-auto">
-          <pre>Total de usuários no banco: {users.length}</pre>
-          <pre>Stats atuais: {JSON.stringify(stats, null, 2)}</pre>
-        </div>
-  
         {/* Estatísticas rápidas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-[#151b25] border-slate-800">
