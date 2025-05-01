@@ -79,6 +79,11 @@ const SelectContent = React.forwardRef<
         className
       )}
       position={position}
+      style={{
+        transformOrigin: "var(--radix-select-content-transform-origin)",
+        animation: "scaleIn 0.2s ease-out",
+        zIndex: 9999
+      }}
       {...props}
     >
       <SelectScrollUpButton />
