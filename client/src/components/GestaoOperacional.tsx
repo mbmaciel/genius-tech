@@ -285,7 +285,7 @@ export function GestaoOperacional() {
                         <SelectValue placeholder="Selecione um nível de risco" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white" position="popper" sideOffset={4} align="start">
                       <SelectItem value="pouco" className="flex items-center">
                         <div className="flex items-center">
                           <ShieldIcon className="h-4 w-4 mr-2 text-green-500" />

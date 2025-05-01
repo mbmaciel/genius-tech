@@ -157,7 +157,7 @@ export function BotModal({ isOpen, onClose, accountInfo }: BotModalProps) {
                   <SelectTrigger className="bg-[#1d2a45] border-[#3a4b6b] text-white">
                     <SelectValue placeholder="Selecione um bot" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
+                  <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white" position="popper" sideOffset={4} align="start">
                     <SelectItem value="lite">Lite Bots</SelectItem>
                     <SelectItem value="premium">Premium Bots</SelectItem>
                   </SelectContent>
@@ -312,7 +312,7 @@ export function BotModal({ isOpen, onClose, accountInfo }: BotModalProps) {
                   <SelectTrigger className="bg-[#1d2a45] border-[#3a4b6b] text-white h-8 text-xs w-24">
                     <SelectValue>{ticksCount} Ticks</SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white">
+                  <SelectContent className="bg-[#1d2a45] border-[#3a4b6b] text-white" position="popper" sideOffset={4} align="start">
                     <SelectItem value="10">10 Ticks</SelectItem>
                     <SelectItem value="25">25 Ticks</SelectItem>
                     <SelectItem value="50">50 Ticks</SelectItem>
