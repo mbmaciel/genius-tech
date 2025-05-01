@@ -23,7 +23,7 @@ import {
 import { Loader2, ShieldAlert } from 'lucide-react';
 
 // App ID da Deriv para OAuth
-const APP_ID = 71403;
+const APP_ID = 72383;
 
 export default function LoginPage() {
   const [_, setLocation] = useLocation();

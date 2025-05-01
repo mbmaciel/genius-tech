@@ -240,7 +240,12 @@ function App() {
               })();
             });
             
-            return <div>Processando autenticação...</div>;
+            return <div className="flex h-screen w-full items-center justify-center bg-[#0c1117]">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin h-12 w-12 rounded-full border-4 border-dotted border-indigo-600"></div>
+                <p className="mt-4 text-white">Processando autenticação Deriv...</p>
+              </div>
+            </div>;
           } else {
             // Não tem tokens - redirecionar para login
             console.log('[AUTH] Sem tokens na URL, redirecionando para login');

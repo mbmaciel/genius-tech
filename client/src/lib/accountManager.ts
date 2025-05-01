@@ -10,7 +10,7 @@ interface DerivAccount {
 }
 
 // App ID da Deriv para conexões WebSocket
-const APP_ID = 71403;
+const APP_ID = 72383;
 
 // Função para extrair tokens e informações de contas da URL de redirecionamento
 export function extractAccountsFromUrl(url: string): DerivAccount[] {
