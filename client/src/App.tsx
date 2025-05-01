@@ -3,6 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toast";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
+import AdminPage from "@/pages/admin";
 import { BotPage } from "@/pages/bot-page";
 import { TokenTestPage } from "@/pages/token-test-page";
 import GestaoOperacionalPage from "@/pages/gestao-operacional-page";
@@ -15,33 +16,78 @@ import DigitDisplayStats from "@/pages/digit-display-stats";
 import DigitsFixed from "@/pages/digits-fixed";
 import DigitStatsPage from "@/pages/digit-stats-page";
 import { useTranslation } from 'react-i18next';
+import { useToast } from "@/hooks/use-toast";
 
 // Componente para verificar autenticação
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
   const [location, setLocation] = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { toast } = useToast();
   
   useEffect(() => {
+    // Verificar se é administrador
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+    
     // Verificar se o usuário está logado através do localStorage
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    // Ou verifica se há informações de conta da Deriv no localStorage
+    
+    // Verificar se há informações de conta da Deriv no localStorage
     const storedAccountInfo = localStorage.getItem('deriv_account_info');
     
-    // O usuário está autenticado se estiver logado OU tiver informações da conta Deriv
-    if (isLoggedIn || storedAccountInfo) {
-      console.log('Usuário autenticado:', isLoggedIn ? 'Login local' : 'Conta Deriv');
+    // Verificar credenciais de usuários registrados pelo admin
+    let isRegisteredUser = false;
+    const userEmail = localStorage.getItem('user_email');
+    
+    if (userEmail) {
+      // Buscar credenciais de usuários
+      const storedCredentials = localStorage.getItem('user_credentials');
+      if (storedCredentials) {
+        const credentials = JSON.parse(storedCredentials);
+        isRegisteredUser = credentials.some((cred: any) => cred.email === userEmail);
+      }
+    }
+    
+    // Verificar usuários registrados
+    const registeredUsers = localStorage.getItem('registered_users');
+    const users = registeredUsers ? JSON.parse(registeredUsers) : [];
+    
+    // O usuário está autenticado se for admin OU estiver logado E for um usuário registrado
+    if (isAdmin || ((isLoggedIn || storedAccountInfo) && (isRegisteredUser || users.length === 0))) {
+      console.log('Usuário autenticado:', 
+        isAdmin ? 'Admin' : 
+        isRegisteredUser ? 'Usuário registrado' : 
+        'Usuário temporário (não há usuários registrados ainda)');
+      
       setIsAuthenticated(true);
     } else {
-      console.log('Usuário não autenticado, redirecionando para login');
+      console.log('Usuário não autenticado ou não autorizado, redirecionando para login');
+      
+      // Se o usuário está logado mas não está autorizado
+      if (isLoggedIn || storedAccountInfo) {
+        toast({
+          title: 'Acesso não autorizado',
+          description: 'Você não tem permissão para acessar esta página. Entre em contato com o administrador.',
+          variant: 'destructive',
+        });
+        
+        // Remover tokens para forçar novo login
+        localStorage.removeItem('isLoggedIn');
+      }
+      
       setIsAuthenticated(false);
       // Redirecionar para a página de login se não autenticado
       setLocation('/login');
     }
-  }, [setLocation]);
+  }, [setLocation, toast]);
   
   // Não renderizar nada até verificar a autenticação
   if (isAuthenticated === null) {
-    return <div>Carregando...</div>;
+    return <div className="flex h-screen w-full items-center justify-center bg-[#0c1117]">
+      <div className="flex flex-col items-center">
+        <div className="animate-spin h-12 w-12 rounded-full border-4 border-dotted border-indigo-600"></div>
+        <p className="mt-4 text-white">Verificando autenticação...</p>
+      </div>
+    </div>;
   }
   
   // Se autenticado, renderizar o componente
@@ -79,6 +125,7 @@ function App() {
       {/* <ConfirmAccountSwitch /> */}
       <Switch>
         <Route path="/login" component={Login} />
+        <Route path="/admin" component={AdminPage} />
         <Route path="/" component={() => {
           // Verificar se há parâmetros de autenticação da Deriv na URL
           const url = window.location.href;

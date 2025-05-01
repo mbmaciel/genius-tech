@@ -4,6 +4,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   extractAccountsFromUrl, 
   saveAccounts, 
@@ -11,7 +20,7 @@ import {
   authorizeMultipleAccounts,
   updateAccountInfo
 } from '@/lib/accountManager';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 
 // App ID da Deriv para OAuth
 const APP_ID = 71403;
@@ -24,6 +33,11 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [processingOAuth, setProcessingOAuth] = useState(false);
   const [oauthAccounts, setOauthAccounts] = useState<any[]>([]);
+  
+  // Estado para o modal de autenticação admin
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
+  const [adminDialogOpen, setAdminDialogOpen] = useState(false);
 
   // Efeito para verificar status de login apenas em ambientes de produção
   // Desabilitado para permitir visualizar a página de login para testes
@@ -132,33 +146,86 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulação de login bem-sucedido - na implementação real, isso seria uma chamada à API
-    setTimeout(() => {
+    // Verificar se os campos foram preenchidos
+    if (!email || !password) {
       setIsLoading(false);
+      toast({
+        title: 'Erro de login',
+        description: 'Por favor, preencha todos os campos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Verificar se existem usuários registrados
+    const storedCredentials = localStorage.getItem('user_credentials');
+    const registeredUsers = localStorage.getItem('registered_users');
+    
+    // Se existirem usuários registrados, precisamos verificar se este usuário está registrado
+    if (storedCredentials && registeredUsers) {
+      const credentials = JSON.parse(storedCredentials);
+      const users = JSON.parse(registeredUsers);
       
-      // Apenas para demonstração - normalmente verificaria credenciais
-      if (email && password) {
-        // Definir que o usuário está logado no localStorage
+      // Verificar se o usuário está na lista de credenciais
+      const userCredential = credentials.find((cred: any) => 
+        cred.email === email && cred.password === password
+      );
+      
+      if (userCredential) {
+        // Verificar se o usuário está ativo
+        const userInfo = users.find((user: any) => user.email === email);
+        
+        if (userInfo && !userInfo.isActive) {
+          setIsLoading(false);
+          toast({
+            title: 'Conta desativada',
+            description: 'Sua conta foi desativada. Entre em contato com o administrador.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        // Credenciais válidas
         localStorage.setItem('isLoggedIn', 'true');
-        console.log('Login bem-sucedido, salvando estado no localStorage');
+        localStorage.setItem('user_email', email);
         
         toast({
           title: 'Login bem-sucedido',
           description: 'Bem-vindo à plataforma de trading!',
         });
         
-        // Usar window.location.href para garantir o redirecionamento
-        console.log('Redirecionando para o dashboard após login bem-sucedido');
+        // Redirecionar para o dashboard
         setTimeout(() => {
           window.location.href = '/dashboard';
-        }, 500); // Pequeno atraso para garantir que o localStorage seja atualizado antes do redirecionamento
+        }, 500);
       } else {
+        // Credenciais inválidas
+        setIsLoading(false);
         toast({
-          title: 'Erro de login',
-          description: 'Por favor, preencha todos os campos.',
+          title: 'Credenciais inválidas',
+          description: 'Email ou senha incorretos.',
           variant: 'destructive',
         });
       }
+    } else {
+      // Não existem usuários registrados ainda, permitir acesso temporário
+      // Isso será útil antes que qualquer usuário seja criado no painel admin
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('user_email', email);
+      
+      toast({
+        title: 'Login bem-sucedido',
+        description: 'Bem-vindo à plataforma de trading!',
+      });
+      
+      // Redirecionar para o dashboard
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 500);
+    }
+    
+    setTimeout(() => {
+      setIsLoading(false);
     }, 1000);
   };
 
@@ -253,6 +320,38 @@ export default function LoginPage() {
     // Redirecionamento para página de login da Deriv
     window.location.href = redirectUrl;
   };
+  
+  // Função para validar acesso ao painel de administração
+  const handleAdminAuth = () => {
+    setAdminAuthLoading(true);
+    
+    // Verificar senha de administrador
+    setTimeout(() => {
+      if (adminPassword === '234589@') {
+        // Senha correta
+        toast({
+          title: 'Acesso Autorizado',
+          description: 'Bem-vindo ao painel de administração',
+        });
+        
+        // Salvar status de admin no localStorage
+        localStorage.setItem('isAdmin', 'true');
+        
+        // Redirecionar para a página de admin
+        window.location.href = '/admin';
+      } else {
+        // Senha incorreta
+        toast({
+          title: 'Acesso Negado',
+          description: 'Senha de administração incorreta',
+          variant: 'destructive',
+        });
+      }
+      
+      setAdminAuthLoading(false);
+      setAdminPassword('');
+    }, 500);
+  };
 
   // UI normal de login
   return (
@@ -301,8 +400,56 @@ export default function LoginPage() {
         </CardContent>
       </Card>
       
-      <div className="mt-8 text-slate-500 text-center text-sm">
-        &copy; {new Date().getFullYear()} Genius Technology Trading. Todos os direitos reservados.
+      <div className="mt-8 text-slate-500 text-center text-sm flex flex-col items-center space-y-4">
+        <div>&copy; {new Date().getFullYear()} Genius Technology Trading. Todos os direitos reservados.</div>
+        
+        {/* Dialog Modal para Autenticação do Admin */}
+        <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="bg-transparent border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white">
+              <ShieldAlert className="w-4 h-4 mr-2" />
+              Painel Admin
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-[#151b25] border-slate-800 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-white">Acesso Administrativo</DialogTitle>
+              <DialogDescription className="text-slate-400">
+                Digite a senha de administrador para acessar o painel de gerenciamento.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm text-slate-400">Senha de Administrador</label>
+                <Input 
+                  type="password" 
+                  placeholder="Digite a senha de administrador" 
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="bg-[#0c1117] border-slate-700 text-white"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                onClick={handleAdminAuth}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={adminAuthLoading}
+              >
+                {adminAuthLoading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>Verificando...</span>
+                  </div>
+                ) : (
+                  "Entrar como Admin"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
