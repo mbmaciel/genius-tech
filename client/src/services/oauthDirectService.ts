@@ -1555,6 +1555,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   /**
    * Avalia se o padrão de Loss Virtual deve ser aplicado com base no tipo da estratégia
    * 
+   * CORREÇÃO CRÍTICA (01/05/2025): Esta função foi revisada para garantir que a regra de Loss Virtual
+   * seja aplicada em TODAS as operações, não apenas na primeira.
+   * 
    * Implementação específica para cada tipo de robô:
    * - Bot Low: entrar quando aparecer 0, 1 ou 2 (sem comando adicional)
    * - ProfitPro: entrar quando aparecer 0, 1, 2, 3, 4, 5 ou 6 (precisa de comando configurável)
@@ -1570,34 +1573,65 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // BOT LOW: entra automaticamente quando o dígito for 0, 1 ou 2 (sem comando adicional)
     if (strategyLower.includes("botlow") || strategyLower.includes("bot low")) {
-      const shouldEnter = [0, 1, 2].includes(lastDigit);
+      const targetDigits = [0, 1, 2];
+      const shouldEnter = targetDigits.includes(lastDigit);
+      
       if (shouldEnter) {
-        console.log(`[OAUTH_DIRECT] 🎯 BOT LOW: Entrada automática para dígito ${lastDigit} (regra: 0, 1 ou 2)`);
+        console.log(`[OAUTH_DIRECT] 🎯 BOT LOW: Loss Virtual identificado para dígito ${lastDigit} (regra: 0, 1 ou 2)`);
+        
+        // Registrar motivo da ativação do Loss Virtual para diagnóstico e auditoria
+        this.notifyListeners({
+          type: "loss_virtual_triggered",
+          strategy: "botlow",
+          digit: lastDigit,
+          rule: `Dígito ${lastDigit} está no conjunto [0, 1, 2]`,
+          timestamp: new Date().toISOString()
+        });
       }
+      
       return shouldEnter;
     }
     
     // PROFITPRO: entra quando o dígito for de 0 a 6, com verificação de ocorrências consecutivas
     if (strategyLower.includes("profitpro") || strategyLower.includes("profit pro")) {
+      const targetDigits = [0, 1, 2, 3, 4, 5, 6];
+      
       // Verificar se o dígito está no range definido (0-6)
-      if (![0, 1, 2, 3, 4, 5, 6].includes(lastDigit)) {
+      if (!targetDigits.includes(lastDigit)) {
         return false;
       }
       
-      // Obter configuração específica da estratégia via settings ou localStorage
+      // Obter configuração específica da estratégia
       let requiredConsecutiveOccurrences = 1; // Valor padrão
       
       try {
-        // Tentar obter configuração das settings
-        if (this.settings && this.settings.lossVirtualConsecutiveDigits) {
+        // PRIORIDADE 1: Obter valor do input na interface (se disponível)
+        const inputElement = document.getElementById("loss-virtual-consecutive-input") as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseInt(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            requiredConsecutiveOccurrences = valueFromInput;
+            console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 1: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (do input)`);
+            
+            // Salvar no settings para reutilização futura
+            this.settings.lossVirtualConsecutiveDigits = valueFromInput;
+          }
+        }
+        
+        // PRIORIDADE 2: Obter das settings
+        if (requiredConsecutiveOccurrences === 1 && this.settings && this.settings.lossVirtualConsecutiveDigits) {
           requiredConsecutiveOccurrences = Number(this.settings.lossVirtualConsecutiveDigits);
-        } else {
-          // Tentar obter de localStorage
+          console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 2: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (das settings)`);
+        }
+        
+        // PRIORIDADE 3: Obter de localStorage
+        if (requiredConsecutiveOccurrences === 1) {
           const configStr = localStorage.getItem(`strategy_config_${strategyLower.replace(/\s+/g, "")}`);
           if (configStr) {
             const config = JSON.parse(configStr);
             if (config.lossVirtualConsecutiveDigits) {
               requiredConsecutiveOccurrences = Number(config.lossVirtualConsecutiveDigits);
+              console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 3: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (do localStorage)`);
             }
           }
         }
@@ -1611,7 +1645,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Contar ocorrências consecutivas do range de dígitos (0-6)
       let consecutiveCount = 0;
       for (const digit of recentDigits) {
-        if ([0, 1, 2, 3, 4, 5, 6].includes(digit)) {
+        if (targetDigits.includes(digit)) {
           consecutiveCount++;
         } else {
           // Se encontrar um dígito fora do range, reiniciar contagem
@@ -1620,8 +1654,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       const shouldEnter = consecutiveCount >= requiredConsecutiveOccurrences;
+      
       if (shouldEnter) {
-        console.log(`[OAUTH_DIRECT] 🎯 PROFITPRO: Entrada para dígito ${lastDigit} (regra: 0-6 apareceu ${consecutiveCount}x, mínimo: ${requiredConsecutiveOccurrences}x)`);
+        console.log(
+          `[OAUTH_DIRECT] 🎯 PROFITPRO: Loss Virtual identificado para dígito ${lastDigit} ` +
+          `(regra: dígitos 0-6 aparecem ${consecutiveCount}x consecutivamente, mínimo: ${requiredConsecutiveOccurrences}x)`
+        );
+        
+        // Registrar motivo da ativação do Loss Virtual para diagnóstico e auditoria
+        this.notifyListeners({
+          type: "loss_virtual_triggered",
+          strategy: "profitpro",
+          digit: lastDigit,
+          rule: `Dígito ${lastDigit} está no conjunto [0-6] e apareceu ${consecutiveCount}x consecutivamente (mínimo: ${requiredConsecutiveOccurrences}x)`,
+          timestamp: new Date().toISOString()
+        });
       }
       
       return shouldEnter;
@@ -1629,25 +1676,44 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     
     // MAXPRO: entra quando o dígito for de 0 a 3, com verificação de ocorrências consecutivas
     if (strategyLower.includes("maxpro") || strategyLower.includes("max pro")) {
+      const targetDigits = [0, 1, 2, 3];
+      
       // Verificar se o dígito está no range definido (0-3)
-      if (![0, 1, 2, 3].includes(lastDigit)) {
+      if (!targetDigits.includes(lastDigit)) {
         return false;
       }
       
-      // Obter configuração específica da estratégia via settings ou localStorage
+      // Obter configuração específica da estratégia
       let requiredConsecutiveOccurrences = 1; // Valor padrão
       
       try {
-        // Tentar obter configuração das settings
-        if (this.settings && this.settings.lossVirtualConsecutiveDigits) {
+        // PRIORIDADE 1: Obter valor do input na interface (se disponível)
+        const inputElement = document.getElementById("loss-virtual-consecutive-input") as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseInt(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            requiredConsecutiveOccurrences = valueFromInput;
+            console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 1: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (do input)`);
+            
+            // Salvar no settings para reutilização futura
+            this.settings.lossVirtualConsecutiveDigits = valueFromInput;
+          }
+        }
+        
+        // PRIORIDADE 2: Obter das settings
+        if (requiredConsecutiveOccurrences === 1 && this.settings && this.settings.lossVirtualConsecutiveDigits) {
           requiredConsecutiveOccurrences = Number(this.settings.lossVirtualConsecutiveDigits);
-        } else {
-          // Tentar obter de localStorage
+          console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 2: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (das settings)`);
+        }
+        
+        // PRIORIDADE 3: Obter de localStorage
+        if (requiredConsecutiveOccurrences === 1) {
           const configStr = localStorage.getItem(`strategy_config_${strategyLower.replace(/\s+/g, "")}`);
           if (configStr) {
             const config = JSON.parse(configStr);
             if (config.lossVirtualConsecutiveDigits) {
               requiredConsecutiveOccurrences = Number(config.lossVirtualConsecutiveDigits);
+              console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 3: Ocorrências consecutivas Loss Virtual = ${requiredConsecutiveOccurrences} (do localStorage)`);
             }
           }
         }
@@ -1661,7 +1727,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Contar ocorrências consecutivas do range de dígitos (0-3)
       let consecutiveCount = 0;
       for (const digit of recentDigits) {
-        if ([0, 1, 2, 3].includes(digit)) {
+        if (targetDigits.includes(digit)) {
           consecutiveCount++;
         } else {
           // Se encontrar um dígito fora do range, reiniciar contagem
@@ -1670,8 +1736,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
       
       const shouldEnter = consecutiveCount >= requiredConsecutiveOccurrences;
+      
       if (shouldEnter) {
-        console.log(`[OAUTH_DIRECT] 🎯 MAXPRO: Entrada para dígito ${lastDigit} (regra: 0-3 apareceu ${consecutiveCount}x, mínimo: ${requiredConsecutiveOccurrences}x)`);
+        console.log(
+          `[OAUTH_DIRECT] 🎯 MAXPRO: Loss Virtual identificado para dígito ${lastDigit} ` +
+          `(regra: dígitos 0-3 aparecem ${consecutiveCount}x consecutivamente, mínimo: ${requiredConsecutiveOccurrences}x)`
+        );
+        
+        // Registrar motivo da ativação do Loss Virtual para diagnóstico e auditoria
+        this.notifyListeners({
+          type: "loss_virtual_triggered",
+          strategy: "maxpro",
+          digit: lastDigit,
+          rule: `Dígito ${lastDigit} está no conjunto [0-3] e apareceu ${consecutiveCount}x consecutivamente (mínimo: ${requiredConsecutiveOccurrences}x)`,
+          timestamp: new Date().toISOString()
+        });
       }
       
       return shouldEnter;
@@ -1892,11 +1971,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
           break;
       }
 
-      // Verificar condições específicas de Loss Virtual para estratégias como BotLow, ProfitPro e MaxPro
+      // CORREÇÃO CRÍTICA (01/05/2025): Verificação de Loss Virtual em TODAS as operações
+      // Verificar condições específicas de Loss Virtual para cada estratégia
       const shouldEnterLossVirtual = this.shouldApplyLossVirtual(lastDigit, this.activeStrategy);
       
-      // Se a estratégia indica que devemos entrar em uma operação OU
-      // se devemos aplicar a regra de Loss Virtual para esta estratégia e dígito
+      // Registrar decisões para diagnóstico
+      if (result && result.shouldEnter) {
+        console.log(`[OAUTH_DIRECT] 🟢 Estratégia ${this.activeStrategy} indica entrada normal`);
+      }
+      
+      if (shouldEnterLossVirtual) {
+        console.log(`[OAUTH_DIRECT] 🔥 LOSS VIRTUAL ATIVO para estratégia ${this.activeStrategy} e dígito ${lastDigit}`);
+      }
+      
+      // Entrada normal OU Loss Virtual - qualquer um dos dois pode ativar a operação
       if ((result && result.shouldEnter) || shouldEnterLossVirtual) {
         // Se estamos entrando devido ao Loss Virtual, registrar isso explicitamente
         if (shouldEnterLossVirtual) {
@@ -3169,25 +3257,51 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se atingiu a meta de lucro, parar
     // Tratar a meta de lucro como valor absoluto conforme configurado na interface
-    // CORREÇÃO CRÍTICA (30/04/2025): O valor da meta de lucro DEVE ser recuperado diretamente 
-    // da configuração da estratégia ativa no painel StrategyConfigPanel
+    // CORREÇÃO CRÍTICA (01/05/2025): O valor da meta de lucro DEVE ser recuperado diretamente 
+    // da configuração da estratégia ativa no painel StrategyConfigPanel e DEVE usar o valor configurado pelo usuário
     let targetValue = 0;
     try {
       const currentStrategy = this.strategyConfig.toLowerCase();
       if (currentStrategy) {
-        const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
-        if (configString) {
-          const config = JSON.parse(configString);
-          if (config.metaGanho && !isNaN(parseFloat(config.metaGanho.toString()))) {
-            targetValue = parseFloat(config.metaGanho.toString());
-            console.log(`[OAUTH_DIRECT] ✅ Usando meta de lucro ${targetValue} da configuração salva para ${currentStrategy}`);
-          } else {
-            targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
-            console.log(`[OAUTH_DIRECT] ⚠️ Configuração de meta de lucro não encontrada para ${currentStrategy}, usando valor padrão: ${targetValue}`);
+        // PRIORIDADE 1: Obter valor do input na interface (se disponível)
+        const inputElement = document.getElementById("meta-ganho-input") as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseFloat(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            targetValue = valueFromInput;
+            console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 1: Usando meta de lucro ${targetValue} do input do usuário`);
+            
+            // Salvar no localStorage para consistência futura
+            try {
+              const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+              if (configString) {
+                const config = JSON.parse(configString);
+                config.metaGanho = valueFromInput;
+                localStorage.setItem(`strategy_config_${currentStrategy}`, JSON.stringify(config));
+                console.log(`[OAUTH_DIRECT] 💾 META DE LUCRO atualizada no localStorage: ${valueFromInput}`);
+              }
+            } catch (e) {
+              console.error(`[OAUTH_DIRECT] Erro ao atualizar meta de lucro no localStorage:`, e);
+            }
           }
-        } else {
-          targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
-          console.log(`[OAUTH_DIRECT] ⚠️ Configuração não encontrada para ${currentStrategy}, usando valor padrão: ${targetValue}`);
+        }
+        
+        // PRIORIDADE 2: Obter da configuração salva no localStorage
+        if (targetValue <= 0) {
+          const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+          if (configString) {
+            const config = JSON.parse(configString);
+            if (config.metaGanho && !isNaN(parseFloat(config.metaGanho.toString()))) {
+              targetValue = parseFloat(config.metaGanho.toString());
+              console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 2: Usando meta de lucro ${targetValue} da configuração salva para ${currentStrategy}`);
+            }
+          }
+        }
+        
+        // PRIORIDADE 3: Usar valor das configurações gerais
+        if (targetValue <= 0) {
+          targetValue = profitTargetNum;
+          console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 3: Usando meta de lucro ${targetValue} das configurações gerais`);
         }
       } else {
         targetValue = profitTargetNum; // Fallback para o valor das configurações gerais
@@ -3197,6 +3311,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       targetValue = profitTargetNum; // Em caso de erro, usar o valor das configurações gerais
       console.error(`[OAUTH_DIRECT] ❌ Erro ao recuperar meta de lucro:`, error);
       console.log(`[OAUTH_DIRECT] ❌ Usando valor padrão para meta de lucro: ${targetValue}`);
+    }
+    
+    // Se mesmo assim o valor for inválido, usar o valor mínimo seguro
+    if (targetValue <= 0) {
+      targetValue = 20; // Valor seguro padrão
+      console.log(`[OAUTH_DIRECT] ⚠️ Meta de lucro inválida! Usando valor seguro: ${targetValue}`);
     }
     
     // CORREÇÃO CRÍTICA (29/04/2025): Validar a meta de lucro conforme EXATAMENTE configurado
@@ -3229,25 +3349,51 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se atingiu o limite de perda, parar
     // Tratar limite de perda como valor absoluto conforme configurado na interface
-    // CORREÇÃO CRÍTICA (30/04/2025): O valor do limite de perda DEVE ser recuperado diretamente 
-    // da configuração da estratégia ativa no painel StrategyConfigPanel
+    // CORREÇÃO CRÍTICA (01/05/2025): O valor do limite de perda DEVE ser recuperado diretamente 
+    // da configuração da estratégia ativa no painel StrategyConfigPanel e DEVE usar o valor configurado pelo usuário
     let lossLimitValue = 0;
     try {
       const currentStrategy = this.strategyConfig.toLowerCase();
       if (currentStrategy) {
-        const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
-        if (configString) {
-          const config = JSON.parse(configString);
-          if (config.limitePerda && !isNaN(parseFloat(config.limitePerda.toString()))) {
-            lossLimitValue = parseFloat(config.limitePerda.toString());
-            console.log(`[OAUTH_DIRECT] ✅ Usando limite de perda ${lossLimitValue} da configuração salva para ${currentStrategy}`);
-          } else {
-            lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
-            console.log(`[OAUTH_DIRECT] ⚠️ Configuração de limite de perda não encontrada para ${currentStrategy}, usando valor padrão: ${lossLimitValue}`);
+        // PRIORIDADE 1: Obter valor do input na interface (se disponível)
+        const inputElement = document.getElementById("limite-perda-input") as HTMLInputElement;
+        if (inputElement && inputElement.value) {
+          const valueFromInput = parseFloat(inputElement.value);
+          if (!isNaN(valueFromInput) && valueFromInput > 0) {
+            lossLimitValue = valueFromInput;
+            console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 1: Usando limite de perda ${lossLimitValue} do input do usuário`);
+            
+            // Salvar no localStorage para consistência futura
+            try {
+              const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+              if (configString) {
+                const config = JSON.parse(configString);
+                config.limitePerda = valueFromInput;
+                localStorage.setItem(`strategy_config_${currentStrategy}`, JSON.stringify(config));
+                console.log(`[OAUTH_DIRECT] 💾 LIMITE DE PERDA atualizado no localStorage: ${valueFromInput}`);
+              }
+            } catch (e) {
+              console.error(`[OAUTH_DIRECT] Erro ao atualizar limite de perda no localStorage:`, e);
+            }
           }
-        } else {
-          lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
-          console.log(`[OAUTH_DIRECT] ⚠️ Configuração não encontrada para ${currentStrategy}, usando valor padrão: ${lossLimitValue}`);
+        }
+        
+        // PRIORIDADE 2: Obter da configuração salva no localStorage
+        if (lossLimitValue <= 0) {
+          const configString = localStorage.getItem(`strategy_config_${currentStrategy}`);
+          if (configString) {
+            const config = JSON.parse(configString);
+            if (config.limitePerda && !isNaN(parseFloat(config.limitePerda.toString()))) {
+              lossLimitValue = parseFloat(config.limitePerda.toString());
+              console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 2: Usando limite de perda ${lossLimitValue} da configuração salva para ${currentStrategy}`);
+            }
+          }
+        }
+        
+        // PRIORIDADE 3: Usar valor das configurações gerais
+        if (lossLimitValue <= 0) {
+          lossLimitValue = lossLimitNum;
+          console.log(`[OAUTH_DIRECT] 🚀 PRIORIDADE 3: Usando limite de perda ${lossLimitValue} das configurações gerais`);
         }
       } else {
         lossLimitValue = lossLimitNum; // Fallback para o valor das configurações gerais
@@ -3257,6 +3403,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       lossLimitValue = lossLimitNum; // Em caso de erro, usar o valor das configurações gerais
       console.error(`[OAUTH_DIRECT] ❌ Erro ao recuperar limite de perda:`, error);
       console.log(`[OAUTH_DIRECT] ❌ Usando valor padrão para limite de perda: ${lossLimitValue}`);
+    }
+    
+    // Se mesmo assim o valor for inválido, usar o valor mínimo seguro
+    if (lossLimitValue <= 0) {
+      lossLimitValue = 20; // Valor seguro padrão
+      console.log(`[OAUTH_DIRECT] ⚠️ Limite de perda inválido! Usando valor seguro: ${lossLimitValue}`);
     }
     
     // CORREÇÃO CRÍTICA (29/04/2025): Validar o limite de perda conforme EXATAMENTE configurado
