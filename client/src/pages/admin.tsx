@@ -8,7 +8,21 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Plus, Trash2, UserPlus, Users, ArrowLeft, ArrowLeftCircle, ChevronLeft, BarChart4, Calendar, DollarSign } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Loader2, 
+  Plus, 
+  Trash2, 
+  UserPlus, 
+  Users, 
+  ArrowLeft, 
+  ArrowLeftCircle, 
+  ChevronLeft, 
+  BarChart4, 
+  Calendar, 
+  DollarSign,
+  RefreshCw
+} from 'lucide-react';
 import { derivAPI } from '@/lib/derivApi';
 
 // Interfaces
@@ -97,10 +111,23 @@ export default function AdminPage() {
   
   // Função para buscar estatísticas de comissão da API Deriv
   const fetchMarkupStatistics = async () => {
-    if (!derivAPI.isAuthorized()) {
+    // Verificar se o usuário está conectado e autorizado
+    try {
+      // Tenta obter o status da autorização enviando uma requisição authorize
+      const authCheck = await derivAPI.send({ authorize: localStorage.getItem('deriv_token') || '' });
+      
+      if (!authCheck || authCheck.error) {
+        toast({
+          title: 'Não autorizado',
+          description: 'É necessário estar conectado com a Deriv para visualizar as estatísticas de comissão.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } catch (error) {
       toast({
-        title: 'Não autorizado',
-        description: 'É necessário estar conectado com a Deriv para visualizar as estatísticas de comissão.',
+        title: 'Erro de conexão',
+        description: 'Não foi possível verificar a autorização com a Deriv.',
         variant: 'destructive',
       });
       return;
@@ -812,6 +839,10 @@ export default function AdminPage() {
               <Users className="h-4 w-4 mr-2" />
               Usuários
             </TabsTrigger>
+            <TabsTrigger value="commissions" className="data-[state=active]:bg-indigo-600">
+              <BarChart4 className="h-4 w-4 mr-2" />
+              Comissões API
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="users" className="mt-4">
@@ -971,6 +1002,150 @@ export default function AdminPage() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="commissions" className="mt-4">
+            <Card className="bg-[#151b25] border-slate-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl">Estatísticas de Comissão da API Deriv</CardTitle>
+                  <CardDescription className="text-slate-400">
+                    Visualize as comissões geradas pelos aplicativos conectados à API Deriv.
+                  </CardDescription>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="date-from" className="whitespace-nowrap">De:</Label>
+                    <Input
+                      id="date-from"
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(e) => setDateRange({...dateRange, from: e.target.value})}
+                      className="bg-[#0c1117] border-slate-700 text-white w-36"
+                    />
+                    
+                    <Label htmlFor="date-to" className="whitespace-nowrap">Até:</Label>
+                    <Input
+                      id="date-to"
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(e) => setDateRange({...dateRange, to: e.target.value})}
+                      className="bg-[#0c1117] border-slate-700 text-white w-36"
+                    />
+                    
+                    <Button 
+                      onClick={fetchMarkupStatistics}
+                      disabled={loadingMarkupStats}
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      {loadingMarkupStats ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Carregando...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Atualizar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              
+              <CardContent>
+                {loadingMarkupStats ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                  </div>
+                ) : false ? ( // A checagem de autorização já é feita no início da função
+                  <div className="text-center py-8 text-slate-400">
+                    <DollarSign className="h-12 w-12 mx-auto opacity-20 mb-2" />
+                    <p>É necessário estar conectado com a Deriv para visualizar as estatísticas de comissão.</p>
+                    <p className="mt-2 text-sm">Faça login na Deriv pela página principal e depois retorne ao painel de administração.</p>
+                  </div>
+                ) : !markupStats ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <BarChart4 className="h-12 w-12 mx-auto opacity-20 mb-2" />
+                    <p>Nenhum dado de comissão encontrado para o período selecionado.</p>
+                    <p className="mt-2 text-sm">Tente selecionar um período diferente ou verificar as configurações da sua conta na Deriv.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="bg-[#0c1117] border-slate-800">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-slate-400">Total de Comissões (USD)</p>
+                            <p className="text-3xl font-bold text-green-500 mt-1">
+                              ${markupStats.total_app_markup_usd.toFixed(2)}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="bg-[#0c1117] border-slate-800">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-slate-400">Total de Transações</p>
+                            <p className="text-3xl font-bold text-amber-500 mt-1">
+                              {markupStats.total_transactions_count}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="bg-[#0c1117] border-slate-800">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-slate-400">Valor Médio por Transação</p>
+                            <p className="text-3xl font-bold text-blue-500 mt-1">
+                              ${markupStats.total_transactions_count > 0 
+                                ? (markupStats.total_app_markup_usd / markupStats.total_transactions_count).toFixed(2) 
+                                : "0.00"}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-slate-700">
+                            <TableHead className="text-slate-400">App ID</TableHead>
+                            <TableHead className="text-slate-400">Comissão (USD)</TableHead>
+                            <TableHead className="text-slate-400">Comissão (Moeda Dev)</TableHead>
+                            <TableHead className="text-slate-400">Moeda</TableHead>
+                            <TableHead className="text-slate-400">Transações</TableHead>
+                            <TableHead className="text-slate-400">Média por Trans. (USD)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        
+                        <TableBody>
+                          {markupStats.breakdown.map((item) => (
+                            <TableRow key={item.app_id} className="border-slate-700">
+                              <TableCell className="font-medium">{item.app_id}</TableCell>
+                              <TableCell className="text-green-500">${item.app_markup_usd.toFixed(2)}</TableCell>
+                              <TableCell>{item.app_markup_value.toFixed(2)}</TableCell>
+                              <TableCell>{item.dev_currcode}</TableCell>
+                              <TableCell>{item.transactions_count}</TableCell>
+                              <TableCell>
+                                ${item.transactions_count > 0 
+                                  ? (item.app_markup_usd / item.transactions_count).toFixed(2) 
+                                  : "0.00"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </CardContent>
