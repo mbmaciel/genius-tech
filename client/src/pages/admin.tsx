@@ -8,7 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Plus, Trash2, UserPlus, Users, ArrowLeft, ArrowLeftCircle, ChevronLeft } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus, Users, ArrowLeft, ArrowLeftCircle, ChevronLeft, BarChart4, Calendar, DollarSign } from 'lucide-react';
+import { derivAPI } from '@/lib/derivApi';
 
 // Interfaces
 interface User {
@@ -22,12 +23,31 @@ interface User {
   role: 'user' | 'admin';
 }
 
+// Interface para as estatísticas de comissão da API Deriv
+interface AppMarkupStatistics {
+  breakdown: Array<{
+    app_id: number;
+    app_markup_usd: number;
+    app_markup_value: number;
+    dev_currcode: string;
+    transactions_count: number;
+  }>;
+  total_app_markup_usd: number;
+  total_transactions_count: number;
+}
+
 export default function AdminPage() {
   // Estados
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [users, setUsers] = useState<User[]>([]);
   const [newUserDialog, setNewUserDialog] = useState<boolean>(false);
   const [selectedTab, setSelectedTab] = useState<string>('users');
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0], // 1 mês atrás
+    to: new Date().toISOString().split('T')[0] // Hoje
+  });
+  const [loadingMarkupStats, setLoadingMarkupStats] = useState<boolean>(false);
+  const [markupStats, setMarkupStats] = useState<AppMarkupStatistics | null>(null);
   
   // Formulário de novo usuário
   const [newUser, setNewUser] = useState<Partial<User>>({
@@ -67,10 +87,71 @@ export default function AdminPage() {
     // Carregar dados iniciais
     async function initialize() {
       await loadUsers();
+      if (selectedTab === 'commissions') {
+        fetchMarkupStatistics();
+      }
     }
     
     initialize();
-  }, []);
+  }, [selectedTab]);
+  
+  // Função para buscar estatísticas de comissão da API Deriv
+  const fetchMarkupStatistics = async () => {
+    if (!derivAPI.isAuthorized()) {
+      toast({
+        title: 'Não autorizado',
+        description: 'É necessário estar conectado com a Deriv para visualizar as estatísticas de comissão.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setLoadingMarkupStats(true);
+    
+    try {
+      console.log('[ADMIN] Buscando estatísticas de comissão da API Deriv...');
+      console.log('[ADMIN] Período:', dateRange.from, 'até', dateRange.to);
+      
+      const appMarkupRequest = {
+        app_markup_statistics: 1,
+        date_from: dateRange.from,
+        date_to: dateRange.to
+      };
+      
+      const response = await derivAPI.send(appMarkupRequest);
+      
+      if (response.error) {
+        console.error('[ADMIN] Erro ao buscar estatísticas de comissão:', response.error);
+        toast({
+          title: 'Erro',
+          description: `Não foi possível buscar as estatísticas de comissão: ${response.error.message || 'Erro desconhecido'}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (response.app_markup_statistics) {
+        console.log('[ADMIN] Estatísticas de comissão recebidas:', response.app_markup_statistics);
+        setMarkupStats(response.app_markup_statistics);
+      } else {
+        console.error('[ADMIN] Resposta sem dados de estatísticas de comissão:', response);
+        toast({
+          title: 'Dados não encontrados',
+          description: 'Não foram encontrados dados de comissão para o período selecionado.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('[ADMIN] Erro ao buscar estatísticas de comissão:', error);
+      toast({
+        title: 'Erro',
+        description: 'Ocorreu um erro ao buscar as estatísticas de comissão.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingMarkupStats(false);
+    }
+  };
   
   // Carregar usuários do banco de dados e do localStorage
   const loadUsers = async () => {
