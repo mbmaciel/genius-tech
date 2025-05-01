@@ -650,7 +650,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
         // CORREÇÃO: Usar o endereço correto com porta segura
         this.webSocket = new WebSocket(
-          "wss://ws.derivws.com/websockets/v3?app_id=71403",
+          "wss://ws.derivws.com/websockets/v3?app_id=72383",
         );
 
         // DEPURAÇÃO: Verificar ReadyState da conexão WebSocket
@@ -4227,7 +4227,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       );
 
       // Montar a URL de autorização com os escopos corretos
-      const appId = "71403"; // App ID do projeto
+      const appId = "72383"; // App ID do projeto atualizado
       const redirectUri = encodeURIComponent(
         window.location.origin + "/auth-callback",
       );
