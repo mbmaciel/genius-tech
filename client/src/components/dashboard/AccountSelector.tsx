@@ -205,7 +205,7 @@ export function AccountSelector({
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione uma conta" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" sideOffset={4} align="start">
             <SelectGroup>
               {accounts.map((account) => (
                 <SelectItem key={account.account} value={account.account}>

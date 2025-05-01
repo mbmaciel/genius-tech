@@ -188,7 +188,7 @@ export function SimplePercentageStats({ symbol }: SimplePercentageStatsProps) {
           <SelectTrigger className="h-8 w-[120px] bg-[#0e1a2e] border-[#2c3e5d] text-white">
             <SelectValue placeholder="Ticks" />
           </SelectTrigger>
-          <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
+          <SelectContent position="popper" sideOffset={4} align="start" className="bg-[#13203a] border-[#2c3e5d] text-white">
             <SelectItem value="25">25 ticks</SelectItem>
             <SelectItem value="50">50 ticks</SelectItem>
             <SelectItem value="100">100 ticks</SelectItem>
