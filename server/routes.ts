@@ -4,9 +4,9 @@ import { storage } from "./storage";
 import { WebSocketServer } from 'ws';
 import { WebSocket } from 'ws';
 import { db } from "./db";
-import { digitStats, digitHistory, digitStatsByPeriod } from "@shared/schema";
+import { digitStats, digitHistory, digitStatsByPeriod, users, userCredentials } from "@shared/schema";
 import { ticksRepository } from './db/ticksRepository';
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -277,6 +277,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Market stats error:', error);
       res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // API endpoints para gerenciamento de usuários
+  
+  // GET - Obter lista de todas as credenciais de usuários
+  app.get('/api/user-credentials', async (req, res) => {
+    try {
+      const credentials = await db.select()
+        .from(userCredentials)
+        .orderBy(desc(userCredentials.created_at));
+      
+      res.json({ 
+        success: true,
+        data: credentials
+      });
+    } catch (error) {
+      console.error('Error retrieving user credentials:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  
+  // POST - Adicionar nova credencial de usuário
+  app.post('/api/user-credentials', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Email and password are required' 
+        });
+      }
+      
+      // Verificar se o usuário já existe
+      const existingUser = await db.select()
+        .from(userCredentials)
+        .where(eq(userCredentials.email, email))
+        .limit(1);
+      
+      if (existingUser.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
+      
+      // Inserir novo usuário
+      const [newUser] = await db.insert(userCredentials)
+        .values({
+          email,
+          password
+        })
+        .returning();
+      
+      res.status(201).json({ 
+        success: true,
+        message: 'User created successfully',
+        data: newUser
+      });
+    } catch (error) {
+      console.error('Error creating user credential:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Server error'
+      });
+    }
+  });
+  
+  // DELETE - Remover credencial de usuário
+  app.delete('/api/user-credentials/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!id || isNaN(parseInt(id))) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Valid user ID is required' 
+        });
+      }
+      
+      // Verificar se o usuário existe
+      const userId = parseInt(id);
+      const existingUser = await db.select()
+        .from(userCredentials)
+        .where(eq(userCredentials.id, userId))
+        .limit(1);
+      
+      if (existingUser.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      
+      // Remover usuário
+      await db.delete(userCredentials)
+        .where(eq(userCredentials.id, userId));
+      
+      res.json({ 
+        success: true,
+        message: 'User deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error deleting user credential:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Server error'
+      });
     }
   });
 

@@ -67,12 +67,47 @@ export default function AdminPage() {
     }
   }, []);
   
-  // Carregar usuários do localStorage
-  const loadUsers = () => {
+  // Carregar usuários do banco de dados e do localStorage
+  const loadUsers = async () => {
     setIsLoading(true);
     
     try {
-      // Carregar lista de usuários
+      // Primeiro tente buscar usuários do banco de dados (API)
+      const response = await fetch('/api/user-credentials');
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success && Array.isArray(result.data)) {
+          // Converter para o formato esperado pela interface
+          const formattedUsers: User[] = result.data.map((cred: any) => ({
+            id: cred.id.toString(),
+            email: cred.email,
+            name: cred.email.split('@')[0], // Nome padrão baseado no email
+            createdAt: cred.created_at,
+            isActive: true,
+            role: 'user'
+          }));
+          
+          setUsers(formattedUsers);
+          
+          // Atualizar também o localStorage para compatibilidade
+          localStorage.setItem('registered_users', JSON.stringify(formattedUsers));
+          
+          // Atualizar credenciais simplificadas para login
+          const simplifiedCreds = formattedUsers.map(user => ({
+            email: user.email,
+            password: 'password_hash_in_db' // Não expomos senhas do DB
+          }));
+          localStorage.setItem('user_credentials', JSON.stringify(simplifiedCreds));
+          
+          console.log('[ADMIN] Carregados ' + formattedUsers.length + ' usuários do banco de dados');
+          return;
+        }
+      }
+      
+      // Se falhar com a API, tente o fallback para localStorage (compatibilidade)
+      console.log('[ADMIN] Fallback: tentando carregar usuários do localStorage');
       const storedUsers = localStorage.getItem('registered_users');
       
       // Quando não há usuários cadastrados, inicializar arrays vazios
@@ -93,6 +128,18 @@ export default function AdminPage() {
         description: 'Não foi possível carregar a lista de usuários.',
         variant: 'destructive',
       });
+      
+      // Tentar falback para localStorage em caso de erro no servidor
+      try {
+        const storedUsers = localStorage.getItem('registered_users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
+          setUsers(parsedUsers);
+          console.log('[ADMIN] Fallback: carregados ' + parsedUsers.length + ' usuários do localStorage');
+        }
+      } catch (e) {
+        console.error('[ADMIN] Erro também no fallback:', e);
+      }
     } finally {
       setIsLoading(false);
     }

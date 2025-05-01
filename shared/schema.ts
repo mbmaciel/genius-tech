@@ -5,12 +5,19 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
+  name: text("name"),
+  role: text("role").default("user").notNull(),
+  is_active: boolean("is_active").default(true).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  last_login: timestamp("last_login"),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  created_at: true,
+  last_login: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -93,3 +100,19 @@ export type DigitStatsByPeriod = typeof digitStatsByPeriod.$inferSelect;
 
 export type InsertMarketTick = z.infer<typeof insertMarketTickSchema>;
 export type MarketTick = typeof marketTicks.$inferSelect;
+
+// Tabela para armazenar as credenciais dos usuários
+export const userCredentials = pgTable("user_credentials", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserCredentialSchema = createInsertSchema(userCredentials).omit({
+  id: true,
+  created_at: true,
+});
+
+export type InsertUserCredential = z.infer<typeof insertUserCredentialSchema>;
+export type UserCredential = typeof userCredentials.$inferSelect;
