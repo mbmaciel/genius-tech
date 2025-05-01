@@ -6,6 +6,7 @@ import { AccountInfo } from "@/components/AccountInfo";
 import balanceService, { BalanceResponse } from "@/lib/balanceService";
 import { RefreshCw, AlertCircle, Users, ChevronDown, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IndependentDigitBarChart } from "@/components/IndependentDigitBarChart";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import {
   Dialog,
@@ -507,8 +508,31 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Gráfico Deriv em tela cheia */}
-          <div className="mt-4">
+          {/* Grid com dois componentes lado a lado */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Coluna da esquerda: R_100 Digit Analysis */}
+            <div className="w-full">
+              <div className="bg-[#13203a] rounded-lg shadow-md">
+                <div className="px-5 py-4 border-b border-[#1d2a45] flex justify-between items-center">
+                  <h2 className="text-lg text-white font-medium">
+                    R_100 Digit Analysis
+                  </h2>
+                  <span className="text-sm text-gray-400">
+                    Atualização em tempo real
+                  </span>
+                </div>
+                <div className="p-4" style={{ height: "580px" }}>
+                  {/* Usando o componente IndependentDigitBarChart que tem conexão independente */}
+                  <IndependentDigitBarChart
+                    symbol="R_100"
+                    className="h-full w-full"
+                    showControls={true}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Coluna da direita: Gráfico Deriv */}
             <div className="w-full bg-[#13203a] rounded-lg p-6 shadow-md">
               <h2 className="text-lg text-white font-medium mb-4">Gráfico Deriv</h2>
               <div className="bg-[#0c1525] rounded-md" style={{ height: "480px" }}>
