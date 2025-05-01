@@ -298,10 +298,6 @@ export default function LoginPage() {
               {isLoading ? 'Entrando...' : 'Login'}
             </Button>
           </form>
-          
-          <div className="mt-4 text-center text-sm text-slate-400">
-            Não possui conta? <a href="/register" className="text-indigo-400 hover:underline">Cadastre-se agora mesmo</a>.
-          </div>
         </CardContent>
       </Card>
       
