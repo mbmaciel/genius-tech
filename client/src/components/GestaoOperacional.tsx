@@ -451,9 +451,9 @@ export function GestaoOperacional() {
                 <TableRow className="hover:bg-slate-900 border-slate-800">
                   <TableHead className="text-slate-400">Dia</TableHead>
                   <TableHead className="text-slate-400">Saldo Inicial</TableHead>
-                  <TableHead className="text-slate-400">Lucro Diário (15%)</TableHead>
+                  <TableHead className="text-slate-400">Lucro Diário ({(configuracaoRisco[nivelRiscoSelecionado].metaLucroPercentual * 100).toFixed(0)}%)</TableHead>
                   <TableHead className="text-slate-400">Saldo Final</TableHead>
-                  <TableHead className="text-slate-400">Limite de Perda (7%)</TableHead>
+                  <TableHead className="text-slate-400">Limite de Perda ({(configuracaoRisco[nivelRiscoSelecionado].limitePercaPercentual * 100).toFixed(0)}%)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -472,13 +472,13 @@ export function GestaoOperacional() {
         </div>
         
         <div className="mt-4 text-xs text-slate-500 italic">
-          * Cálculos baseados em métodos conservadores de gerenciamento de risco.
+          * Cálculos baseados no nível de risco <span className={configuracaoRisco[nivelRiscoSelecionado].cor}>{configuracaoRisco[nivelRiscoSelecionado].titulo}</span>.
           <br />
           * Recomenda-se não ultrapassar 1-3% do saldo em cada operação.
           <br />
-          * A planilha acima demonstra o crescimento com juros compostos diários de 15%.
+          * A planilha acima demonstra o crescimento com juros compostos diários de {(configuracaoRisco[nivelRiscoSelecionado].metaLucroPercentual * 100).toFixed(0)}%.
           <br />
-          * O limite de perda é calculado como 7% do saldo de cada dia.
+          * O limite de perda é calculado como {(configuracaoRisco[nivelRiscoSelecionado].limitePercaPercentual * 100).toFixed(0)}% do saldo de cada dia.
         </div>
       </CardContent>
     </Card>
