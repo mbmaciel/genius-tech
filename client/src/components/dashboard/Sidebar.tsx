@@ -10,7 +10,9 @@ import {
   Menu,
   X,
   Calculator as CalculatorIcon,
-  Globe
+  Globe,
+  CreditCard,
+  ArrowDownCircle
 } from 'lucide-react';
 import { DirectHTMLSwitcher } from './DirectHTMLSwitcher';
 import { LanguageSwitcher } from '../LanguageSwitcher';
