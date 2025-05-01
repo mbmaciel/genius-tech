@@ -100,21 +100,50 @@ class DerivHistoryService {
       // Atualizar historyData com dados do banco
       this.historyData[symbol] = {
         lastDigits: data.data.lastDigits,
-        digitStats: data.data.digitStats,
-        lastUpdated: new Date(data.data.lastUpdated),
-        totalCount: data.data.totalCount
+        digitStats: data.data.digitStats || this.calculateDigitStats(data.data.lastDigits),
+        lastUpdated: new Date(data.data.lastUpdated || Date.now()),
+        totalCount: data.data.totalCount || data.data.lastDigits.length
       };
       
       console.log(`[DerivHistoryService] ✅ Carregados ${data.data.lastDigits.length} ticks do banco de dados para ${symbol}`);
       
       // Também salvar no localStorage como cache secundário
-      this.saveHistoryToLocalStorage(symbol);
+      this.saveToLocalStorage(symbol);
       
       return true;
     } catch (error) {
       console.error(`[DerivHistoryService] Erro ao carregar do banco: ${error}`);
       return false;
     }
+  }
+  
+  /**
+   * Calcula estatísticas de dígitos quando elas não estão disponíveis
+   */
+  private calculateDigitStats(digits: number[]): DigitStats {
+    const stats: DigitStats = {};
+    
+    // Inicializar contagens
+    for (let i = 0; i <= 9; i++) {
+      stats[i] = { count: 0, percentage: 0 };
+    }
+    
+    // Contar ocorrências
+    for (const digit of digits) {
+      if (digit >= 0 && digit <= 9) {
+        stats[digit].count++;
+      }
+    }
+    
+    // Calcular percentagens
+    const total = digits.length;
+    if (total > 0) {
+      for (let i = 0; i <= 9; i++) {
+        stats[i].percentage = parseFloat(((stats[i].count / total) * 100).toFixed(1));
+      }
+    }
+    
+    return stats;
   }
   
   /**

@@ -124,6 +124,29 @@ class IndependentDerivService {
             if (digits.length > 0) {
               this.initializeDigitHistory(symbol, digits);
               console.log(`[INDEPENDENT_DERIV] ✅ Carregados ${digits.length} ticks do banco de dados para ${symbol} (endpoint ticks)`);
+              
+              // Se temos menos que 500 ticks, iniciar busca de mais dados em background
+              if (digits.length < 500) {
+                console.log(`[INDEPENDENT_DERIV] Temos apenas ${digits.length} ticks, agendando busca em background...`);
+                // Buscar mais ticks da API em segundo plano sem bloquear a interface
+                setTimeout(() => {
+                  this.fetchTicksHistory(symbol, 500)
+                    .then(() => {
+                      console.log(`[INDEPENDENT_DERIV] Background fetch concluído para ${symbol}`);
+                      // Salvar os novos dados no banco para futuras sessões
+                      this.saveToDatabase(symbol)
+                        .then(success => {
+                          if (success) {
+                            console.log(`[INDEPENDENT_DERIV] ✅ Histórico completo de ${symbol} salvo no banco de dados`);
+                          }
+                        });
+                    })
+                    .catch(err => {
+                      console.error(`[INDEPENDENT_DERIV] Erro na busca em segundo plano: ${err}`);
+                    });
+                }, 1000);
+              }
+              
               return true;
             }
           }
@@ -146,6 +169,29 @@ class IndependentDerivService {
             this.initializeDigitHistory(symbol, digits);
             
             console.log(`[INDEPENDENT_DERIV] ✅ Carregados ${digits.length} ticks do banco de dados para ${symbol} (endpoint history)`);
+            
+            // Se temos menos que 500 ticks, iniciar busca de mais dados em background
+            if (digits.length < 500) {
+              console.log(`[INDEPENDENT_DERIV] Temos apenas ${digits.length} ticks, agendando busca em background...`);
+              // Buscar mais ticks da API em segundo plano sem bloquear a interface
+              setTimeout(() => {
+                this.fetchTicksHistory(symbol, 500)
+                  .then(() => {
+                    console.log(`[INDEPENDENT_DERIV] Background fetch concluído para ${symbol}`);
+                    // Salvar os novos dados no banco para futuras sessões
+                    this.saveToDatabase(symbol)
+                      .then(success => {
+                        if (success) {
+                          console.log(`[INDEPENDENT_DERIV] ✅ Histórico completo de ${symbol} salvo no banco de dados`);
+                        }
+                      });
+                  })
+                  .catch(err => {
+                    console.error(`[INDEPENDENT_DERIV] Erro na busca em segundo plano: ${err}`);
+                  });
+              }, 1000);
+            }
+            
             return true;
           }
         }
@@ -155,6 +201,26 @@ class IndependentDerivService {
       
       // Se chegou até aqui, não foi possível carregar dados de nenhum endpoint
       console.log(`[INDEPENDENT_DERIV] Banco de dados não tem ticks para ${symbol} ou todos os endpoints falharam`);
+      
+      // Iniciar busca imediata para preencher o banco
+      console.log(`[INDEPENDENT_DERIV] Iniciando busca imediata de ticks para armazenar no banco...`);
+      setTimeout(() => {
+        this.fetchTicksHistory(symbol, 500)
+          .then(() => {
+            console.log(`[INDEPENDENT_DERIV] Fetch inicial concluído para ${symbol}`);
+            // Salvar os novos dados no banco para futuras sessões
+            this.saveToDatabase(symbol)
+              .then(success => {
+                if (success) {
+                  console.log(`[INDEPENDENT_DERIV] ✅ Histórico inicial de ${symbol} salvo no banco de dados`);
+                }
+              });
+          })
+          .catch(err => {
+            console.error(`[INDEPENDENT_DERIV] Erro na busca inicial: ${err}`);
+          });
+      }, 500);
+      
       return false;
     } catch (error) {
       console.error(`[INDEPENDENT_DERIV] Erro geral ao carregar ticks do banco: ${error}`);
@@ -220,21 +286,36 @@ class IndependentDerivService {
    * Carrega os históricos de dígitos salvos no localStorage
    * para que estejam disponíveis logo após carregar a página
    */
+  /**
+   * Carrega históricos de dígitos de todas as fontes possíveis
+   * Prioriza fontes mais confiáveis e recentes
+   */
   private loadSavedHistoriesFromLocalStorage(): void {
     try {
       // Carregar histórico para o símbolo padrão R_100
       // Tentar várias chaves possíveis para compatibilidade
       let lastDigits: number[] = [];
+      let lastDigitsSource = 'nenhuma fonte';
       
-      // Tentar nossa própria chave primeiro
+      // Tentar nossa própria chave primeiro (formato mais seguro e melhor)
       const savedHistoryKey = 'deriv_digits_history_R_100';
       const savedHistoryJson = localStorage.getItem(savedHistoryKey);
       
       if (savedHistoryJson) {
-        const savedData = JSON.parse(savedHistoryJson);
-        if (savedData.lastDigits && savedData.lastDigits.length > 0) {
-          lastDigits = savedData.lastDigits;
-          console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave principal`);
+        try {
+          const savedData = JSON.parse(savedHistoryJson);
+          if (savedData && savedData.lastDigits && Array.isArray(savedData.lastDigits) && savedData.lastDigits.length > 0) {
+            // Verificar se os dígitos são realmente números e estão no intervalo 0-9
+            const validDigits = savedData.lastDigits.filter(d => typeof d === 'number' && d >= 0 && d <= 9);
+            
+            if (validDigits.length > 0) {
+              lastDigits = validDigits;
+              lastDigitsSource = 'chave principal (formato completo)';
+              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave principal`);
+            }
+          }
+        } catch (e) {
+          console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados da chave principal:', e);
         }
       }
       
@@ -247,8 +328,14 @@ class IndependentDerivService {
           try {
             const botData = JSON.parse(botHistoryJson);
             if (Array.isArray(botData) && botData.length > 0) {
-              lastDigits = botData;
-              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave do Bot`);
+              // Validar dados
+              const validDigits = botData.filter(d => typeof d === 'number' && d >= 0 && d <= 9);
+              
+              if (validDigits.length > 0) {
+                lastDigits = validDigits;
+                lastDigitsSource = 'chave do Bot';
+                console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave do Bot`);
+              }
             }
           } catch (e) {
             console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados do Bot:', e);
@@ -266,8 +353,25 @@ class IndependentDerivService {
             const oauthDirectData = JSON.parse(oauthDirectJson);
             if (Array.isArray(oauthDirectData) && oauthDirectData.length > 0) {
               // Extrair apenas o último dígito de cada tick
-              lastDigits = oauthDirectData.map(tick => tick.lastDigit);
-              console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave oauthDirect`);
+              const extractedDigits = oauthDirectData
+                .filter(tick => tick && typeof tick === 'object')
+                .map(tick => {
+                  if (typeof tick.lastDigit === 'number') {
+                    return tick.lastDigit;
+                  } else if (tick.quote) {
+                    // Extrair do valor do tick
+                    const priceStr = parseFloat(tick.quote.toString()).toFixed(2);
+                    return parseInt(priceStr.charAt(priceStr.length - 1));
+                  }
+                  return null;
+                })
+                .filter(d => d !== null && d >= 0 && d <= 9);
+              
+              if (extractedDigits.length > 0) {
+                lastDigits = extractedDigits;
+                lastDigitsSource = 'chave oauthDirect';
+                console.log(`[INDEPENDENT_DERIV] Carregado histórico de ${lastDigits.length} ticks da chave oauthDirect`);
+              }
             }
           } catch (e) {
             console.warn('[INDEPENDENT_DERIV] Erro ao analisar dados do oauthDirect:', e);
@@ -277,13 +381,24 @@ class IndependentDerivService {
       
       // Inicializar com os dígitos encontrados (se houver)
       if (lastDigits.length > 0) {
-        console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} ticks carregados do localStorage`);
+        console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} ticks carregados do localStorage (fonte: ${lastDigitsSource})`);
         this.initializeDigitHistory('R_100', lastDigits);
       } else {
-        console.log('[INDEPENDENT_DERIV] Nenhum histórico salvo encontrado, começando do zero');
+        console.log('[INDEPENDENT_DERIV] Nenhum histórico salvo encontrado no localStorage, começando do zero');
+        
+        // Se não encontrou nada no localStorage, criar história inicial com 10 dígitos
+        // para evitar que o gráfico apareça vazio inicialmente
+        const initialDigits = [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]; // Dígitos artificiais para bootstrap inicial
+        this.initializeDigitHistory('R_100', initialDigits);
+        console.log('[INDEPENDENT_DERIV] Criado histórico inicial temporário até carregar dados reais');
       }
     } catch (e) {
       console.warn('[INDEPENDENT_DERIV] Erro ao carregar histórico do localStorage:', e);
+      
+      // Em caso de erro, criar história inicial temporária
+      const initialDigits = [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]; // Dígitos artificiais para bootstrap inicial
+      this.initializeDigitHistory('R_100', initialDigits);
+      console.log('[INDEPENDENT_DERIV] Criado histórico inicial temporário até carregar dados reais');
     }
   }
   
@@ -591,20 +706,38 @@ class IndependentDerivService {
   
   /**
    * Inicializa o histórico de dígitos para um símbolo com dados existentes
+   * Inclui garantias extras contra bad data (dígitos nulos, undefined ou tipos errados)
    */
   private initializeDigitHistory(symbol: string, lastDigits: number[]): void {
+    // Validação de entrada para evitar problemas com dados inválidos
+    if (!lastDigits || !Array.isArray(lastDigits)) {
+      console.warn(`[INDEPENDENT_DERIV] Tentativa de inicializar histórico com dados inválidos para ${symbol}`);
+      lastDigits = [];
+    }
+    
+    // Filtrar para garantir que temos apenas dígitos válidos (0-9)
+    const validDigits = lastDigits.filter(digit => typeof digit === 'number' && digit >= 0 && digit <= 9);
+    
+    // Se perdemos muitos dígitos na filtragem, avisar
+    if (validDigits.length < lastDigits.length) {
+      console.warn(`[INDEPENDENT_DERIV] Filtrado ${lastDigits.length - validDigits.length} dígitos inválidos para ${symbol}`);
+    }
+    
+    // Se não temos dígitos válidos, não há como inicializar
+    if (validDigits.length === 0) {
+      console.warn(`[INDEPENDENT_DERIV] Sem dígitos válidos para inicializar histórico de ${symbol}`);
+      return;
+    }
+    
     // Inicializar array de contagem para dígitos 0-9
     const digitCounts = new Array(10).fill(0);
     
-    console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${lastDigits.length} dígitos. Primeiros 10:`, 
-      lastDigits.slice(0, 10).join(', '));
+    console.log(`[INDEPENDENT_DERIV] Inicializando histórico com ${validDigits.length} dígitos. Primeiros 10:`, 
+      validDigits.slice(0, 10).join(', '));
     
-    // Contar ocorrências de cada dígito, incluindo zero
-    for (const digit of lastDigits) {
-      // Verificação extra para garantir que dígitos 0 sejam contados corretamente
-      if (digit >= 0 && digit <= 9) {
-        digitCounts[digit]++;
-      }
+    // Contar ocorrências de cada dígito
+    for (const digit of validDigits) {
+      digitCounts[digit]++;
     }
     
     // Verificação adicional para garantir que estamos contando corretamente
@@ -612,7 +745,7 @@ class IndependentDerivService {
       digitCounts.map((count, digit) => `${digit}: ${count}`).join(', '));
     
     // Calcular percentuais
-    const totalSamples = lastDigits.length;
+    const totalSamples = validDigits.length;
     
     // Criar estatísticas para todos os dígitos, mesmo que não tenham ocorrências
     const stats = [];
@@ -624,16 +757,22 @@ class IndependentDerivService {
       });
     }
     
-    // Criar ou atualizar o histórico com exatamente 500 ticks
+    // Limitar a 500 dígitos (os mais recentes)
+    const limitedDigits = validDigits.slice(-500);
+    
+    // Criar ou atualizar o histórico
     this.digitHistories.set(symbol, {
       stats,
-      lastDigits: lastDigits.slice(-500), // Garantir que temos exatamente os 500 mais recentes
-      totalSamples: Math.min(totalSamples, 500), // Limitar a 500 o total de amostras
+      lastDigits: limitedDigits,
+      totalSamples: limitedDigits.length,
       symbol,
       lastUpdated: new Date()
     });
     
-    console.log(`[INDEPENDENT_DERIV] Histórico de dígitos inicializado para ${symbol} com ${totalSamples} amostras`);
+    // Salvar imediatamente no localStorage para persistência
+    this.saveHistoryToLocalStorage(symbol);
+    
+    console.log(`[INDEPENDENT_DERIV] Histórico de dígitos inicializado para ${symbol} com ${limitedDigits.length} amostras`);
   }
   
   /**
