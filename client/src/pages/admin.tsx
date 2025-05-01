@@ -70,14 +70,6 @@ export default function AdminPage() {
     }
     
     initialize();
-    
-    // Configurar atualização periódica a cada 60 segundos (1 minuto)
-    const intervalId = setInterval(async () => {
-      await loadUsers();
-    }, 60000);
-    
-    // Limpar intervalo ao desmontar
-    return () => clearInterval(intervalId);
   }, []);
   
   // Carregar usuários do banco de dados e do localStorage
@@ -634,15 +626,39 @@ export default function AdminPage() {
             <h1 className="text-xl font-bold">Painel Administrativo</h1>
           </div>
           
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={goBack}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => loadUsers()}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Atualizando...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                  Atualizar
+                </>
+              )}
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goBack}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Voltar
+            </Button>
+          </div>
         </div>
       </div>
       
