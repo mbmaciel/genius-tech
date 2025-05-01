@@ -157,12 +157,13 @@ export default function LoginPage() {
       return;
     }
     
-    // Verificar se existem usuários registrados
-    const storedCredentials = localStorage.getItem('user_credentials');
+    // Verificar credenciais
     const registeredUsers = localStorage.getItem('registered_users');
+    const storedCredentials = localStorage.getItem('user_credentials');
     
-    // Se existirem usuários registrados, precisamos verificar se este usuário está registrado
+    // Verificar se há usuários cadastrados no sistema
     if (storedCredentials && registeredUsers) {
+      // Existem usuários registrados, precisamos verificar as credenciais
       const credentials = JSON.parse(storedCredentials);
       const users = JSON.parse(registeredUsers);
       
@@ -203,25 +204,33 @@ export default function LoginPage() {
         setIsLoading(false);
         toast({
           title: 'Credenciais inválidas',
-          description: 'Email ou senha incorretos.',
+          description: 'Este usuário não está cadastrado ou a senha está incorreta.',
           variant: 'destructive',
         });
       }
-    } else {
-      // Não existem usuários registrados ainda, permitir acesso temporário
-      // Isso será útil antes que qualquer usuário seja criado no painel admin
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('user_email', email);
-      
+    } else if (email === 'admin@teste.com' && password === 'admin123') {
+      // Regra temporária para primeiro acesso (apenas para configuração inicial)
+      // Permite que o administrador faça login pela primeira vez para cadastrar usuários
       toast({
-        title: 'Login bem-sucedido',
-        description: 'Bem-vindo à plataforma de trading!',
+        title: 'Login de configuração',
+        description: 'Bem-vindo ao acesso de configuração inicial.',
       });
       
-      // Redirecionar para o dashboard
+      localStorage.setItem('isAdmin', 'true');
+      localStorage.setItem('isLoggedIn', 'true');
+      
+      // Redirecionar para o painel admin
       setTimeout(() => {
-        window.location.href = '/dashboard';
+        window.location.href = '/admin';
       }, 500);
+    } else {
+      // Não existem usuários e não é o admin inicial
+      setIsLoading(false);
+      toast({
+        title: 'Acesso não autorizado',
+        description: 'Apenas usuários cadastrados podem acessar o sistema.',
+        variant: 'destructive',
+      });
     }
     
     setTimeout(() => {

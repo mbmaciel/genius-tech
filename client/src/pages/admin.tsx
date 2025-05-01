@@ -1,75 +1,133 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useLocation } from 'wouter';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Loader2, UserPlus, Users, ChevronLeft, LogOut, Shield, Info } from 'lucide-react';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
+import { Loader2, Plus, Trash2, UserPlus, Users, ArrowLeft, ArrowLeftCircle, ChevronLeft } from 'lucide-react';
 
+// Interfaces
 interface User {
   id: string;
-  email: string;
   name: string;
+  email: string;
+  password?: string; // Apenas para cadastro
   createdAt: string;
   isActive: boolean;
+  lastLogin?: string;
+  role: 'user' | 'admin';
 }
 
 export default function AdminPage() {
-  const [_, navigate] = useLocation();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
+  // Estados
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [users, setUsers] = useState<User[]>([]);
-  const [newUserDialogOpen, setNewUserDialogOpen] = useState(false);
-  const [newUser, setNewUser] = useState({
-    email: '',
+  const [newUserDialog, setNewUserDialog] = useState<boolean>(false);
+  const [selectedTab, setSelectedTab] = useState<string>('users');
+  
+  // Formulário de novo usuário
+  const [newUser, setNewUser] = useState<Partial<User>>({
     name: '',
-    password: ''
+    email: '',
+    password: '',
+    isActive: true,
+    role: 'user',
   });
-
-  // Verificar se o usuário está logado como admin
+  
+  // Stats (estatísticas)
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    newUsersToday: 0,
+    loginsToday: 0,
+  });
+  
+  const { toast } = useToast();
+  
+  // Carregar usuários e estatísticas
   useEffect(() => {
-    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+    loadUsers();
+    calculateStats();
     
+    // Verificar se é admin
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
     if (!isAdmin) {
       toast({
         title: 'Acesso não autorizado',
-        description: 'Você precisa fazer login como administrador para acessar esta página.',
+        description: 'Você não tem permissão para acessar o painel administrativo.',
         variant: 'destructive',
       });
       
-      navigate('/login');
-      return;
+      // Redirecionar para login
+      window.location.href = '/login';
     }
-    
-    // Carregar lista de usuários
-    loadUsers();
-  }, [navigate, toast]);
+  }, []);
   
-  // Função para carregar usuários (mock)
+  // Carregar usuários do localStorage
   const loadUsers = () => {
     setIsLoading(true);
     
-    // Simulação de carregamento de usuários
-    setTimeout(() => {
-      // Verificar se já existem usuários no localStorage
+    try {
+      // Carregar lista de usuários
       const storedUsers = localStorage.getItem('registered_users');
-      const parsedUsers: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-      
-      setUsers(parsedUsers);
+      if (storedUsers) {
+        const parsedUsers = JSON.parse(storedUsers);
+        setUsers(parsedUsers);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar a lista de usuários.',
+        variant: 'destructive',
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
   
-  // Função para adicionar um novo usuário
+  // Calcular estatísticas
+  const calculateStats = () => {
+    const storedUsers = localStorage.getItem('registered_users');
+    if (!storedUsers) return;
+    
+    const parsedUsers = JSON.parse(storedUsers) as User[];
+    
+    // Calcular estatísticas básicas
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    
+    const activeUsers = parsedUsers.filter(user => user.isActive).length;
+    const newUsersToday = parsedUsers.filter(user => {
+      const createdAt = new Date(user.createdAt).getTime();
+      return createdAt >= todayStart;
+    }).length;
+    
+    const loginsToday = parsedUsers.filter(user => {
+      if (!user.lastLogin) return false;
+      const lastLogin = new Date(user.lastLogin).getTime();
+      return lastLogin >= todayStart;
+    }).length;
+    
+    setStats({
+      totalUsers: parsedUsers.length,
+      activeUsers,
+      newUsersToday,
+      loginsToday,
+    });
+  };
+  
+  // Adicionar novo usuário
   const handleAddUser = () => {
     // Validar campos
-    if (!newUser.email || !newUser.name || !newUser.password) {
+    if (!newUser.name || !newUser.email || !newUser.password) {
       toast({
-        title: 'Campos incompletos',
-        description: 'Preencha todos os campos para adicionar um novo usuário.',
+        title: 'Dados incompletos',
+        description: 'Preencha todos os campos obrigatórios.',
         variant: 'destructive',
       });
       return;
@@ -79,231 +137,335 @@ export default function AdminPage() {
     if (users.some(user => user.email === newUser.email)) {
       toast({
         title: 'Email já cadastrado',
-        description: 'Este email já está em uso por outro usuário.',
+        description: 'Este email já está sendo utilizado por outro usuário.',
         variant: 'destructive',
       });
       return;
     }
     
-    // Criar novo usuário
-    const newUserObj: User = {
-      id: Date.now().toString(),
-      email: newUser.email,
-      name: newUser.name,
-      createdAt: new Date().toISOString(),
-      isActive: true
-    };
-    
-    // Adicionar à lista de usuários
-    const updatedUsers = [...users, newUserObj];
-    setUsers(updatedUsers);
-    
-    // Salvar lista de usuários atualizada
-    localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
-    
-    // Salvar credenciais (em um sistema real, seria com hash de senha)
-    const userCredentials = {
-      email: newUser.email,
-      password: newUser.password
-    };
-    
-    // Armazenar credenciais (em produção, isso estaria no banco de dados com senhas hash)
-    const storedCredentials = localStorage.getItem('user_credentials');
-    const parsedCredentials = storedCredentials ? JSON.parse(storedCredentials) : [];
-    const updatedCredentials = [...parsedCredentials, userCredentials];
-    localStorage.setItem('user_credentials', JSON.stringify(updatedCredentials));
-    
-    // Limpar formulário e fechar diálogo
-    setNewUser({
-      email: '',
-      name: '',
-      password: ''
-    });
-    
-    setNewUserDialogOpen(false);
-    
-    toast({
-      title: 'Usuário adicionado',
-      description: `${newUser.name} foi adicionado com sucesso.`,
-    });
+    try {
+      // Criar novo usuário
+      const newUserData: User = {
+        id: Date.now().toString(),
+        name: newUser.name || '',
+        email: newUser.email || '',
+        password: newUser.password,
+        createdAt: new Date().toISOString(),
+        isActive: newUser.isActive || true,
+        role: newUser.role || 'user',
+      };
+      
+      // Adicionar à lista de usuários
+      const updatedUsers = [...users, newUserData];
+      setUsers(updatedUsers);
+      
+      // Salvar no localStorage
+      localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+      
+      // Também atualizar credenciais para login
+      const credentials = localStorage.getItem('user_credentials');
+      const parsedCredentials = credentials ? JSON.parse(credentials) : [];
+      
+      const updatedCredentials = [
+        ...parsedCredentials,
+        {
+          email: newUserData.email,
+          password: newUserData.password,
+        }
+      ];
+      
+      localStorage.setItem('user_credentials', JSON.stringify(updatedCredentials));
+      
+      // Recalcular estatísticas
+      calculateStats();
+      
+      // Feedback e fechar diálogo
+      toast({
+        title: 'Usuário adicionado',
+        description: `${newUserData.name} foi cadastrado com sucesso.`,
+      });
+      
+      // Limpar formulário
+      setNewUser({
+        name: '',
+        email: '',
+        password: '',
+        isActive: true,
+        role: 'user',
+      });
+      
+      // Fechar diálogo
+      setNewUserDialog(false);
+    } catch (error) {
+      console.error('Erro ao adicionar usuário:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível adicionar o usuário.',
+        variant: 'destructive',
+      });
+    }
   };
   
-  // Função para remover um usuário
-  const handleRemoveUser = (userId: string) => {
-    // Filtrar usuário da lista
-    const updatedUsers = users.filter(user => user.id !== userId);
-    setUsers(updatedUsers);
-    
-    // Salvar lista atualizada
-    localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
-    
-    toast({
-      title: 'Usuário removido',
-      description: 'O usuário foi removido com sucesso.',
-    });
-  };
-  
-  // Função para alternar o status ativo/inativo de um usuário
+  // Alterar status de ativação do usuário
   const toggleUserStatus = (userId: string) => {
-    const updatedUsers = users.map(user => {
-      if (user.id === userId) {
-        return { ...user, isActive: !user.isActive };
-      }
-      return user;
-    });
-    
-    setUsers(updatedUsers);
-    
-    // Salvar lista atualizada
-    localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
-    
-    const user = updatedUsers.find(u => u.id === userId);
-    toast({
-      title: user?.isActive ? 'Usuário ativado' : 'Usuário desativado',
-      description: `O usuário foi ${user?.isActive ? 'ativado' : 'desativado'} com sucesso.`,
-    });
+    try {
+      // Encontrar e atualizar o usuário
+      const updatedUsers = users.map(user => {
+        if (user.id === userId) {
+          return { ...user, isActive: !user.isActive };
+        }
+        return user;
+      });
+      
+      setUsers(updatedUsers);
+      
+      // Atualizar no localStorage
+      localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+      
+      // Recalcular estatísticas
+      calculateStats();
+      
+      // Feedback
+      toast({
+        title: 'Status atualizado',
+        description: 'O status do usuário foi atualizado com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status do usuário:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o status do usuário.',
+        variant: 'destructive',
+      });
+    }
   };
   
-  // Função para fazer logout do admin
-  const handleLogout = () => {
-    localStorage.removeItem('isAdmin');
-    navigate('/login');
-    
-    toast({
-      title: 'Logout realizado',
-      description: 'Você saiu do painel administrativo.',
-    });
+  // Remover usuário
+  const removeUser = (userId: string) => {
+    try {
+      // Encontrar usuário para feedback
+      const user = users.find(u => u.id === userId);
+      
+      // Filtrar usuários
+      const updatedUsers = users.filter(user => user.id !== userId);
+      setUsers(updatedUsers);
+      
+      // Atualizar no localStorage
+      localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+      
+      // Também atualizar credenciais para login
+      const credentials = localStorage.getItem('user_credentials');
+      const parsedCredentials = credentials ? JSON.parse(credentials) : [];
+      
+      const updatedCredentials = parsedCredentials.filter(
+        (cred: any) => cred.email !== user?.email
+      );
+      
+      localStorage.setItem('user_credentials', JSON.stringify(updatedCredentials));
+      
+      // Recalcular estatísticas
+      calculateStats();
+      
+      // Feedback
+      toast({
+        title: 'Usuário removido',
+        description: 'O usuário foi removido com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao remover usuário:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível remover o usuário.',
+        variant: 'destructive',
+      });
+    }
   };
   
-  // Função de formatação de data
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+  // Voltar para o dashboard
+  const goBack = () => {
+    window.location.href = '/dashboard';
   };
-
+  
+  // Formatar data
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    } catch (error) {
+      return 'Data inválida';
+    }
+  };
+  
   return (
-    <div className="min-h-screen bg-[#0c1117] flex flex-col">
-      {/* Header com título e botões de ação */}
-      <header className="bg-[#151b25] border-b border-slate-800 p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <Shield className="h-8 w-8 text-indigo-500" />
-            <h1 className="text-xl font-bold text-white">Painel Administrativo</h1>
+    <div className="min-h-screen bg-[#0c1117] text-white">
+      {/* Cabeçalho */}
+      <div className="bg-[#151b25] p-4 shadow">
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <h1 className="text-xl font-bold">Painel Administrativo</h1>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              className="border-slate-700 text-slate-400"
-              onClick={() => navigate('/login')}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            
-            <Button
-              variant="destructive"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
-          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={goBack}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
         </div>
-      </header>
+      </div>
       
       {/* Conteúdo principal */}
-      <main className="flex-1 container max-w-7xl mx-auto py-6 px-4">
-        <Tabs defaultValue="users">
+      <div className="container mx-auto py-6 px-4">
+        {/* Estatísticas rápidas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-[#151b25] border-slate-800">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-sm text-slate-400">Total de Usuários</p>
+                <p className="text-3xl font-bold text-indigo-500 mt-1">{stats.totalUsers}</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-[#151b25] border-slate-800">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-sm text-slate-400">Usuários Ativos</p>
+                <p className="text-3xl font-bold text-emerald-500 mt-1">{stats.activeUsers}</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-[#151b25] border-slate-800">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-sm text-slate-400">Novos Hoje</p>
+                <p className="text-3xl font-bold text-blue-500 mt-1">{stats.newUsersToday}</p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-[#151b25] border-slate-800">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-sm text-slate-400">Logins Hoje</p>
+                <p className="text-3xl font-bold text-amber-500 mt-1">{stats.loginsToday}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Tabs */}
+        <Tabs defaultValue="users" className="mb-6" value={selectedTab} onValueChange={setSelectedTab}>
           <TabsList className="bg-[#151b25] border-slate-800">
             <TabsTrigger value="users" className="data-[state=active]:bg-indigo-600">
               <Users className="h-4 w-4 mr-2" />
               Usuários
             </TabsTrigger>
-            <TabsTrigger value="stats" className="data-[state=active]:bg-indigo-600">
-              <Info className="h-4 w-4 mr-2" />
-              Estatísticas
-            </TabsTrigger>
           </TabsList>
           
-          {/* Tab de gerenciamento de usuários */}
-          <TabsContent value="users" className="mt-6">
-            <Card className="bg-[#151b25] border-slate-800 text-white">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="text-xl text-white">Gerenciamento de Usuários</CardTitle>
-                    <CardDescription className="text-slate-400">
-                      Gerencie os usuários que podem acessar a plataforma.
-                    </CardDescription>
-                  </div>
+          <TabsContent value="users" className="mt-4">
+            <Card className="bg-[#151b25] border-slate-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl">Gerenciamento de Usuários</CardTitle>
+                  <CardDescription className="text-slate-400">
+                    Gerencie todos os usuários da plataforma.
+                  </CardDescription>
+                </div>
+                
+                <Dialog open={newUserDialog} onOpenChange={setNewUserDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-indigo-600 hover:bg-indigo-700">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Adicionar Usuário
+                    </Button>
+                  </DialogTrigger>
                   
-                  <Dialog open={newUserDialogOpen} onOpenChange={setNewUserDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Novo Usuário
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-[#151b25] border-slate-800 text-white">
-                      <DialogHeader>
-                        <DialogTitle className="text-white">Adicionar Novo Usuário</DialogTitle>
-                        <DialogDescription className="text-slate-400">
-                          Preencha os dados para adicionar um novo usuário à plataforma.
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4 py-4">
+                  <DialogContent className="bg-[#151b25] border-slate-800 text-white">
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Adicionar Novo Usuário</DialogTitle>
+                      <DialogDescription className="text-slate-400">
+                        Preencha os dados para cadastrar um novo usuário na plataforma.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <div className="grid gap-4">
                         <div className="space-y-2">
-                          <label className="text-sm text-slate-400">Nome Completo</label>
-                          <Input 
-                            placeholder="Nome do usuário" 
+                          <Label htmlFor="name">Nome</Label>
+                          <Input
+                            id="name"
+                            placeholder="Nome completo"
                             value={newUser.name}
-                            onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                            onChange={e => setNewUser({...newUser, name: e.target.value})}
                             className="bg-[#0c1117] border-slate-700 text-white"
                           />
                         </div>
                         
                         <div className="space-y-2">
-                          <label className="text-sm text-slate-400">Email</label>
-                          <Input 
-                            type="email" 
-                            placeholder="email@exemplo.com" 
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="Email"
                             value={newUser.email}
-                            onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                            onChange={e => setNewUser({...newUser, email: e.target.value})}
                             className="bg-[#0c1117] border-slate-700 text-white"
                           />
                         </div>
                         
                         <div className="space-y-2">
-                          <label className="text-sm text-slate-400">Senha</label>
-                          <Input 
-                            type="password" 
-                            placeholder="Senha" 
+                          <Label htmlFor="password">Senha</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            placeholder="Senha"
                             value={newUser.password}
-                            onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                            onChange={e => setNewUser({...newUser, password: e.target.value})}
                             className="bg-[#0c1117] border-slate-700 text-white"
                           />
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="active"
+                            checked={newUser.isActive}
+                            onCheckedChange={checked => setNewUser({...newUser, isActive: checked})}
+                          />
+                          <Label htmlFor="active">Usuário ativo</Label>
                         </div>
                       </div>
-                      
-                      <DialogFooter>
-                        <Button 
-                          onClick={handleAddUser}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                        >
-                          Adicionar Usuário
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setNewUserDialog(false)}
+                        className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button 
+                        onClick={handleAddUser}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        Adicionar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               
               <CardContent>
@@ -311,110 +473,72 @@ export default function AdminPage() {
                   <div className="flex justify-center items-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
                   </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <Users className="h-12 w-12 mx-auto opacity-20 mb-2" />
+                    <p>Nenhum usuário cadastrado.</p>
+                    <Button 
+                      className="mt-4 bg-indigo-600 hover:bg-indigo-700"
+                      onClick={() => setNewUserDialog(true)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Adicionar primeiro usuário
+                    </Button>
+                  </div>
                 ) : (
-                  <Table>
-                    <TableCaption>Lista total de {users.length} usuários cadastrados.</TableCaption>
-                    <TableHeader>
-                      <TableRow className="border-slate-700">
-                        <TableHead className="text-slate-400">Nome</TableHead>
-                        <TableHead className="text-slate-400">Email</TableHead>
-                        <TableHead className="text-slate-400">Data de Cadastro</TableHead>
-                        <TableHead className="text-slate-400">Status</TableHead>
-                        <TableHead className="text-slate-400 text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {users.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-slate-400">
-                            Nenhum usuário cadastrado. Adicione um usuário clicando no botão acima.
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-slate-700">
+                          <TableHead className="text-slate-400">Nome</TableHead>
+                          <TableHead className="text-slate-400">Email</TableHead>
+                          <TableHead className="text-slate-400">Criado em</TableHead>
+                          <TableHead className="text-slate-400">Último login</TableHead>
+                          <TableHead className="text-slate-400">Status</TableHead>
+                          <TableHead className="text-slate-400">Ações</TableHead>
                         </TableRow>
-                      ) : (
-                        users.map(user => (
+                      </TableHeader>
+                      
+                      <TableBody>
+                        {users.map(user => (
                           <TableRow key={user.id} className="border-slate-700">
-                            <TableCell className="font-medium text-white">{user.name}</TableCell>
-                            <TableCell className="text-slate-300">{user.email}</TableCell>
-                            <TableCell className="text-slate-400">{formatDate(user.createdAt)}</TableCell>
+                            <TableCell className="font-medium">{user.name}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>{formatDate(user.createdAt)}</TableCell>
+                            <TableCell>{formatDate(user.lastLogin)}</TableCell>
                             <TableCell>
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                user.isActive 
-                                  ? 'bg-green-500/20 text-green-400' 
-                                  : 'bg-red-500/20 text-red-400'
-                              }`}>
-                                {user.isActive ? 'Ativo' : 'Inativo'}
-                              </span>
+                              <div className="flex items-center">
+                                <Switch
+                                  checked={user.isActive}
+                                  onCheckedChange={() => toggleUserStatus(user.id)}
+                                  className="mr-2"
+                                />
+                                <span className={user.isActive ? 'text-emerald-500' : 'text-red-500'}>
+                                  {user.isActive ? 'Ativo' : 'Inativo'}
+                                </span>
+                              </div>
                             </TableCell>
-                            <TableCell className="text-right space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                className="border-slate-700 hover:bg-slate-800"
-                                onClick={() => toggleUserStatus(user.id)}
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeUser(user.id)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-100/10"
                               >
-                                {user.isActive ? 'Desativar' : 'Ativar'}
-                              </Button>
-                              
-                              <Button 
-                                variant="destructive" 
-                                size="sm"
-                                onClick={() => handleRemoveUser(user.id)}
-                              >
-                                Remover
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
-              </CardContent>
-              
-              <CardFooter className="border-t border-slate-800 pt-4">
-                <p className="text-sm text-slate-400">
-                  Apenas usuários ativos podem fazer login na plataforma.
-                </p>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-          
-          {/* Tab de estatísticas */}
-          <TabsContent value="stats" className="mt-6">
-            <Card className="bg-[#151b25] border-slate-800 text-white">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">Estatísticas de Usuários</CardTitle>
-                <CardDescription className="text-slate-400">
-                  Informações sobre os usuários cadastrados na plataforma.
-                </CardDescription>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-[#1d2a45] p-4 rounded-lg">
-                    <div className="text-lg text-slate-400 mb-2">Total de Usuários</div>
-                    <div className="text-3xl font-bold text-white">{users.length}</div>
-                  </div>
-                  
-                  <div className="bg-[#1d2a45] p-4 rounded-lg">
-                    <div className="text-lg text-slate-400 mb-2">Usuários Ativos</div>
-                    <div className="text-3xl font-bold text-green-400">
-                      {users.filter(user => user.isActive).length}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#1d2a45] p-4 rounded-lg">
-                    <div className="text-lg text-slate-400 mb-2">Usuários Inativos</div>
-                    <div className="text-3xl font-bold text-red-400">
-                      {users.filter(user => !user.isActive).length}
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
+      </div>
     </div>
   );
 }
