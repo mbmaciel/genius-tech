@@ -142,7 +142,7 @@ export default function LoginPage() {
     processRedirectUrl();
   }, [toast]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     console.log('[AUTH] Iniciando processo de login para:', email);
@@ -200,128 +200,229 @@ export default function LoginPage() {
       return;
     }
     
-    // Verificar credenciais de usuário normal
-    const registeredUsers = localStorage.getItem('registered_users');
-    const storedCredentials = localStorage.getItem('user_credentials');
-    
-    // Usuários existem no localStorage?
-    if (storedCredentials && registeredUsers) {
-      try {
-        // Analisar os dados armazenados
-        const credentials = JSON.parse(storedCredentials);
-        const users = JSON.parse(registeredUsers);
+    try {
+      // Primeiro tentar autenticar com o banco de dados
+      console.log('[AUTH] Tentando verificar credenciais no banco de dados');
+      
+      // Fazer uma requisição para verificar as credenciais no banco
+      const response = await fetch('/api/user-credentials');
+      let foundInDatabase = false;
+      let databaseUsers: any[] = [];
+      
+      if (response.ok) {
+        const result = await response.json();
         
-        console.log('[AUTH] Verificando credenciais entre ' + credentials.length + ' usuários cadastrados');
-        
-        // Verificar se o usuário está cadastrado e a senha está correta
-        const userCredential = credentials.find((cred: any) => 
-          cred.email === email && cred.password === password
-        );
-        
-        if (userCredential) {
-          // O usuário existe e a senha está correta
-          // Verificar se o usuário está ativo
-          const userInfo = users.find((user: any) => user.email === email);
+        if (result.success && result.data) {
+          // Usuários encontrados no banco
+          databaseUsers = result.data;
+          console.log('[AUTH] Verificando credenciais entre ' + databaseUsers.length + ' usuários no banco de dados');
           
-          if (userInfo && !userInfo.isActive) {
-            setIsLoading(false);
-            toast({
-              title: 'Conta desativada',
-              description: 'Sua conta foi desativada. Entre em contato com o administrador.',
-              variant: 'destructive',
-            });
-            return;
-          }
+          // Verificar credenciais
+          const foundUser = databaseUsers.find(user => 
+            user.email === email && user.password === password
+          );
           
-          // Credenciais válidas e usuário ativo
-          console.log('[AUTH] Login bem-sucedido para:', email);
-          
-          // Atualizar status no localStorage
-          localStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('user_email', email);
-          
-          // Atualizar última data de login
-          const updatedUsers = users.map((user: any) => {
-            if (user.email === email) {
-              return {
-                ...user,
+          if (foundUser) {
+            foundInDatabase = true;
+            console.log('[AUTH] Usuário autenticado com o banco de dados:', email);
+            
+            // Atualizar localStorage para compatibilidade
+            const userFormatted = {
+              id: foundUser.id.toString(),
+              email: foundUser.email,
+              name: foundUser.email.split('@')[0], // Nome padrão
+              isActive: true,
+              createdAt: foundUser.created_at,
+              lastLogin: new Date().toISOString()
+            };
+            
+            // Salvar no localStorage para compatibilidade
+            const registeredUsers = localStorage.getItem('registered_users');
+            const users = registeredUsers ? JSON.parse(registeredUsers) : [];
+            
+            // Verificar se o usuário já existe no localStorage
+            const existingUserIndex = users.findIndex((u: any) => u.email === email);
+            
+            if (existingUserIndex >= 0) {
+              // Atualizar usuário existente
+              users[existingUserIndex] = {
+                ...users[existingUserIndex],
                 lastLogin: new Date().toISOString()
               };
+            } else {
+              // Adicionar novo usuário
+              users.push(userFormatted);
             }
-            return user;
-          });
-          
-          // Salvar dados atualizados
-          localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
-          
-          // Feedback
-          toast({
-            title: 'Login bem-sucedido',
-            description: 'Bem-vindo à plataforma de trading!',
-          });
-          
-          // Redirecionar para o dashboard
-          setTimeout(() => {
-            window.location.href = '/dashboard';
-          }, 500);
-        } else {
-          // Credenciais incorretas - verificar se o email existe
-          const userExists = credentials.some((cred: any) => cred.email === email);
-          
-          // Log detalhado para depuração
-          console.log('[AUTH] Credenciais incorretas. Email existe:', userExists ? 'Sim' : 'Não');
-          
-          setIsLoading(false);
-          
-          // Forçar a renderização do toast sem o timeout
-          if (userExists) {
-            // O email existe, mas a senha está incorreta
-            console.log('[AUTH] Senha incorreta para email:', email);
             
-            // Usar setTimeout para garantir que o toast será exibido
-            setTimeout(() => {
-              toast({
-                title: 'Senha incorreta',
-                description: 'A senha fornecida não corresponde a este usuário.',
-                variant: 'destructive',
-                duration: 5000, // Duração mais longa para garantir visibilidade
-              });
-            }, 100);
-          } else {
-            // O email não está cadastrado
-            console.log('[AUTH] Usuário não encontrado:', email);
+            localStorage.setItem('registered_users', JSON.stringify(users));
             
-            // Usar setTimeout para garantir que o toast será exibido
-            setTimeout(() => {
-              toast({
-                title: 'Usuário não encontrado',
-                description: 'Este email não está cadastrado no sistema.',
-                variant: 'destructive',
-                duration: 5000, // Duração mais longa para garantir visibilidade
+            // Atualizar credenciais simplificadas para login
+            const storedCredentials = localStorage.getItem('user_credentials');
+            const credentials = storedCredentials ? JSON.parse(storedCredentials) : [];
+            
+            const existingCredIndex = credentials.findIndex((c: any) => c.email === email);
+            
+            if (existingCredIndex >= 0) {
+              // Atualizar credencial existente
+              credentials[existingCredIndex] = {
+                email: email,
+                password: password
+              };
+            } else {
+              // Adicionar nova credencial
+              credentials.push({
+                email: email,
+                password: password
               });
-            }, 100);
+            }
+            
+            localStorage.setItem('user_credentials', JSON.stringify(credentials));
+            
+            // Atualizar status no localStorage
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('user_email', email);
+            
+            // Feedback
+            toast({
+              title: 'Login bem-sucedido',
+              description: 'Bem-vindo à plataforma de trading!',
+            });
+            
+            // Redirecionar para o dashboard
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 500);
+            
+            return;
           }
         }
-      } catch (error) {
-        console.error('[AUTH] Erro ao processar credenciais:', error);
-        setIsLoading(false);
-        toast({
-          title: 'Erro de autenticação',
-          description: 'Ocorreu um erro ao verificar suas credenciais.',
-          variant: 'destructive',
-        });
       }
-    } else {
-      // Não existem usuários cadastrados
-      console.log('[AUTH] Nenhum usuário cadastrado no sistema');
+      
+      // Se não encontrou no banco, tenta no localStorage como fallback
+      if (!foundInDatabase) {
+        console.log('[AUTH] Usuário não encontrado no banco, verificando localStorage');
+        
+        const registeredUsers = localStorage.getItem('registered_users');
+        const storedCredentials = localStorage.getItem('user_credentials');
+        
+        // Usuários existem no localStorage?
+        if (storedCredentials && registeredUsers) {
+          // Analisar os dados armazenados
+          const credentials = JSON.parse(storedCredentials);
+          const users = JSON.parse(registeredUsers);
+          
+          console.log('[AUTH] Verificando credenciais entre ' + credentials.length + ' usuários no localStorage');
+          
+          // Verificar se o usuário está cadastrado e a senha está correta
+          const userCredential = credentials.find((cred: any) => 
+            cred.email === email && cred.password === password
+          );
+          
+          if (userCredential) {
+            // O usuário existe e a senha está correta
+            // Verificar se o usuário está ativo
+            const userInfo = users.find((user: any) => user.email === email);
+            
+            if (userInfo && !userInfo.isActive) {
+              setIsLoading(false);
+              toast({
+                title: 'Conta desativada',
+                description: 'Sua conta foi desativada. Entre em contato com o administrador.',
+                variant: 'destructive',
+              });
+              return;
+            }
+            
+            // Credenciais válidas e usuário ativo
+            console.log('[AUTH] Login bem-sucedido com localStorage para:', email);
+            
+            // Atualizar status no localStorage
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('user_email', email);
+            
+            // Atualizar última data de login
+            const updatedUsers = users.map((user: any) => {
+              if (user.email === email) {
+                return {
+                  ...user,
+                  lastLogin: new Date().toISOString()
+                };
+              }
+              return user;
+            });
+            
+            // Salvar dados atualizados
+            localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+            
+            // Feedback
+            toast({
+              title: 'Login bem-sucedido',
+              description: 'Bem-vindo à plataforma de trading!',
+            });
+            
+            // Redirecionar para o dashboard
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 500);
+            return;
+          }
+        }
+        
+        // Concatenar todos os usuários para verificar se o email existe
+        const allCredentials = [...databaseUsers];
+        if (storedCredentials) {
+          const localCreds = JSON.parse(storedCredentials);
+          allCredentials.push(...localCreds);
+        }
+        
+        // Credenciais incorretas - verificar se o email existe
+        const userExists = allCredentials.some((cred: any) => cred.email === email);
+        
+        // Log detalhado para depuração
+        console.log('[AUTH] Credenciais incorretas. Email existe:', userExists ? 'Sim' : 'Não');
+        
+        setIsLoading(false);
+        
+        // Forçar a renderização do toast sem o timeout
+        if (userExists) {
+          // O email existe, mas a senha está incorreta
+          console.log('[AUTH] Senha incorreta para email:', email);
+          
+          // Usar setTimeout para garantir que o toast será exibido
+          setTimeout(() => {
+            toast({
+              title: 'Senha incorreta',
+              description: 'A senha fornecida não corresponde a este usuário.',
+              variant: 'destructive',
+              duration: 5000, // Duração mais longa para garantir visibilidade
+            });
+          }, 100);
+        } else {
+          // O email não está cadastrado
+          console.log('[AUTH] Usuário não encontrado:', email);
+          
+          // Usar setTimeout para garantir que o toast será exibido
+          setTimeout(() => {
+            toast({
+              title: 'Usuário não encontrado',
+              description: 'Este email não está cadastrado no sistema.',
+              variant: 'destructive',
+              duration: 5000, // Duração mais longa para garantir visibilidade
+            });
+          }, 100);
+        }
+      }
+    } catch (error) {
+      console.error('[AUTH] Erro ao processar credenciais:', error);
       setIsLoading(false);
       toast({
-        title: 'Sistema não configurado',
-        description: 'Não há usuários cadastrados. Entre em contato com o administrador.',
+        title: 'Erro de autenticação',
+        description: 'Ocorreu um erro ao verificar suas credenciais.',
         variant: 'destructive',
       });
     }
     
+    // Sempre garantir que o estado de loading está desativado após o processamento
     setTimeout(() => {
       setIsLoading(false);
     }, 1000);

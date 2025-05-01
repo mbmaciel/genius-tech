@@ -205,7 +205,7 @@ export default function AdminPage() {
   };
   
   // Adicionar novo usuário
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     // Validar campos
     if (!newUser.name || !newUser.email || !newUser.password) {
       toast({
@@ -226,7 +226,88 @@ export default function AdminPage() {
       return;
     }
     
+    setIsLoading(true);
+    
     try {
+      // Primeiro tente adicionar ao banco de dados
+      const response = await fetch('/api/user-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: newUser.email,
+          password: newUser.password,
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          console.log('[ADMIN] Usuário adicionado com sucesso no banco de dados:', result.data);
+          
+          // Criar formato de usuário para a UI
+          const newUserData: User = {
+            id: result.data.id.toString(),
+            name: newUser.name || '',
+            email: newUser.email || '',
+            createdAt: result.data.created_at || new Date().toISOString(),
+            isActive: true,
+            role: 'user',
+          };
+          
+          // Adicionar à lista de usuários local
+          const updatedUsers = [...users, newUserData];
+          setUsers(updatedUsers);
+          
+          // Atualizar também no localStorage para compatibilidade
+          localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+          
+          // Atualizar credenciais simplificadas para login
+          const credentials = localStorage.getItem('user_credentials');
+          const parsedCredentials = credentials ? JSON.parse(credentials) : [];
+          
+          const updatedCredentials = [
+            ...parsedCredentials,
+            {
+              email: newUserData.email,
+              password: newUserData.password,
+            }
+          ];
+          
+          localStorage.setItem('user_credentials', JSON.stringify(updatedCredentials));
+          
+          // Recalcular estatísticas
+          calculateStats();
+          
+          // Feedback e fechar diálogo
+          toast({
+            title: 'Usuário adicionado',
+            description: `${newUserData.name} foi cadastrado com sucesso.`,
+          });
+          
+          // Limpar formulário
+          setNewUser({
+            name: '',
+            email: '',
+            password: '',
+            isActive: true,
+            role: 'user',
+          });
+          
+          // Fechar diálogo
+          setNewUserDialog(false);
+          
+          // Recarregar lista de usuários
+          await loadUsers();
+          return;
+        }
+      }
+      
+      // Se falhar com a API, usar fallback para localStorage
+      console.log('[ADMIN] Fallback: salvando usuário apenas no localStorage');
+      
       // Criar novo usuário
       const newUserData: User = {
         id: Date.now().toString(),
@@ -264,8 +345,8 @@ export default function AdminPage() {
       
       // Feedback e fechar diálogo
       toast({
-        title: 'Usuário adicionado',
-        description: `${newUserData.name} foi cadastrado com sucesso.`,
+        title: 'Usuário adicionado (local)',
+        description: `${newUserData.name} foi cadastrado com sucesso (apenas localmente).`,
       });
       
       // Limpar formulário
@@ -280,12 +361,14 @@ export default function AdminPage() {
       // Fechar diálogo
       setNewUserDialog(false);
     } catch (error) {
-      console.error('Erro ao adicionar usuário:', error);
+      console.error('[ADMIN] Erro ao adicionar usuário:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível adicionar o usuário.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -324,13 +407,46 @@ export default function AdminPage() {
   };
   
   // Remover usuário
-  const removeUser = (userId: string) => {
+  const removeUser = async (userId: string) => {
+    setIsLoading(true);
+    
     try {
       // Encontrar usuário para feedback
       const user = users.find(u => u.id === userId);
       
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Usuário não encontrado.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Primeiro tente remover do banco de dados
+      let removedFromDB = false;
+      
+      try {
+        const response = await fetch(`/api/user-credentials/${userId}`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          if (result.success) {
+            console.log('[ADMIN] Usuário removido com sucesso do banco de dados:', userId);
+            removedFromDB = true;
+          }
+        }
+      } catch (dbError) {
+        console.error('[ADMIN] Erro ao remover usuário do banco de dados:', dbError);
+        // Continuamos com a remoção local mesmo se falhar no banco
+      }
+      
       // Filtrar usuários
-      const updatedUsers = users.filter(user => user.id !== userId);
+      const updatedUsers = users.filter(u => u.id !== userId);
       setUsers(updatedUsers);
       
       // Atualizar no localStorage
@@ -352,15 +468,22 @@ export default function AdminPage() {
       // Feedback
       toast({
         title: 'Usuário removido',
-        description: 'O usuário foi removido com sucesso.',
+        description: removedFromDB 
+          ? 'O usuário foi removido com sucesso do sistema.'
+          : 'O usuário foi removido apenas localmente.',
       });
+      
+      // Recarregar dados
+      await loadUsers();
     } catch (error) {
-      console.error('Erro ao remover usuário:', error);
+      console.error('[ADMIN] Erro ao remover usuário:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível remover o usuário.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
   
