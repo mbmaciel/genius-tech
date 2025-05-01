@@ -465,7 +465,7 @@ export const sendRequest = (request: any): Promise<any> => {
  * Redireciona para a página de autorização OAuth da Deriv
  */
 export const loginWithDeriv = (): void => {
-  const appId = "71403"; // App ID da Deriv
+  const appId = "72383"; // App ID da Deriv
   const callbackUrl = `${window.location.origin}/oauth-callback`;
   const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=pt&redirect_uri=${encodeURIComponent(callbackUrl)}`;
   window.location.href = authUrl;

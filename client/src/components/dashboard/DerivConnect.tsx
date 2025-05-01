@@ -66,13 +66,17 @@ export function DerivConnect() {
   };
   
   const initiateOAuth = () => {
-    const appId = process.env.VITE_DERIV_APP_ID || '36544'; // Default app ID if not provided
+    const appId = '72383'; // App ID da Deriv atualizado
+    const apiToken = 'P1x412DJ8Oc0Ych'; // API Token fornecido
     
     // Get the current domain for redirect
     const redirect_uri = `${window.location.origin}/`;
     
     // Create the OAuth URL
     const oauthUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=PT&redirect_uri=${encodeURIComponent(redirect_uri)}`;
+    
+    // Salvar o API token no localStorage para uso posterior
+    localStorage.setItem('deriv_api_token', apiToken);
     
     // Redirect to Deriv's OAuth page
     window.location.href = oauthUrl;

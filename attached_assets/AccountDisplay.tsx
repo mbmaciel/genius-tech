@@ -22,7 +22,10 @@ function ConnectButton() {
       // Se a conexão foi estabelecida, redirecionar para auth da Deriv
       // Adicionar parâmetro de redirecionamento para nosso endpoint de callback
       const redirectUrl = window.location.origin + '/oauth-callback';
-      const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=71403&l=PT&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
+      const authUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=72383&l=PT&brand=deriv&redirect_uri=${encodeURIComponent(redirectUrl)}`;
+      
+      // Salvar o API token no localStorage para uso posterior
+      localStorage.setItem('deriv_api_token', 'P1x412DJ8Oc0Ych');
       
       // Redirecionar para autenticação na mesma aba
       window.location.href = authUrl;

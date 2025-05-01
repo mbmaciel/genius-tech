@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
-const APP_ID = 71403; // App ID da Deriv para OAuth
+const APP_ID = 72383; // App ID da Deriv para OAuth
+const API_TOKEN = 'P1x412DJ8Oc0Ych'; // API Token fornecido
 
 interface DerivConnectProps {
   className?: string;

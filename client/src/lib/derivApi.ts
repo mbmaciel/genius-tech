@@ -6,7 +6,8 @@
 
 // Constantes da API
 const DERIV_WS_URL = 'wss://ws.derivws.com/websockets/v3';
-const DEFAULT_APP_ID = '71403'; // ID oficial do nosso aplicativo
+const DEFAULT_APP_ID = '72383'; // ID oficial do nosso aplicativo
+const API_TOKEN = 'P1x412DJ8Oc0Ych'; // API Token fornecido
 
 // Interface para eventos de resposta da API
 interface ApiResponse {
