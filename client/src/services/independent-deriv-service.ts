@@ -631,6 +631,10 @@ class IndependentDerivService {
       
       // Notificar sobre a primeira atualização
       this.notifyListeners('history', this.getDigitHistory(symbol));
+      
+      // Salvar o primeiro dígito no banco de dados também
+      this.scheduleDbSave(symbol);
+      
       return;
     }
     
@@ -685,6 +689,42 @@ class IndependentDerivService {
     
     // Notificar ouvintes sobre atualização
     this.notifyListeners('history', this.getDigitHistory(symbol));
+    
+    // Salvar no localStorage para persistência local
+    this.saveHistoryToLocalStorage(symbol);
+    
+    // Salvar no banco de dados de forma controlada (a cada 50 ticks)
+    // para evitar sobrecarga de requisições
+    if (totalSamples % 50 === 0) {
+      this.scheduleDbSave(symbol);
+    }
+  }
+  
+  /**
+   * Agenda o salvamento no banco de dados com throttling
+   * para evitar múltiplas requisições simultâneas
+   */
+  private dbSaveThrottleTimers: Record<string, any> = {};
+  
+  private scheduleDbSave(symbol: string): void {
+    // Cancelar timer existente se houver
+    if (this.dbSaveThrottleTimers[symbol]) {
+      clearTimeout(this.dbSaveThrottleTimers[symbol]);
+    }
+    
+    // Agendar nova solicitação com delay de 2 segundos
+    this.dbSaveThrottleTimers[symbol] = setTimeout(() => {
+      this.saveToDatabase(symbol)
+        .then(success => {
+          if (success) {
+            console.log(`[INDEPENDENT_DERIV] ✅ Histórico de ${symbol} salvo no banco de dados`);
+          }
+        })
+        .catch(err => console.error(`[INDEPENDENT_DERIV] Erro ao salvar no banco:`, err))
+        .finally(() => {
+          this.dbSaveThrottleTimers[symbol] = null;
+        });
+    }, 2000);
   }
   
   /**
