@@ -36,7 +36,22 @@ class DerivHistoryService {
     this.initializeDigitStats('R_100');
     
     // Carregar histórico existente do localStorage (oauthDirectService)
+    // OTIMIZAÇÃO: Garantir que o histórico seja carregado de forma síncrona
+    // para estar imediatamente disponível ao acessar a página
     this.loadHistoryFromLocalStorage('R_100');
+    
+    // Verificar se temos pelo menos 500 ticks para R_100
+    const preloadedHistory = this.historyData['R_100'];
+    if (!preloadedHistory || !preloadedHistory.lastDigits || preloadedHistory.lastDigits.length < 500) {
+      console.log('[DerivHistoryService] Menos de 500 ticks pré-carregados, agendando carga imediata em background');
+      // Agendar carregamento em segundo plano sem aguardar
+      setTimeout(() => {
+        this.getTicksHistory('R_100', 500, true, false)
+          .catch(err => console.error('[DerivHistoryService] Erro ao pré-carregar histórico em background:', err));
+      }, 100);
+    } else {
+      console.log(`[DerivHistoryService] Iniciado com ${preloadedHistory.lastDigits.length} ticks já pré-carregados`);
+    }
     
     console.log('[DerivHistoryService] Iniciado: carregando histórico salvo do localStorage');
   }
