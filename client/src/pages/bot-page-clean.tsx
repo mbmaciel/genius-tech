@@ -628,7 +628,7 @@ export function BotPage() {
                     <SelectTrigger className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white">
                       <SelectValue placeholder="Selecionar tipo" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
+                    <SelectContent position="popper" sideOffset={4} align="start" className="bg-[#13203a] border-[#2c3e5d] text-white">
                       <SelectItem value="lite">Bot Lite (Básico)</SelectItem>
                       <SelectItem value="premium">Bot Premium (VIP)</SelectItem>
                     </SelectContent>
@@ -646,7 +646,7 @@ export function BotPage() {
                     <SelectTrigger className="w-full bg-[#0e1a2e] border-[#2c3e5d] text-white">
                       <SelectValue placeholder="Selecionar estratégia" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
+                    <SelectContent position="popper" sideOffset={4} align="start" className="bg-[#13203a] border-[#2c3e5d] text-white">
                       {selectedBotType && 
                         strategies[selectedBotType].map((strategy) => (
                           <SelectItem key={strategy.id} value={strategy.id}>
@@ -746,7 +746,7 @@ export function BotPage() {
                     <SelectTrigger className="h-8 w-[100px] bg-[#0e1a2e] border-[#2c3e5d] text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13203a] border-[#2c3e5d] text-white">
+                    <SelectContent position="popper" sideOffset={4} align="start" className="bg-[#13203a] border-[#2c3e5d] text-white">
                       <SelectItem value="10">10 ticks</SelectItem>
                       <SelectItem value="20">20 ticks</SelectItem>
                       <SelectItem value="50">50 ticks</SelectItem>
