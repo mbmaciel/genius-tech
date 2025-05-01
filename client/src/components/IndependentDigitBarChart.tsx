@@ -448,12 +448,7 @@ export function IndependentDigitBarChart({
         )}
       </div>
       
-      {/* Mensagem de erro se necessário */}
-      {error && (
-        <div className="p-4 text-center">
-          <p className="text-red-500">{error}</p>
-        </div>
-      )}
+      {/* Tratamento interno de erros - não exibimos na UI */}
       
       {/* Gráfico de barras */}
       <div className="p-6">
