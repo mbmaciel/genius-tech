@@ -144,11 +144,15 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('[AUTH] Iniciando processo de login para:', email);
     setIsLoading(true);
 
     // Verificar se os campos foram preenchidos
     if (!email || !password) {
       setIsLoading(false);
+      console.log('[AUTH] Erro: campos em branco');
+      
       toast({
         title: 'Erro de login',
         description: 'Por favor, preencha todos os campos.',
@@ -264,22 +268,38 @@ export default function LoginPage() {
           // Credenciais incorretas - verificar se o email existe
           const userExists = credentials.some((cred: any) => cred.email === email);
           
+          // Log detalhado para depuração
+          console.log('[AUTH] Credenciais incorretas. Email existe:', userExists ? 'Sim' : 'Não');
+          
           setIsLoading(false);
           
+          // Forçar a renderização do toast sem o timeout
           if (userExists) {
             // O email existe, mas a senha está incorreta
-            toast({
-              title: 'Senha incorreta',
-              description: 'A senha fornecida não corresponde a este usuário.',
-              variant: 'destructive',
-            });
+            console.log('[AUTH] Senha incorreta para email:', email);
+            
+            // Usar setTimeout para garantir que o toast será exibido
+            setTimeout(() => {
+              toast({
+                title: 'Senha incorreta',
+                description: 'A senha fornecida não corresponde a este usuário.',
+                variant: 'destructive',
+                duration: 5000, // Duração mais longa para garantir visibilidade
+              });
+            }, 100);
           } else {
             // O email não está cadastrado
-            toast({
-              title: 'Usuário não encontrado',
-              description: 'Este email não está cadastrado no sistema.',
-              variant: 'destructive',
-            });
+            console.log('[AUTH] Usuário não encontrado:', email);
+            
+            // Usar setTimeout para garantir que o toast será exibido
+            setTimeout(() => {
+              toast({
+                title: 'Usuário não encontrado',
+                description: 'Este email não está cadastrado no sistema.',
+                variant: 'destructive',
+                duration: 5000, // Duração mais longa para garantir visibilidade
+              });
+            }, 100);
           }
         }
       } catch (error) {
