@@ -157,60 +157,11 @@ export default function LoginPage() {
       return;
     }
     
-    // Verificar credenciais
-    const registeredUsers = localStorage.getItem('registered_users');
-    const storedCredentials = localStorage.getItem('user_credentials');
-    
-    // Verificar se há usuários cadastrados no sistema
-    if (storedCredentials && registeredUsers) {
-      // Existem usuários registrados, precisamos verificar as credenciais
-      const credentials = JSON.parse(storedCredentials);
-      const users = JSON.parse(registeredUsers);
+    // Verificar se é um acesso de administrador
+    if (email === 'admin@teste.com' && password === 'admin123') {
+      // Admin inicial autorizado
+      console.log('[AUTH] Login com admin inicial');
       
-      // Verificar se o usuário está na lista de credenciais
-      const userCredential = credentials.find((cred: any) => 
-        cred.email === email && cred.password === password
-      );
-      
-      if (userCredential) {
-        // Verificar se o usuário está ativo
-        const userInfo = users.find((user: any) => user.email === email);
-        
-        if (userInfo && !userInfo.isActive) {
-          setIsLoading(false);
-          toast({
-            title: 'Conta desativada',
-            description: 'Sua conta foi desativada. Entre em contato com o administrador.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        
-        // Credenciais válidas
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('user_email', email);
-        
-        toast({
-          title: 'Login bem-sucedido',
-          description: 'Bem-vindo à plataforma de trading!',
-        });
-        
-        // Redirecionar para o dashboard
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 500);
-      } else {
-        // Credenciais inválidas
-        setIsLoading(false);
-        toast({
-          title: 'Credenciais inválidas',
-          description: 'Este usuário não está cadastrado ou a senha está incorreta.',
-          variant: 'destructive',
-        });
-      }
-    } else if (email === 'admin@teste.com' && password === 'admin123') {
-      // Regra temporária para primeiro acesso (apenas para configuração inicial)
-      // Permite que o administrador faça login pela primeira vez para cadastrar usuários
       toast({
         title: 'Login de configuração',
         description: 'Bem-vindo ao acesso de configuração inicial.',
@@ -223,12 +174,130 @@ export default function LoginPage() {
       setTimeout(() => {
         window.location.href = '/admin';
       }, 500);
+      return;
+    }
+    
+    // Verificar senha administrativa de acesso rápido ao painel
+    if (password === '234589@') {
+      console.log('[AUTH] Login direto com senha de administração');
+      
+      toast({
+        title: 'Acesso Administrativo',
+        description: 'Acesso direto ao painel de administração autorizado.',
+      });
+      
+      localStorage.setItem('isAdmin', 'true');
+      localStorage.setItem('isLoggedIn', 'true');
+      
+      // Redirecionar para o painel admin
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 500);
+      return;
+    }
+    
+    // Verificar credenciais de usuário normal
+    const registeredUsers = localStorage.getItem('registered_users');
+    const storedCredentials = localStorage.getItem('user_credentials');
+    
+    // Usuários existem no localStorage?
+    if (storedCredentials && registeredUsers) {
+      try {
+        // Analisar os dados armazenados
+        const credentials = JSON.parse(storedCredentials);
+        const users = JSON.parse(registeredUsers);
+        
+        console.log('[AUTH] Verificando credenciais entre ' + credentials.length + ' usuários cadastrados');
+        
+        // Verificar se o usuário está cadastrado e a senha está correta
+        const userCredential = credentials.find((cred: any) => 
+          cred.email === email && cred.password === password
+        );
+        
+        if (userCredential) {
+          // O usuário existe e a senha está correta
+          // Verificar se o usuário está ativo
+          const userInfo = users.find((user: any) => user.email === email);
+          
+          if (userInfo && !userInfo.isActive) {
+            setIsLoading(false);
+            toast({
+              title: 'Conta desativada',
+              description: 'Sua conta foi desativada. Entre em contato com o administrador.',
+              variant: 'destructive',
+            });
+            return;
+          }
+          
+          // Credenciais válidas e usuário ativo
+          console.log('[AUTH] Login bem-sucedido para:', email);
+          
+          // Atualizar status no localStorage
+          localStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('user_email', email);
+          
+          // Atualizar última data de login
+          const updatedUsers = users.map((user: any) => {
+            if (user.email === email) {
+              return {
+                ...user,
+                lastLogin: new Date().toISOString()
+              };
+            }
+            return user;
+          });
+          
+          // Salvar dados atualizados
+          localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
+          
+          // Feedback
+          toast({
+            title: 'Login bem-sucedido',
+            description: 'Bem-vindo à plataforma de trading!',
+          });
+          
+          // Redirecionar para o dashboard
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 500);
+        } else {
+          // Credenciais incorretas - verificar se o email existe
+          const userExists = credentials.some((cred: any) => cred.email === email);
+          
+          setIsLoading(false);
+          
+          if (userExists) {
+            // O email existe, mas a senha está incorreta
+            toast({
+              title: 'Senha incorreta',
+              description: 'A senha fornecida não corresponde a este usuário.',
+              variant: 'destructive',
+            });
+          } else {
+            // O email não está cadastrado
+            toast({
+              title: 'Usuário não encontrado',
+              description: 'Este email não está cadastrado no sistema.',
+              variant: 'destructive',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[AUTH] Erro ao processar credenciais:', error);
+        setIsLoading(false);
+        toast({
+          title: 'Erro de autenticação',
+          description: 'Ocorreu um erro ao verificar suas credenciais.',
+          variant: 'destructive',
+        });
+      }
     } else {
-      // Não existem usuários e não é o admin inicial
+      // Não existem usuários cadastrados
+      console.log('[AUTH] Nenhum usuário cadastrado no sistema');
       setIsLoading(false);
       toast({
-        title: 'Acesso não autorizado',
-        description: 'Apenas usuários cadastrados podem acessar o sistema.',
+        title: 'Sistema não configurado',
+        description: 'Não há usuários cadastrados. Entre em contato com o administrador.',
         variant: 'destructive',
       });
     }

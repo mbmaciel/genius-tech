@@ -74,12 +74,20 @@ export default function AdminPage() {
     try {
       // Carregar lista de usuários
       const storedUsers = localStorage.getItem('registered_users');
-      if (storedUsers) {
+      
+      // Quando não há usuários cadastrados, inicializar arrays vazios
+      if (!storedUsers) {
+        console.log('[ADMIN] Nenhum usuário encontrado. Inicializando arrays vazios.');
+        localStorage.setItem('registered_users', JSON.stringify([]));
+        localStorage.setItem('user_credentials', JSON.stringify([]));
+        setUsers([]);
+      } else {
         const parsedUsers = JSON.parse(storedUsers);
         setUsers(parsedUsers);
+        console.log('[ADMIN] Carregados ' + parsedUsers.length + ' usuários do localStorage');
       }
     } catch (error) {
-      console.error('Erro ao carregar usuários:', error);
+      console.error('[ADMIN] Erro ao carregar usuários:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar a lista de usuários.',
@@ -92,33 +100,61 @@ export default function AdminPage() {
   
   // Calcular estatísticas
   const calculateStats = () => {
+    // Inicializar array vazio se não existir
     const storedUsers = localStorage.getItem('registered_users');
-    if (!storedUsers) return;
+    if (!storedUsers) {
+      localStorage.setItem('registered_users', JSON.stringify([]));
+      console.log('[ADMIN] Nenhum usuário encontrado. Inicializando array vazio para estatísticas.');
+      setStats({
+        totalUsers: 0,
+        activeUsers: 0,
+        newUsersToday: 0,
+        loginsToday: 0,
+      });
+      return;
+    }
     
-    const parsedUsers = JSON.parse(storedUsers) as User[];
-    
-    // Calcular estatísticas básicas
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    
-    const activeUsers = parsedUsers.filter(user => user.isActive).length;
-    const newUsersToday = parsedUsers.filter(user => {
-      const createdAt = new Date(user.createdAt).getTime();
-      return createdAt >= todayStart;
-    }).length;
-    
-    const loginsToday = parsedUsers.filter(user => {
-      if (!user.lastLogin) return false;
-      const lastLogin = new Date(user.lastLogin).getTime();
-      return lastLogin >= todayStart;
-    }).length;
-    
-    setStats({
-      totalUsers: parsedUsers.length,
-      activeUsers,
-      newUsersToday,
-      loginsToday,
-    });
+    try {
+      const parsedUsers = JSON.parse(storedUsers) as User[];
+      
+      // Calcular estatísticas básicas
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      
+      const activeUsers = parsedUsers.filter(user => user.isActive).length;
+      const newUsersToday = parsedUsers.filter(user => {
+        const createdAt = new Date(user.createdAt).getTime();
+        return createdAt >= todayStart;
+      }).length;
+      
+      const loginsToday = parsedUsers.filter(user => {
+        if (!user.lastLogin) return false;
+        const lastLogin = new Date(user.lastLogin).getTime();
+        return lastLogin >= todayStart;
+      }).length;
+      
+      setStats({
+        totalUsers: parsedUsers.length,
+        activeUsers,
+        newUsersToday,
+        loginsToday,
+      });
+      
+      console.log('[ADMIN] Estatísticas calculadas:', { 
+        totalUsers: parsedUsers.length, 
+        activeUsers, 
+        newUsersToday, 
+        loginsToday 
+      });
+    } catch (error) {
+      console.error('[ADMIN] Erro ao calcular estatísticas:', error);
+      setStats({
+        totalUsers: 0,
+        activeUsers: 0,
+        newUsersToday: 0,
+        loginsToday: 0,
+      });
+    }
   };
   
   // Adicionar novo usuário
