@@ -189,7 +189,18 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                             </span>
                             <span className="mx-1 text-gray-400">|</span>
                             <span className="text-gray-300 text-xs">
-                              {op.strategy || 'Padrão'}
+                              {(() => {
+                                // Verificar se é uma das estratégias renomeadas e ajustar exibição
+                                const strategyName = op.strategy || 'Padrão';
+                                if (strategyName.toLowerCase().includes('manualunder') || 
+                                    strategyName.toLowerCase().includes('control_under')) {
+                                  return 'Control Under';
+                                } else if (strategyName.toLowerCase().includes('manualover') || 
+                                         strategyName.toLowerCase().includes('control_over')) {
+                                  return 'Control Over';
+                                }
+                                return strategyName;
+                              })()}
                             </span>
                           </div>
                           
@@ -200,11 +211,11 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                             </span>
                           </div>
                           
-                          {/* Exibir o motivo de encerramento (se existir) */}
+                          {/* Exibir o motivo de encerramento (se existir) com estilo destacado */}
                           {op.termination_reason && (
                             <div className="flex items-center text-xs mt-1">
-                              <span className="px-1.5 py-0.5 rounded-sm bg-amber-900/30 text-amber-400 text-xs font-medium">
-                                {op.termination_reason}
+                              <span className="px-1.5 py-0.5 rounded-sm bg-amber-900/40 text-amber-300 text-xs font-medium border border-amber-700/50">
+                                ⓘ {op.termination_reason}
                               </span>
                             </div>
                           )}

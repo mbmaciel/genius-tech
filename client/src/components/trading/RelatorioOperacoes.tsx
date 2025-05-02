@@ -220,12 +220,12 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
           : "ENTRADA PROFIT PRO";
       case 'manualunder':
         return hasParcelasMartingale 
-          ? `ENTRADA MANUAL UNDER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
-          : "ENTRADA MANUAL UNDER";
+          ? `ENTRADA CONTROL UNDER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA CONTROL UNDER";
       case 'manualover':
         return hasParcelasMartingale 
-          ? `ENTRADA MANUAL OVER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
-          : "ENTRADA MANUAL OVER";
+          ? `ENTRADA CONTROL OVER | PARCELAS MARTINGALE: ${userConfig?.parcelasMartingale || strategy?.config?.maxMartingaleLevel}`
+          : "ENTRADA CONTROL OVER";
       case 'ironover':
         // Para Iron Over, adicionar apenas o parâmetro "Usar Martingale Após X Loss"
         // IMPORTANTE: IRON Over NÃO usa o conceito de "Parcelas Martingale"

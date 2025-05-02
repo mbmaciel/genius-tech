@@ -549,28 +549,53 @@ export function BotPage() {
           if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
             // Verificar se há novas operações no localStorage que não estão no estado
             const existingIds = new Set(operationHistory.map(op => op.id));
+            // Debug para verificar o conteúdo do histórico bruto
+            console.log(`[BOT_PAGE] 📊 Conteúdo do histórico antes de processar:`, 
+              parsedHistory.length > 0 ? parsedHistory[0] : 'Sem operações');
+            
             const newOperations = parsedHistory
               .filter(op => !existingIds.has(op.contract_id || op.id))
-              .map(operation => ({
-                id: operation.contract_id || operation.id || Date.now(),
-                contract_id: operation.contract_id,
-                entryValue: operation.entry_value || operation.entryValue || 0,
-                entry_value: operation.entry_value || operation.entryValue || 0,
-                finalValue: operation.exit_value || operation.finalValue || 0,
-                exit_value: operation.exit_value || operation.finalValue || 0,
-                profit: operation.profit || 0,
-                time: operation.time ? new Date(operation.time) : new Date(operation.timestamp || operation.saved_at || Date.now()),
-                timestamp: operation.timestamp || operation.saved_at || Date.now(),
-                contract_type: operation.contract_type || "",
-                symbol: operation.symbol || "R_100",
-                strategy: operation.strategy || "",
-                is_win: operation.is_win ?? (operation.profit > 0),
-                isIntermediate: operation.isIntermediate || operation.is_intermediate || false,
-                notification: {
-                  type: operation.is_win || operation.profit > 0 ? "success" : "error" as const,
-                  message: `${operation.is_win || operation.profit > 0 ? "GANHO" : "PERDA"} | Entrada: $${(operation.entry_value || operation.entryValue || 0).toFixed(2)} | Resultado: $${(operation.profit || 0).toFixed(2)}`,
-                },
-              }));
+              .map(operation => {
+                // Garantir que operações com estratégia "Control Under" e "Control Over" sejam corretamente identificadas
+                let strategyName = operation.strategy || "";
+                
+                // Verificar se é uma das estratégias renomeadas
+                if (strategyName.toLowerCase().includes('manualunder') || 
+                    strategyName.toLowerCase().includes('control_under')) {
+                  strategyName = 'Control Under';
+                } else if (strategyName.toLowerCase().includes('manualover') || 
+                          strategyName.toLowerCase().includes('control_over')) {
+                  strategyName = 'Control Over';
+                }
+                
+                // Debug para verificar se o motivo de encerramento está presente
+                if (operation.termination_reason) {
+                  console.log(`[BOT_PAGE] 📊 Operação ${operation.contract_id} tem motivo de encerramento: ${operation.termination_reason}`);
+                }
+                
+                return {
+                  id: operation.contract_id || operation.id || Date.now(),
+                  contract_id: operation.contract_id,
+                  entryValue: operation.entry_value || operation.entryValue || 0,
+                  entry_value: operation.entry_value || operation.entryValue || 0,
+                  finalValue: operation.exit_value || operation.finalValue || 0,
+                  exit_value: operation.exit_value || operation.finalValue || 0,
+                  profit: operation.profit || 0,
+                  time: operation.time ? new Date(operation.time) : new Date(operation.timestamp || operation.saved_at || Date.now()),
+                  timestamp: operation.timestamp || operation.saved_at || Date.now(),
+                  contract_type: operation.contract_type || "",
+                  symbol: operation.symbol || "R_100",
+                  strategy: strategyName, // Usar o nome corrigido da estratégia
+                  is_win: operation.is_win ?? (operation.profit > 0),
+                  isIntermediate: operation.isIntermediate || operation.is_intermediate || false,
+                  // Incluir o motivo de encerramento da operação se disponível
+                  termination_reason: operation.termination_reason,
+                  notification: {
+                    type: operation.is_win || operation.profit > 0 ? "success" : "error" as const,
+                    message: `${operation.is_win || operation.profit > 0 ? "GANHO" : "PERDA"} | Entrada: $${(operation.entry_value || operation.entryValue || 0).toFixed(2)} | Resultado: $${(operation.profit || 0).toFixed(2)}`,
+                  }
+                };
+              });
               
             if (newOperations.length > 0) {
               console.log(`[BOT_PAGE] 🔄 Encontradas ${newOperations.length} novas operações no localStorage`);
@@ -608,7 +633,7 @@ export function BotPage() {
         const profitValue = contractEvent.profit || 0;
         const isWin = contractEvent.is_win || false;
         
-        // Criar registro de operação completo
+        // Criar registro de operação completo com todas as informações disponíveis
         const operationRecord = {
           id: contractEvent.contract_id || Date.now(),
           contract_id: contractEvent.contract_id,
@@ -621,10 +646,27 @@ export function BotPage() {
           timestamp: Date.now(),
           contract_type: contractEvent.contract_type || contractEvent.contract_details?.contract_type || "",
           symbol: contractEvent.symbol || contractEvent.contract_details?.underlying_symbol || "R_100",
-          strategy: contractEvent.strategy || selectedStrategy || "",
+          
+          // Garantir que estratégias Control Under e Control Over sejam corretamente formatadas
+          strategy: (() => {
+            const strategyName = contractEvent.strategy || selectedStrategy || "";
+            if (strategyName.toLowerCase().includes('manualunder') || 
+                strategyName.toLowerCase().includes('control_under')) {
+              return 'Control Under';
+            } else if (strategyName.toLowerCase().includes('manualover') || 
+                     strategyName.toLowerCase().includes('control_over')) {
+              return 'Control Over';
+            }
+            return strategyName;
+          })(),
+          
           is_win: isWin,
           isIntermediate: contractEvent.isIntermediate || false,
           is_intermediate: contractEvent.is_intermediate || false,
+          
+          // Incluir o motivo de encerramento da operação se disponível
+          termination_reason: contractEvent.termination_reason,
+          
           notification: {
             type: isWin ? "success" : "error" as const,
             message: `${isWin ? "GANHO" : "PERDA"} | Entrada: $${operationEntryValue.toFixed(2)} | Resultado: $${profitValue.toFixed(2)}`,
