@@ -304,7 +304,25 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
   const strategyCommand = getStrategyCommand(selectedStrategy);
 
   // Filtrar operações intermediárias para não exibi-las
+  // CORREÇÃO: Remover filtro por estratégia para exibir operações de todas as estratégias
+  // Anteriormente, operações de outras estratégias não apareciam no histórico
   const filteredOperations = operations.filter((op) => !op.isIntermediate);
+  
+  // Verificação de depuração para o relatório de operações
+  useEffect(() => {
+    console.log('[RELATORIO_OPERACOES] ★★★ VERIFICAÇÃO DO HISTÓRICO COMPLETO ★★★');
+    console.log('[RELATORIO_OPERACOES] Total de operações:', operations.length);
+    console.log('[RELATORIO_OPERACOES] Operações após filtro:', filteredOperations.length);
+    
+    // Estatísticas por estratégia
+    const strategyCounts: Record<string, number> = {};
+    operations.forEach(op => {
+      const strategyName = op.strategy || 'desconhecida';
+      strategyCounts[strategyName] = (strategyCounts[strategyName] || 0) + 1;
+    });
+    
+    console.log('[RELATORIO_OPERACOES] Distribuição por estratégia:', strategyCounts);
+  }, [operations]);
 
   return (
     <div className="bg-[#13203a] rounded-lg shadow-lg p-4 h-full">
