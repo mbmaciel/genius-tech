@@ -154,8 +154,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // NOVA IMPLEMENTAÇÃO: Suporte para lossVirtual e resetOnWin conforme XML
     lossVirtualEnabled: true, // Habilitar lossVirtual conforme XML (linhas 72-97)
     resetOnWin: true, // Resetar para valor inicial após vitória conforme XML (linhas 71-77)
-    barrier: "1", // Barreira para contratos DIGITOVER/DIGITUNDER
-    riskLevel: 'medium' // Nível de risco padrão: médio
+    barrier: "1" // Barreira para contratos DIGITOVER/DIGITUNDER
   };
 
   // Estatísticas de performance
@@ -4968,13 +4967,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         `[OAUTH_DIRECT] 💡 VALIDAÇÃO CRÍTICA: O valor da entrada deve ser exatamente o configurado pelo usuário`,
       );
 
-      // Notificar início da operação com valor ajustado pelo nível de risco
+      // Notificar início da operação
       this.notifyListeners({
         type: "operation_started",
         amount: adjustedAmount,
         contract_type: contractType,
-        prediction: prediction,
-        riskLevel: this.settings.riskLevel
+        prediction: prediction
       });
 
       // 🚨🚨🚨 CORREÇÃO CRÍTICA: IMPLEMENTAÇÃO CORRIGIDA DE FLUXO PROPOSAL -> BUY 🚨🚨🚨
@@ -5001,7 +4999,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       }
 
       console.log(
-        `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA FINAL (após ajuste de risco e conversão): ${parsedAmount} USD (nível de risco: ${this.settings.riskLevel})`,
+        `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA FINAL (após conversão): ${parsedAmount} USD`,
       );
 
       // Primeiro passo: criar a solicitação de proposta com ID único
