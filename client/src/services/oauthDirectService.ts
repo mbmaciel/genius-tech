@@ -188,6 +188,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       startTime: new Date(), // Reinicia o tempo
     };
     
+    // Remover explicitamente a chave de estatísticas
+    localStorage.removeItem('deriv_bot_stats');
+    console.log("[OAUTH_DIRECT] Chave de estatísticas deriv_bot_stats removida explicitamente");
+    
     // Limpar histórico de operações armazenado em localStorage
     this.clearLocalHistory();
     
@@ -212,6 +216,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       localStorage.removeItem('operations_cache');
       localStorage.removeItem('operation_history_cache');
       
+      // Remover explicitamente a chave das estatísticas do bot
+      localStorage.removeItem('deriv_bot_stats');
+      console.log("[OAUTH_DIRECT] Limpeza explícita da chave de estatísticas: deriv_bot_stats");
+      
       // Limpar históricos por estratégia
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -219,7 +227,9 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         if (key && (
           key.startsWith('deriv_history_') || 
           key.includes('operation') ||
-          key.includes('history')
+          key.includes('history') ||
+          key.includes('stats') ||
+          key.includes('stat')
         )) {
           keysToRemove.push(key);
           console.log(`[OAUTH_DIRECT] Marcando para remoção: ${key}`);
