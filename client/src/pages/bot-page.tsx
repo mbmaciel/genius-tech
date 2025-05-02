@@ -1989,7 +1989,12 @@ export function BotPage() {
     
     // Também limpar do localStorage
     try {
-      localStorage.removeItem('deriv_history_operations');
+      console.log("[BOT_PAGE] Limpando chaves específicas do histórico no localStorage");
+      
+      // Remover chaves específicas - CORRIGIDO: ambas as versões do nome da chave
+      localStorage.removeItem('deriv_operations_history'); // Chave correta com 's'
+      localStorage.removeItem('deriv_operation_history');  // Versão sem 's'
+      localStorage.removeItem('deriv_history_operations'); // Versão invertida
       localStorage.removeItem('deriv_stats');
       localStorage.removeItem('operation_history_cache');
       localStorage.removeItem('operations_cache');
@@ -1998,12 +2003,19 @@ export function BotPage() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.includes('history') || key.includes('operation'))) {
+        if (key && (
+          key.includes('history') || 
+          key.includes('operation') || 
+          key.includes('stats') ||
+          key.includes('deriv')
+        )) {
           keysToRemove.push(key);
+          console.log(`[BOT_PAGE] Marcando chave para remoção: ${key}`);
         }
       }
       
       keysToRemove.forEach(key => {
+        console.log(`[BOT_PAGE] Removendo chave do localStorage: ${key}`);
         localStorage.removeItem(key);
       });
     } catch (error) {
