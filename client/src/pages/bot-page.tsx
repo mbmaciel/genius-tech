@@ -3217,14 +3217,13 @@ export function BotPage() {
                     Histórico
                   </div>
 
-                  {operationHistory.length > 0 && (
-                    <button
-                      onClick={() => setOperationHistory([])}
-                      className="px-2 py-1 text-xs text-white bg-[#1d2a45] hover:bg-[#2a3756] rounded transition ml-auto"
-                    >
-                      Limpar histórico
-                    </button>
-                  )}
+                  <button
+                    onClick={handleClearHistory}
+                    className="px-2 py-1 text-xs text-white bg-[#1d2a45] hover:bg-[#2a3756] rounded transition ml-auto"
+                    disabled={operationHistory.length === 0}
+                  >
+                    Limpar histórico
+                  </button>
                 </div>
 
                 <OperationHistoryCard
