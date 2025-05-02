@@ -1953,6 +1953,29 @@ export function BotPage() {
 
   // Limpar histórico
   const handleClearHistory = () => {
+    console.log("[BOT_PAGE] Iniciando limpeza completa do histórico e estatísticas");
+    
+    // Resetar estatísticas do serviço OAuth
+    if (oauthDirectService) {
+      try {
+        console.log("[BOT_PAGE] Resetando estatísticas do serviço OAuth");
+        oauthDirectService.resetStats();
+      } catch (error) {
+        console.error("[BOT_PAGE] Erro ao resetar estatísticas do serviço OAuth:", error);
+      }
+    }
+    
+    // Limpar histórico do serviço de histórico de ticks
+    try {
+      console.log("[BOT_PAGE] Limpando histórico de ticks via derivHistoryService");
+      derivHistoryService.clearHistory("R_100").catch(error => {
+        console.error("[BOT_PAGE] Erro ao limpar histórico de ticks:", error);
+      });
+    } catch (error) {
+      console.error("[BOT_PAGE] Erro ao acessar derivHistoryService:", error);
+    }
+    
+    // Resetar estados locais
     setStats({ wins: 0, losses: 0, totalProfit: 0 });
     setOperation({
       entry: 1584.42,
@@ -1961,12 +1984,22 @@ export function BotPage() {
       status: null,
     });
 
-    // Limpar o histórico de operações
+    // Limpar o histórico de operações local
     setOperationHistory([]);
+    
+    // Também limpar do localStorage
+    try {
+      localStorage.removeItem('deriv_history_operations');
+      localStorage.removeItem('deriv_stats');
+    } catch (error) {
+      console.error("[BOT_PAGE] Erro ao limpar dados do localStorage:", error);
+    }
 
+    console.log("[BOT_PAGE] Limpeza de histórico e estatísticas concluída com sucesso");
+    
     toast({
       title: "Histórico limpo",
-      description: "O histórico de operações foi limpo.",
+      description: "O histórico de operações e estatísticas foram resetados com sucesso.",
     });
   };
 

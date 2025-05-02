@@ -168,6 +168,61 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     netProfit: 0, // Lucro líquido da sessão
     startTime: new Date(), // Horário de início da sessão
   };
+  
+  /**
+   * Reseta as estatísticas de trading
+   * Usado pelo botão "Limpar Histórico"
+   */
+  public resetStats(): void {
+    console.log("[OAUTH_DIRECT] Resetando estatísticas de trading");
+    
+    // Zerar todas as estatísticas da sessão
+    this.sessionStats = {
+      totalProfit: 0,
+      totalLoss: 0, 
+      wins: 0,
+      losses: 0,
+      initialBalance: this.sessionStats.initialBalance, // Mantém o saldo inicial
+      currentBalance: this.sessionStats.currentBalance, // Mantém o saldo atual
+      netProfit: 0,
+      startTime: new Date(), // Reinicia o tempo
+    };
+    
+    // Limpar histórico de operações armazenado em localStorage
+    this.clearLocalHistory();
+    
+    // Notificar listeners sobre limpeza de histórico
+    this.notifyListeners({ type: 'history_cleared' });
+    
+    console.log("[OAUTH_DIRECT] Estatísticas resetadas com sucesso");
+  }
+  
+  /**
+   * Limpa o histórico armazenado no localStorage
+   * @private
+   */
+  private clearLocalHistory(): void {
+    try {
+      localStorage.removeItem('deriv_operation_history');
+      localStorage.removeItem('deriv_session_stats');
+      // Limpar históricos por estratégia
+      const strategyKeysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('deriv_history_')) {
+          strategyKeysToRemove.push(key);
+        }
+      }
+      
+      strategyKeysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      console.log("[OAUTH_DIRECT] Histórico local limpo com sucesso");
+    } catch (error) {
+      console.error("[OAUTH_DIRECT] Erro ao limpar histórico local:", error);
+    }
+  }
 
   private strategyConfig: string = "";
   private lastDigit: number = 0; // Último dígito recebido nos ticks
