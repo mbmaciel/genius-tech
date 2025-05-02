@@ -32,6 +32,7 @@ interface Operation {
   barrier?: string | number;
   payout?: number;
   timestamp?: number;
+  termination_reason?: string; // Motivo de encerramento da operação
 }
 
 interface OperationHistoryCardProps {
@@ -191,6 +192,23 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                               {op.strategy || 'Padrão'}
                             </span>
                           </div>
+                          
+                          {/* Exibir o ID do contrato */}
+                          <div className="flex items-center text-xs text-gray-400 mt-1">
+                            <span className="text-xs text-blue-400">
+                              ID: {op.contract_id || op.id || 'N/A'}
+                            </span>
+                            {op.termination_reason && (
+                              <>
+                                <span className="mx-1 text-gray-500">•</span>
+                                <span className="text-xs text-amber-400">
+                                  {op.termination_reason}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Hora da operação */}
                           <div className="flex items-center text-xs text-gray-400 mt-1">
                             <Clock className="w-3 h-3 mr-1" />
                             {op.time ? formatTime(op.time) : 
