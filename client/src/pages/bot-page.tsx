@@ -1950,7 +1950,67 @@ export function BotPage() {
 
   // Limpar histórico
   const handleClearHistory = () => {
-    console.log("[BOT_PAGE] Iniciando limpeza completa do histórico e estatísticas");
+    console.log("[BOT_PAGE] Iniciando limpeza COMPLETA E FORÇADA do histórico e estatísticas");
+    
+    // LIMPEZA ESPECÍFICA: Remover operações com IDs específicos que estão persistindo
+    const problematicIds = [1746213692207, 1746213691207];
+    console.log(`[BOT_PAGE] ⚠️ LIMPEZA FORÇADA: Removendo ${problematicIds.length} operações persistentes com IDs específicos:`, problematicIds);
+    
+    // Filtrar operações problemáticas do estado atual
+    setOperationHistory(prevHistory => {
+      const filtered = prevHistory.filter(op => !problematicIds.includes(Number(op.id)));
+      console.log(`[BOT_PAGE] 🧹 Removidas ${prevHistory.length - filtered.length} operações problemáticas do estado`);
+      return filtered;
+    });
+    
+    // Tentar remover operações problemáticas do localStorage também
+    try {
+      // Verificar todas as chaves possíveis de histórico
+      const possibleHistoryKeys = [
+        'deriv_operations_history',
+        'deriv_operation_history',
+        'deriv_history_operations',
+        'operations_cache',
+        'operation_history_cache'
+      ];
+      
+      possibleHistoryKeys.forEach(historyKey => {
+        const savedHistory = localStorage.getItem(historyKey);
+        if (savedHistory) {
+          try {
+            let parsedHistory = JSON.parse(savedHistory);
+            if (Array.isArray(parsedHistory)) {
+              const originalLength = parsedHistory.length;
+              
+              // Filtrar operações problemáticas
+              parsedHistory = parsedHistory.filter(op => {
+                const opId = op.id || op.contract_id;
+                return !problematicIds.includes(Number(opId));
+              });
+              
+              console.log(`[BOT_PAGE] 🧹 ${historyKey}: Removidas ${originalLength - parsedHistory.length} operações problemáticas`);
+              
+              // Salvar de volta o histórico filtrado ou remover a chave se estiver vazia
+              if (parsedHistory.length > 0) {
+                localStorage.setItem(historyKey, JSON.stringify(parsedHistory));
+              } else {
+                localStorage.removeItem(historyKey);
+                console.log(`[BOT_PAGE] 🗑️ ${historyKey}: Chave removida por estar vazia após filtragem`);
+              }
+            }
+          } catch (error) {
+            console.error(`[BOT_PAGE] Erro ao processar ${historyKey}:`, error);
+            // Em caso de erro na análise, remover a chave completamente
+            localStorage.removeItem(historyKey);
+          }
+        }
+      });
+    } catch (error) {
+      console.error("[BOT_PAGE] Erro ao remover operações problemáticas:", error);
+    }
+    
+    // GARANTIR REMOÇÃO COMPLETA: Definir flag para forçar limpeza na próxima inicialização
+    localStorage.setItem("deriv_force_clear_history", "true");
     
     // Resetar estatísticas do serviço OAuth
     if (oauthDirectService) {
@@ -1986,7 +2046,7 @@ export function BotPage() {
     
     // Também limpar do localStorage
     try {
-      console.log("[BOT_PAGE] Limpando chaves específicas do histórico no localStorage");
+      console.log("[BOT_PAGE] Limpando TODAS as chaves do histórico no localStorage");
       
       // Remover chaves específicas - CORRIGIDO: ambas as versões do nome da chave
       localStorage.removeItem('deriv_operations_history'); // Chave correta com 's'
@@ -2004,7 +2064,7 @@ export function BotPage() {
           key.includes('history') || 
           key.includes('operation') || 
           key.includes('stats') ||
-          key.includes('deriv')
+          key.includes('deriv') && key !== 'deriv_force_clear_history' // Não remover a flag
         )) {
           keysToRemove.push(key);
           console.log(`[BOT_PAGE] Marcando chave para remoção: ${key}`);
@@ -2034,8 +2094,14 @@ export function BotPage() {
     
     toast({
       title: "Histórico limpo",
-      description: "O histórico de operações e estatísticas foram resetados com sucesso.",
+      description: "O histórico de operações e estatísticas foram resetados com sucesso. Recarregando a página para aplicar totalmente...",
     });
+    
+    // SOLUÇÃO FINAL: Recarregar a página após um breve atraso
+    setTimeout(() => {
+      console.log("[BOT_PAGE] 🔄 Recarregando a página para garantir limpeza total");
+      window.location.reload();
+    }, 2000);
   };
 
   // Função para obter a cor da barra com base na porcentagem
