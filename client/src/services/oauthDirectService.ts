@@ -4986,13 +4986,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA ORIGINAL: ${amount} USD (EXATAMENTE o valor configurado pelo usuário)`,
       );
 
-      // Parse do valor para garantir que é numérico - usando o valor AJUSTADO pelo nível de risco
+      // Parse do valor para garantir que é numérico 
       const parsedAmount = typeof adjustedAmount === "number" 
         ? adjustedAmount 
-        : (adjustedAmount ? parseFloat(adjustedAmount.toString()) : 1.0);
+        : 1.0; // valor padrão caso adjustedAmount não seja um número
 
       // Verificar e registrar se o valor foi convertido corretamente
-      if (adjustedAmount && parsedAmount !== parseFloat(adjustedAmount.toString())) {
+      if (typeof adjustedAmount === "number" && parsedAmount !== adjustedAmount) {
         console.error(
           `[OAUTH_DIRECT] ⚠️ ALERTA: Valor de entrada pode ter sido alterado na conversão: ${adjustedAmount} -> ${parsedAmount}`,
         );
