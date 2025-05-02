@@ -397,49 +397,46 @@ export function BotPage() {
   }
 
   // Estado para histórico de operações com operação de teste inicial para verificar
-  const [operationHistory, setOperationHistory] = useState<Array<Operation>>([
-    // Operação de exemplo com ganho
-    {
-      id: Date.now(),
-      entryValue: 10,
-      entry_value: 10,
-      finalValue: 18.7,
-      exit_value: 18.7,
-      profit: 8.7,
-      time: new Date(),
-      timestamp: Date.now(),
-      contract_type: "DIGITOVER",
-      symbol: "R_100",
-      strategy: "botlow",
-      is_win: true,
-      notification: {
-        type: "success",
-        message: `GANHO | Entrada: $10.00 | Resultado: $8.70`,
-      },
-    },
-    // Operação de exemplo com perda
-    {
-      id: Date.now() - 1000, // ID diferente
-      entryValue: 5,
-      entry_value: 5,
-      finalValue: 0,
-      exit_value: 0,
-      profit: -5,
-      time: new Date(Date.now() - 30000), // 30 segundos atrás
-      timestamp: Date.now() - 30000,
-      contract_type: "DIGITUNDER",
-      symbol: "R_100",
-      strategy: "botlow",
-      is_win: false,
-      notification: {
-        type: "error",
-        message: `PERDA | Entrada: $5.00 | Resultado: -$5.00`,
-      },
-    },
-  ]);
+  // Inicializando com um array vazio para evitar operações de exemplo persistentes
+  const [operationHistory, setOperationHistory] = useState<Array<Operation>>([]);
 
-  // ★★★ CORREÇÃO CRÍTICA: Carregar histórico de operações local ao iniciar a página ★★★
+  // ★★★ CORREÇÃO CRÍTICA: Verificar se é necessário limpar o histórico e carregar operações do localStorage ★★★
   useEffect(() => {
+    console.log("[BOT_PAGE] Verificando necessidade de limpeza inicial de histórico...");
+    
+    // Verificar se devemos forçar a limpeza do histórico na inicialização
+    const shouldClearHistory = localStorage.getItem("deriv_force_clear_history") === "true";
+    if (shouldClearHistory || new URLSearchParams(window.location.search).has("clear_history")) {
+      console.log("[BOT_PAGE] Realizando limpeza forçada de histórico na inicialização");
+      
+      // Limpar todas as chaves do localStorage relacionadas ao histórico
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes("history") || 
+          key.includes("operation") || 
+          key.includes("stats") ||
+          key.includes("deriv")
+        )) {
+          keysToRemove.push(key);
+          console.log(`[BOT_PAGE] Marcando chave para remoção na inicialização: ${key}`);
+        }
+      }
+      
+      // Remover todas as chaves identificadas
+      keysToRemove.forEach(key => {
+        console.log(`[BOT_PAGE] Removendo chave do localStorage na inicialização: ${key}`);
+        localStorage.removeItem(key);
+      });
+      
+      // Remover o flag de limpeza forçada
+      localStorage.removeItem("deriv_force_clear_history");
+      
+      // Não carregar nenhum histórico após a limpeza
+      return;
+    }
+    
     console.log("[BOT_PAGE] Carregando histórico de operações do localStorage...");
     
     // Obter o histórico de operações do localStorage
