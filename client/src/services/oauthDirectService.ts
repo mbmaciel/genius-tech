@@ -209,30 +209,57 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     try {
       console.log("[OAUTH_DIRECT] Iniciando limpeza completa do histórico no localStorage");
       
-      // Remover ambas as versões da chave de histórico (com e sem 's')
-      localStorage.removeItem('deriv_operation_history');
-      localStorage.removeItem('deriv_operations_history');
-      localStorage.removeItem('deriv_session_stats');
-      localStorage.removeItem('operations_cache');
-      localStorage.removeItem('operation_history_cache');
+      // Lista expandida de chaves específicas a remover (cobrindo todas as variações possíveis)
+      const specificKeys = [
+        'deriv_operation_history',
+        'deriv_operations_history',
+        'deriv_session_stats',
+        'operations_cache',
+        'operation_history_cache',
+        'deriv_bot_stats',              // Estatísticas do bot
+        'deriv_bot_session_stats',      // Possível variação
+        'operation_stats',              // Possível variação
+        'operations_stats',             // Possível variação
+        'deriv_stats',                  // Possível variação
+        'trading_stats',                // Possível variação
+        'profit_loss_stats',            // Possível variação
+        'session_performance',          // Possível variação
+        'trading_performance',          // Possível variação
+        'bot_stats',                    // Possível variação
+        'bot_performance',              // Possível variação
+        'deriv_performance'             // Possível variação
+      ];
       
-      // Remover explicitamente a chave das estatísticas do bot
+      // Remover todas as chaves específicas listadas acima
+      specificKeys.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`[OAUTH_DIRECT] Removida chave específica: ${key}`);
+      });
+      
+      // Remover explicitamente a chave das estatísticas do bot (garantia dupla)
       localStorage.removeItem('deriv_bot_stats');
       console.log("[OAUTH_DIRECT] Limpeza explícita da chave de estatísticas: deriv_bot_stats");
       
-      // Limpar históricos por estratégia
+      // Limpar históricos por estratégia e qualquer chave que contenha padrões relacionados
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && (
-          key.startsWith('deriv_history_') || 
+          key.startsWith('deriv_') || 
           key.includes('operation') ||
           key.includes('history') ||
           key.includes('stats') ||
-          key.includes('stat')
+          key.includes('stat') ||
+          key.includes('performance') ||
+          key.includes('bot_') ||
+          key.includes('_cache') ||
+          key.includes('trading_')
         )) {
-          keysToRemove.push(key);
-          console.log(`[OAUTH_DIRECT] Marcando para remoção: ${key}`);
+          // Não remover configurações de estratégia
+          if (!key.includes('strategy_config_')) {
+            keysToRemove.push(key);
+            console.log(`[OAUTH_DIRECT] Marcando para remoção: ${key}`);
+          }
         }
       }
       
@@ -242,7 +269,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         localStorage.removeItem(key);
       });
       
-      console.log("[OAUTH_DIRECT] Histórico local limpo com sucesso");
+      // CORREÇÃO CRÍTICA: Forçar a limpeza das estatísticas de sessão
+      this.sessionStats = {
+        totalProfit: 0,
+        totalLoss: 0, 
+        wins: 0,
+        losses: 0,
+        initialBalance: this.sessionStats.initialBalance, // Mantém o saldo inicial
+        currentBalance: this.sessionStats.currentBalance, // Mantém o saldo atual
+        netProfit: 0,
+        startTime: new Date(), // Reinicia o tempo
+      };
+      
+      console.log("[OAUTH_DIRECT] ✅ Histórico local e estatísticas limpos com sucesso");
+      
+      // Notificar interface de que o histórico foi limpo
+      this.notifyListeners({
+        type: "history_cleared",
+        message: "Histórico de operações e estatísticas limpos com sucesso"
+      });
     } catch (error) {
       console.error("[OAUTH_DIRECT] Erro ao limpar histórico local:", error);
     }
