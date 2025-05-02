@@ -44,6 +44,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private eventListeners: Array<(event: TradingEvent) => void> = [];
   private currentContractId: string | number | null = null;
   private verboseLogging: boolean = false; // Controle de logs detalhados
+  private contractTerminationReasons: Map<string, string> = new Map(); // Armazena motivos de encerramento de contratos
   /**
    * Método para obter o valor inicial do usuário com alta prioridade
    * @param userConfigValue Valor opcional do userConfig
@@ -3466,6 +3467,48 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se ainda não atingiu nenhum limite, continuar operando
     return true;
+  }
+
+  /**
+   * Adiciona o motivo de encerramento ao contrato atual
+   * @param contractId ID do contrato a ser atualizado
+   * @param reason Motivo de encerramento da operação
+   */
+  private addTerminationReasonToContract(contractId: string | number, reason: string): void {
+    try {
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        console.log("[OAUTH_DIRECT] WebSocket não está disponível para atualizar contrato");
+        return;
+      }
+
+      console.log(`[OAUTH_DIRECT] Registrando motivo de encerramento para contrato ${contractId}: ${reason}`);
+      
+      // Armazenar em localStorage para persistência
+      const storageKey = `deriv_contract_termination_${contractId}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        contractId,
+        reason,
+        timestamp: Date.now()
+      }));
+      
+      // Armazenar na sessão atual para acesso imediato
+      if (!this.contractTerminationReasons) {
+        this.contractTerminationReasons = new Map();
+      }
+      this.contractTerminationReasons.set(contractId.toString(), reason);
+      
+      // Atualizar todos os objetos relevantes do contrato
+      this.notifyListeners({
+        type: "contract_termination_reason",
+        contract_id: contractId,
+        termination_reason: reason,
+        timestamp: Date.now()
+      });
+      
+      console.log(`[OAUTH_DIRECT] ✅ Motivo de encerramento registrado com sucesso para contrato ${contractId}`);
+    } catch (error) {
+      console.error("[OAUTH_DIRECT] Erro ao registrar motivo de encerramento:", error);
+    }
   }
 
   /**

@@ -198,15 +198,16 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
                             <span className="text-xs text-blue-400">
                               ID: {op.contract_id || op.id || 'N/A'}
                             </span>
-                            {op.termination_reason && (
-                              <>
-                                <span className="mx-1 text-gray-500">•</span>
-                                <span className="text-xs text-amber-400">
-                                  {op.termination_reason}
-                                </span>
-                              </>
-                            )}
                           </div>
+                          
+                          {/* Exibir o motivo de encerramento (se existir) */}
+                          {op.termination_reason && (
+                            <div className="flex items-center text-xs mt-1">
+                              <span className="px-1.5 py-0.5 rounded-sm bg-amber-900/30 text-amber-400 text-xs font-medium">
+                                {op.termination_reason}
+                              </span>
+                            </div>
+                          )}
                           
                           {/* Hora da operação */}
                           <div className="flex items-center text-xs text-gray-400 mt-1">
