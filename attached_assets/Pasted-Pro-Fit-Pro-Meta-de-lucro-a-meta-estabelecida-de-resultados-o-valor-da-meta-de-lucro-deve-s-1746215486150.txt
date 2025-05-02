@@ -1,0 +1,38 @@
+Pro Fit Pro - 
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+- Parcelas de Martin Gale é o numero de parcelas que o user quer dividir, por exemplo, se o Fator martin Gale é 2, o robô perde uma operação, e a parcela de martin gale for 4, o robo vai fazer a proxima operação com 1.25 , vai dividir o valor do fator que estiver acima do valor de entrada em quantas vezes o user definiu a parcela.
+
+Control Over/ Under
+
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+- Parcelas de Martin Gale é o numero de parcelas que o user quer dividir, por exemplo, se o Fator martin Gale é 2, o robô perde uma operação, e a parcela de martin gale for 4, o robo vai fazer a proxima operação com 1.25 , vai dividir o valor do fator que estiver acima do valor de entrada em quantas vezes o user definiu a parcela.
+
+Advance
+
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+- Porcentagem para entrar é o nivel de porcentagem dos digitos 0 e 1 para que o robo faça a operação, o robo deve seguir explicitamente o percentual dos 2 digitos e não apenas de 1, então se o percentual definido pelo user for 10% , os digitos 0 e 1 devem estar igual ou abaixo desse valor para o robo executar a operação
+
+
+Iron Over / Under
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+- Multiplicar Após X Perdas é o numero de vezes que o robo deve perder para começar a aplicar o Martin Gale
+
+Bot Low
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+
+MaxPro 
+- Meta de lucro é a meta estabelecida de resultados, o valor da meta de lucro deve ser exatamente o valor colocado pelo User no componente Meta de Lucro(USD)
+- Limite de Perda é o limite de perda comparado ao inicio da operação, esse valor deve ser o valor exato colocado pelo User na configuração do robo, no componente Limite de Perda(USD)
+- Fator Martin Gale é a multiplicação do valor quando o Robô perde uma operação, então se o fator Martin Gale é 2 , o robô perde uma operação e faz a proxima operação com a multiplicação baseada no numero do fator imposto pelo User na configuração
+
+
