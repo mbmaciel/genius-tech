@@ -4561,10 +4561,25 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   public executeContractBuy(amount?: number): void {
     // 🚨🚨🚨 FIX EMERGENCIAL 22/04/2025 - ISSUE CRÍTICO: ROBÔ NÃO EXECUTA OPERAÇÕES 🚨🚨🚨
+    // ATUALIZAÇÃO (03/05/2025): Implementando ajuste de nível de risco
+
+    // Aplicar o modificador de risco ao valor da operação
+    let adjustedAmount = amount;
+    
+    // Só aplicar o modificador se o valor for um número válido e se não for um valor de martingale
+    // (os valores de martingale já têm o modificador de risco aplicado em calculateNextAmount)
+    const isMartingaleValue = localStorage.getItem('last_martingale_calculated_value') === String(amount);
+    
+    if (amount !== undefined && !isMartingaleValue) {
+      adjustedAmount = this.applyRiskModifier(amount);
+      console.log(
+        `[OAUTH_DIRECT] 🛡️ Valor ajustado pelo nível de risco (${this.settings.riskLevel}): ${amount} → ${adjustedAmount}`
+      );
+    }
 
     // VERIFICAÇÃO CRÍTICA: Logar sempre que uma operação for solicitada
     console.log(
-      `[OAUTH_DIRECT] 🚀🚀🚀 EXECUTANDO COMPRA DE CONTRATO COM VALOR ${amount}`,
+      `[OAUTH_DIRECT] 🚀🚀🚀 EXECUTANDO COMPRA DE CONTRATO COM VALOR ${adjustedAmount} ${isMartingaleValue ? '(valor martingale)' : ''}`
     );
     console.log(
       `[OAUTH_DIRECT] 🔍 DIAGNÓSTICO DE COMPRA: WebSocket status: ${this.webSocket?.readyState}`,
@@ -4592,7 +4607,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             "[OAUTH_DIRECT] ✅ WebSocket reconectado com sucesso! Tentando executar operação novamente...",
           );
           // Chamar este método novamente após reconexão
-          setTimeout(() => this.executeContractBuy(amount), 1000);
+          setTimeout(() => this.executeContractBuy(adjustedAmount), 1000);
         })
         .catch((err) => {
           console.error(
@@ -4824,7 +4839,15 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.settings.entryValue = finalAmount;
 
       // Definir o amount para o valor final após aplicar as prioridades
-      amount = finalAmount;
+      adjustedAmount = finalAmount;
+      
+      // Aplicar o modificador de risco se ainda não tiver sido aplicado (por exemplo, em valores martingale)
+      if (!isMartingaleValue) {
+        adjustedAmount = this.applyRiskModifier(finalAmount);
+        console.log(
+          `[OAUTH_DIRECT] 🛡️ Valor final ajustado pelo nível de risco (${this.settings.riskLevel}): ${finalAmount} → ${adjustedAmount}`
+        );
+      }
 
       // Usar o tipo de contrato definido exatamente pelo XML da estratégia através do settings
       // Esta configuração vem do resultado da análise da estratégia via xmlStrategyParser
@@ -4979,12 +5002,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         `[OAUTH_DIRECT] 💡 VALIDAÇÃO CRÍTICA: O valor da entrada deve ser exatamente o configurado pelo usuário`,
       );
 
-      // Notificar início da operação
+      // Notificar início da operação com valor ajustado pelo nível de risco
       this.notifyListeners({
         type: "operation_started",
-        amount: amount,
+        amount: adjustedAmount,
         contract_type: contractType,
         prediction: prediction,
+        riskLevel: this.settings.riskLevel
       });
 
       // 🚨🚨🚨 CORREÇÃO CRÍTICA: IMPLEMENTAÇÃO CORRIGIDA DE FLUXO PROPOSAL -> BUY 🚨🚨🚨
@@ -4998,19 +5022,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA ORIGINAL: ${amount} USD (EXATAMENTE o valor configurado pelo usuário)`,
       );
 
-      // Parse do valor para garantir que é numérico - PRESERVANDO O VALOR EXATO configurado pelo usuário
-      const parsedAmount =
-        typeof amount === "number" ? amount : parseFloat(amount.toString());
+      // Parse do valor para garantir que é numérico - usando o valor AJUSTADO pelo nível de risco
+      const parsedAmount = typeof adjustedAmount === "number" 
+        ? adjustedAmount 
+        : (adjustedAmount ? parseFloat(adjustedAmount.toString()) : 1.0);
 
       // Verificar e registrar se o valor foi convertido corretamente
-      if (parsedAmount !== parseFloat(amount.toString())) {
+      if (adjustedAmount && parsedAmount !== parseFloat(adjustedAmount.toString())) {
         console.error(
-          `[OAUTH_DIRECT] ⚠️ ALERTA: Valor de entrada pode ter sido alterado na conversão: ${amount} -> ${parsedAmount}`,
+          `[OAUTH_DIRECT] ⚠️ ALERTA: Valor de entrada pode ter sido alterado na conversão: ${adjustedAmount} -> ${parsedAmount}`,
         );
       }
 
       console.log(
-        `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA FINAL (após conversão): ${parsedAmount} USD`,
+        `[OAUTH_DIRECT] 💰 VALOR DE ENTRADA FINAL (após ajuste de risco e conversão): ${parsedAmount} USD (nível de risco: ${this.settings.riskLevel})`,
       );
 
       // Primeiro passo: criar a solicitação de proposta com ID único
