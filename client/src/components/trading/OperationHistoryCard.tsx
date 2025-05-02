@@ -70,12 +70,31 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
     };
   }, []);
   
+  // Ouvir eventos de limpeza de histórico
+  React.useEffect(() => {
+    console.log('[OperationHistoryCard] Registrando listener para evento de limpeza de histórico');
+    
+    const handleClearHistory = (event: Event) => {
+      console.log('[OperationHistoryCard] ⚠️⚠️⚠️ Evento de limpeza de histórico recebido!');
+      // Forçar limpeza do estado interno
+      setInternalOperations([]);
+    };
+    
+    // Adicionar o listener para o evento específico
+    document.addEventListener('deriv:clear_operation_history', handleClearHistory);
+    
+    // Limpar ao desmontar
+    return () => {
+      console.log('[OperationHistoryCard] Removendo listener de evento de limpeza');
+      document.removeEventListener('deriv:clear_operation_history', handleClearHistory);
+    };
+  }, []);
+  
   // Atualizar o estado interno quando as operações mudam
   React.useEffect(() => {
     console.log('[OperationHistoryCard] 📊 Recebidas operações externas:', operations.length, operations);
-    if (operations && operations.length > 0) {
-      setInternalOperations(operations);
-    }
+    // Atualizar as operações internas apenas quando houver operações válidas
+    setInternalOperations(operations);
   }, [operations]);
   
   // NOTA: Simplificamos o sistema de eventos para resolver o problema de build

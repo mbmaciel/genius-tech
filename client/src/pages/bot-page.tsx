@@ -1984,15 +1984,41 @@ export function BotPage() {
       status: null,
     });
 
-    // Limpar o histórico de operações local
+    // Limpar o histórico de operações local - MUITO IMPORTANTE fazer isso ANTES de disparar o evento
     setOperationHistory([]);
     
     // Também limpar do localStorage
     try {
       localStorage.removeItem('deriv_history_operations');
       localStorage.removeItem('deriv_stats');
+      localStorage.removeItem('operation_history_cache');
+      localStorage.removeItem('operations_cache');
+      
+      // Limpar todos os caches relacionados a histórico
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('history') || key.includes('operation'))) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
     } catch (error) {
       console.error("[BOT_PAGE] Erro ao limpar dados do localStorage:", error);
+    }
+    
+    // NOVO: Disparar evento personalizado para limpar o cache interno do OperationHistoryCard
+    try {
+      console.log("[BOT_PAGE] Disparando evento para forçar limpeza do cache de histórico");
+      const clearHistoryEvent = new CustomEvent('deriv:clear_operation_history', {
+        detail: { timestamp: Date.now() }
+      });
+      document.dispatchEvent(clearHistoryEvent);
+    } catch (error) {
+      console.error("[BOT_PAGE] Erro ao disparar evento de limpeza:", error);
     }
 
     console.log("[BOT_PAGE] Limpeza de histórico e estatísticas concluída com sucesso");
