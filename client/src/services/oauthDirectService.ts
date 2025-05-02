@@ -4807,9 +4807,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       this.settings.entryValue = finalAmount;
 
       // Definir o amount para o valor final após aplicar as prioridades
-      adjustedAmount = finalAmount;
+      // Garantir que o valor seja numérico
+      adjustedAmount = typeof finalAmount === 'number' ? finalAmount : 1.0;
       
-      // Usar o valor sem aplicar modificador de risco
+      // Usar o valor sem modificadores
       console.log(
         `[OAUTH_DIRECT] 🛡️ Usando valor final: ${adjustedAmount}`
       );
