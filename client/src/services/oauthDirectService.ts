@@ -2682,13 +2682,13 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     const riskLevel = this.settings.riskLevel || 'medium';
     
     // Definir os modificadores para cada nível de risco
-    // - low: reduz o valor para 50% (mais conservador)
+    // - low: reduz o valor para 70% (mais conservador, -30%)
     // - medium: mantém o valor normal (100%)
-    // - high: aumenta o valor para 150% (mais agressivo)
+    // - high: aumenta o valor para 130% (mais agressivo, +30%)
     const riskModifiers: Record<string, number> = {
-      'low': 0.5,      // Reduz o valor para 50% do original
+      'low': 0.7,      // Reduz o valor para 70% do original (-30%)
       'medium': 1.0,   // Mantém o valor original
-      'high': 1.5      // Aumenta o valor para 150% do original
+      'high': 1.3      // Aumenta o valor para 130% do original (+30%)
     };
     
     // Aplicar o modificador adequado
