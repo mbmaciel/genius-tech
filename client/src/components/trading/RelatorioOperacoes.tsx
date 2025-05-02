@@ -37,6 +37,8 @@ interface Operation {
   barrier?: string | number;
   payout?: number;
   timestamp?: number;
+  // CORREÇÃO CRÍTICA (03/05/2025): Adicionar campo para motivo de encerramento
+  termination_reason?: string; // Motivo pelo qual a operação foi encerrada (ex: "Meta de lucro atingida")
 }
 
 interface RelatorioOperacoesProps {
@@ -491,6 +493,14 @@ export function RelatorioOperacoes({ operations, selectedStrategy, useDirectServ
                           <div className="text-xs bg-[#1e2d4d] text-white px-2 py-1 rounded-sm mb-2 inline-block">
                             {t('operations.id', 'ID')}: <span className="font-semibold">{op.contract_id || op.id}</span>
                           </div>
+                          
+                          {/* Exibir o motivo de encerramento (se existir) */}
+                          {op.termination_reason && (
+                            <div className="text-xs bg-[#2d2a3a] text-amber-300 px-2 py-1 rounded-sm mb-2 border border-amber-700/30 inline-block">
+                              <AlertTriangleIcon className="w-3 h-3 inline-block mr-1" />
+                              <span>{op.termination_reason}</span>
+                            </div>
+                          )}
                           
                           {/* Exibir dados de entrada/saída em grade melhorada */}
                           <div className="text-xs text-gray-300 grid grid-cols-2 gap-x-4 gap-y-1 mb-1 bg-[#1d2a45] p-2 rounded">
