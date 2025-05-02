@@ -4645,10 +4645,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
               
               // Obter valores de configuração da estratégia ativa
               const strategyConfig = this.settings || {};
-              const entryValue = strategyConfig.entryValue || 1;
-              const martingaleFactor = strategyConfig.martingaleFactor || 2;
+              // Garantir que entryValue seja um número
+              const entryValue = typeof strategyConfig.entryValue === 'number' ? strategyConfig.entryValue : 1;
+              const martingaleFactor = typeof strategyConfig.martingaleFactor === 'number' ? strategyConfig.martingaleFactor : 2;
               
-              const calculatedMartingale = Math.round(entryValue * martingaleFactor * 100) / 100;
+              // Garantir explicitamente a conversão para número
+              const entryValueNum = Number(entryValue);
+              const martingaleFactorNum = Number(martingaleFactor);
+              const calculatedMartingale = Math.round(entryValueNum * martingaleFactorNum * 100) / 100;
               finalAmount = calculatedMartingale;
               console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Martingale recalculado: ${entryValue} × ${martingaleFactor} = ${finalAmount}`);
               
@@ -4683,10 +4687,14 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             
             // Obter valores de configuração da estratégia ativa
             const strategyConfig = this.settings || {};
-            const entryValue = strategyConfig.entryValue || 1;
-            const martingaleFactor = strategyConfig.martingaleFactor || 2;
+            // Garantir que entryValue seja um número
+            const entryValue = typeof strategyConfig.entryValue === 'number' ? strategyConfig.entryValue : 1;
+            const martingaleFactor = typeof strategyConfig.martingaleFactor === 'number' ? strategyConfig.martingaleFactor : 2;
             
-            const calculatedMartingale = Math.round(entryValue * martingaleFactor * 100) / 100;
+            // Garantir explicitamente a conversão para número
+            const entryValueNum = Number(entryValue);
+            const martingaleFactorNum = Number(martingaleFactor);
+            const calculatedMartingale = Math.round(entryValueNum * martingaleFactorNum * 100) / 100;
             finalAmount = calculatedMartingale;
             console.log(`[OAUTH_DIRECT] 🚨 LOSS VIRTUAL: Martingale calculado: ${entryValue} × ${martingaleFactor} = ${finalAmount}`);
             
