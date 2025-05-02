@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue 
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { oauthDirectService } from "@/services/oauthDirectService";
 import { TradingSettings } from "@/services/oauthDirectService.interface";
@@ -2165,49 +2157,6 @@ export function BotController({
           onChange={handleStrategyConfigChange}
           className="mt-4"
         />
-        
-        {/* Seletor de nível de risco */}
-        <div className="p-3 bg-[#0e1a2e] rounded-md border border-[#2a3756] mt-4">
-          <div className="mb-2">
-            <Label className="text-sm text-white font-medium">
-              {t("bot.riskLevel", "Nível de Risco")}
-            </Label>
-          </div>
-          <Select 
-            value={selectedRiskLevel}
-            onValueChange={(value) => setSelectedRiskLevel(value as 'low' | 'medium' | 'high')}
-          >
-            <SelectTrigger className="w-full bg-[#13203a] border border-[#2a3756]">
-              <SelectValue placeholder={t("bot.selectRiskLevel", "Selecione o nível de risco")} />
-            </SelectTrigger>
-            <SelectContent className="bg-[#13203a] border border-[#2a3756]">
-              <SelectItem value="low">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                  {t("bot.riskLow", "Baixo")} 
-                  <span className="text-xs text-gray-400 ml-2">-30%</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="medium">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
-                  {t("bot.riskMedium", "Médio")}
-                  <span className="text-xs text-gray-400 ml-2">Normal</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="high">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                  {t("bot.riskHigh", "Alto")}
-                  <span className="text-xs text-gray-400 ml-2">+30%</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-gray-400 mt-1">
-            {t("bot.riskDescription", "Ajusta o valor das entradas de acordo com o nível de risco escolhido.")}
-          </p>
-        </div>
 
         {/* Botões de controle com design aprimorado */}
         <div className="flex space-x-2 mt-4">

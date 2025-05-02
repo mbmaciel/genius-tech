@@ -2672,33 +2672,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
 
   /**
-   /**
-   * Aplica o modificador de risco ao valor de entrada com base no nível de risco configurado
-   * @param amount Valor base a ser modificado
-   * @returns Valor ajustado com base no nível de risco
-   */
-  private applyRiskModifier(amount: number): number {
-    // Obter o nível de risco atual (padrão: medium)
-    const riskLevel = this.settings.riskLevel || 'medium';
-    
-    // Definir os modificadores para cada nível de risco
-    // - low: reduz o valor para 70% (mais conservador, -30%)
-    // - medium: mantém o valor normal (100%)
-    // - high: aumenta o valor para 130% (mais agressivo, +30%)
-    const riskModifiers: Record<string, number> = {
-      'low': 0.7,      // Reduz o valor para 70% do original (-30%)
-      'medium': 1.0,   // Mantém o valor original
-      'high': 1.3      // Aumenta o valor para 130% do original (+30%)
-    };
-    
-    // Aplicar o modificador adequado
-    const modifier = riskModifiers[riskLevel as keyof typeof riskModifiers];
-    const adjustedAmount = amount * modifier;
-    
-    console.log(`[OAUTH_DIRECT] 🛡️ Ajustando valor com nível de risco ${riskLevel}: ${amount} x ${modifier} = ${adjustedAmount}`);
-    
-    return adjustedAmount;
-  }
+ 
 
    /**
    * Calcula o próximo valor de entrada com base no resultado anterior
@@ -2959,19 +2933,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
 
         // Se não encontrou no input, usar o valor inicial conforme XML
-        // Aplicar modificador de risco ao valor inicial
-        const valorAjustado = this.applyRiskModifier(configuracoes.valorInicial);
         console.log(
-          `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial} ajustado para ${valorAjustado} (nível de risco: ${this.settings.riskLevel})`,
+          `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial}`,
         );
-        return valorAjustado;
+        return configuracoes.valorInicial;
       } else {
-        // Se resetOnWin estiver desativado (não padrão), manter valor atual com ajuste de risco
-        const valorAjustado = this.applyRiskModifier(buyPrice);
+        // Se resetOnWin estiver desativado (não padrão), manter valor atual
         console.log(
-          `[OAUTH_DIRECT] ⚠️ resetOnWin desativado, mantendo valor atual ${buyPrice} ajustado para ${valorAjustado} (nível de risco: ${this.settings.riskLevel})`,
+          `[OAUTH_DIRECT] ⚠️ resetOnWin desativado, mantendo valor atual ${buyPrice}`,
         );
-        return valorAjustado;
+        return buyPrice;
       }
       console.log(
         `[OAUTH_DIRECT] ⚠️ Valor do input não encontrado, usando configurações: ${configuracoes.valorInicial}`,
@@ -4563,19 +4534,11 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // 🚨🚨🚨 FIX EMERGENCIAL 22/04/2025 - ISSUE CRÍTICO: ROBÔ NÃO EXECUTA OPERAÇÕES 🚨🚨🚨
     // ATUALIZAÇÃO (03/05/2025): Implementando ajuste de nível de risco
 
-    // Aplicar o modificador de risco ao valor da operação
+    // Usar o valor da operação diretamente
     let adjustedAmount = amount;
     
-    // Só aplicar o modificador se o valor for um número válido e se não for um valor de martingale
-    // (os valores de martingale já têm o modificador de risco aplicado em calculateNextAmount)
+    // Verificar se é um valor de martingale
     const isMartingaleValue = localStorage.getItem('last_martingale_calculated_value') === String(amount);
-    
-    if (amount !== undefined && !isMartingaleValue) {
-      adjustedAmount = this.applyRiskModifier(amount);
-      console.log(
-        `[OAUTH_DIRECT] 🛡️ Valor ajustado pelo nível de risco (${this.settings.riskLevel}): ${amount} → ${adjustedAmount}`
-      );
-    }
 
     // VERIFICAÇÃO CRÍTICA: Logar sempre que uma operação for solicitada
     console.log(
@@ -4841,13 +4804,10 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // Definir o amount para o valor final após aplicar as prioridades
       adjustedAmount = finalAmount;
       
-      // Aplicar o modificador de risco se ainda não tiver sido aplicado (por exemplo, em valores martingale)
-      if (!isMartingaleValue) {
-        adjustedAmount = this.applyRiskModifier(finalAmount);
-        console.log(
-          `[OAUTH_DIRECT] 🛡️ Valor final ajustado pelo nível de risco (${this.settings.riskLevel}): ${finalAmount} → ${adjustedAmount}`
-        );
-      }
+      // Usar o valor sem aplicar modificador de risco
+      console.log(
+        `[OAUTH_DIRECT] 🛡️ Usando valor final: ${adjustedAmount}`
+      );
 
       // Usar o tipo de contrato definido exatamente pelo XML da estratégia através do settings
       // Esta configuração vem do resultado da análise da estratégia via xmlStrategyParser
