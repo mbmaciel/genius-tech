@@ -154,7 +154,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
     // NOVA IMPLEMENTAÇÃO: Suporte para lossVirtual e resetOnWin conforme XML
     lossVirtualEnabled: true, // Habilitar lossVirtual conforme XML (linhas 72-97)
     resetOnWin: true, // Resetar para valor inicial após vitória conforme XML (linhas 71-77)
-    barrier: "1" // Barreira para contratos DIGITOVER/DIGITUNDER
+    barrier: "1", // Barreira para contratos DIGITOVER/DIGITUNDER
+    riskLevel: 'medium' // Nível de risco padrão: médio
   };
 
   // Estatísticas de performance
