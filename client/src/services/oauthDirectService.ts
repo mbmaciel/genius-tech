@@ -2672,8 +2672,38 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   }
 
   /**
+   /**
+   * Aplica o modificador de risco ao valor de entrada com base no nível de risco configurado
+   * @param amount Valor base a ser modificado
+   * @returns Valor ajustado com base no nível de risco
+   */
+  private applyRiskModifier(amount: number): number {
+    // Obter o nível de risco atual (padrão: medium)
+    const riskLevel = this.settings.riskLevel || 'medium';
+    
+    // Definir os modificadores para cada nível de risco
+    // - low: reduz o valor para 50% (mais conservador)
+    // - medium: mantém o valor normal (100%)
+    // - high: aumenta o valor para 150% (mais agressivo)
+    const riskModifiers: Record<string, number> = {
+      'low': 0.5,      // Reduz o valor para 50% do original
+      'medium': 1.0,   // Mantém o valor original
+      'high': 1.5      // Aumenta o valor para 150% do original
+    };
+    
+    // Aplicar o modificador adequado
+    const modifier = riskModifiers[riskLevel as keyof typeof riskModifiers];
+    const adjustedAmount = amount * modifier;
+    
+    console.log(`[OAUTH_DIRECT] 🛡️ Ajustando valor com nível de risco ${riskLevel}: ${amount} x ${modifier} = ${adjustedAmount}`);
+    
+    return adjustedAmount;
+  }
+
+   /**
    * Calcula o próximo valor de entrada com base no resultado anterior
    * VERSÃO CORRIGIDA: Considera regra de martingale após X perdas consecutivas
+   * ATUALIZAÇÃO (03/05/2025): Implementa ajuste de nível de risco
    */
   private calculateNextAmount(isWin: boolean, lastContract: any): number {
     // 🚨🚨🚨 IMPLEMENTAÇÃO DEFINITIVA CORRIGIDA - 22/04/2025 🚨🚨🚨
@@ -2929,15 +2959,19 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
 
         // Se não encontrou no input, usar o valor inicial conforme XML
+        // Aplicar modificador de risco ao valor inicial
+        const valorAjustado = this.applyRiskModifier(configuracoes.valorInicial);
         console.log(
-          `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial} (conforme XML)`,
+          `[OAUTH_DIRECT] ✅ Resultado: Vitória, voltando para valor inicial ${configuracoes.valorInicial} ajustado para ${valorAjustado} (nível de risco: ${this.settings.riskLevel})`,
         );
+        return valorAjustado;
       } else {
-        // Se resetOnWin estiver desativado (não padrão), manter valor atual
+        // Se resetOnWin estiver desativado (não padrão), manter valor atual com ajuste de risco
+        const valorAjustado = this.applyRiskModifier(buyPrice);
         console.log(
-          `[OAUTH_DIRECT] ⚠️ resetOnWin desativado, mantendo valor atual ${buyPrice} após vitória`,
+          `[OAUTH_DIRECT] ⚠️ resetOnWin desativado, mantendo valor atual ${buyPrice} ajustado para ${valorAjustado} (nível de risco: ${this.settings.riskLevel})`,
         );
-        return buyPrice;
+        return valorAjustado;
       }
       console.log(
         `[OAUTH_DIRECT] ⚠️ Valor do input não encontrado, usando configurações: ${configuracoes.valorInicial}`,
