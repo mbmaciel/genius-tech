@@ -4810,9 +4810,12 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
       // Se for uma estratégia XML conhecida, validar tipo de contrato
       if (this.activeStrategy) {
-        // Caminhos conhecidos das estratégias IRON OVER e IRON UNDER
+        // Caminhos conhecidos das estratégias IRON/CONTROL OVER e IRON/CONTROL UNDER
         const ironOverStrategies = ["iron over", "ironover", "iron_over"];
         const ironUnderStrategies = ["iron under", "ironunder", "iron_under"];
+        // Adicionar estratégias Control Over e Control Under
+        const controlOverStrategies = ["control over", "manualover", "manual_over", "control_over"];
+        const controlUnderStrategies = ["control under", "manualunder", "manual_under", "control_under"];
 
         // Verificar e logar o tipo de contrato para máxima visibilidade
         if (
@@ -4859,6 +4862,52 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
             );
             console.log(
               `[OAUTH_DIRECT] 🔴 Isto pode indicar um problema na leitura do XML ou configuração`,
+            );
+          }
+        } else if (
+          controlOverStrategies.some((s) =>
+            this.activeStrategy.toLowerCase().includes(s),
+          )
+        ) {
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Estratégia ${this.activeStrategy} é do tipo CONTROL OVER`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Tipo de contrato definido: ${contractType}`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Tipo esperado para CONTROL OVER: DIGITOVER`,
+          );
+
+          if (contractType !== "DIGITOVER") {
+            console.log(
+              `[OAUTH_DIRECT] 🔴 ATENÇÃO: Estratégia CONTROL OVER com tipo inconsistente: ${contractType}`,
+            );
+            console.log(
+              `[OAUTH_DIRECT] 🔴 Isto pode indicar um problema na configuração`,
+            );
+          }
+        } else if (
+          controlUnderStrategies.some((s) =>
+            this.activeStrategy.toLowerCase().includes(s),
+          )
+        ) {
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Estratégia ${this.activeStrategy} é do tipo CONTROL UNDER`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Tipo de contrato definido: ${contractType}`,
+          );
+          console.log(
+            `[OAUTH_DIRECT] ⚙️ Tipo esperado para CONTROL UNDER: DIGITUNDER`,
+          );
+
+          if (contractType !== "DIGITUNDER") {
+            console.log(
+              `[OAUTH_DIRECT] 🔴 ATENÇÃO: Estratégia CONTROL UNDER com tipo inconsistente: ${contractType}`,
+            );
+            console.log(
+              `[OAUTH_DIRECT] 🔴 Isto pode indicar um problema na configuração`,
             );
           }
         }
@@ -7368,10 +7417,24 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
         }
       }
 
-      // Adicionar nova operação ao início do histórico
+      // Verificar e garantir que a estratégia está corretamente definida
+      let strategyName = operation.strategy;
+      const activeStrategy = this.activeStrategy ? this.activeStrategy.toLowerCase() : '';
+      
+      // Verificar se é Control Under/Over que pode estar com identificação incorreta
+      if (activeStrategy.includes('manualunder') || activeStrategy.includes('control_under') || activeStrategy.includes('control under')) {
+        console.log(`[OAUTH_DIRECT] ✓ Corrigindo registro de estratégia: detectado Control Under`);
+        strategyName = 'Control Under'; // Forçar nome correto
+      } else if (activeStrategy.includes('manualover') || activeStrategy.includes('control_over') || activeStrategy.includes('control over')) {
+        console.log(`[OAUTH_DIRECT] ✓ Corrigindo registro de estratégia: detectado Control Over`);
+        strategyName = 'Control Over'; // Forçar nome correto
+      }
+      
+      // Adicionar nova operação ao início do histórico com informações corrigidas
       history.unshift({
         ...operation,
         saved_at: Date.now(),
+        strategy: strategyName || operation.strategy, // Usar a estratégia corrigida ou a original
       });
 
       // Limitar o tamanho do histórico para evitar exceder o armazenamento local (manter últimas 100 operações)
