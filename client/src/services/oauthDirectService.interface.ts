@@ -64,9 +64,6 @@ export interface TradingSettings {
   // Novas configurações para as regras específicas de Loss Virtual
   lossVirtualConsecutiveDigits?: number; // Número mínimo de ocorrências consecutivas para ativar Loss Virtual (para ProfitPro e MaxPro)
   martingaleAfterXLosses?: number;      // Aplicar martingale após X perdas consecutivas
-  
-  // Gerenciamento de nível de risco
-  riskLevel?: 'low' | 'medium' | 'high'; // Nível de risco: baixo, médio ou alto
 }
 
 export interface OAuthDirectServiceInterface {

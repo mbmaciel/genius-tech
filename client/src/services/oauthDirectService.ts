@@ -4766,10 +4766,16 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       // PRIORIDADE 4: Se ainda não tiver valor, usar entryValue das configurações
       if (
         (!finalAmount || finalAmount <= 0) &&
-        this.settings.entryValue &&
-        this.settings.entryValue > 0
+        this.settings.entryValue
       ) {
-        finalAmount = this.settings.entryValue;
+        // Converter para número para garantir tipo correto
+        const entryValueAsNumber = typeof this.settings.entryValue === 'string' 
+          ? parseFloat(this.settings.entryValue) 
+          : this.settings.entryValue;
+          
+        if (entryValueAsNumber > 0) {
+          finalAmount = entryValueAsNumber;
+        }
         console.log(
           `[OAUTH_DIRECT] ✅ Usando valor ${finalAmount} das configurações`,
         );
