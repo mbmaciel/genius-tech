@@ -1248,8 +1248,7 @@ export function BotController({
                 );
                 oauthDirectService.setSettings({
                   contractType: contractType,
-                  prediction: prediction,
-                  riskLevel: selectedRiskLevel, // Adicionar nível de risco selecionado
+                  prediction: prediction
                 });
 
                 // Execute buy operation with EXACT entry value from user config
@@ -1830,8 +1829,7 @@ export function BotController({
         lossLimit: strategyConfig.limitePerda,
         martingaleFactor: parseFloat(strategyConfig.martingale.toString()),
         contractType,
-        prediction,
-        riskLevel: selectedRiskLevel, // Adicionar nível de risco selecionado
+        prediction
       });
 
       // Definir estratégia ativa
