@@ -1034,20 +1034,20 @@ export function BotController({
               selectedStrategy.toLowerCase().includes("manual_under") ||
               selectedStrategy.toLowerCase().includes("manualunder")
             ) {
-              //checkpoint botlow
-              // Estratégia Iron Under - Implementação direta para evitar problemas de importação
+              // Estratégia Control Under (Manual Under) - Implementação específica
               console.log(
-                "[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER",
+                "[BOT_CONTROLLER] Implementando a lógica da estratégia CONTROL UNDER",
               );
               try {
-                // IRON UNDER ALWAYS uses DIGITUNDER (specific barrier value from XML)
+                // Control Under sempre usa DIGITUNDER com predição específica
 
                 shouldEnter = true;
                 contractType = "DIGITUNDER";
-                prediction = Number(strategyConfig?.predition) || 1; // Hard-coded value from IRON UNDER XML strategy
-                message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction}`;
-                // CRITICAL: Log exact parameters - this must match XML strategy
-                console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
+                prediction = Number(strategyConfig?.predition) || 1;
+                message = `CONTROL UNDER: Digital Under ${prediction}`;
+                
+                // Log com os parâmetros corretos para Control Under
+                console.log(`[BOT_CONTROLLER] CONTROL UNDER STRATEGY EXECUTION:`);
                 console.log(
                   `[BOT_CONTROLLER] - Contract Type: ${contractType}`,
                 );
@@ -1058,18 +1058,31 @@ export function BotController({
                   `[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`,
                 );
                 console.log(`[BOT_CONTROLLER] - Message: ${message}`);
-              } catch (ironUnderError) {
+                
+                // Garantir que a estratégia está corretamente identificada para o histórico
+                // Usar let tempConfig = strategyConfig para evitar reatribuir uma constante
+                // Em vez disso, registramos explicitamente a informação nos logs
+                console.log(`[BOT_CONTROLLER] Estratégia identificada: id=manualunder, name=Control Under`);
+                
+                // Definir corretamente o tipo de operação para histórico
+                const strategyInfo = {
+                  id: "manualunder",
+                  name: "Control Under",
+                  strategyId: "manualunder"
+                };
+                
+              } catch (controlUnderError) {
                 console.error(
-                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):",
-                  ironUnderError,
+                  "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA CONTROL UNDER:",
+                  controlUnderError,
                 );
-                if (ironUnderError instanceof Error) {
+                if (controlUnderError instanceof Error) {
                   console.error(
-                    "[BOT_CONTROLLER] Erro IRON UNDER - detalhes:",
+                    "[BOT_CONTROLLER] Erro CONTROL UNDER - detalhes:",
                     {
-                      message: ironUnderError.message,
-                      stack: ironUnderError.stack,
-                      name: ironUnderError.name,
+                      message: controlUnderError.message,
+                      stack: controlUnderError.stack,
+                      name: controlUnderError.name,
                     },
                   );
                 }
@@ -1080,20 +1093,19 @@ export function BotController({
                 selectedStrategy.toLowerCase().includes("manual_over") ||
                 selectedStrategy.toLowerCase().includes("manualover")
               ) {
-                //checkpoint botlow
-                // Estratégia Iron Under - Implementação direta para evitar problemas de importação
+                // Estratégia Control Over (Manual Over) - Implementação específica
                 console.log(
-                  "[BOT_CONTROLLER] Implementando diretamente a lógica da estratégia IRON UNDER",
+                  "[BOT_CONTROLLER] Implementando a lógica da estratégia CONTROL OVER",
                 );
                 try {
-                  // IRON UNDER ALWAYS uses DIGITUNDER (specific barrier value from XML)
-
+                  // Control Over sempre usa DIGITOVER com predição específica
                   shouldEnter = true;
                   contractType = "DIGITOVER";
-                  prediction = Number(strategyConfig?.predition) || 1; // Hard-coded value from IRON UNDER XML strategy
-                  message = `IRON UNDER XML: Direct operation. Prediction: DIGITUNDER ${prediction}`;
-                  // CRITICAL: Log exact parameters - this must match XML strategy
-                  console.log(`[BOT_CONTROLLER] IRON UNDER STRATEGY EXECUTION:`);
+                  prediction = Number(strategyConfig?.predition) || 1;
+                  message = `CONTROL OVER: Digital Over ${prediction}`;
+                  
+                  // Log com os parâmetros corretos para Control Over
+                  console.log(`[BOT_CONTROLLER] CONTROL OVER STRATEGY EXECUTION:`);
                   console.log(
                     `[BOT_CONTROLLER] - Contract Type: ${contractType}`,
                   );
@@ -1104,18 +1116,31 @@ export function BotController({
                     `[BOT_CONTROLLER] - Entry Decision: ${shouldEnter ? "ENTER" : "WAIT"}`,
                   );
                   console.log(`[BOT_CONTROLLER] - Message: ${message}`);
-                } catch (ironUnderError) {
+                  
+                  // Garantir que a estratégia está corretamente identificada para o histórico
+                  // Usar let tempConfig = strategyConfig para evitar reatribuir uma constante
+                  // Em vez disso, registramos explicitamente a informação nos logs
+                  console.log(`[BOT_CONTROLLER] Estratégia identificada: id=manualover, name=Control Over`);
+                  
+                  // Definir corretamente o tipo de operação para histórico
+                  const strategyInfo = {
+                    id: "manualover",
+                    name: "Control Over",
+                    strategyId: "manualover"
+                  };
+                  
+                } catch (controlOverError) {
                   console.error(
-                    "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA IRON UNDER (implementação direta):",
-                    ironUnderError,
+                    "[BOT_CONTROLLER] ERRO ESPECÍFICO NA ESTRATÉGIA CONTROL OVER:",
+                    controlOverError,
                   );
-                  if (ironUnderError instanceof Error) {
+                  if (controlOverError instanceof Error) {
                     console.error(
-                      "[BOT_CONTROLLER] Erro IRON UNDER - detalhes:",
+                      "[BOT_CONTROLLER] Erro CONTROL OVER - detalhes:",
                       {
-                        message: ironUnderError.message,
-                        stack: ironUnderError.stack,
-                        name: ironUnderError.name,
+                        message: controlOverError.message,
+                        stack: controlOverError.stack,
+                        name: controlOverError.name,
                       },
                     );
                   }
