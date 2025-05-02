@@ -203,18 +203,32 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
    */
   private clearLocalHistory(): void {
     try {
+      console.log("[OAUTH_DIRECT] Iniciando limpeza completa do histórico no localStorage");
+      
+      // Remover ambas as versões da chave de histórico (com e sem 's')
       localStorage.removeItem('deriv_operation_history');
+      localStorage.removeItem('deriv_operations_history');
       localStorage.removeItem('deriv_session_stats');
+      localStorage.removeItem('operations_cache');
+      localStorage.removeItem('operation_history_cache');
+      
       // Limpar históricos por estratégia
-      const strategyKeysToRemove = [];
+      const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('deriv_history_')) {
-          strategyKeysToRemove.push(key);
+        if (key && (
+          key.startsWith('deriv_history_') || 
+          key.includes('operation') ||
+          key.includes('history')
+        )) {
+          keysToRemove.push(key);
+          console.log(`[OAUTH_DIRECT] Marcando para remoção: ${key}`);
         }
       }
       
-      strategyKeysToRemove.forEach(key => {
+      // Remover todas as chaves encontradas
+      keysToRemove.forEach(key => {
+        console.log(`[OAUTH_DIRECT] Removendo chave do localStorage: ${key}`);
         localStorage.removeItem(key);
       });
       
