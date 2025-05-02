@@ -1439,6 +1439,8 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
                 barrier: contract.barrier,
                 payout: contract.payout,
                 timestamp: Date.now(),
+                // Adicionar campo para motivo de encerramento da operação
+                termination_reason: contract.passthrough?.termination_reason || "",
               };
 
               // Salvar histórico localmente para persistência
@@ -3332,11 +3334,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       );
 
       // Notificar interface sobre o atingimento da meta
+      const terminationReason = `Meta de lucro atingida (${this.sessionStats.netProfit.toFixed(2)}/${targetValue.toFixed(2)})`;
+      
       this.notifyListeners({
         type: "bot_target_reached",
         message: targetMessage,
         profit: this.sessionStats.netProfit,
+        termination_reason: terminationReason
       });
+      
+      // Registrar motivo de encerramento para próximas operações
+      if (this.currentContractId) {
+        // Atualizar o passthrough do contrato atual para registrar motivo de encerramento
+        this.addTerminationReasonToContract(this.currentContractId, terminationReason);
+      }
 
       // Parar o bot com a razão correta
       console.log(
@@ -3424,11 +3435,20 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
       );
 
       // Notificar interface sobre o limite atingido
+      const terminationReason = `Limite de perda atingido (${this.sessionStats.totalLoss.toFixed(2)}/${lossLimitValue.toFixed(2)})`;
+      
       this.notifyListeners({
         type: "bot_limit_reached",
         message: limitMessage,
         loss: this.sessionStats.totalLoss,
+        termination_reason: terminationReason
       });
+      
+      // Registrar motivo de encerramento para próximas operações
+      if (this.currentContractId) {
+        // Atualizar o passthrough do contrato atual para registrar motivo de encerramento
+        this.addTerminationReasonToContract(this.currentContractId, terminationReason);
+      }
 
       // Parar o bot com a razão correta
       console.log(
