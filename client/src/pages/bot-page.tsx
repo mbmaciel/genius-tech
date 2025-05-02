@@ -3194,9 +3194,11 @@ export function BotPage() {
                   )}
                 </div>
 
-                <OperationHistoryCard
+                {/* ★★★ CORREÇÃO: Substituindo OperationHistoryCard pelo RelatorioOperacoes que é o componente correto ★★★ */}
+                <RelatorioOperacoes
                   operations={operationHistory}
-                  stats={stats}
+                  selectedStrategy={selectedStrategy}
+                  useDirectService={true}
                 />
               </div>
 
