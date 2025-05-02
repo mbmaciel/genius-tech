@@ -157,138 +157,98 @@ export function OperationHistoryCard({ operations, stats }: OperationHistoryCard
       </CardHeader>
       
       <CardContent className="px-4 pb-4">
-        <Tabs defaultValue="regular" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-3 bg-[#1a2b4c]">
-            <TabsTrigger value="regular">Todas Operações</TabsTrigger>
-            <TabsTrigger value="intermediate">Análises Advance</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="regular" className="mt-0">
-            <div className="overflow-y-auto max-h-[240px] scrollbar-thin">
-              {regularOperations.length > 0 ? (
-                <div className="space-y-2">
-                  {regularOperations.map((op) => {
-                    // Verificar se a operação foi vencedora ou perdedora
-                    const isWin = op.is_win || op.profit > 0;
-                    
-                    // Obter valores para exibir
-                    const entryValue = op.entry_value || op.entryValue || 0;
-                    const profit = op.profit || 0;
-                    
-                    return (
-                      <div 
-                        key={op.id} 
-                        className={`p-2 rounded-md border flex justify-between items-center ${
-                          isWin ? 'bg-[#1a2d2a] border-[#2a5a4a]' : 'bg-[#2d1a1a] border-[#5a2a2a]'
-                        }`}
-                      >
-                        <div className="flex flex-col">
-                          <div className="flex items-center text-white text-sm">
-                            <span className="font-medium">
-                              {op.contract_type || op.symbol || 'Contrato'}
-                            </span>
-                            <span className="mx-1 text-gray-400">|</span>
-                            <span className="text-gray-300 text-xs">
-                              {(() => {
-                                // Verificar se é uma das estratégias renomeadas e ajustar exibição
-                                const strategyName = op.strategy || 'Padrão';
-                                if (strategyName.toLowerCase().includes('manualunder') || 
-                                    strategyName.toLowerCase().includes('control_under')) {
-                                  return 'Control Under';
-                                } else if (strategyName.toLowerCase().includes('manualover') || 
-                                         strategyName.toLowerCase().includes('control_over')) {
-                                  return 'Control Over';
-                                }
-                                return strategyName;
-                              })()}
-                            </span>
-                          </div>
-                          
-                          {/* Exibir o ID do contrato */}
-                          <div className="flex items-center text-xs text-gray-400 mt-1">
-                            <span className="text-xs text-blue-400">
-                              ID: {op.contract_id || op.id || 'N/A'}
-                            </span>
-                          </div>
-                          
-                          {/* Exibir o motivo de encerramento (se existir) com estilo destacado */}
-                          {op.termination_reason && (
-                            <div className="flex items-center text-xs mt-1">
-                              <span className="px-1.5 py-0.5 rounded-sm bg-amber-900/40 text-amber-300 text-xs font-medium border border-amber-700/50">
-                                ⓘ {op.termination_reason}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* Hora da operação */}
-                          <div className="flex items-center text-xs text-gray-400 mt-1">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {op.time ? formatTime(op.time) : 
-                             op.timestamp ? formatTime(op.timestamp) : 
-                             'Agora'}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center">
-                          <div className="flex flex-col items-end mr-3">
-                            <span className="text-xs text-gray-400">Entrada</span>
-                            <span className="text-sm text-white">{formatCurrency(entryValue)}</span>
-                          </div>
-                          
-                          <div className={`flex items-center ${isWin ? 'text-green-500' : 'text-red-500'}`}>
-                            {isWin ? (
-                              <ArrowUpIcon className="w-4 h-4 mr-1" />
-                            ) : (
-                              <ArrowDownIcon className="w-4 h-4 mr-1" />
-                            )}
-                            <span className="font-medium">
-                              {formatCurrency(Math.abs(profit))}
-                            </span>
-                          </div>
-                        </div>
+        <div className="overflow-y-auto max-h-[240px] scrollbar-thin">
+          {regularOperations.length > 0 ? (
+            <div className="space-y-2">
+              {regularOperations.map((op) => {
+                // Verificar se a operação foi vencedora ou perdedora
+                const isWin = op.is_win || op.profit > 0;
+                
+                // Obter valores para exibir
+                const entryValue = op.entry_value || op.entryValue || 0;
+                const profit = op.profit || 0;
+                
+                return (
+                  <div 
+                    key={op.id} 
+                    className={`p-2 rounded-md border flex justify-between items-center ${
+                      isWin ? 'bg-[#1a2d2a] border-[#2a5a4a]' : 'bg-[#2d1a1a] border-[#5a2a2a]'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex items-center text-white text-sm">
+                        <span className="font-medium">
+                          {op.contract_type || op.symbol || 'Contrato'}
+                        </span>
+                        <span className="mx-1 text-gray-400">|</span>
+                        <span className="text-gray-300 text-xs">
+                          {(() => {
+                            // Verificar se é uma das estratégias renomeadas e ajustar exibição
+                            const strategyName = op.strategy || 'Padrão';
+                            if (strategyName.toLowerCase().includes('manualunder') || 
+                                strategyName.toLowerCase().includes('control_under')) {
+                              return 'Control Under';
+                            } else if (strategyName.toLowerCase().includes('manualover') || 
+                                     strategyName.toLowerCase().includes('control_over')) {
+                              return 'Control Over';
+                            }
+                            return strategyName;
+                          })()}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-gray-400">
-                  Nenhuma operação registrada. Inicie o robô para começar a operar.
-                </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="intermediate" className="mt-0">
-            <div className="overflow-y-auto max-h-[240px] scrollbar-thin">
-              {intermediateOperations.length > 0 ? (
-                <div className="space-y-2">
-                  {intermediateOperations.map((op) => (
-                    <div 
-                      key={op.id} 
-                      className="p-2 rounded-md border border-[#2a3756] bg-[#1a2b4c] flex justify-between items-center"
-                    >
-                      <div className="flex flex-col">
-                        <div className="text-white text-sm">
-                          {op.notification?.message || 'Análise de mercado'}
+                      
+                      {/* Exibir o ID do contrato */}
+                      <div className="flex items-center text-xs text-gray-400 mt-1">
+                        <span className="text-xs text-blue-400">
+                          ID: {op.contract_id || op.id || 'N/A'}
+                        </span>
+                      </div>
+                      
+                      {/* Exibir o motivo de encerramento (se existir) com estilo destacado */}
+                      {op.termination_reason && (
+                        <div className="flex items-center text-xs mt-1">
+                          <span className="px-1.5 py-0.5 rounded-sm bg-amber-900/40 text-amber-300 text-xs font-medium border border-amber-700/50">
+                            ⓘ {op.termination_reason}
+                          </span>
                         </div>
-                        <div className="flex items-center text-xs text-gray-400 mt-1">
-                          <Clock className="w-3 h-3 mr-1" />
-                          {op.time ? formatTime(op.time) : 
-                           op.timestamp ? formatTime(op.timestamp) : 
-                           'Agora'}
-                        </div>
+                      )}
+                      
+                      {/* Hora da operação */}
+                      <div className="flex items-center text-xs text-gray-400 mt-1">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {op.time ? formatTime(op.time) : 
+                         op.timestamp ? formatTime(op.timestamp) : 
+                         'Agora'}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-gray-400">
-                  Nenhuma análise Advance disponível. Utilize a estratégia Advance para ver análises detalhadas aqui.
-                </div>
-              )}
+                    
+                    <div className="flex items-center">
+                      <div className="flex flex-col items-end mr-3">
+                        <span className="text-xs text-gray-400">Entrada</span>
+                        <span className="text-sm text-white">{formatCurrency(entryValue)}</span>
+                      </div>
+                      
+                      <div className={`flex items-center ${isWin ? 'text-green-500' : 'text-red-500'}`}>
+                        {isWin ? (
+                          <ArrowUpIcon className="w-4 h-4 mr-1" />
+                        ) : (
+                          <ArrowDownIcon className="w-4 h-4 mr-1" />
+                        )}
+                        <span className="font-medium">
+                          {formatCurrency(Math.abs(profit))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </TabsContent>
-        </Tabs>
+          ) : (
+            <div className="text-center py-4 text-gray-400">
+              Nenhuma operação registrada. Inicie o robô para começar a operar.
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
