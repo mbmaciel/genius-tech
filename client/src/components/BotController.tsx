@@ -37,7 +37,6 @@ interface BotControllerProps {
     totalProfit: number;
   }) => void;
   onTickReceived?: (price: number, lastDigit: number) => void;
-  riskLevel?: 'low' | 'medium' | 'high'; // Novo: nível de risco selecionado
 }
 
 // Interface explícita para as estatísticas dos dígitos
@@ -156,8 +155,7 @@ export function BotController({
   selectedStrategy,
   onStatusChange,
   onStatsChange,
-  onTickReceived,
-  riskLevel = 'medium', // Valor padrão: médio
+  onTickReceived
 }: BotControllerProps) {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -173,9 +171,6 @@ export function BotController({
     useState<StrategyConfiguration | null>(null);
   const [currentBotStrategy, setCurrentBotStrategy] =
     useState<BinaryBotStrategy | null>(null);
-  const [selectedRiskLevel, setSelectedRiskLevel] = useState<'low' | 'medium' | 'high'>(
-    riskLevel as 'low' | 'medium' | 'high'
-  );
 
   // Efeito para carregar a estratégia quando o ID mudar
   useEffect(() => {
@@ -1940,8 +1935,7 @@ export function BotController({
                 ? strategyConfig.martingale
                 : 1,
           contractType: contractType,
-          prediction: 5, // Valor padrão que será substituído pela análise da estratégia
-          riskLevel: selectedRiskLevel, // Adicionar nível de risco selecionado
+          prediction: 5 // Valor padrão que será substituído pela análise da estratégia
         });
 
         // Etapa 4: Tentar execução com diferentes métodos (SOLUÇÃO DEFINITIVA)
