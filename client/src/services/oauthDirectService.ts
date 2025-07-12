@@ -302,6 +302,7 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
   private pingInterval: any = null;
   private reconnectTimeout: any = null;
   private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
   private initialized: boolean = false;
 
   constructor() {
@@ -4157,6 +4158,21 @@ class OAuthDirectService implements OAuthDirectServiceInterface {
 
     // Se o serviço estiver em execução, tentar reconectar
     if (this.isRunning) {
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error(
+          `[OAUTH_DIRECT] Número máximo de tentativas de reconexão (${this.maxReconnectAttempts}) atingido`,
+        );
+        this.notifyListeners({
+          type: "error",
+          message:
+            "Não foi possível reconectar ao servidor. Verifique sua conexão ou faça login novamente.",
+        });
+        this.isRunning = false;
+        this.closeConnection();
+        this.reconnectAttempts = 0;
+        return;
+      }
+
       console.log("[OAUTH_DIRECT] Agendando reconexão...");
 
       // Aplicar backoff exponencial
